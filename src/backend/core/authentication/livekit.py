@@ -7,6 +7,8 @@ from django.contrib.auth.models import AnonymousUser
 from livekit.api import TokenVerifier
 from rest_framework import authentication, exceptions
 
+from core.mastrao_identity import is_mastrao_technical_subject
+
 UserModel = get_user_model()
 
 
@@ -37,6 +39,10 @@ class LiveKitTokenAuthentication(authentication.BaseAuthentication):
             user_id = claims.identity
             if not user_id:
                 raise exceptions.AuthenticationFailed("Token missing user identity")
+            if is_mastrao_technical_subject(user_id):
+                raise exceptions.AuthenticationFailed(
+                    "Technical identities cannot authenticate."
+                )
 
             try:
                 user = UserModel.objects.get(sub=user_id)

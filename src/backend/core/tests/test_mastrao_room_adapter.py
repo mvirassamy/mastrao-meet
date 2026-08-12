@@ -3,9 +3,12 @@
 import base64
 import hashlib
 import json
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
-from django.test import override_settings
+from django.db import close_old_connections
+from django.test import Client, override_settings
 from django.urls import reverse
 
 import pytest
@@ -184,7 +187,14 @@ def test_adapter_refuses_altered_binding_for_same_effect(client, adapter_setting
 def test_adapter_refuses_disabled_or_tampered_effect(client, adapter_settings):
     url = reverse("ensure_mastrao_room")
     token = _effect(adapter_settings)
-    tampered = f"{token[:-1]}{'A' if token[-1] != 'A' else 'B'}"
+    protected, payload, encoded_signature = token.split(".")
+    signature = bytearray(
+        base64.urlsafe_b64decode(
+            encoded_signature + "=" * (-len(encoded_signature) % 4)
+        )
+    )
+    signature[0] ^= 1
+    tampered = f"{protected}.{payload}.{_b64(signature)}"
     response = client.post(
         url,
         data=json.dumps({"room_effect": tampered}),
@@ -201,3 +211,35 @@ def test_adapter_refuses_disabled_or_tampered_effect(client, adapter_settings):
         )
     assert disabled.status_code == 404
     assert not MastraoRoomBinding.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_adapter_converges_two_concurrent_effects(adapter_settings):
+    url = reverse("ensure_mastrao_room")
+    token = _effect(adapter_settings)
+    barrier = threading.Barrier(2)
+
+    def post_effect():
+        close_old_connections()
+        try:
+            barrier.wait()
+            return (
+                Client()
+                .post(
+                    url,
+                    data=json.dumps({"room_effect": token}),
+                    content_type="application/json",
+                )
+                .status_code
+            )
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        statuses = list(executor.map(lambda _index: post_effect(), range(2)))
+
+    assert statuses == [200, 200]
+    assert MastraoRoomBinding.objects.count() == 1
+    assert Room.objects.count() == 1
+    assert User.objects.count() == 1
+    assert ResourceAccess.objects.count() == 1

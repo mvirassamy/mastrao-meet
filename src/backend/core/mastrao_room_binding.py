@@ -1,10 +1,9 @@
 """Idempotent Django persistence for a verified Mastrao room effect."""
 
-import hashlib
-
 from django.contrib.auth.hashers import make_password
 from django.db import connection, transaction
 
+from core.mastrao_identity import mastrao_technical_owner_subject
 from core.mastrao_room_contract import RoomEffectRefused, _sha256_canonical
 from core.models import (
     MastraoRoomBinding,
@@ -14,10 +13,6 @@ from core.models import (
     RoomAccessLevel,
     User,
 )
-
-
-def _technical_owner_sub(owner_ref):
-    return f"mastrao_{hashlib.sha256(owner_ref.encode()).hexdigest()}"
 
 
 def _provider_binding_digest(room, owner, access):
@@ -47,7 +42,7 @@ def _validate_existing(binding, effect):
         or binding.room.name != effect["room_ref"]
         or binding.room.slug != effect["room_ref"]
         or binding.room.access_level != RoomAccessLevel.RESTRICTED
-        or binding.owner.sub != _technical_owner_sub(effect["owner_ref"])
+        or binding.owner.sub != mastrao_technical_owner_subject(effect["owner_ref"])
         or not binding.owner.is_device
         or access is None
         or binding.provider_binding_digest
@@ -75,7 +70,7 @@ def ensure_room(effect):
         raise RoomEffectRefused(status=409)
 
     owner, _created = User.objects.get_or_create(
-        sub=_technical_owner_sub(effect["owner_ref"]),
+        sub=mastrao_technical_owner_subject(effect["owner_ref"]),
         defaults={"password": make_password(None), "is_device": True},
     )
     if not owner.is_device:

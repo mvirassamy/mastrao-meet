@@ -293,6 +293,9 @@ jobs:
       - name: Generate a MO file from strings extracted from the project
         run: uv run python manage.py compilemessages
 
+      - name: Check Django migration consistency
+        run: uv run python manage.py makemigrations --check --dry-run
+
       - name: Run tests
         run: uv run pytest -n 2
 
