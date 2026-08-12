@@ -190,6 +190,29 @@ def test_finds_user_by_sub(django_assert_num_queries):
     assert user == db_user
 
 
+def test_refuses_device_user_by_sub(django_assert_num_queries):
+    """OIDC identities can never assume non-interactive device principals."""
+
+    klass = OIDCAuthenticationBackend()
+    db_user = UserFactory(is_device=True, email="device@mail.com")
+
+    with django_assert_num_queries(1):
+        user = klass.get_existing_user(db_user.sub, db_user.email)
+
+    assert user is None
+
+
+def test_refuses_reserved_mastrao_subject_without_database_lookup(
+    django_assert_num_queries,
+):
+    """Federated identities cannot enter the technical owner namespace."""
+
+    klass = OIDCAuthenticationBackend()
+
+    with django_assert_num_queries(0), pytest.raises(SuspiciousOperation):
+        klass.get_existing_user("mastrao_attacker", "attacker@mail.com")
+
+
 def test_finds_user_when_email_fallback_disabled(django_assert_num_queries, settings):
     """Should not return a user when not found by sub, and email fallback is disabled."""
 
