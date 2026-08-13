@@ -111,7 +111,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     ):
         response = client.post(
             reverse("consume_mastrao_host_handoff"),
-            data="host_handoff=ddd.eee.fff",
+            data="host_handoff=first.payload.signature",
             content_type="application/x-www-form-urlencoded",
             HTTP_ORIGIN="https://platform.mastrao.test",
             HTTP_SEC_FETCH_SITE="cross-site",
@@ -171,21 +171,21 @@ def test_host_handoff_refuses_wrong_origin_and_local_replay(client):
     ):
         wrong_origin = client.post(
             url,
-            data="host_handoff=ddd.eee.fff",
+            data="host_handoff=replay.payload.signature",
             content_type="application/x-www-form-urlencoded",
             HTTP_ORIGIN="https://attacker.test",
             HTTP_SEC_FETCH_SITE="cross-site",
         )
         first = client.post(
             url,
-            data="host_handoff=ddd.eee.fff",
+            data="host_handoff=replay.payload.signature",
             content_type="application/x-www-form-urlencoded",
             HTTP_ORIGIN="https://platform.mastrao.test",
             HTTP_SEC_FETCH_SITE="cross-site",
         )
         replay = Client().post(
             url,
-            data="host_handoff=ddd.eee.fff",
+            data="host_handoff=replay.payload.signature",
             content_type="application/x-www-form-urlencoded",
             HTTP_ORIGIN="https://platform.mastrao.test",
             HTTP_SEC_FETCH_SITE="cross-site",
@@ -218,7 +218,7 @@ def test_concurrent_host_handoff_has_one_local_winner():
                 Client()
                 .post(
                     reverse("consume_mastrao_host_handoff"),
-                    data="host_handoff=ddd.eee.fff",
+                    data="host_handoff=concurrent.payload.signature",
                     content_type="application/x-www-form-urlencoded",
                     HTTP_ORIGIN="https://platform.mastrao.test",
                     HTTP_SEC_FETCH_SITE="cross-site",
