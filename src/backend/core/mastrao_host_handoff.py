@@ -26,6 +26,7 @@ from core.mastrao_host_contract import (
     compact_digest,
     sign_redemption,
     verify_host_grant,
+    verify_host_handoff,
 )
 from core.mastrao_host_grant import SESSION_NONCE_KEY, SESSION_PLATFORM_REF_KEY
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
@@ -53,15 +54,16 @@ def _admit_public_attempt(_request, host_handoff):
     if not isinstance(host_handoff, str) or not COMPACT_JWS.fullmatch(host_handoff):
         raise HostHandoffRefused()
     bucket = int(timezone.now().timestamp()) // 60
+    credential = hashlib.sha256(host_handoff.encode("ascii")).hexdigest()
+    key = f"mastrao-host-handoff:{credential}:{bucket}"
+    if _increment_attempt_counter(key) > MAX_HANDOFF_ATTEMPTS_PER_MINUTE:
+        raise HostHandoffRefused()
+    verify_host_handoff(host_handoff)
     global_key = f"mastrao-host-handoff:global:{bucket}"
     if _increment_attempt_counter(global_key) > (
         settings.MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE
     ):
         raise HostHandoffRefused(status=503)
-    credential = hashlib.sha256(host_handoff.encode("ascii")).hexdigest()
-    key = f"mastrao-host-handoff:{credential}:{bucket}"
-    if _increment_attempt_counter(key) > MAX_HANDOFF_ATTEMPTS_PER_MINUTE:
-        raise HostHandoffRefused()
 
 
 def _safe_json_response(response):

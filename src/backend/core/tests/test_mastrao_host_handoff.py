@@ -1,5 +1,7 @@
 """Focused proofs for the browser host handoff and temporary media grant."""
 
+import base64
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -11,10 +13,20 @@ from django.test import Client, override_settings
 from django.urls import reverse
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core import models
 from core.api.permissions import HasMediaHostPrivilegesOnRoom, HasPrivilegesOnRoom
-from core.mastrao_host_contract import HostHandoffRefused, verify_host_grant
+from core.mastrao_host_contract import (
+    HOST_HANDOFF_JOSE_TYPE,
+    HOST_HANDOFF_TYPE,
+    HostHandoffRefused,
+    verify_host_grant,
+)
+from core.mastrao_host_contract import (
+    verify_host_handoff as verify_host_handoff_contract,
+)
 from core.mastrao_host_grant import (
     SESSION_NONCE_KEY,
     SESSION_PLATFORM_REF_KEY,
@@ -22,8 +34,72 @@ from core.mastrao_host_grant import (
 )
 from core.mastrao_host_handoff import _admit_public_attempt, _safe_json_response
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
+from core.mastrao_room_contract import _canonical_json
 
 from meet.settings import scrub_mastrao_handoff_credentials
+
+
+def _b64(value):
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _host_handoff(private_key, suffix):
+    now = int(time.time())
+    payload = {
+        "version": 1,
+        "type": HOST_HANDOFF_TYPE,
+        "issuer": "cabinet-core-local",
+        "audience": "mastrao-meet-local",
+        "purpose": "join_as_host",
+        "handoff_ref": f"handoff_{suffix:016d}",
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": "meeting_0123456789abcdef",
+        "room_ref": "room_0123456789abcdef",
+        "host_ref": "host_0123456789abcdef",
+        "platform_session_ref": "platformsession_0123456789abcdef",
+        "provider_binding_digest": "b" * 64,
+        "issued_at": now,
+        "expires_at": now + 120,
+        "grant_expires_at": now + 3_600,
+        "nonce": f"nonce_{suffix:016d}",
+    }
+    header = {
+        "alg": "EdDSA",
+        "kid": "core-room-key",
+        "typ": HOST_HANDOFF_JOSE_TYPE,
+    }
+    protected = _b64(_canonical_json(header))
+    encoded_payload = _b64(_canonical_json(payload))
+    signature = private_key.sign(f"{protected}.{encoded_payload}".encode("ascii"))
+    return f"{protected}.{encoded_payload}.{_b64(signature)}"
+
+
+@pytest.fixture(name="handoff_signing")
+def fixture_handoff_signing():
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key().public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    )
+    configuration = override_settings(
+        MASTRAO_ROOM_EFFECT_ISSUER="cabinet-core-local",
+        MASTRAO_ROOM_EFFECT_AUDIENCE="mastrao-meet-local",
+        MASTRAO_ROOM_EFFECT_PUBLIC_JWK=json.dumps(
+            {"kty": "OKP", "crv": "Ed25519", "x": _b64(public_key)}
+        ),
+        MASTRAO_ROOM_EFFECT_KEY_ID="core-room-key",
+    )
+    configuration.enable()
+    try:
+        yield private_key
+    finally:
+        configuration.disable()
+
+
+@pytest.fixture(name="local_handoff_verification", autouse=True)
+def fixture_local_handoff_verification():
+    with mock.patch("core.mastrao_host_handoff.verify_host_handoff") as verifier:
+        yield verifier
 
 
 def _room_binding():
@@ -109,16 +185,41 @@ def test_malformed_host_grant_maps_shared_jose_errors_to_host_refusal():
             "LOCATION": "mastrao-host-handoff-global-limit",
         }
     },
+    MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE=1,
+)
+def test_invalid_handoffs_do_not_consume_global_capacity(
+    handoff_signing, local_handoff_verification
+):
+    """Invalid signatures cannot consume legitimate redemption capacity."""
+
+    local_handoff_verification.side_effect = verify_host_handoff_contract
+    for suffix in ("first", "second", "third"):
+        with pytest.raises(HostHandoffRefused):
+            _admit_public_attempt(mock.Mock(), f"{suffix}.payload.signature")
+
+    _admit_public_attempt(mock.Mock(), _host_handoff(handoff_signing, 1))
+
+
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "mastrao-host-handoff-valid-global-limit",
+        }
+    },
     MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE=2,
 )
-def test_host_handoff_global_limit_rejects_distinct_credentials():
-    """Distinct credentials share the public redemption circuit breaker."""
+def test_valid_handoffs_share_global_capacity(
+    handoff_signing, local_handoff_verification
+):
+    """Valid distinct credentials share the redemption-work ceiling."""
 
-    _admit_public_attempt(mock.Mock(), "first.payload.signature")
-    _admit_public_attempt(mock.Mock(), "second.payload.signature")
+    local_handoff_verification.side_effect = verify_host_handoff_contract
+    _admit_public_attempt(mock.Mock(), _host_handoff(handoff_signing, 1))
+    _admit_public_attempt(mock.Mock(), _host_handoff(handoff_signing, 2))
 
     with pytest.raises(HostHandoffRefused) as error:
-        _admit_public_attempt(mock.Mock(), "third.payload.signature")
+        _admit_public_attempt(mock.Mock(), _host_handoff(handoff_signing, 3))
 
     assert error.value.status == 503
 
