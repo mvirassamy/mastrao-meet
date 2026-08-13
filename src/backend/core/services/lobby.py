@@ -11,6 +11,8 @@ from django.conf import settings
 from django.core.cache import cache
 
 from core import models, utils
+from core.mastrao_host_grant import host_media_projection
+from core.mastrao_identity import is_mastrao_host_subject
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,7 @@ class LobbyService:
             or (
                 room.access_level == models.RoomAccessLevel.TRUSTED
                 and user.is_authenticated
+                and not is_mastrao_host_subject(getattr(user, "sub", None))
             )
             or (
                 room.access_level == models.RoomAccessLevel.RESTRICTED
@@ -153,7 +156,8 @@ class LobbyService:
         participant = self._get_participant(room.id, participant_id)
 
         room_id = str(room.id)
-        user_role = room.get_role(request.user)
+        host_role, host_expires_at = host_media_projection(request, room)
+        user_role = room.get_role(request.user) or host_role
 
         if self.can_bypass_lobby(room=room, user=request.user, role=user_role):
             if participant is None:
@@ -166,15 +170,18 @@ class LobbyService:
             else:
                 participant.status = LobbyParticipantStatus.ACCEPTED
 
-            livekit_config = utils.generate_livekit_config(
-                room_id=room_id,
-                user=request.user,
-                username=username,
-                color=participant.color,
-                configuration=room.configuration,
-                participant_id=participant_id,
-                role=user_role,
-            )
+            livekit_arguments = {
+                "room_id": room_id,
+                "user": request.user,
+                "username": username,
+                "color": participant.color,
+                "configuration": room.configuration,
+                "participant_id": participant_id,
+                "role": user_role,
+            }
+            if host_expires_at is not None:
+                livekit_arguments["expires_at"] = host_expires_at
+            livekit_config = utils.generate_livekit_config(**livekit_arguments)
             return participant, livekit_config
 
         livekit_config = None
@@ -187,15 +194,18 @@ class LobbyService:
 
         elif participant.status == LobbyParticipantStatus.ACCEPTED:
             # wrongly named, contains access token to join a room
-            livekit_config = utils.generate_livekit_config(
-                room_id=room_id,
-                user=request.user,
-                username=username,
-                color=participant.color,
-                configuration=room.configuration,
-                participant_id=participant_id,
-                role=user_role,
-            )
+            livekit_arguments = {
+                "room_id": room_id,
+                "user": request.user,
+                "username": username,
+                "color": participant.color,
+                "configuration": room.configuration,
+                "participant_id": participant_id,
+                "role": user_role,
+            }
+            if host_expires_at is not None:
+                livekit_arguments["expires_at"] = host_expires_at
+            livekit_config = utils.generate_livekit_config(**livekit_arguments)
 
         return participant, livekit_config
 

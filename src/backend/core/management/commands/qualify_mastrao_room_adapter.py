@@ -32,7 +32,11 @@ class Command(BaseCommand):
         if not isinstance(room_effects, list) or len(room_effects) != 2:
             raise CommandError("Qualification requires exactly two room effects")
 
-        runner = DiscoverRunner(verbosity=0, interactive=False)
+        runner = DiscoverRunner(
+            verbosity=0,
+            interactive=False,
+            keepdb=os.environ.get("MASTRAO_QUALIFICATION_KEEP_DATABASE") == "1",
+        )
         previous_databases = runner.setup_databases()
         try:
             self._qualify(configuration, room_effects, result_path)

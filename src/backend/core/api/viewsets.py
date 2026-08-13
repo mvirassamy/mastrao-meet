@@ -536,7 +536,7 @@ class RoomViewSet(
         methods=["post"],
         url_path="enter",
         permission_classes=[
-            permissions.HasPrivilegesOnRoom,
+            permissions.HasMediaHostPrivilegesOnRoom,
         ],
     )
     def allow_participant_to_enter(self, request, pk=None):  # pylint: disable=unused-argument
@@ -574,7 +574,7 @@ class RoomViewSet(
         methods=["GET"],
         url_path="waiting-participants",
         permission_classes=[
-            permissions.HasPrivilegesOnRoom,
+            permissions.HasMediaHostPrivilegesOnRoom,
         ],
     )
     def list_waiting_participants(self, request, pk=None):  # pylint: disable=unused-argument
@@ -815,7 +815,7 @@ class RoomViewSet(
         methods=["post"],
         url_path="update-participant",
         url_name="update-participant",
-        permission_classes=[permissions.HasPrivilegesOnRoom],
+        permission_classes=[permissions.HasMediaHostPrivilegesOnRoom],
     )
     def update_participant(self, request, pk=None):  # pylint: disable=unused-argument
         """Update participant attributes, permissions, or metadata."""
@@ -858,7 +858,7 @@ class RoomViewSet(
         methods=["post"],
         url_path="remove-participant",
         url_name="remove-participant",
-        permission_classes=[permissions.HasPrivilegesOnRoom],
+        permission_classes=[permissions.HasMediaHostPrivilegesOnRoom],
     )
     def remove_participant(self, request, pk=None):  # pylint: disable=unused-argument
         """Remove a participant from the room."""

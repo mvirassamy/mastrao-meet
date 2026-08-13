@@ -11,7 +11,7 @@ from lasuite.oidc_login.backends import (
 )
 from rest_framework.authentication import SessionAuthentication
 
-from core.mastrao_identity import is_mastrao_technical_subject
+from core.mastrao_identity import is_mastrao_reserved_subject
 from core.models import User
 from core.services.marketing import (
     ContactCreationError,
@@ -85,7 +85,7 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
 
     def get_existing_user(self, sub, email):
         """Fetch existing user by sub or email."""
-        if is_mastrao_technical_subject(sub):
+        if is_mastrao_reserved_subject(sub):
             raise SuspiciousOperation("Reserved non-interactive subject namespace.")
         try:
             return User.objects.get(sub=sub, is_device=False)

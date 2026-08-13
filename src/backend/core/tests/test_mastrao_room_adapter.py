@@ -124,6 +124,8 @@ def fixture_adapter_settings():
 
 @pytest.mark.django_db(transaction=True)
 def test_adapter_creates_one_restricted_room_and_replays(client, adapter_settings):
+    """The adapter creates one canonical room and replays its receipt."""
+
     url = reverse("ensure_mastrao_room")
     first = client.post(
         url,
@@ -159,6 +161,8 @@ def test_adapter_creates_one_restricted_room_and_replays(client, adapter_setting
 
 @pytest.mark.django_db(transaction=True)
 def test_adapter_refuses_altered_binding_for_same_effect(client, adapter_settings):
+    """A semantic collision on an existing effect key is refused."""
+
     url = reverse("ensure_mastrao_room")
     first = client.post(
         url,
@@ -185,6 +189,8 @@ def test_adapter_refuses_altered_binding_for_same_effect(client, adapter_setting
 
 @pytest.mark.django_db(transaction=True)
 def test_adapter_refuses_disabled_or_tampered_effect(client, adapter_settings):
+    """Disabled adapters and invalid signatures fail closed."""
+
     url = reverse("ensure_mastrao_room")
     token = _effect(adapter_settings)
     protected, payload, encoded_signature = token.split(".")
@@ -215,6 +221,8 @@ def test_adapter_refuses_disabled_or_tampered_effect(client, adapter_settings):
 
 @pytest.mark.django_db(transaction=True)
 def test_adapter_converges_two_concurrent_effects(adapter_settings):
+    """Concurrent delivery converges on one binding and room."""
+
     url = reverse("ensure_mastrao_room")
     token = _effect(adapter_settings)
     barrier = threading.Barrier(2)

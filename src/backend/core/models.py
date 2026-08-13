@@ -546,6 +546,78 @@ class MastraoRoomBinding(BaseModel):
         return f"Mastrao room binding {self.effect_key}"
 
 
+class MastraoHostIdentity(BaseModel):
+    """Pseudonymous non-OIDC identity derived from a Cabinet Core host grant."""
+
+    host_ref = models.CharField(max_length=160, unique=True)
+    user = models.OneToOneField(
+        User,
+        on_delete=models.PROTECT,
+        related_name="mastrao_host_identity",
+    )
+
+    class Meta:
+        db_table = "meet_mastrao_host_identity"
+
+    def __str__(self):
+        return f"Mastrao host identity {self.host_ref}"
+
+
+class MastraoHostGrant(BaseModel):
+    """Immutable consumed handoff receipt and expiring room media grant."""
+
+    handoff_ref = models.CharField(max_length=160, unique=True)
+    grant_ref = models.CharField(max_length=160, unique=True)
+    grant_digest = models.CharField(max_length=64)
+    credential_digest = models.CharField(max_length=64)
+    meeting_ref = models.CharField(max_length=160)
+    room_ref = models.CharField(max_length=100)
+    provider_binding_digest = models.CharField(max_length=64)
+    identity = models.ForeignKey(
+        MastraoHostIdentity,
+        on_delete=models.PROTECT,
+        related_name="grants",
+    )
+    room_binding = models.ForeignKey(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="host_grants",
+    )
+    platform_session_ref = models.CharField(max_length=160)
+    session_nonce_digest = models.CharField(max_length=64)
+    issued_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "meet_mastrao_host_grant"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(grant_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_host_grant_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(credential_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_host_credential_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(session_nonce_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_host_session_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_host_provider_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(expires_at__gt=models.F("issued_at")),
+                name="mastrao_host_grant_positive_lifetime",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao host grant {self.grant_ref}"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

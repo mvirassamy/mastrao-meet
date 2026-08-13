@@ -53,6 +53,22 @@ def get_release():
         return "NA"  # Default: not available
 
 
+def scrub_mastrao_handoff_credentials(event, _hint):
+    """Remove short-lived Meeting credentials from captured request data."""
+
+    request = event.get("request")
+    if not isinstance(request, dict):
+        return event
+    data = request.get("data")
+    if isinstance(data, dict):
+        for field in ("host_handoff", "host_grant"):
+            if field in data:
+                data[field] = "[Filtered]"
+    elif isinstance(data, str) and ("host_handoff" in data or "host_grant" in data):
+        request["data"] = "[Filtered]"
+    return event
+
+
 class Base(Configuration):
     """
     This is the base configuration every configuration (aka environment) should inherit from. It
@@ -110,6 +126,25 @@ class Base(Configuration):
     )
     MASTRAO_ROOM_RECEIPT_KEY_ID = values.Value(
         "", environ_name="MASTRAO_ROOM_RECEIPT_KEY_ID", environ_prefix=None
+    )
+    MASTRAO_HOST_HANDOFF_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_HOST_HANDOFF_ENABLED", environ_prefix=None
+    )
+    MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE = values.PositiveIntegerValue(
+        120,
+        environ_name="MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE",
+        environ_prefix=None,
+    )
+    MASTRAO_PLATFORM_ORIGIN = values.Value(
+        "", environ_name="MASTRAO_PLATFORM_ORIGIN", environ_prefix=None
+    )
+    MASTRAO_CORE_REDEMPTION_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_REDEMPTION_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS = values.FloatValue(
+        5.0,
+        environ_name="MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS",
+        environ_prefix=None,
     )
 
     DATA_DIR = values.Value(path.join("/", "data"), environ_name="DATA_DIR")
@@ -310,6 +345,7 @@ class Base(Configuration):
     AUTHENTICATION_BACKENDS = [
         "django.contrib.auth.backends.ModelBackend",
         "core.authentication.backends.OIDCAuthenticationBackend",
+        "core.authentication.handoff.MastraoHostAuthenticationBackend",
     ]
 
     # Django applications from the highest priority to the lowest
@@ -1237,6 +1273,8 @@ class Base(Configuration):
                 environment=cls.__name__.lower(),  # build, test, development, production
                 release=get_release(),
                 integrations=[DjangoIntegration()],
+                before_send=scrub_mastrao_handoff_credentials,
+                include_local_variables=False,
             )
             sentry_sdk.set_tag("application", "backend")
 

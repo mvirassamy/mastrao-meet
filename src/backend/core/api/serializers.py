@@ -20,6 +20,8 @@ from rest_framework.exceptions import PermissionDenied
 from timezone_field.rest_framework import TimeZoneSerializerField
 
 from core import models, utils
+from core.mastrao_host_grant import host_media_projection
+from core.mastrao_identity import is_mastrao_host_subject
 
 logger = logging.getLogger(__name__)
 
@@ -172,10 +174,14 @@ class RoomSerializer(serializers.ModelSerializer):
         if not request:
             return output
 
-        role = instance.get_role(request.user)
+        persistent_role = instance.get_role(request.user)
+        temporary_host_role, temporary_host_expires_at = host_media_projection(
+            request, instance
+        )
+        role = persistent_role or temporary_host_role
         is_admin_or_owner = models.RoleChoices.check_administrator_role(
-            role
-        ) or models.RoleChoices.check_owner_role(role)
+            persistent_role
+        ) or models.RoleChoices.check_owner_role(persistent_role)
 
         if is_admin_or_owner:
             access_serializer = NestedResourceAccessSerializer(
@@ -189,6 +195,7 @@ class RoomSerializer(serializers.ModelSerializer):
             (
                 instance.access_level == models.RoomAccessLevel.TRUSTED
                 and request.user.is_authenticated
+                and not is_mastrao_host_subject(getattr(request.user, "sub", None))
             )
             or role is not None
             or instance.is_public
@@ -203,6 +210,7 @@ class RoomSerializer(serializers.ModelSerializer):
                 username=username,
                 configuration=output["configuration"],
                 role=role,
+                expires_at=temporary_host_expires_at,
             )
         else:
             del output["pin_code"]

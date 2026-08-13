@@ -12,7 +12,7 @@ from django.core.exceptions import SuspiciousOperation
 from lasuite.oidc_resource_server.backend import ResourceServerBackend as LaSuiteBackend
 from rest_framework import authentication, exceptions
 
-from core.mastrao_identity import is_mastrao_technical_subject
+from core.mastrao_identity import is_mastrao_reserved_subject
 from core.models import Application
 from core.services import jwt_token
 
@@ -155,7 +155,7 @@ class BaseJWTAuthentication(authentication.BaseAuthentication):
         if not user.is_active:
             logger.warning("Inactive user attempted authentication: %s", user_id)
             raise exceptions.AuthenticationFailed("User account is disabled.")
-        if is_mastrao_technical_subject(user.sub):
+        if is_mastrao_reserved_subject(user.sub):
             raise exceptions.AuthenticationFailed("User account is non-interactive.")
 
         return user
@@ -283,7 +283,7 @@ class ResourceServerBackend(LaSuiteBackend):
             message = "User info contained no recognizable user identification"
             logger.debug(message)
             raise SuspiciousOperation(message)
-        if is_mastrao_technical_subject(sub):
+        if is_mastrao_reserved_subject(sub):
             raise SuspiciousOperation("Reserved non-interactive subject namespace.")
 
         user = self.get_user(access_token, id_token, payload)
@@ -302,7 +302,7 @@ class ResourceServerBackend(LaSuiteBackend):
         Returns:
             Newly created User instance
         """
-        if is_mastrao_technical_subject(sub):
+        if is_mastrao_reserved_subject(sub):
             raise SuspiciousOperation("Reserved non-interactive subject namespace.")
         user = self.UserModel(sub=sub)
         user.set_unusable_password()

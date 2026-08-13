@@ -5,6 +5,8 @@ from django.http import Http404
 
 from rest_framework import permissions
 
+from ..mastrao_host_grant import active_host_grant
+from ..mastrao_identity import is_mastrao_host_subject
 from ..models import RoleChoices
 from ..services.participants_management import (
     ParticipantNotFoundException,
@@ -24,6 +26,8 @@ class IsAuthenticated(permissions.BasePermission):
     """
 
     def has_permission(self, request, view):
+        if is_mastrao_host_subject(getattr(request.user, "sub", None)):
+            return False
         return bool(request.auth) or request.user.is_authenticated
 
 
@@ -57,7 +61,9 @@ class RoomPermissions(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        return request.user.is_authenticated
+        return request.user.is_authenticated and not is_mastrao_host_subject(
+            getattr(request.user, "sub", None)
+        )
 
     def has_object_permission(self, request, view, obj):
         """Object permissions are only given to administrators of the room."""
@@ -105,6 +111,20 @@ class HasPrivilegesOnRoom(IsAuthenticated):
     def has_object_permission(self, request, view, obj):
         """Determine if user has privileges on room."""
         return obj.is_administrator_or_owner(request.user)
+
+
+class HasMediaHostPrivilegesOnRoom(permissions.BasePermission):
+    """Allow durable administrators or one active session-bound media host."""
+
+    def has_permission(self, request, view):
+        """Defer a temporary host to the exact-room object check below."""
+
+        return bool(request.auth) or request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        if obj.is_administrator_or_owner(request.user):
+            return True
+        return active_host_grant(request, obj) is not None
 
 
 class HasLiveKitRoomAccess(permissions.BasePermission):
@@ -161,6 +181,10 @@ class CanMuteParticipant(permissions.BasePermission):
         # Always allow admins/owners when authenticated with session cookie
         if not is_livekit_token_auth and obj.is_administrator_or_owner(request.user):
             return True
+
+        if not is_livekit_token_auth:
+            if active_host_grant(request, obj) is not None:
+                return True
 
         everyone_can_mute = obj.configuration.get("everyone_can_mute", True)
         if not everyone_can_mute:

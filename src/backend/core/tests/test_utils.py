@@ -4,10 +4,12 @@ Test utils functions
 
 # pylint: disable=W0621
 import json
+from datetime import timedelta
 from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
+from django.utils import timezone
 
 import jwt
 import pytest
@@ -105,6 +107,22 @@ def test_anonymous_falls_back_to_anonymous_label():
     token = generate_token(room="my-room", user=AnonymousUser())
     claims = decode_token(token)
     assert claims["name"] == "Anonymous"
+
+
+def test_generate_token_never_outlives_absolute_grant_expiry():
+    """A moderator token is clamped to the durable grant's absolute deadline."""
+
+    user = UserFactory(full_name="Temporary host")
+    expires_at = timezone.now() + timedelta(seconds=30)
+    token = generate_token(
+        room="my-room",
+        user=user,
+        role="administrator",
+        expires_at=expires_at,
+    )
+    claims = decode_token(token)
+    assert claims["video"]["roomAdmin"] is True
+    assert claims["exp"] <= int(expires_at.timestamp())
 
 
 @mock.patch("asyncio.get_running_loop")
