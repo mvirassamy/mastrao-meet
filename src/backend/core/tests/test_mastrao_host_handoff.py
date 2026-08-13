@@ -216,6 +216,20 @@ def test_host_handoff_refuses_nonstandard_json_constants(constant):
         verify_host_handoff_contract(f"{header}.{payload}.{signature}")
 
 
+def test_host_handoff_reports_malformed_public_key_as_unavailable(handoff_signing):
+    """Invalid configured key material remains a service failure."""
+
+    handoff = _host_handoff(handoff_signing, 1)
+    malformed_jwk = json.dumps({"kty": "OKP", "crv": "Ed25519", "x": "AA"})
+    with (
+        override_settings(MASTRAO_ROOM_EFFECT_PUBLIC_JWK=malformed_jwk),
+        pytest.raises(HostHandoffRefused) as error,
+    ):
+        verify_host_handoff_contract(handoff)
+
+    assert error.value.status == 503
+
+
 @override_settings(
     CACHES={
         "default": {

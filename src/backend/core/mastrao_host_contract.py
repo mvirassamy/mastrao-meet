@@ -190,10 +190,14 @@ def verify_host_handoff(  # noqa: PLR0912  # pylint: disable=too-many-branches
     ):
         raise HostHandoffRefused(status=503)
     try:
-        Ed25519PublicKey.from_public_bytes(_base64url_decode(public_jwk["x"])).verify(
-            signature, f"{parts[0]}.{parts[1]}".encode("ascii")
+        public_key = Ed25519PublicKey.from_public_bytes(
+            _base64url_decode(public_jwk["x"])
         )
-    except (RoomEffectRefused, InvalidSignature, ValueError, TypeError) as error:
+    except (RoomEffectRefused, ValueError, TypeError) as error:
+        raise HostHandoffRefused(status=503) from error
+    try:
+        public_key.verify(signature, f"{parts[0]}.{parts[1]}".encode("ascii"))
+    except (InvalidSignature, ValueError, TypeError) as error:
         raise HostHandoffRefused() from error
     now = int(time.time())
     if (  # pylint: disable=too-many-boolean-expressions
