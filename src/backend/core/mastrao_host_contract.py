@@ -75,6 +75,10 @@ HOST_GRANT_FIELDS = {
 }
 
 
+def _reject_json_constant(value):
+    raise ValueError(f"invalid JSON constant: {value}")
+
+
 class HostHandoffRefused(Exception):
     """Opaque refusal for host handoff failures."""
 
@@ -155,11 +159,12 @@ def verify_host_handoff(  # noqa: PLR0912  # pylint: disable=too-many-branches
         header_bytes = _base64url_decode(parts[0])
         payload_bytes = _base64url_decode(parts[1])
         signature = _base64url_decode(parts[2])
-        header = json.loads(header_bytes)
-        payload = json.loads(payload_bytes)
+        header = json.loads(header_bytes, parse_constant=_reject_json_constant)
+        payload = json.loads(payload_bytes, parse_constant=_reject_json_constant)
+        canonical_payload = _canonical_json(payload)
     except (
         RoomEffectRefused,
-        UnicodeDecodeError,
+        UnicodeError,
         json.JSONDecodeError,
         ValueError,
         TypeError,
@@ -172,7 +177,7 @@ def verify_host_handoff(  # noqa: PLR0912  # pylint: disable=too-many-branches
     }
     if header != expected_header or not isinstance(payload, dict):
         raise HostHandoffRefused()
-    if set(payload) != HOST_HANDOFF_FIELDS or payload_bytes != _canonical_json(payload):
+    if set(payload) != HOST_HANDOFF_FIELDS or payload_bytes != canonical_payload:
         raise HostHandoffRefused()
     try:
         public_jwk = _configured_json("MASTRAO_ROOM_EFFECT_PUBLIC_JWK")
@@ -221,11 +226,17 @@ def verify_host_handoff(  # noqa: PLR0912  # pylint: disable=too-many-branches
             payload[name]
         ):
             raise HostHandoffRefused()
-    if not EXTERNAL_ID.fullmatch(payload.get("organization_external_id", "")):
+    if not isinstance(payload.get("organization_external_id"), str) or not (
+        EXTERNAL_ID.fullmatch(payload["organization_external_id"])
+    ):
         raise HostHandoffRefused()
-    if not DIGEST.fullmatch(payload.get("provider_binding_digest", "")):
+    if not isinstance(payload.get("provider_binding_digest"), str) or not (
+        DIGEST.fullmatch(payload["provider_binding_digest"])
+    ):
         raise HostHandoffRefused()
-    if not REQUEST_ID.fullmatch(payload.get("nonce", "")):
+    if not isinstance(payload.get("nonce"), str) or not REQUEST_ID.fullmatch(
+        payload["nonce"]
+    ):
         raise HostHandoffRefused()
     return payload
 

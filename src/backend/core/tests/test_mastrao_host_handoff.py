@@ -193,11 +193,27 @@ def test_invalid_handoffs_do_not_consume_global_capacity(
     """Invalid signatures cannot consume legitimate redemption capacity."""
 
     local_handoff_verification.side_effect = verify_host_handoff_contract
-    for suffix in ("first", "second", "third"):
-        with pytest.raises(HostHandoffRefused):
-            _admit_public_attempt(mock.Mock(), f"{suffix}.payload.signature")
+    with mock.patch(
+        "core.mastrao_host_handoff._increment_attempt_counter"
+    ) as increment_counter:
+        for suffix in ("first", "second", "third"):
+            with pytest.raises(HostHandoffRefused):
+                _admit_public_attempt(mock.Mock(), f"{suffix}.payload.signature")
+        increment_counter.assert_not_called()
 
     _admit_public_attempt(mock.Mock(), _host_handoff(handoff_signing, 1))
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_host_handoff_refuses_nonstandard_json_constants(constant):
+    """Non-standard JSON numbers remain inside the opaque refusal boundary."""
+
+    header = _b64(b'{"alg":"EdDSA"}')
+    payload = _b64(f'{{"issued_at":{constant}}}'.encode("ascii"))
+    signature = _b64(b"invalid-signature")
+
+    with pytest.raises(HostHandoffRefused):
+        verify_host_handoff_contract(f"{header}.{payload}.{signature}")
 
 
 @override_settings(

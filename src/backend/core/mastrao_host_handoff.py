@@ -53,12 +53,12 @@ def _admit_public_attempt(_request, host_handoff):
 
     if not isinstance(host_handoff, str) or not COMPACT_JWS.fullmatch(host_handoff):
         raise HostHandoffRefused()
+    verify_host_handoff(host_handoff)
     bucket = int(timezone.now().timestamp()) // 60
     credential = hashlib.sha256(host_handoff.encode("ascii")).hexdigest()
     key = f"mastrao-host-handoff:{credential}:{bucket}"
     if _increment_attempt_counter(key) > MAX_HANDOFF_ATTEMPTS_PER_MINUTE:
         raise HostHandoffRefused()
-    verify_host_handoff(host_handoff)
     global_key = f"mastrao-host-handoff:global:{bucket}"
     if _increment_attempt_counter(global_key) > (
         settings.MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE
