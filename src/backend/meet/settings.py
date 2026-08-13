@@ -324,6 +324,7 @@ class Base(Configuration):
     AUTHENTICATION_BACKENDS = [
         "django.contrib.auth.backends.ModelBackend",
         "core.authentication.backends.OIDCAuthenticationBackend",
+        "core.authentication.handoff.MastraoHostAuthenticationBackend",
     ]
 
     # Django applications from the highest priority to the lowest
