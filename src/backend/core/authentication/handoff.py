@@ -21,6 +21,7 @@ class MastraoHostAuthenticationBackend:
             user = UserModel.objects.select_related("mastrao_host_identity").get(
                 pk=user_id,
                 is_device=False,
+                is_active=True,
             )
         except UserModel.DoesNotExist:
             return None

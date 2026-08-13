@@ -6,6 +6,7 @@ from django.http import Http404
 from rest_framework import permissions
 
 from ..mastrao_host_grant import active_host_grant
+from ..mastrao_identity import is_mastrao_host_subject
 from ..models import RoleChoices
 from ..services.participants_management import (
     ParticipantNotFoundException,
@@ -25,6 +26,8 @@ class IsAuthenticated(permissions.BasePermission):
     """
 
     def has_permission(self, request, view):
+        if is_mastrao_host_subject(getattr(request.user, "sub", None)):
+            return False
         return bool(request.auth) or request.user.is_authenticated
 
 
@@ -58,7 +61,9 @@ class RoomPermissions(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        return request.user.is_authenticated
+        return request.user.is_authenticated and not is_mastrao_host_subject(
+            getattr(request.user, "sub", None)
+        )
 
     def has_object_permission(self, request, view, obj):
         """Object permissions are only given to administrators of the room."""
@@ -108,8 +113,13 @@ class HasPrivilegesOnRoom(IsAuthenticated):
         return obj.is_administrator_or_owner(request.user)
 
 
-class HasMediaHostPrivilegesOnRoom(IsAuthenticated):
+class HasMediaHostPrivilegesOnRoom(permissions.BasePermission):
     """Allow durable administrators or one active session-bound media host."""
+
+    def has_permission(self, request, view):
+        """Defer a temporary host to the exact-room object check below."""
+
+        return bool(request.auth) or request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
         if obj.is_administrator_or_owner(request.user):

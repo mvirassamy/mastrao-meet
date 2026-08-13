@@ -13,8 +13,8 @@ import pytest
 
 from core import models
 from core.api.permissions import HasMediaHostPrivilegesOnRoom, HasPrivilegesOnRoom
-from core.mastrao_host_contract import HostHandoffRefused
-from core.mastrao_host_grant import SESSION_NONCE_KEY
+from core.mastrao_host_contract import HostHandoffRefused, verify_host_grant
+from core.mastrao_host_grant import SESSION_NONCE_KEY, active_host_grant
 from core.mastrao_host_handoff import _safe_json_response
 from core.mastrao_identity import mastrao_technical_owner_subject
 
@@ -88,6 +88,13 @@ def test_core_redemption_response_is_streamed_and_bounded():
     response.close.assert_called_once_with()
 
 
+def test_malformed_host_grant_maps_shared_jose_errors_to_host_refusal():
+    """Shared JOSE helpers cannot leak the room-adapter exception domain."""
+
+    with pytest.raises(HostHandoffRefused):
+        verify_host_grant("not-base64!.payload.signature")
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_HOST_HANDOFF_ENABLED=True,
@@ -122,10 +129,29 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
 
     host = models.MastraoHostIdentity.objects.get().user
     request = mock.Mock(user=host, session=client.session)
+    assert HasMediaHostPrivilegesOnRoom().has_permission(request, None)
     assert HasMediaHostPrivilegesOnRoom().has_object_permission(
         request, None, binding.room
     )
     assert not HasPrivilegesOnRoom().has_object_permission(request, None, binding.room)
+
+    create_room = client.post("/api/v1.0/rooms/", {"name": "Escaped room"})
+    assert create_room.status_code in {401, 403}
+    assert models.Room.objects.count() == 1
+
+    trusted = models.Room.objects.create(
+        name="Other trusted room",
+        access_level=models.RoomAccessLevel.TRUSTED,
+    )
+    trusted_response = client.get(f"/api/v1.0/rooms/{trusted.id}/")
+    assert trusted_response.status_code == 200
+    assert "livekit" not in trusted_response.json()
+
+    assert active_host_grant(request, binding.room) is not None
+    host.is_active = False
+    host.save(update_fields=["is_active"])
+    assert active_host_grant(request, binding.room) is None
+    assert client.get("/api/v1.0/users/me/").status_code in {401, 403}
 
 
 @pytest.mark.django_db(transaction=True)

@@ -18,6 +18,7 @@ from core.mastrao_room_contract import (
     DIGEST,
     OPAQUE_REFERENCE,
     REQUEST_ID,
+    RoomEffectRefused,
     _base64url_decode,
     _base64url_encode,
     _canonical_json,
@@ -63,11 +64,18 @@ def compact_digest(compact_jws):
     """Return the stable digest used to bind a compact signed credential."""
     if not isinstance(compact_jws, str) or len(compact_jws) > 16_384:
         raise HostHandoffRefused()
-    return hashlib.sha256(compact_jws.encode("ascii")).hexdigest()
+    try:
+        encoded = compact_jws.encode("ascii")
+    except UnicodeEncodeError as error:
+        raise HostHandoffRefused() from error
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _private_signing_key():
-    private_jwk = _configured_json("MASTRAO_ROOM_RECEIPT_PRIVATE_JWK")
+    try:
+        private_jwk = _configured_json("MASTRAO_ROOM_RECEIPT_PRIVATE_JWK")
+    except RoomEffectRefused as error:
+        raise HostHandoffRefused(status=503) from error
     if (
         private_jwk.get("kty") != "OKP"
         or private_jwk.get("crv") != "Ed25519"
@@ -76,7 +84,7 @@ def _private_signing_key():
         raise HostHandoffRefused(status=503)
     try:
         return Ed25519PrivateKey.from_private_bytes(_base64url_decode(private_jwk["d"]))
-    except (ValueError, TypeError) as error:
+    except (RoomEffectRefused, ValueError, TypeError) as error:
         raise HostHandoffRefused(status=503) from error
 
 
@@ -126,7 +134,13 @@ def verify_host_grant(  # noqa: PLR0912  # pylint: disable=too-many-branches
         signature = _base64url_decode(parts[2])
         header = json.loads(header_bytes)
         payload = json.loads(payload_bytes)
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as error:
+    except (
+        RoomEffectRefused,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        ValueError,
+        TypeError,
+    ) as error:
         raise HostHandoffRefused() from error
     expected_header = {
         "alg": "EdDSA",
@@ -137,7 +151,10 @@ def verify_host_grant(  # noqa: PLR0912  # pylint: disable=too-many-branches
         raise HostHandoffRefused()
     if set(payload) != HOST_GRANT_FIELDS or payload_bytes != _canonical_json(payload):
         raise HostHandoffRefused()
-    public_jwk = _configured_json("MASTRAO_ROOM_EFFECT_PUBLIC_JWK")
+    try:
+        public_jwk = _configured_json("MASTRAO_ROOM_EFFECT_PUBLIC_JWK")
+    except RoomEffectRefused as error:
+        raise HostHandoffRefused(status=503) from error
     if (
         public_jwk.get("kty") != "OKP"
         or public_jwk.get("crv") != "Ed25519"
@@ -148,7 +165,7 @@ def verify_host_grant(  # noqa: PLR0912  # pylint: disable=too-many-branches
         Ed25519PublicKey.from_public_bytes(_base64url_decode(public_jwk["x"])).verify(
             signature, f"{parts[0]}.{parts[1]}".encode("ascii")
         )
-    except (InvalidSignature, ValueError, TypeError) as error:
+    except (RoomEffectRefused, InvalidSignature, ValueError, TypeError) as error:
         raise HostHandoffRefused() from error
     now = int(time.time())
     if (  # pylint: disable=too-many-boolean-expressions

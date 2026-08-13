@@ -11,7 +11,8 @@ from django.conf import settings
 from django.core.cache import cache
 
 from core import models, utils
-from core.mastrao_host_grant import host_grant_ttl, host_media_role
+from core.mastrao_host_grant import host_media_projection
+from core.mastrao_identity import is_mastrao_host_subject
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,7 @@ class LobbyService:
             or (
                 room.access_level == models.RoomAccessLevel.TRUSTED
                 and user.is_authenticated
+                and not is_mastrao_host_subject(getattr(user, "sub", None))
             )
             or (
                 room.access_level == models.RoomAccessLevel.RESTRICTED
@@ -154,8 +156,8 @@ class LobbyService:
         participant = self._get_participant(room.id, participant_id)
 
         room_id = str(room.id)
-        user_role = room.get_role(request.user) or host_media_role(request, room)
-        host_ttl = host_grant_ttl(request, room)
+        host_role, host_ttl = host_media_projection(request, room)
+        user_role = room.get_role(request.user) or host_role
 
         if self.can_bypass_lobby(room=room, user=request.user, role=user_role):
             if participant is None:

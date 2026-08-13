@@ -2,12 +2,15 @@
 
 import hashlib
 import json
+import re
 import secrets
+import time
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from django.conf import settings
 from django.contrib.auth import login
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse, JsonResponse
@@ -28,7 +31,29 @@ from core.mastrao_host_grant import SESSION_NONCE_KEY
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
 
 MAX_HANDOFF_BODY_BYTES = 20_000
+MAX_HANDOFF_ATTEMPTS_PER_MINUTE = 3
+COMPACT_JWS = re.compile(
+    r"^[A-Za-z0-9_-]{1,4096}\.[A-Za-z0-9_-]{1,12288}\.[A-Za-z0-9_-]{1,4096}$"
+)
 SESSION_BACKEND = "core.authentication.handoff.MastraoHostAuthenticationBackend"
+
+
+def _admit_public_attempt(request, host_handoff):
+    """Reject obvious garbage and cap work triggered by one network peer."""
+
+    if not isinstance(host_handoff, str) or not COMPACT_JWS.fullmatch(host_handoff):
+        raise HostHandoffRefused()
+    bucket = int(timezone.now().timestamp()) // 60
+    credential = hashlib.sha256(host_handoff.encode("ascii")).hexdigest()
+    key = f"mastrao-host-handoff:{credential}:{bucket}"
+    if cache.add(key, 1, timeout=70):
+        return
+    try:
+        attempts = cache.incr(key)
+    except ValueError as error:
+        raise HostHandoffRefused(status=503) from error
+    if attempts > MAX_HANDOFF_ATTEMPTS_PER_MINUTE:
+        raise HostHandoffRefused()
 
 
 def _safe_json_response(response):
@@ -145,15 +170,16 @@ def _binding_for(grant):
 
 def _commit_grant(request, grant, compact_grant):
     session_nonce = secrets.token_urlsafe(32)
+    remaining_seconds = int(grant["expires_at"] - time.time())
+    if remaining_seconds < 1:
+        raise HostHandoffRefused()
     try:
         with transaction.atomic():
             binding = _binding_for(grant)
             identity = _resolve_identity(grant["host_ref"])
             login(request, identity.user, backend=SESSION_BACKEND)
             request.session[SESSION_NONCE_KEY] = session_nonce
-            request.session.set_expiry(
-                max(1, grant["expires_at"] - int(timezone.now().timestamp()))
-            )
+            request.session.set_expiry(remaining_seconds)
             created = models.MastraoHostGrant.objects.create(
                 handoff_ref=grant["handoff_ref"],
                 grant_ref=grant["grant_ref"],
@@ -204,6 +230,7 @@ def consume_mastrao_host_handoff(request):
         fields = request.POST
         if set(fields) != {"host_handoff"} or len(fields.getlist("host_handoff")) != 1:
             raise HostHandoffRefused()
+        _admit_public_attempt(request, fields["host_handoff"])
         grant, compact_grant = _redeem(fields["host_handoff"])
         _, binding = _commit_grant(request, grant, compact_grant)
         response = HttpResponse(status=303)

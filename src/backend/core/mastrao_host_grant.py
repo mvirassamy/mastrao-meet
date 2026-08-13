@@ -17,36 +17,41 @@ def _nonce_digest(nonce):
     return hashlib.sha256(nonce.encode()).hexdigest()
 
 
-def active_host_grant(request, room):
+def active_host_grant(request, room, *, observed_at=None):
     """Resolve the current session-bound grant for this exact room."""
     user = getattr(request, "user", None)
-    if not user or not user.is_authenticated or not is_mastrao_host_subject(user.sub):
+    if (
+        not user
+        or not user.is_authenticated
+        or not user.is_active
+        or not is_mastrao_host_subject(user.sub)
+    ):
         return None
     digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
     if digest is None:
         return None
+    observed_at = observed_at or timezone.now()
     return (
         models.MastraoHostGrant.objects.select_related("identity", "room_binding")
         .filter(
             identity__user=user,
             room_binding__room=room,
             session_nonce_digest=digest,
-            expires_at__gt=timezone.now(),
+            expires_at__gt=observed_at,
         )
         .order_by("-expires_at")
         .first()
     )
 
 
-def host_media_role(request, room):
-    """Project an active host grant to the existing media-admin role."""
-    return models.RoleChoices.ADMIN if active_host_grant(request, room) else None
+def host_media_projection(request, room):
+    """Resolve one grant snapshot into its media role and bounded token TTL."""
 
-
-def host_grant_ttl(request, room):
-    """Return the remaining LiveKit credential lifetime for the grant."""
-    grant = active_host_grant(request, room)
+    observed_at = timezone.now()
+    grant = active_host_grant(request, room, observed_at=observed_at)
     if not grant:
-        return None
-    seconds = max(1, int((grant.expires_at - timezone.now()).total_seconds()))
-    return timedelta(seconds=seconds)
+        return None, None
+    seconds = int((grant.expires_at - observed_at).total_seconds())
+    if seconds < 1:
+        return None, None
+    return models.RoleChoices.ADMIN, timedelta(seconds=seconds)
