@@ -20,7 +20,7 @@ from core.mastrao_host_grant import (
     SESSION_PLATFORM_REF_KEY,
     active_host_grant,
 )
-from core.mastrao_host_handoff import _safe_json_response
+from core.mastrao_host_handoff import _admit_public_attempt, _safe_json_response
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
 
 from meet.settings import scrub_mastrao_handoff_credentials
@@ -100,6 +100,27 @@ def test_malformed_host_grant_maps_shared_jose_errors_to_host_refusal():
 
     with pytest.raises(HostHandoffRefused):
         verify_host_grant("not-base64!.payload.signature")
+
+
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "mastrao-host-handoff-global-limit",
+        }
+    },
+    MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE=2,
+)
+def test_host_handoff_global_limit_rejects_distinct_credentials():
+    """Distinct credentials share the public redemption circuit breaker."""
+
+    _admit_public_attempt(mock.Mock(), "first.payload.signature")
+    _admit_public_attempt(mock.Mock(), "second.payload.signature")
+
+    with pytest.raises(HostHandoffRefused) as error:
+        _admit_public_attempt(mock.Mock(), "third.payload.signature")
+
+    assert error.value.status == 503
 
 
 def test_sentry_scrubs_host_handoff_credentials():

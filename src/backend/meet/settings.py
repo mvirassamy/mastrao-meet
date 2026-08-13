@@ -130,6 +130,11 @@ class Base(Configuration):
     MASTRAO_HOST_HANDOFF_ENABLED = values.BooleanValue(
         False, environ_name="MASTRAO_HOST_HANDOFF_ENABLED", environ_prefix=None
     )
+    MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE = values.PositiveIntegerValue(
+        120,
+        environ_name="MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE",
+        environ_prefix=None,
+    )
     MASTRAO_PLATFORM_ORIGIN = values.Value(
         "", environ_name="MASTRAO_PLATFORM_ORIGIN", environ_prefix=None
     )

@@ -38,21 +38,29 @@ COMPACT_JWS = re.compile(
 SESSION_BACKEND = "core.authentication.handoff.MastraoHostAuthenticationBackend"
 
 
-def _admit_public_attempt(request, host_handoff):
-    """Reject obvious garbage and cap work triggered by one network peer."""
+def _increment_attempt_counter(key):
+    if cache.add(key, 1, timeout=70):
+        return 1
+    try:
+        return cache.incr(key)
+    except ValueError as error:
+        raise HostHandoffRefused(status=503) from error
+
+
+def _admit_public_attempt(_request, host_handoff):
+    """Reject obvious garbage and bound public redemption work."""
 
     if not isinstance(host_handoff, str) or not COMPACT_JWS.fullmatch(host_handoff):
         raise HostHandoffRefused()
     bucket = int(timezone.now().timestamp()) // 60
+    global_key = f"mastrao-host-handoff:global:{bucket}"
+    if _increment_attempt_counter(global_key) > (
+        settings.MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE
+    ):
+        raise HostHandoffRefused(status=503)
     credential = hashlib.sha256(host_handoff.encode("ascii")).hexdigest()
     key = f"mastrao-host-handoff:{credential}:{bucket}"
-    if cache.add(key, 1, timeout=70):
-        return
-    try:
-        attempts = cache.incr(key)
-    except ValueError as error:
-        raise HostHandoffRefused(status=503) from error
-    if attempts > MAX_HANDOFF_ATTEMPTS_PER_MINUTE:
+    if _increment_attempt_counter(key) > MAX_HANDOFF_ATTEMPTS_PER_MINUTE:
         raise HostHandoffRefused()
 
 
