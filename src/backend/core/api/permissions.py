@@ -5,6 +5,7 @@ from django.http import Http404
 
 from rest_framework import permissions
 
+from ..mastrao_host_grant import active_host_grant
 from ..models import RoleChoices
 from ..services.participants_management import (
     ParticipantNotFoundException,
@@ -107,6 +108,15 @@ class HasPrivilegesOnRoom(IsAuthenticated):
         return obj.is_administrator_or_owner(request.user)
 
 
+class HasMediaHostPrivilegesOnRoom(IsAuthenticated):
+    """Allow durable administrators or one active session-bound media host."""
+
+    def has_object_permission(self, request, view, obj):
+        if obj.is_administrator_or_owner(request.user):
+            return True
+        return active_host_grant(request, obj) is not None
+
+
 class HasLiveKitRoomAccess(permissions.BasePermission):
     """Check if authenticated user's LiveKit token is for the specific room."""
 
@@ -161,6 +171,10 @@ class CanMuteParticipant(permissions.BasePermission):
         # Always allow admins/owners when authenticated with session cookie
         if not is_livekit_token_auth and obj.is_administrator_or_owner(request.user):
             return True
+
+        if not is_livekit_token_auth:
+            if active_host_grant(request, obj) is not None:
+                return True
 
         everyone_can_mute = obj.configuration.get("everyone_can_mute", True)
         if not everyone_can_mute:

@@ -11,6 +11,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from core import models, utils
+from core.mastrao_host_grant import host_grant_ttl, host_media_role
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,8 @@ class LobbyService:
         participant = self._get_participant(room.id, participant_id)
 
         room_id = str(room.id)
-        user_role = room.get_role(request.user)
+        user_role = room.get_role(request.user) or host_media_role(request, room)
+        host_ttl = host_grant_ttl(request, room)
 
         if self.can_bypass_lobby(room=room, user=request.user, role=user_role):
             if participant is None:
@@ -166,15 +168,18 @@ class LobbyService:
             else:
                 participant.status = LobbyParticipantStatus.ACCEPTED
 
-            livekit_config = utils.generate_livekit_config(
-                room_id=room_id,
-                user=request.user,
-                username=username,
-                color=participant.color,
-                configuration=room.configuration,
-                participant_id=participant_id,
-                role=user_role,
-            )
+            livekit_arguments = {
+                "room_id": room_id,
+                "user": request.user,
+                "username": username,
+                "color": participant.color,
+                "configuration": room.configuration,
+                "participant_id": participant_id,
+                "role": user_role,
+            }
+            if host_ttl is not None:
+                livekit_arguments["ttl"] = host_ttl
+            livekit_config = utils.generate_livekit_config(**livekit_arguments)
             return participant, livekit_config
 
         livekit_config = None
@@ -187,15 +192,18 @@ class LobbyService:
 
         elif participant.status == LobbyParticipantStatus.ACCEPTED:
             # wrongly named, contains access token to join a room
-            livekit_config = utils.generate_livekit_config(
-                room_id=room_id,
-                user=request.user,
-                username=username,
-                color=participant.color,
-                configuration=room.configuration,
-                participant_id=participant_id,
-                role=user_role,
-            )
+            livekit_arguments = {
+                "room_id": room_id,
+                "user": request.user,
+                "username": username,
+                "color": participant.color,
+                "configuration": room.configuration,
+                "participant_id": participant_id,
+                "role": user_role,
+            }
+            if host_ttl is not None:
+                livekit_arguments["ttl"] = host_ttl
+            livekit_config = utils.generate_livekit_config(**livekit_arguments)
 
         return participant, livekit_config
 

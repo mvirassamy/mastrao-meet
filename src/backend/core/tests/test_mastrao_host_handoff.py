@@ -1,0 +1,193 @@
+"""Focused proofs for the browser host handoff and temporary media grant."""
+
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+from unittest import mock
+
+from django.db import connections
+from django.test import Client, override_settings
+from django.urls import reverse
+
+import pytest
+
+from core import models
+from core.api.permissions import HasMediaHostPrivilegesOnRoom, HasPrivilegesOnRoom
+from core.mastrao_host_grant import SESSION_NONCE_KEY
+from core.mastrao_identity import mastrao_technical_owner_subject
+
+
+def _room_binding():
+    owner_ref = "owner_0123456789abcdef"
+    owner = models.User(
+        sub=mastrao_technical_owner_subject(owner_ref),
+        is_device=True,
+    )
+    owner.set_unusable_password()
+    owner.save()
+    room = models.Room.objects.create(
+        name="Mastrao room",
+        slug="room_0123456789abcdef",
+        access_level=models.RoomAccessLevel.RESTRICTED,
+    )
+    models.ResourceAccess.objects.create(
+        resource=room,
+        user=owner,
+        role=models.RoleChoices.OWNER,
+    )
+    return models.MastraoRoomBinding.objects.create(
+        effect_key="effect_0123456789abcdef",
+        arguments_digest="a" * 64,
+        meeting_ref="meeting_0123456789abcdef",
+        room_ref="room_0123456789abcdef",
+        owner_ref=owner_ref,
+        room=room,
+        owner=owner,
+        provider_binding_digest="b" * 64,
+    )
+
+
+def _grant(binding):
+    now = int(time.time())
+    return {
+        "version": 1,
+        "type": "mastrao.core-meeting-host-grant",
+        "issuer": "cabinet-core-local",
+        "audience": "mastrao-meet-local",
+        "purpose": "media_host",
+        "grant_ref": "grant_0123456789abcdef",
+        "handoff_ref": "handoff_0123456789abcdef",
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": binding.meeting_ref,
+        "room_ref": binding.room_ref,
+        "host_ref": "host_0123456789abcdef",
+        "platform_session_ref": "platformsession_0123456789abcdef",
+        "provider_binding_digest": binding.provider_binding_digest,
+        "redemption_id": "redemption_0123456789abcdef",
+        "credential_digest": "c" * 64,
+        "issued_at": now,
+        "expires_at": now + 3_600,
+    }
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_host_handoff_creates_session_bound_grant_without_durable_access(client):
+    binding = _room_binding()
+    grant = _grant(binding)
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        return_value=(grant, "aaa.bbb.ccc"),
+    ):
+        response = client.post(
+            reverse("consume_mastrao_host_handoff"),
+            data="host_handoff=ddd.eee.fff",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+    assert response.status_code == 303
+    assert response["Location"] == f"/{binding.room.slug}"
+    assert response["Referrer-Policy"] == "no-referrer"
+    assert models.MastraoHostIdentity.objects.count() == 1
+    assert models.MastraoHostGrant.objects.count() == 1
+    assert models.ResourceAccess.objects.count() == 1
+    assert SESSION_NONCE_KEY in client.session
+    assert client.session["_auth_user_backend"].endswith(
+        "MastraoHostAuthenticationBackend"
+    )
+
+    host = models.MastraoHostIdentity.objects.get().user
+    request = mock.Mock(user=host, session=client.session)
+    assert HasMediaHostPrivilegesOnRoom().has_object_permission(
+        request, None, binding.room
+    )
+    assert not HasPrivilegesOnRoom().has_object_permission(request, None, binding.room)
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_host_handoff_refuses_wrong_origin_and_local_replay(client):
+    binding = _room_binding()
+    grant = _grant(binding)
+    url = reverse("consume_mastrao_host_handoff")
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        return_value=(grant, "aaa.bbb.ccc"),
+    ):
+        wrong_origin = client.post(
+            url,
+            data="host_handoff=ddd.eee.fff",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://attacker.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+        first = client.post(
+            url,
+            data="host_handoff=ddd.eee.fff",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+        replay = Client().post(
+            url,
+            data="host_handoff=ddd.eee.fff",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+    assert wrong_origin.status_code == 404
+    assert first.status_code == 303
+    assert replay.status_code == 404
+    assert models.MastraoHostGrant.objects.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_concurrent_host_handoff_has_one_local_winner():
+    """Two browser submissions cannot create two grants or usable sessions."""
+
+    binding = _room_binding()
+    grant = _grant(binding)
+    barrier = Barrier(2, timeout=5)
+
+    def redeem_together(_host_handoff):
+        barrier.wait()
+        return grant, "aaa.bbb.ccc"
+
+    def submit():
+        try:
+            return (
+                Client()
+                .post(
+                    reverse("consume_mastrao_host_handoff"),
+                    data="host_handoff=ddd.eee.fff",
+                    content_type="application/x-www-form-urlencoded",
+                    HTTP_ORIGIN="https://platform.mastrao.test",
+                    HTTP_SEC_FETCH_SITE="cross-site",
+                )
+                .status_code
+            )
+        finally:
+            connections.close_all()
+
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        side_effect=redeem_together,
+    ):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            statuses = sorted(executor.map(lambda _: submit(), range(2)))
+
+    assert statuses == [303, 404]
+    assert models.MastraoHostGrant.objects.count() == 1
+    assert models.MastraoHostIdentity.objects.count() == 1
+    assert models.ResourceAccess.objects.count() == 1

@@ -152,6 +152,7 @@ def generate_livekit_config(  # noqa: PLR0917
     color: Optional[str] = None,
     configuration: Optional[dict] = None,
     participant_id: Optional[str] = None,
+    ttl: Optional[timedelta] = None,
 ) -> dict:
     """Generate LiveKit configuration for room access.
 
@@ -173,18 +174,22 @@ def generate_livekit_config(  # noqa: PLR0917
     if configuration is not None:
         sources = configuration.get("can_publish_sources", None)
 
+    token_arguments = {
+        "room": room_id,
+        "user": user,
+        "username": username,
+        "color": color,
+        "sources": sources,
+        "role": role,
+        "participant_id": participant_id,
+    }
+    if ttl is not None:
+        token_arguments["ttl"] = ttl
+
     return {
         "url": settings.LIVEKIT_CONFIGURATION["url"],
         "room": room_id,
-        "token": generate_token(
-            room=room_id,
-            user=user,
-            username=username,
-            color=color,
-            sources=sources,
-            role=role,
-            participant_id=participant_id,
-        ),
+        "token": generate_token(**token_arguments),
     }
 
 

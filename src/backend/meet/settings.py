@@ -111,6 +111,20 @@ class Base(Configuration):
     MASTRAO_ROOM_RECEIPT_KEY_ID = values.Value(
         "", environ_name="MASTRAO_ROOM_RECEIPT_KEY_ID", environ_prefix=None
     )
+    MASTRAO_HOST_HANDOFF_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_HOST_HANDOFF_ENABLED", environ_prefix=None
+    )
+    MASTRAO_PLATFORM_ORIGIN = values.Value(
+        "", environ_name="MASTRAO_PLATFORM_ORIGIN", environ_prefix=None
+    )
+    MASTRAO_CORE_REDEMPTION_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_REDEMPTION_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS = values.FloatValue(
+        5.0,
+        environ_name="MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
 
     DATA_DIR = values.Value(path.join("/", "data"), environ_name="DATA_DIR")
 

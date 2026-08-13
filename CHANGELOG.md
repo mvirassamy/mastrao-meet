@@ -8,6 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- 🔐(backend) consume short Mastrao host handoffs into session-bound media grants
+
+### Changed
+
+- 🔒️(backend) distinguish pseudonymous Mastrao hosts from non-interactive room owners
+
 ## [1.26.0] - 2026-08-12
 
 ### Added
