@@ -1269,6 +1269,7 @@ class Base(Configuration):
                 release=get_release(),
                 integrations=[DjangoIntegration()],
                 before_send=scrub_mastrao_handoff_credentials,
+                include_local_variables=False,
             )
             sentry_sdk.set_tag("application", "backend")
 
