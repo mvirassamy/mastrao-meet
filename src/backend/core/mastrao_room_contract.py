@@ -134,8 +134,8 @@ def _validate_effect_payload(payload, now):
         or payload.get("operation_version") != 1
     )
     invalid_time = (
-        type(payload.get("issued_at")) is not int
-        or type(payload.get("expires_at")) is not int
+        not isinstance(payload.get("issued_at"), int)
+        or not isinstance(payload.get("expires_at"), int)
         or payload["issued_at"] > now
         or payload["expires_at"] <= now
         or payload["expires_at"] - payload["issued_at"] > MAX_EFFECT_SECONDS
@@ -161,6 +161,8 @@ def _validate_effect_identifiers(payload):
 
 
 def verify_effect(compact_jws):
+    """Verify and return one canonical private-room effect."""
+
     _validate_configuration()
     parts = compact_jws.split(".") if isinstance(compact_jws, str) else []
     if len(parts) != 3:
@@ -202,6 +204,8 @@ def verify_effect(compact_jws):
 
 
 def sign_receipt(effect, binding):
+    """Sign the receipt proving the exact canonical room binding."""
+
     now = int(time.time())
     receipt = {
         "version": CONTRACT_VERSION,

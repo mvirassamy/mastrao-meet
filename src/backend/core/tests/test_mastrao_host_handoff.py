@@ -73,6 +73,8 @@ def _grant(binding):
 
 
 def test_core_redemption_response_is_streamed_and_bounded():
+    """The private redemption response cannot exceed its in-memory bound."""
+
     response = mock.Mock(
         headers={},
         status_code=200,
@@ -92,6 +94,8 @@ def test_core_redemption_response_is_streamed_and_bounded():
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_host_handoff_creates_session_bound_grant_without_durable_access(client):
+    """A valid handoff creates only a nonce-bound temporary host grant."""
+
     binding = _room_binding()
     grant = _grant(binding)
     with mock.patch(
@@ -130,6 +134,8 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_host_handoff_refuses_wrong_origin_and_local_replay(client):
+    """Origin mismatch and a second local consume are both refused."""
+
     binding = _room_binding()
     grant = _grant(binding)
     url = reverse("consume_mastrao_host_handoff")

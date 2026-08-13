@@ -34,7 +34,7 @@ def _validate_existing(binding, effect):
         user=binding.owner,
         role=RoleChoices.OWNER,
     ).first()
-    if (
+    if (  # pylint: disable=too-many-boolean-expressions
         binding.arguments_digest != effect["arguments_digest"]
         or binding.meeting_ref != effect["meeting_ref"]
         or binding.room_ref != effect["room_ref"]
@@ -54,6 +54,8 @@ def _validate_existing(binding, effect):
 
 @transaction.atomic
 def ensure_room(effect):
+    """Create or replay the single restricted room bound to a verified effect."""
+
     with connection.cursor() as cursor:
         cursor.execute(
             "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
