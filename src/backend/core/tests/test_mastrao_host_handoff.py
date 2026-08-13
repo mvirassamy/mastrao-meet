@@ -13,7 +13,9 @@ import pytest
 
 from core import models
 from core.api.permissions import HasMediaHostPrivilegesOnRoom, HasPrivilegesOnRoom
+from core.mastrao_host_contract import HostHandoffRefused
 from core.mastrao_host_grant import SESSION_NONCE_KEY
+from core.mastrao_host_handoff import _safe_json_response
 from core.mastrao_identity import mastrao_technical_owner_subject
 
 
@@ -68,6 +70,20 @@ def _grant(binding):
         "issued_at": now,
         "expires_at": now + 3_600,
     }
+
+
+def test_core_redemption_response_is_streamed_and_bounded():
+    response = mock.Mock(
+        headers={},
+        status_code=200,
+        iter_content=mock.Mock(return_value=[b'{"host_grant":"', b"x" * 20_000]),
+    )
+
+    with pytest.raises(HostHandoffRefused) as error:
+        _safe_json_response(response)
+
+    assert error.value.status == 503
+    response.close.assert_called_once_with()
 
 
 @pytest.mark.django_db(transaction=True)

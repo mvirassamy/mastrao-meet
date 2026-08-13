@@ -34,13 +34,24 @@ SESSION_BACKEND = "core.authentication.handoff.MastraoHostAuthenticationBackend"
 def _safe_json_response(response):
     declared = response.headers.get("content-length")
     if declared is not None and (not declared.isdecimal() or int(declared) > 20_000):
+        response.close()
         raise HostHandoffRefused(status=503)
-    if len(response.content) > 20_000 or response.status_code != 200:
+    if response.status_code != 200:
+        response.close()
         raise HostHandoffRefused(status=503 if response.status_code >= 500 else 404)
     try:
-        body = response.json()
-    except (ValueError, json.JSONDecodeError) as error:
+        chunks = []
+        size = 0
+        for chunk in response.iter_content(chunk_size=4_096):
+            size += len(chunk)
+            if size > 20_000:
+                raise HostHandoffRefused(status=503)
+            chunks.append(chunk)
+        body = json.loads(b"".join(chunks))
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
         raise HostHandoffRefused(status=503) from error
+    finally:
+        response.close()
     if not isinstance(body, dict) or set(body) != {"host_grant"}:
         raise HostHandoffRefused(status=503)
     return body
@@ -76,6 +87,7 @@ def _redeem(host_handoff):
                 },
                 timeout=settings.MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS,
                 allow_redirects=False,
+                stream=True,
             )
             body = _safe_json_response(response)
     except requests.RequestException as error:
