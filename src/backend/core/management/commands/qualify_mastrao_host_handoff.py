@@ -32,6 +32,7 @@ class Command(BaseCommand):
             room_effect = vector["room_effect"]
             host_handoff = vector["host_handoff"]
             result_path = Path(vector["result_path"])
+            expected_host_grants = int(vector.get("expected_host_grants", 1))
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise CommandError("Invalid host qualification vector") from error
 
@@ -43,7 +44,11 @@ class Command(BaseCommand):
         previous_databases = runner.setup_databases()
         try:
             if options["verify_only"]:
-                self._write_result(result_path, f"/{room_effect['room_ref']}")
+                self._write_result(
+                    result_path,
+                    f"/{room_effect['room_ref']}",
+                    expected_host_grants,
+                )
             else:
                 self._qualify(
                     configuration,
@@ -88,13 +93,13 @@ class Command(BaseCommand):
                     f"(status={response.status_code})"
                 )
 
-        self._write_result(result_path, response["Location"])
+        self._write_result(result_path, response["Location"], 1)
         self.stdout.write("Mastrao host handoff qualification passed")
 
-    def _write_result(self, result_path, location):
+    def _write_result(self, result_path, location, expected_host_grants):
         valid = (
             MastraoHostIdentity.objects.count() == 1
-            and MastraoHostGrant.objects.count() == 1
+            and MastraoHostGrant.objects.count() == expected_host_grants
             and ResourceAccess.objects.count() == 1
         )
         if not valid:

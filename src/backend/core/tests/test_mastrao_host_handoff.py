@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from unittest import mock
 
+from django.contrib.sessions.backends.cache import SessionStore
 from django.db import connections
 from django.test import Client, override_settings
 from django.urls import reverse
@@ -147,11 +148,96 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     assert trusted_response.status_code == 200
     assert "livekit" not in trusted_response.json()
 
+    forbidden = [
+        ("patch", f"/api/v1.0/rooms/{binding.room.id}/", {"name": "Escaped"}),
+        ("delete", f"/api/v1.0/rooms/{binding.room.id}/", None),
+        (
+            "post",
+            f"/api/v1.0/rooms/{binding.room.id}/invite/",
+            {"emails": ["host@example.test"]},
+        ),
+        (
+            "post",
+            f"/api/v1.0/rooms/{binding.room.id}/start-recording/",
+            {"mode": "room_composite"},
+        ),
+        (
+            "post",
+            f"/api/v1.0/rooms/{binding.room.id}/stop-recording/",
+            {},
+        ),
+        (
+            "post",
+            f"/api/v1.0/rooms/{binding.room.id}/update-participant-role/",
+            {"participant_identity": str(host.id), "role": "administrator"},
+        ),
+    ]
+    for method, url, body in forbidden:
+        response = getattr(client, method)(url, body or {})
+        assert response.status_code in {401, 403, 404}
+    assert models.Room.objects.filter(pk=binding.room_id).exists()
+    assert models.ResourceAccess.objects.count() == 1
+    assert models.Recording.objects.count() == 0
+
     assert active_host_grant(request, binding.room) is not None
     host.is_active = False
     host.save(update_fields=["is_active"])
     assert active_host_grant(request, binding.room) is None
     assert client.get("/api/v1.0/users/me/").status_code in {401, 403}
+    host.is_active = True
+    host.save(update_fields=["is_active"])
+
+    replacement = models.User(sub="oidc_replacement_user")
+    replacement.set_unusable_password()
+    replacement.save()
+    client.force_login(replacement)
+    replacement_request = mock.Mock(user=replacement, session=client.session)
+    assert active_host_grant(replacement_request, binding.room) is None
+    assert client.get("/api/v1.0/users/me/").status_code == 200
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "drift",
+    ["provider_digest", "access_level", "device_owner", "owner_access"],
+)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_host_handoff_refuses_room_binding_drift(client, drift):
+    """A Core grant cannot bless a room whose provider binding has drifted."""
+
+    binding = _room_binding()
+    grant = _grant(binding)
+    if drift == "provider_digest":
+        grant["provider_binding_digest"] = "f" * 64
+    elif drift == "access_level":
+        binding.room.access_level = models.RoomAccessLevel.PUBLIC
+        binding.room.save(update_fields=["access_level"])
+    elif drift == "device_owner":
+        binding.owner.is_device = False
+        binding.owner.save(update_fields=["is_device"])
+    else:
+        models.ResourceAccess.objects.filter(
+            resource=binding.room, user=binding.owner
+        ).delete()
+
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        return_value=(grant, "aaa.bbb.ccc"),
+    ):
+        response = client.post(
+            reverse("consume_mastrao_host_handoff"),
+            data="host_handoff=drift.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+
+    assert response.status_code == 404
+    assert models.MastraoHostGrant.objects.count() == 0
+    assert models.MastraoHostIdentity.objects.count() == 0
 
 
 @pytest.mark.django_db(transaction=True)
@@ -194,6 +280,69 @@ def test_host_handoff_refuses_wrong_origin_and_local_replay(client):
     assert first.status_code == 303
     assert replay.status_code == 404
     assert models.MastraoHostGrant.objects.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_lost_session_save_requires_and_accepts_a_fresh_remint():
+    """A grant committed before cookie failure stays burned; a new handoff recovers."""
+
+    binding = _room_binding()
+    first = _grant(binding)
+    url = reverse("consume_mastrao_host_handoff")
+    original_save = SessionStore.save
+    save_calls = 0
+
+    def fail_response_save(session, *args, **kwargs):
+        nonlocal save_calls
+        save_calls += 1
+        if save_calls > 1:
+            raise RuntimeError("lost session store")
+        return original_save(session, *args, **kwargs)
+
+    with (
+        mock.patch(
+            "core.mastrao_host_handoff._redeem",
+            return_value=(first, "aaa.bbb.ccc"),
+        ),
+        mock.patch(
+            "django.contrib.sessions.backends.cache.SessionStore.save",
+            new=fail_response_save,
+        ),
+        pytest.raises(RuntimeError, match="lost session store"),
+    ):
+        Client().post(
+            url,
+            data="host_handoff=lost.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+
+    assert models.MastraoHostGrant.objects.count() == 1
+    remint = {
+        **first,
+        "handoff_ref": "handoff_fresh_remint_0123",
+        "grant_ref": "grant_fresh_remint_012345",
+        "redemption_id": "redemption_fresh_remint_01",
+        "credential_digest": "d" * 64,
+    }
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        return_value=(remint, "ddd.eee.fff"),
+    ):
+        recovered = Client().post(
+            url,
+            data="host_handoff=fresh.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+    assert recovered.status_code == 303
+    assert models.MastraoHostGrant.objects.count() == 2
 
 
 @pytest.mark.django_db(transaction=True)
