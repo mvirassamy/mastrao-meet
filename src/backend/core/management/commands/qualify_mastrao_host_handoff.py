@@ -21,6 +21,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("vector_path")
+        parser.add_argument("--verify-only", action="store_true")
 
     def handle(self, *args, **options):
         try:
@@ -41,12 +42,15 @@ class Command(BaseCommand):
         )
         previous_databases = runner.setup_databases()
         try:
-            self._qualify(
-                configuration,
-                room_effect,
-                host_handoff,
-                result_path,
-            )
+            if options["verify_only"]:
+                self._write_result(result_path, f"/{room_effect['room_ref']}")
+            else:
+                self._qualify(
+                    configuration,
+                    room_effect,
+                    host_handoff,
+                    result_path,
+                )
         finally:
             runner.teardown_databases(previous_databases)
 
@@ -84,6 +88,10 @@ class Command(BaseCommand):
                     f"(status={response.status_code})"
                 )
 
+        self._write_result(result_path, response["Location"])
+        self.stdout.write("Mastrao host handoff qualification passed")
+
+    def _write_result(self, result_path, location):
         valid = (
             MastraoHostIdentity.objects.count() == 1
             and MastraoHostGrant.objects.count() == 1
@@ -94,7 +102,7 @@ class Command(BaseCommand):
         result_path.write_text(
             json.dumps(
                 {
-                    "location": response["Location"],
+                    "location": location,
                     "host_grants": MastraoHostGrant.objects.count(),
                     "resource_accesses": ResourceAccess.objects.count(),
                 }
@@ -102,4 +110,3 @@ class Command(BaseCommand):
             encoding="utf-8",
         )
         os.chmod(result_path, 0o600)
-        self.stdout.write("Mastrao host handoff qualification passed")
