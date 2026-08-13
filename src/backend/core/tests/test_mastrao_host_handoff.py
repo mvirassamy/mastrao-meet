@@ -350,6 +350,137 @@ def test_lost_session_save_requires_and_accepts_a_fresh_remint():
     MASTRAO_HOST_HANDOFF_ENABLED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
+def test_core_consume_loss_before_local_commit_requires_a_fresh_remint(client):
+    """A Core-consumed bearer is not resurrected when Meet cannot commit it."""
+
+    binding = _room_binding()
+    grant = _grant(binding)
+    url = reverse("consume_mastrao_host_handoff")
+    with (
+        mock.patch(
+            "core.mastrao_host_handoff._redeem",
+            return_value=(grant, "aaa.bbb.ccc"),
+        ),
+        mock.patch(
+            "core.mastrao_host_handoff._commit_grant",
+            side_effect=models.MastraoHostGrant.DoesNotExist,
+        ),
+        pytest.raises(models.MastraoHostGrant.DoesNotExist),
+    ):
+        client.post(
+            url,
+            data="host_handoff=consumed.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+    assert models.MastraoHostGrant.objects.count() == 0
+
+    remint = {
+        **grant,
+        "handoff_ref": "handoff_after_commit_loss_01",
+        "grant_ref": "grant_after_commit_loss_0123",
+        "redemption_id": "redemption_after_commit_loss",
+        "credential_digest": "e" * 64,
+    }
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        return_value=(remint, "eee.fff.ggg"),
+    ):
+        recovered = client.post(
+            url,
+            data="host_handoff=remint.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+    assert recovered.status_code == 303
+    assert models.MastraoHostGrant.objects.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_same_host_keeps_grants_for_two_meetings_in_one_session(client):
+    """A second meeting reuses the host session nonce instead of revoking the first."""
+
+    first_binding = _room_binding()
+    first_grant = _grant(first_binding)
+    owner_ref = "owner_second_0123456789"
+    owner = models.User(
+        sub=mastrao_technical_owner_subject(owner_ref),
+        is_device=True,
+    )
+    owner.set_unusable_password()
+    owner.save()
+    second_room = models.Room.objects.create(
+        name="Second Mastrao room",
+        slug="room_second_0123456789",
+        access_level=models.RoomAccessLevel.RESTRICTED,
+    )
+    models.ResourceAccess.objects.create(
+        resource=second_room,
+        user=owner,
+        role=models.RoleChoices.OWNER,
+    )
+    second_binding = models.MastraoRoomBinding.objects.create(
+        effect_key="effect_second_0123456789",
+        arguments_digest="d" * 64,
+        meeting_ref="meeting_second_0123456789",
+        room_ref="room_second_0123456789",
+        owner_ref=owner_ref,
+        room=second_room,
+        owner=owner,
+        provider_binding_digest="e" * 64,
+    )
+    second_grant = {
+        **_grant(second_binding),
+        "host_ref": first_grant["host_ref"],
+        "handoff_ref": "handoff_second_0123456789",
+        "grant_ref": "grant_second_012345678901",
+        "redemption_id": "redemption_second_01234567",
+        "credential_digest": "f" * 64,
+    }
+    url = reverse("consume_mastrao_host_handoff")
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        side_effect=[
+            (first_grant, "aaa.bbb.ccc"),
+            (second_grant, "ddd.eee.fff"),
+        ],
+    ):
+        first = client.post(
+            url,
+            data="host_handoff=first.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+        first_nonce = client.session[SESSION_NONCE_KEY]
+        second = client.post(
+            url,
+            data="host_handoff=second.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+
+    assert first.status_code == second.status_code == 303
+    assert client.session[SESSION_NONCE_KEY] == first_nonce
+    host = models.MastraoHostIdentity.objects.get().user
+    request = mock.Mock(user=host, session=client.session)
+    assert active_host_grant(request, first_binding.room) is not None
+    assert active_host_grant(request, second_binding.room) is not None
+    assert models.ResourceAccess.objects.count() == 2
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
 def test_concurrent_host_handoff_has_one_local_winner():
     """Two browser submissions cannot create two grants or usable sessions."""
 

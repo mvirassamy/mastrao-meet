@@ -175,7 +175,7 @@ class RoomSerializer(serializers.ModelSerializer):
             return output
 
         persistent_role = instance.get_role(request.user)
-        temporary_host_role, temporary_host_ttl = host_media_projection(
+        temporary_host_role, temporary_host_expires_at = host_media_projection(
             request, instance
         )
         role = persistent_role or temporary_host_role
@@ -210,7 +210,7 @@ class RoomSerializer(serializers.ModelSerializer):
                 username=username,
                 configuration=output["configuration"],
                 role=role,
-                ttl=temporary_host_ttl,
+                expires_at=temporary_host_expires_at,
             )
         else:
             del output["pin_code"]

@@ -1,7 +1,6 @@
 """Request-time projection of one expiring, session-bound media-host grant."""
 
 import hashlib
-from datetime import timedelta
 
 from django.utils import timezone
 
@@ -51,7 +50,6 @@ def host_media_projection(request, room):
     grant = active_host_grant(request, room, observed_at=observed_at)
     if not grant:
         return None, None
-    seconds = int((grant.expires_at - observed_at).total_seconds())
-    if seconds < 1:
+    if (grant.expires_at - observed_at).total_seconds() < 1:
         return None, None
-    return models.RoleChoices.ADMIN, timedelta(seconds=seconds)
+    return models.RoleChoices.ADMIN, grant.expires_at

@@ -12,17 +12,20 @@ import mimetypes
 import random
 import secrets
 import string
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import List, Optional
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
+from django.utils import timezone
 
 import aiohttp
 import boto3
 import botocore
+import jwt
 import magic
 import phonenumbers
 from asgiref.sync import async_to_sync
@@ -69,6 +72,7 @@ def generate_token(  # noqa: PLR0917
     role: Optional[str] = None,
     participant_id: Optional[str] = None,
     ttl: Optional[timedelta] = None,
+    expires_at: Optional[datetime] = None,
 ) -> str:
     """Generate a LiveKit access token for a user in a specific room.
 
@@ -138,10 +142,21 @@ def generate_token(  # noqa: PLR0917
             }
         )
     )
+    if ttl is not None and expires_at is not None:
+        raise ValueError("ttl and expires_at are mutually exclusive")
+    if expires_at is not None:
+        ttl = expires_at - timezone.now() - timedelta(seconds=1)
+        if ttl.total_seconds() < 1:
+            raise PermissionDenied("LiveKit grant expired")
     if ttl is not None:
         token = token.with_ttl(ttl)
 
-    return token.to_jwt()
+    compact = token.to_jwt()
+    if expires_at is not None:
+        claims = jwt.decode(compact, options={"verify_signature": False})
+        if claims.get("exp", 0) > int(expires_at.timestamp()):
+            raise PermissionDenied("LiveKit grant expired")
+    return compact
 
 
 def generate_livekit_config(  # noqa: PLR0917
@@ -153,6 +168,7 @@ def generate_livekit_config(  # noqa: PLR0917
     configuration: Optional[dict] = None,
     participant_id: Optional[str] = None,
     ttl: Optional[timedelta] = None,
+    expires_at: Optional[datetime] = None,
 ) -> dict:
     """Generate LiveKit configuration for room access.
 
@@ -185,6 +201,8 @@ def generate_livekit_config(  # noqa: PLR0917
     }
     if ttl is not None:
         token_arguments["ttl"] = ttl
+    if expires_at is not None:
+        token_arguments["expires_at"] = expires_at
 
     return {
         "url": settings.LIVEKIT_CONFIGURATION["url"],

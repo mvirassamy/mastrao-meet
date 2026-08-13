@@ -156,7 +156,7 @@ class LobbyService:
         participant = self._get_participant(room.id, participant_id)
 
         room_id = str(room.id)
-        host_role, host_ttl = host_media_projection(request, room)
+        host_role, host_expires_at = host_media_projection(request, room)
         user_role = room.get_role(request.user) or host_role
 
         if self.can_bypass_lobby(room=room, user=request.user, role=user_role):
@@ -179,8 +179,8 @@ class LobbyService:
                 "participant_id": participant_id,
                 "role": user_role,
             }
-            if host_ttl is not None:
-                livekit_arguments["ttl"] = host_ttl
+            if host_expires_at is not None:
+                livekit_arguments["expires_at"] = host_expires_at
             livekit_config = utils.generate_livekit_config(**livekit_arguments)
             return participant, livekit_config
 
@@ -203,8 +203,8 @@ class LobbyService:
                 "participant_id": participant_id,
                 "role": user_role,
             }
-            if host_ttl is not None:
-                livekit_arguments["ttl"] = host_ttl
+            if host_expires_at is not None:
+                livekit_arguments["expires_at"] = host_expires_at
             livekit_config = utils.generate_livekit_config(**livekit_arguments)
 
         return participant, livekit_config

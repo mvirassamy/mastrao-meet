@@ -169,7 +169,6 @@ def _binding_for(grant):
 
 
 def _commit_grant(request, grant, compact_grant):
-    session_nonce = secrets.token_urlsafe(32)
     remaining_seconds = int(grant["expires_at"] - time.time())
     if remaining_seconds < 1:
         raise HostHandoffRefused()
@@ -177,7 +176,18 @@ def _commit_grant(request, grant, compact_grant):
         with transaction.atomic():
             binding = _binding_for(grant)
             identity = _resolve_identity(grant["host_ref"])
+            existing_user_id = (
+                request.user.pk if request.user.is_authenticated else None
+            )
+            existing_nonce = request.session.get(SESSION_NONCE_KEY)
             login(request, identity.user, backend=SESSION_BACKEND)
+            session_nonce = (
+                existing_nonce
+                if existing_user_id == identity.user.pk
+                and isinstance(existing_nonce, str)
+                and existing_nonce
+                else secrets.token_urlsafe(32)
+            )
             request.session[SESSION_NONCE_KEY] = session_nonce
             request.session.set_expiry(remaining_seconds)
             created = models.MastraoHostGrant.objects.create(
