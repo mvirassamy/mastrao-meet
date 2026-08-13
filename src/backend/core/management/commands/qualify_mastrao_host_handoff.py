@@ -34,7 +34,11 @@ class Command(BaseCommand):
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise CommandError("Invalid host qualification vector") from error
 
-        runner = DiscoverRunner(verbosity=0, interactive=False)
+        runner = DiscoverRunner(
+            verbosity=0,
+            interactive=False,
+            keepdb=os.environ.get("MASTRAO_QUALIFICATION_KEEP_DATABASE") == "1",
+        )
         previous_databases = runner.setup_databases()
         try:
             self._qualify(
@@ -75,7 +79,10 @@ class Command(BaseCommand):
                 HTTP_SEC_FETCH_SITE="cross-site",
             )
             if response.status_code != 303 or SESSION_NONCE_KEY not in client.session:
-                raise CommandError("Host handoff refused qualification vector")
+                raise CommandError(
+                    "Host handoff refused qualification vector "
+                    f"(status={response.status_code})"
+                )
 
         valid = (
             MastraoHostIdentity.objects.count() == 1

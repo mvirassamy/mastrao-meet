@@ -66,18 +66,20 @@ def _redeem(host_handoff):
         raise HostHandoffRefused(status=503)
     assertion, redemption = sign_redemption(host_handoff)
     try:
-        response = requests.post(
-            settings.MASTRAO_CORE_REDEMPTION_ENDPOINT,
-            json={
-                "host_handoff": host_handoff,
-                "redemption_assertion": assertion,
-            },
-            timeout=settings.MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS,
-            allow_redirects=False,
-        )
+        with requests.Session() as session:
+            session.trust_env = False
+            response = session.post(
+                settings.MASTRAO_CORE_REDEMPTION_ENDPOINT,
+                json={
+                    "host_handoff": host_handoff,
+                    "redemption_assertion": assertion,
+                },
+                timeout=settings.MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS,
+                allow_redirects=False,
+            )
+            body = _safe_json_response(response)
     except requests.RequestException as error:
         raise HostHandoffRefused(status=503) from error
-    body = _safe_json_response(response)
     grant = verify_host_grant(body["host_grant"])
     if grant["redemption_id"] != redemption["redemption_id"] or grant[
         "credential_digest"
