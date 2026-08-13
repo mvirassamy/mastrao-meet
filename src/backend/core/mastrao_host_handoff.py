@@ -27,7 +27,7 @@ from core.mastrao_host_contract import (
     sign_redemption,
     verify_host_grant,
 )
-from core.mastrao_host_grant import SESSION_NONCE_KEY
+from core.mastrao_host_grant import SESSION_NONCE_KEY, SESSION_PLATFORM_REF_KEY
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
 
 MAX_HANDOFF_BODY_BYTES = 20_000
@@ -134,7 +134,11 @@ def _resolve_identity(host_ref):
         .first()
     )
     if identity:
-        if identity.user.sub != subject or identity.user.is_device:
+        if (
+            identity.user.sub != subject
+            or identity.user.is_device
+            or not identity.user.is_active
+        ):
             raise HostHandoffRefused()
         return identity
     if models.User.objects.filter(sub=subject).exists():
@@ -180,15 +184,20 @@ def _commit_grant(request, grant, compact_grant):
                 request.user.pk if request.user.is_authenticated else None
             )
             existing_nonce = request.session.get(SESSION_NONCE_KEY)
+            existing_platform_session_ref = request.session.get(
+                SESSION_PLATFORM_REF_KEY
+            )
             login(request, identity.user, backend=SESSION_BACKEND)
             session_nonce = (
                 existing_nonce
                 if existing_user_id == identity.user.pk
+                and existing_platform_session_ref == grant["platform_session_ref"]
                 and isinstance(existing_nonce, str)
                 and existing_nonce
                 else secrets.token_urlsafe(32)
             )
             request.session[SESSION_NONCE_KEY] = session_nonce
+            request.session[SESSION_PLATFORM_REF_KEY] = grant["platform_session_ref"]
             request.session.set_expiry(remaining_seconds)
             created = models.MastraoHostGrant.objects.create(
                 handoff_ref=grant["handoff_ref"],

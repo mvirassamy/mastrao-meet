@@ -8,6 +8,7 @@ from core import models
 from core.mastrao_identity import is_mastrao_host_subject
 
 SESSION_NONCE_KEY = "mastrao_host_session_nonce"
+SESSION_PLATFORM_REF_KEY = "mastrao_host_platform_session_ref"
 
 
 def _nonce_digest(nonce):
@@ -27,7 +28,8 @@ def active_host_grant(request, room, *, observed_at=None):
     ):
         return None
     digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
-    if digest is None:
+    platform_session_ref = request.session.get(SESSION_PLATFORM_REF_KEY)
+    if digest is None or not isinstance(platform_session_ref, str):
         return None
     observed_at = observed_at or timezone.now()
     return (
@@ -36,6 +38,7 @@ def active_host_grant(request, room, *, observed_at=None):
             identity__user=user,
             room_binding__room=room,
             session_nonce_digest=digest,
+            platform_session_ref=platform_session_ref,
             expires_at__gt=observed_at,
         )
         .order_by("-expires_at")

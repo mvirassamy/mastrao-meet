@@ -15,9 +15,15 @@ import pytest
 from core import models
 from core.api.permissions import HasMediaHostPrivilegesOnRoom, HasPrivilegesOnRoom
 from core.mastrao_host_contract import HostHandoffRefused, verify_host_grant
-from core.mastrao_host_grant import SESSION_NONCE_KEY, active_host_grant
+from core.mastrao_host_grant import (
+    SESSION_NONCE_KEY,
+    SESSION_PLATFORM_REF_KEY,
+    active_host_grant,
+)
 from core.mastrao_host_handoff import _safe_json_response
-from core.mastrao_identity import mastrao_technical_owner_subject
+from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
+
+from meet.settings import scrub_mastrao_handoff_credentials
 
 
 def _room_binding():
@@ -96,6 +102,26 @@ def test_malformed_host_grant_maps_shared_jose_errors_to_host_refusal():
         verify_host_grant("not-base64!.payload.signature")
 
 
+def test_sentry_scrubs_host_handoff_credentials():
+    event = {
+        "request": {
+            "data": {
+                "host_handoff": "header.payload.signature",
+                "host_grant": "grant.payload.signature",
+                "safe": "kept",
+            }
+        }
+    }
+
+    scrubbed = scrub_mastrao_handoff_credentials(event, {})
+
+    assert scrubbed["request"]["data"] == {
+        "host_handoff": "[Filtered]",
+        "host_grant": "[Filtered]",
+        "safe": "kept",
+    }
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_HOST_HANDOFF_ENABLED=True,
@@ -124,6 +150,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     assert models.MastraoHostGrant.objects.count() == 1
     assert models.ResourceAccess.objects.count() == 1
     assert SESSION_NONCE_KEY in client.session
+    assert client.session[SESSION_PLATFORM_REF_KEY] == grant["platform_session_ref"]
     assert client.session["_auth_user_backend"].endswith(
         "MastraoHostAuthenticationBackend"
     )
@@ -474,6 +501,95 @@ def test_same_host_keeps_grants_for_two_meetings_in_one_session(client):
     assert active_host_grant(request, first_binding.room) is not None
     assert active_host_grant(request, second_binding.room) is not None
     assert models.ResourceAccess.objects.count() == 2
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_new_platform_session_invalidates_previous_grants(client):
+    binding = _room_binding()
+    first_grant = _grant(binding)
+    second_grant = {
+        **first_grant,
+        "handoff_ref": "handoff_new_session_012345",
+        "grant_ref": "grant_new_session_01234567",
+        "redemption_id": "redemption_new_session_0123",
+        "credential_digest": "d" * 64,
+        "platform_session_ref": "platformsession_new_012345",
+    }
+    url = reverse("consume_mastrao_host_handoff")
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        side_effect=[
+            (first_grant, "aaa.bbb.ccc"),
+            (second_grant, "ddd.eee.fff"),
+        ],
+    ):
+        assert (
+            client.post(
+                url,
+                data="host_handoff=first.payload.signature",
+                content_type="application/x-www-form-urlencoded",
+                HTTP_ORIGIN="https://platform.mastrao.test",
+                HTTP_SEC_FETCH_SITE="cross-site",
+            ).status_code
+            == 303
+        )
+        first_nonce = client.session[SESSION_NONCE_KEY]
+        assert (
+            client.post(
+                url,
+                data="host_handoff=second.payload.signature",
+                content_type="application/x-www-form-urlencoded",
+                HTTP_ORIGIN="https://platform.mastrao.test",
+                HTTP_SEC_FETCH_SITE="cross-site",
+            ).status_code
+            == 303
+        )
+
+    host = models.MastraoHostIdentity.objects.get().user
+    request = mock.Mock(user=host, session=client.session)
+    assert client.session[SESSION_NONCE_KEY] != first_nonce
+    assert (
+        client.session[SESSION_PLATFORM_REF_KEY] == second_grant["platform_session_ref"]
+    )
+    assert (
+        active_host_grant(request, binding.room).grant_ref == second_grant["grant_ref"]
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_inactive_host_identity_is_refused(client):
+    binding = _room_binding()
+    grant = _grant(binding)
+    first = models.User(sub=mastrao_host_subject(grant["host_ref"]), is_active=False)
+    first.set_unusable_password()
+    first.save()
+    models.MastraoHostIdentity.objects.create(
+        host_ref=grant["host_ref"],
+        user=first,
+    )
+
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem",
+        return_value=(grant, "aaa.bbb.ccc"),
+    ):
+        response = client.post(
+            reverse("consume_mastrao_host_handoff"),
+            data="host_handoff=inactive.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+
+    assert response.status_code == 404
+    assert models.MastraoHostGrant.objects.count() == 0
 
 
 @pytest.mark.django_db(transaction=True)

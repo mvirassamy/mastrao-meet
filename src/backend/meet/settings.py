@@ -53,6 +53,22 @@ def get_release():
         return "NA"  # Default: not available
 
 
+def scrub_mastrao_handoff_credentials(event, _hint):
+    """Remove short-lived Meeting credentials from captured request data."""
+
+    request = event.get("request")
+    if not isinstance(request, dict):
+        return event
+    data = request.get("data")
+    if isinstance(data, dict):
+        for field in ("host_handoff", "host_grant"):
+            if field in data:
+                data[field] = "[Filtered]"
+    elif isinstance(data, str) and ("host_handoff" in data or "host_grant" in data):
+        request["data"] = "[Filtered]"
+    return event
+
+
 class Base(Configuration):
     """
     This is the base configuration every configuration (aka environment) should inherit from. It
@@ -1252,6 +1268,7 @@ class Base(Configuration):
                 environment=cls.__name__.lower(),  # build, test, development, production
                 release=get_release(),
                 integrations=[DjangoIntegration()],
+                before_send=scrub_mastrao_handoff_credentials,
             )
             sentry_sdk.set_tag("application", "backend")
 
