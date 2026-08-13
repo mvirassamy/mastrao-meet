@@ -9,6 +9,7 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
 from core.external_api import viewsets as external_viewsets
+from core.mastrao_room_adapter import ensure_mastrao_room
 from core.roomkit import viewsets as roomkit_viewsets
 
 # - Main endpoints
@@ -50,6 +51,11 @@ external_router.register(
 )
 
 urlpatterns = [
+    path(
+        "internal/mastrao/rooms/ensure/",
+        ensure_mastrao_room,
+        name="ensure_mastrao_room",
+    ),
     path(
         f"api/{settings.API_VERSION}/",
         include(

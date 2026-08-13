@@ -509,6 +509,43 @@ class Room(Resource):
         return None
 
 
+class MastraoRoomBinding(BaseModel):
+    """Idempotent technical binding for one Cabinet Core room effect."""
+
+    effect_key = models.CharField(max_length=160, unique=True)
+    arguments_digest = models.CharField(max_length=64)
+    meeting_ref = models.CharField(max_length=160)
+    room_ref = models.CharField(max_length=100, unique=True)
+    owner_ref = models.CharField(max_length=160)
+    room = models.OneToOneField(
+        Room,
+        on_delete=models.PROTECT,
+        related_name="mastrao_binding",
+    )
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="mastrao_room_bindings",
+    )
+    provider_binding_digest = models.CharField(max_length=64)
+
+    class Meta:
+        db_table = "meet_mastrao_room_binding"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_room_arguments_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_room_provider_digest_format",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao room binding {self.effect_key}"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

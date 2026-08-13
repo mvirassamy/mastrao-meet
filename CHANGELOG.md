@@ -53,6 +53,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(backend) add signed idempotent Mastrao room admission
 - ✨(summary) report exception type in failure analytics
 - ✨(frontend) add configurable documentation menu item
 - ✨(frontend) allow promoting authenticated participants

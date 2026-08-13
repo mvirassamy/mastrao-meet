@@ -82,6 +82,36 @@ class Base(Configuration):
         False, environ_name="EXTERNAL_API_ENABLED", environ_prefix=None
     )
 
+    # Opt-in internal boundary used by Mastrao Cabinet Core. The endpoint stays
+    # closed unless the full signed room-effect configuration is provided.
+    MASTRAO_ROOM_ADAPTER_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_ROOM_ADAPTER_ENABLED", environ_prefix=None
+    )
+    MASTRAO_ROOM_EFFECT_ISSUER = values.Value(
+        "", environ_name="MASTRAO_ROOM_EFFECT_ISSUER", environ_prefix=None
+    )
+    MASTRAO_ROOM_EFFECT_AUDIENCE = values.Value(
+        "", environ_name="MASTRAO_ROOM_EFFECT_AUDIENCE", environ_prefix=None
+    )
+    MASTRAO_ROOM_EFFECT_PUBLIC_JWK = SecretFileValue(
+        "", environ_name="MASTRAO_ROOM_EFFECT_PUBLIC_JWK", environ_prefix=None
+    )
+    MASTRAO_ROOM_EFFECT_KEY_ID = values.Value(
+        "", environ_name="MASTRAO_ROOM_EFFECT_KEY_ID", environ_prefix=None
+    )
+    MASTRAO_ROOM_RECEIPT_ISSUER = values.Value(
+        "", environ_name="MASTRAO_ROOM_RECEIPT_ISSUER", environ_prefix=None
+    )
+    MASTRAO_ROOM_RECEIPT_AUDIENCE = values.Value(
+        "", environ_name="MASTRAO_ROOM_RECEIPT_AUDIENCE", environ_prefix=None
+    )
+    MASTRAO_ROOM_RECEIPT_PRIVATE_JWK = SecretFileValue(
+        "", environ_name="MASTRAO_ROOM_RECEIPT_PRIVATE_JWK", environ_prefix=None
+    )
+    MASTRAO_ROOM_RECEIPT_KEY_ID = values.Value(
+        "", environ_name="MASTRAO_ROOM_RECEIPT_KEY_ID", environ_prefix=None
+    )
+
     DATA_DIR = values.Value(path.join("/", "data"), environ_name="DATA_DIR")
 
     # Security
