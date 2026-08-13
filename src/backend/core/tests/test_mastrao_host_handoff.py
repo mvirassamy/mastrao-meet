@@ -309,6 +309,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
 
     host = models.MastraoHostIdentity.objects.get().user
     request = mock.Mock(user=host, session=client.session)
+    assert client.get("/api/v1.0/users/me/").status_code == 200
     assert HasMediaHostPrivilegesOnRoom().has_permission(request, None)
     assert HasMediaHostPrivilegesOnRoom().has_object_permission(
         request, None, binding.room

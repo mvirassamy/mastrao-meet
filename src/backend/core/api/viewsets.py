@@ -226,7 +226,10 @@ class UserViewSet(
         methods=["get"],
         url_name="me",
         url_path="me",
-        permission_classes=[permissions.IsAuthenticated],
+        # The browser host handoff establishes a constrained Django session.
+        # Let the frontend bootstrap that session here without granting the
+        # temporary host access to any of the generic authenticated surfaces.
+        permission_classes=[drf_permissions.IsAuthenticated],
     )
     def get_me(self, request):
         """
