@@ -6,10 +6,13 @@ Test LiveKitEvents service.
 import uuid
 from unittest import mock
 
+from django.utils import timezone
+
 import pytest
 from livekit.api import EgressStatus
 
-from core.factories import RecordingFactory, RoomFactory
+from core import models
+from core.factories import RecordingFactory, RoomFactory, UserFactory
 from core.recording.services.recording_events import RecordingEventsService
 from core.services.livekit_events import (
     ActionFailedError,
@@ -666,6 +669,49 @@ def test_handle_room_started_skips_dispatch_rule_when_telephony_disabled(
 
     service._handle_room_started(mock_data)
 
+    mock_ensure_dispatch_rule.assert_not_called()
+
+
+@mock.patch("core.services.livekit_events.RoomManagement.delete_room")
+@mock.patch.object(SIPManagement, "ensure_dispatch_rule")
+def test_handle_room_started_redeletes_tombstoned_canonical_room(
+    mock_ensure_dispatch_rule, mock_delete_room, service, settings
+):
+    """A stale provider room cannot survive a delayed room-started webhook."""
+
+    settings.ROOM_TELEPHONY_ENABLED = False
+    settings.ROOMKIT_ENABLED = False
+    owner = UserFactory()
+    room = RoomFactory(access_level=models.RoomAccessLevel.RESTRICTED)
+    binding = models.MastraoRoomBinding.objects.create(
+        effect_key="create_effect_webhook_012345",
+        arguments_digest="a" * 64,
+        meeting_ref="meeting_webhook_012345",
+        room_ref="room_webhook_0123456789",
+        owner_ref="owner_webhook_0123456789",
+        room=room,
+        owner=owner,
+        provider_binding_digest="b" * 64,
+    )
+    models.MastraoRoomClosure.objects.create(
+        room_binding=binding,
+        organization_external_id="organization_0123456789",
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        close_ref="close_webhook_0123456789",
+        effect_key="close_effect_webhook_012345",
+        arguments_digest="c" * 64,
+        requested_at=timezone.now(),
+    )
+    service.lobby_service.clear_room_cache = mock.Mock()
+    mock_data = mock.MagicMock()
+    mock_data.room.name = str(room.id)
+
+    service._handle_room_started(mock_data)
+
+    mock_delete_room.assert_called_once_with(str(room.id))
+    service.lobby_service.clear_room_cache.assert_called_once_with(room.id)
     mock_ensure_dispatch_rule.assert_not_called()
 
 

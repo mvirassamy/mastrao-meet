@@ -35,6 +35,7 @@ export type ApiRoom = {
   access_level: ApiAccessLevel
   livekit?: ApiLiveKit
   configuration?: RoomConfiguration
+  can_end?: boolean
   /**
    * Only present in the API response when the requesting user is an
    * administrator or owner of the room (see RoomSerializer.to_representation

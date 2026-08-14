@@ -16,9 +16,12 @@ import { VideoDeviceControl } from '../../components/controls/Device/VideoDevice
 import { AudioDevicesControl } from '../../components/controls/Device/AudioDevicesControl'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
+import { EndMeetingButton } from '../../components/controls/EndMeetingButton'
 
 export function DesktopControlBar({
   onDeviceError,
+  roomId,
+  canEnd,
 }: Readonly<ControlBarAuxProps>) {
   const browserSupportsScreenSharing = supportsScreenSharing()
   const desktopControlBarEl = useRef<HTMLDivElement>(null)
@@ -84,6 +87,7 @@ export function DesktopControlBar({
         <SubtitlesToggle />
         <HandToggle />
         <OptionsButton />
+        {canEnd && <EndMeetingButton roomId={roomId} />}
         <LeaveButton />
         <StartMediaButton />
       </ControlBarRegion>

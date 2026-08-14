@@ -18,6 +18,7 @@ import { fetchRoom } from '../api/fetchRoom'
 import { ApiAccessLevel } from '../api/ApiRoom'
 import { ApiLobbyStatus, type ApiRequestEntry } from '../api/requestEntry'
 import { useLobby } from '../hooks/useLobby'
+import { isMastraoRoomId } from '../utils/isRoomValid'
 
 export const Lobby = ({
   roomId,
@@ -47,15 +48,8 @@ export const Lobby = ({
     queryFn: () => fetchRoom({ roomId, username: username || user?.full_name }),
     staleTime: 6 * 60 * 60 * 1000, // By default, LiveKit access tokens expire 6 hours after generation
     retry: false,
-    enabled: false,
+    enabled: isMastraoRoomId(roomId),
   })
-
-  useEffect(() => {
-    if (isError && error?.statusCode == 404) {
-      // The room component will handle the room creation if the user is authenticated
-      enterRoom()
-    }
-  }, [isError, error, enterRoom])
 
   const handleAccepted = (response: ApiRequestEntry) => {
     queryClient.setQueryData([keys.room, roomId], {
@@ -65,16 +59,32 @@ export const Lobby = ({
     enterRoom()
   }
 
-  const { status, startWaiting } = useLobby({
+  const { status, startWaiting, markEnded } = useLobby({
     roomId,
     username: username || user?.full_name || 'anonymous',
     onAccepted: handleAccepted,
   })
 
+  useEffect(() => {
+    if (isError && error?.statusCode == 404) {
+      if (isMastraoRoomId(roomId)) {
+        markEnded()
+        return
+      }
+      // The room component will handle the room creation if the user is authenticated
+      enterRoom()
+    }
+  }, [isError, error, enterRoom, markEnded, roomId])
+
   const { openLoginHint } = useLoginHint()
 
   const handleSubmit = async () => {
-    const { data } = await refetchRoom()
+    const { data, error: roomError } = await refetchRoom()
+
+    if (roomError?.statusCode == 404 && isMastraoRoomId(roomId)) {
+      markEnded()
+      return
+    }
 
     if (!data?.livekit) {
       // Display a message to inform the user that by logging in, they won't have to wait for room entry approval.
@@ -89,6 +99,18 @@ export const Lobby = ({
   }
 
   switch (status) {
+    case ApiLobbyStatus.ENDED:
+      return (
+        <VStack alignItems="center" textAlign="center">
+          <H lvl={1} margin={false} centered>
+            {t('ended.title')}
+          </H>
+          <Text as="p" variant="note">
+            {t('ended.body')}
+          </Text>
+        </VStack>
+      )
+
     case ApiLobbyStatus.TIMEOUT:
       return (
         <VStack alignItems="center" textAlign="center">

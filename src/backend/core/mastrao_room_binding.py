@@ -5,6 +5,7 @@ from django.db import connection, transaction
 
 from core.mastrao_identity import mastrao_technical_owner_subject
 from core.mastrao_room_contract import RoomEffectRefused, _sha256_canonical
+from core.mastrao_room_lifecycle import MastraoRoomClosed, assert_mastrao_room_open
 from core.models import (
     MastraoRoomBinding,
     ResourceAccess,
@@ -49,6 +50,10 @@ def _validate_existing(binding, effect):
         != _provider_binding_digest(binding.room, binding.owner, access)
     ):
         raise RoomEffectRefused(status=409)
+    try:
+        assert_mastrao_room_open(binding)
+    except MastraoRoomClosed as error:
+        raise RoomEffectRefused(status=409) from error
     return binding
 
 

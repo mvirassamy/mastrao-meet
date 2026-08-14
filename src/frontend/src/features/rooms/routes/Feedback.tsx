@@ -26,6 +26,7 @@ const Heading = styled('h1', {
 enum DisconnectReasonKey {
   DuplicateIdentity = 'duplicateIdentity',
   ParticipantRemoved = 'participantRemoved',
+  MeetingEnded = 'meetingEnded',
 }
 
 const FeedbackRoute = () => {
@@ -41,6 +42,8 @@ const FeedbackRoute = () => {
         return DisconnectReasonKey.DuplicateIdentity
       case DisconnectReason.PARTICIPANT_REMOVED:
         return DisconnectReasonKey.ParticipantRemoved
+      case DisconnectReason.ROOM_DELETED:
+        return DisconnectReasonKey.MeetingEnded
     }
   }, [])
 
@@ -55,7 +58,11 @@ const FeedbackRoute = () => {
     }
   }, [])
 
-  const showBackButton = reasonKey !== DisconnectReasonKey.ParticipantRemoved
+  const showBackButton = ![
+    DisconnectReasonKey.ParticipantRemoved,
+    DisconnectReasonKey.MeetingEnded,
+  ].includes(reasonKey as DisconnectReasonKey)
+  const showRating = reasonKey !== DisconnectReasonKey.MeetingEnded
 
   return (
     <Screen layout="centered" footer={false}>
@@ -72,7 +79,7 @@ const FeedbackRoute = () => {
               {t('feedback.home')}
             </Button>
           </HStack>
-          <Rating metadata={metadata} />
+          {showRating && <Rating metadata={metadata} />}
         </VStack>
       </Center>
     </Screen>

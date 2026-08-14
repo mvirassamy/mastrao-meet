@@ -1,12 +1,10 @@
 """Browser handoff consumer backed by Cabinet Core redemption."""
 
 import hashlib
-import json
 import re
 import secrets
 import time
 from datetime import UTC, datetime
-from urllib.parse import urlparse
 
 from django.conf import settings
 from django.contrib.auth import login
@@ -18,9 +16,8 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-import requests
-
 from core import models
+from core.mastrao_core_http import post_core_json, read_bounded_core_json
 from core.mastrao_host_contract import (
     HostHandoffRefused,
     compact_digest,
@@ -34,6 +31,7 @@ from core.mastrao_host_grant import (
     SESSION_PLATFORM_REF_KEY,
 )
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
+from core.mastrao_room_lifecycle import MastraoRoomClosed, assert_mastrao_room_open
 
 MAX_HANDOFF_BODY_BYTES = 20_000
 MAX_HANDOFF_ATTEMPTS_PER_MINUTE = 3
@@ -71,66 +69,24 @@ def _admit_public_attempt(_request, host_handoff):
 
 
 def _safe_json_response(response):
-    declared = response.headers.get("content-length")
-    if declared is not None and (not declared.isdecimal() or int(declared) > 20_000):
-        response.close()
-        raise HostHandoffRefused(status=503)
-    if response.status_code != 200:
-        response.close()
-        raise HostHandoffRefused(status=503 if response.status_code >= 500 else 404)
-    try:
-        chunks = []
-        size = 0
-        for chunk in response.iter_content(chunk_size=4_096):
-            size += len(chunk)
-            if size > 20_000:
-                raise HostHandoffRefused(status=503)
-            chunks.append(chunk)
-        body = json.loads(b"".join(chunks))
-    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
-        raise HostHandoffRefused(status=503) from error
-    finally:
-        response.close()
-    if not isinstance(body, dict) or set(body) != {"host_grant"}:
-        raise HostHandoffRefused(status=503)
-    return body
+    return read_bounded_core_json(
+        response, HostHandoffRefused, expected_fields={"host_grant"}
+    )
 
 
 def _redeem(host_handoff):
-    endpoint = urlparse(settings.MASTRAO_CORE_REDEMPTION_ENDPOINT)
-    if (  # pylint: disable=too-many-boolean-expressions
-        endpoint.scheme != "http"
-        or endpoint.hostname
-        not in {
-            "127.0.0.1",
-            "localhost",
-            "::1",
-            "host.docker.internal",
-            "127.0.0.1.nip.io",
-        }
-        or endpoint.username
-        or endpoint.password
-        or endpoint.query
-        or endpoint.fragment
-    ):
-        raise HostHandoffRefused(status=503)
     assertion, redemption = sign_redemption(host_handoff)
-    try:
-        with requests.Session() as session:
-            session.trust_env = False
-            response = session.post(
-                settings.MASTRAO_CORE_REDEMPTION_ENDPOINT,
-                json={
-                    "host_handoff": host_handoff,
-                    "redemption_assertion": assertion,
-                },
-                timeout=settings.MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS,
-                allow_redirects=False,
-                stream=True,
-            )
-            body = _safe_json_response(response)
-    except requests.RequestException as error:
-        raise HostHandoffRefused(status=503) from error
+    body = post_core_json(
+        endpoint=settings.MASTRAO_CORE_REDEMPTION_ENDPOINT,
+        expected_path="/internal/v1/meetings/host-handoffs/redeem",
+        body={
+            "host_handoff": host_handoff,
+            "redemption_assertion": assertion,
+        },
+        timeout=settings.MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS,
+        refusal=HostHandoffRefused,
+        expected_fields={"host_grant"},
+    )
     grant = verify_host_grant(body["host_grant"])
     if grant["redemption_id"] != redemption["redemption_id"] or grant[
         "credential_digest"
@@ -183,6 +139,10 @@ def _binding_for(grant):
         ).exists()
     ):
         raise HostHandoffRefused()
+    try:
+        assert_mastrao_room_open(binding)
+    except MastraoRoomClosed as error:
+        raise HostHandoffRefused() from error
     return binding
 
 

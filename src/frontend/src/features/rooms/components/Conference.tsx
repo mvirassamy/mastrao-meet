@@ -37,6 +37,13 @@ import { useSnapshot } from 'valtio'
 import { userPreferencesStore } from '@/stores/userPreferences'
 import { userStore } from '@/stores/user'
 import { WatchMediaDeviceErrors } from './WatchMediaDeviceErrors'
+import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
+import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
+
+const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
+  const { isEnding } = useMeetingLifecycle()
+  return isEnding ? null : <InviteDialog mode={mode} />
+}
 
 export const Conference = ({
   roomId,
@@ -265,6 +272,14 @@ export const Conference = ({
             connectionObserverStore.subscriberChangesCount = 0
 
             switch (e) {
+              case DisconnectReason.ROOM_DELETED:
+                queryClient.removeQueries({ queryKey: fetchKey, exact: true })
+                navigateTo(
+                  'feedback',
+                  {},
+                  { state: { reason: e, ...metadata } }
+                )
+                return
               case DisconnectReason.CLIENT_INITIATED:
                 navigateTo(
                   'feedback',
@@ -290,10 +305,12 @@ export const Conference = ({
             }
           }}
         >
-          <WatchMediaDeviceErrors />
-          <VideoConference />
-          {!isMobile && <InviteDialog mode={mode} />}
-          <PictureInPictureConference />
+          <MeetingLifecycleProvider key={roomId}>
+            <WatchMediaDeviceErrors />
+            <VideoConference roomId={roomId} canEnd={data?.can_end} />
+            {!isMobile && <ActiveInviteDialog mode={mode} />}
+            <PictureInPictureConference />
+          </MeetingLifecycleProvider>
         </LiveKitRoom>
       </Screen>
     </QueryAware>

@@ -7,6 +7,7 @@ from datetime import timedelta
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.test import Client, override_settings
 from django.urls import reverse
@@ -20,6 +21,7 @@ from core.mastrao_guest_grant import (
     SESSION_COMPACT_GRANT_KEY,
     SESSION_GRANT_REF_KEY,
     SESSION_NONCE_KEY,
+    active_guest_grant,
 )
 from core.mastrao_guest_handoff import GUEST_RETRY_COOKIE, decide_guest_admission
 from core.mastrao_identity import mastrao_technical_owner_subject
@@ -169,6 +171,44 @@ def test_exact_redemption_retry_recovers_after_session_response_loss():
     APPLICATION_BASE_URL="http://meet.test",
     MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
+def test_tombstone_revokes_exact_guest_projection():
+    """A browser-retained guest credential cannot mint media after closure."""
+
+    binding = _room_binding()
+    client = Client(HTTP_HOST="meet.test")
+    response, _grant = _redeem_guest(client, binding)
+    assert response.status_code == 200
+    request = mock.Mock(user=AnonymousUser(), session=client.session)
+    assert active_guest_grant(request, binding.room) is not None
+
+    models.MastraoRoomClosure.objects.create(
+        room_binding=binding,
+        organization_external_id="organization_0123456789",
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        close_ref="close_guest_0123456789",
+        effect_key="close_effect_guest_0123456789",
+        arguments_digest="c" * 64,
+        requested_at=timezone.now(),
+    )
+
+    assert active_guest_grant(request, binding.room) is None
+    assert (
+        client.post(
+            f"/api/v1.0/rooms/{binding.room_id}/request-entry/",
+            {"username": "guest"},
+            content_type="application/json",
+        ).status_code
+        == 404
+    )
+    cache.clear()
+
+
+@override_settings(
+    APPLICATION_BASE_URL="http://meet.test",
+    MASTRAO_GUEST_INVITATION_ENABLED=True,
+)
 def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
     """Concurrent invalid credentials cannot occupy every request worker."""
 
@@ -200,6 +240,8 @@ def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
     MASTRAO_GUEST_INVITATION_ENABLED=True,
+    MASTRAO_MEETING_CLOSE_ENABLED=False,
+    LIVEKIT_EXPLICIT_ROOM_CREATION=False,
 )
 def test_guest_redemption_creates_only_room_bound_anonymous_grant(settings):
     """A redeemed invitation creates no durable user or room ACL."""

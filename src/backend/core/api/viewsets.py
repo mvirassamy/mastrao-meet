@@ -47,6 +47,9 @@ from core.enums import MEDIA_STORAGE_URL_PATTERN
 from core.mastrao_guest_contract import GuestHandoffRefused
 from core.mastrao_guest_grant import CANONICAL_ROOM_SLUG, can_access_canonical_room
 from core.mastrao_guest_handoff import decide_guest_admission
+from core.mastrao_meeting_close import request_meeting_close
+from core.mastrao_room_close_contract import RoomCloseRefused
+from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.recording.enums import FileExtension
 from core.recording.event.authentication import (
     RecordingProcessWebhookAuthentication,
@@ -96,6 +99,7 @@ from core.services.room_management import (
     RoomManagement,
     RoomManagementException,
     RoomNotFoundException,
+    ensure_livekit_room,
 )
 from core.services.room_roles import (
     RoomRoleError,
@@ -286,6 +290,7 @@ class RoomViewSet(
                 raise
             slug = slugify(self.kwargs["pk"])
             username = request.query_params.get("username", None)
+            ensure_livekit_room(slug)
             data = {
                 "id": None,
                 "slug": slug,
@@ -537,10 +542,14 @@ class RoomViewSet(
                 request=request,
                 **serializer.validated_data,
             )
-        except GuestHandoffRefused as error:
+        except (GuestHandoffRefused, MastraoRoomClosed) as error:
             return drf_response.Response(
-                {"message": "Not found" if error.status == 404 else "Unavailable"},
-                status=error.status,
+                {
+                    "message": "Not found"
+                    if getattr(error, "status", 404) == 404
+                    else "Unavailable"
+                },
+                status=getattr(error, "status", 404),
             )
         response = drf_response.Response({**participant.to_dict(), "livekit": livekit})
         lobby_service.prepare_response(response, participant.id)
@@ -617,6 +626,33 @@ class RoomViewSet(
 
         participants = lobby_service.list_waiting_participants(room.id)
         return drf_response.Response({"participants": participants})
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="end",
+        permission_classes=[permissions.HasMeetingClosePrivilegesOnRoom],
+    )
+    def end_mastrao_meeting(self, request, pk=None):  # pylint: disable=unused-argument
+        """Ask Core to irreversibly end one canonical meeting for everyone."""
+
+        serializer = serializers.EndMeetingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not hasattr(room, "mastrao_binding"):
+            raise Http404
+        try:
+            result = request_meeting_close(
+                request,
+                room,
+                serializer.validated_data["close_request_id"],
+            )
+        except RoomCloseRefused as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
 
     @decorators.action(
         detail=False,
@@ -1636,6 +1672,7 @@ class DiagnosticsViewSet(viewsets.ViewSet):
         """
         room = f"{settings.CONNECTION_TEST_ROOM_PREFIX}-{uuid4()}"
         expires_in = settings.CONNECTION_TEST_TOKEN_TTL_SECONDS
+        ensure_livekit_room(room)
 
         # LiveKit refreshes tokens for connected clients, so JWT TTL alone does not
         # eject someone who stays connected. Schedule a hard DeleteRoom when Celery

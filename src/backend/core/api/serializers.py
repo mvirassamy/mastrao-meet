@@ -22,6 +22,8 @@ from timezone_field.rest_framework import TimeZoneSerializerField
 from core import models, utils
 from core.mastrao_host_grant import host_media_projection
 from core.mastrao_identity import is_mastrao_host_subject
+from core.mastrao_room_lifecycle import MastraoRoomClosed
+from core.services.room_management import ensure_livekit_room
 
 logger = logging.getLogger(__name__)
 
@@ -204,18 +206,31 @@ class RoomSerializer(serializers.ModelSerializer):
         if should_access_room:
             room_id = f"{instance.id!s}"
             username = request.query_params.get("username", None)
-            output["livekit"] = utils.generate_livekit_config(
-                room_id=room_id,
-                user=request.user,
-                username=username,
-                configuration=output["configuration"],
-                role=role,
-                expires_at=temporary_host_expires_at,
-            )
+            try:
+                ensure_livekit_room(room_id)
+                output["livekit"] = utils.generate_livekit_config(
+                    room_id=room_id,
+                    user=request.user,
+                    username=username,
+                    configuration=output["configuration"],
+                    role=role,
+                    expires_at=temporary_host_expires_at,
+                )
+            except MastraoRoomClosed:
+                temporary_host_role = None
         else:
             del output["pin_code"]
 
+        if temporary_host_role is not None:
+            output["can_end"] = bool(settings.MASTRAO_MEETING_CLOSE_ENABLED)
+
         return output
+
+
+class EndMeetingSerializer(serializers.Serializer):
+    """Validate one stable browser close request identifier."""
+
+    close_request_id = serializers.RegexField(r"^[A-Za-z0-9_-]{16,160}$")
 
 
 class RecordingSerializer(serializers.ModelSerializer):

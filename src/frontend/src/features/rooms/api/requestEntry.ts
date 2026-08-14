@@ -12,6 +12,7 @@ export enum ApiLobbyStatus {
   DENIED = 'denied',
   TIMEOUT = 'timeout',
   ACCEPTED = 'accepted',
+  ENDED = 'ended',
 }
 
 export interface ApiRequestEntry {

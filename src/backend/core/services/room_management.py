@@ -1,22 +1,54 @@
 """Room management service for LiveKit rooms."""
 
-# pylint: disable=no-name-in-module
+# pylint: disable=no-name-in-module,no-member
 
 import json
+import uuid
 from logging import getLogger
 from typing import Dict, Optional
 
+from django.conf import settings
+from django.db import transaction
+
 from asgiref.sync import async_to_sync
 from livekit.api import (
+    CreateRoomRequest,
     DeleteRoomRequest,
     ListRoomsRequest,
     TwirpError,
     UpdateRoomMetadataRequest,
 )
 
-from core import utils
+from core import models, utils
+from core.mastrao_room_lifecycle import assert_mastrao_room_open
 
 logger = getLogger(__name__)
+
+
+def ensure_livekit_room(room_name: str):
+    """Ensure a room only when explicit room creation is enabled."""
+
+    if not settings.LIVEKIT_EXPLICIT_ROOM_CREATION:
+        return
+
+    try:
+        room_id = uuid.UUID(room_name)
+    except ValueError:
+        RoomManagement().ensure_room(room_name)
+        return
+
+    # Keep the canonical binding lock through provider creation. A concurrent
+    # close either observes the room and deletes it, or wins first and blocks
+    # creation through its durable tombstone.
+    with transaction.atomic():
+        binding = (
+            models.MastraoRoomBinding.objects.select_for_update()
+            .filter(room_id=room_id)
+            .first()
+        )
+        if binding is not None:
+            assert_mastrao_room_open(binding)
+        RoomManagement().ensure_room(room_name)
 
 
 class RoomManagementException(Exception):
@@ -29,6 +61,28 @@ class RoomNotFoundException(RoomManagementException):
 
 class RoomManagement:
     """Service for managing LiveKit rooms."""
+
+    @async_to_sync
+    async def ensure_room(self, room_name: str):
+        """Create a LiveKit room when it does not already exist."""
+
+        lkapi = utils.create_livekit_client()
+
+        try:
+            response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
+            if response.rooms:
+                return
+            try:
+                await lkapi.room.create_room(CreateRoomRequest(name=room_name))
+            except TwirpError as error:
+                if error.code != "already_exists":
+                    raise
+            logger.info("Ensured LiveKit room %s", room_name)
+        except TwirpError as error:
+            logger.exception("Unexpected error ensuring room %s", room_name)
+            raise RoomManagementException("Could not ensure room") from error
+        finally:
+            await lkapi.aclose()
 
     @async_to_sync
     async def update_metadata(

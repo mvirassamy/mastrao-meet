@@ -4,6 +4,16 @@ redis:
 keys:
   devkey: secret
 
+room:
+  auto_create: false
+
+# The browser runs on the Docker host in local development. Advertise the
+# published host ports instead of the container-only bridge address.
+rtc:
+  node_ip: 127.0.0.1
+  tcp_port: 7881
+  udp_port: 7882
+
 webhook:
   api_key: devkey
   urls:

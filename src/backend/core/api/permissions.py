@@ -6,7 +6,7 @@ from django.http import Http404
 from rest_framework import permissions
 
 from ..mastrao_guest_grant import can_access_canonical_room
-from ..mastrao_host_grant import active_host_grant
+from ..mastrao_host_grant import active_host_close_grant, active_host_grant
 from ..mastrao_identity import is_mastrao_host_subject
 from ..models import RoleChoices
 from ..services.participants_management import (
@@ -128,6 +128,16 @@ class HasMediaHostPrivilegesOnRoom(permissions.BasePermission):
         if obj.is_administrator_or_owner(request.user):
             return True
         return active_host_grant(request, obj) is not None
+
+
+class HasMeetingClosePrivilegesOnRoom(permissions.BasePermission):
+    """Allow only the exact session-bound canonical host to retry close."""
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        return active_host_close_grant(request, obj) is not None
 
 
 class HasLiveKitRoomAccess(permissions.BasePermission):

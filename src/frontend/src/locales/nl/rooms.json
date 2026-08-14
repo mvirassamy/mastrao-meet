@@ -3,7 +3,8 @@
     "heading": {
       "normal": "Je hebt de vergadering verlaten",
       "duplicateIdentity": "U heeft de vergadering via een ander apparaat geopend",
-      "participantRemoved": "U bent door een beheerder uit het gesprek verwijderd"
+      "participantRemoved": "U bent door een beheerder uit het gesprek verwijderd",
+      "meetingEnded": "De host heeft de vergadering beëindigd"
     },
     "home": "Keer terug naar het hoofdscherm",
     "back": "Sluit weer bij de vergadering aan"
@@ -89,6 +90,10 @@
     "timeoutInvite": {
       "title": "U kunt niet deelnemen aan dit gesprek",
       "body": "Niemand heeft gereageerd op uw verzoek om deel te nemen aan het gesprek"
+    },
+    "ended": {
+      "title": "Deze vergadering is beëindigd",
+      "body": "De host heeft de vergadering beëindigd. Deze link kan niet meer worden gebruikt."
     }
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",
@@ -266,6 +271,18 @@
       "stop": "Stop schermdelen"
     },
     "leave": "Vertrekken",
+    "endMeeting": {
+      "label": "Vergadering voor iedereen beëindigen",
+      "status": "Vergadering wordt beëindigd…",
+      "dialog": {
+        "title": "Vergadering voor iedereen beëindigen?",
+        "body": "Iedereen wordt verbroken en deze vergadering kan niet opnieuw worden geopend.",
+        "cancel": "Annuleren",
+        "confirm": "Vergadering beëindigen",
+        "ending": "Bezig met beëindigen…",
+        "error": "De vergadering kon niet worden beëindigd. Probeer het opnieuw."
+      }
+    },
     "participants": {
       "open": "Verberg iedereen",
       "closed": "Toon iedereen",
