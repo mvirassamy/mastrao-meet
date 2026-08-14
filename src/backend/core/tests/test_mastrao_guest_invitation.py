@@ -240,6 +240,8 @@ def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
     MASTRAO_GUEST_INVITATION_ENABLED=True,
+    MASTRAO_MEETING_CLOSE_ENABLED=False,
+    LIVEKIT_EXPLICIT_ROOM_CREATION=False,
 )
 def test_guest_redemption_creates_only_room_bound_anonymous_grant(settings):
     """A redeemed invitation creates no durable user or room ACL."""

@@ -7,7 +7,15 @@ import { HStack } from '@/styled-system/jsx'
 import { endMeeting } from '@/features/rooms/api/endMeeting'
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
 
-export const EndMeetingButton = ({ roomId }: { roomId: string }) => {
+export const EndMeetingButton = ({
+  roomId,
+  description = false,
+  onEnded,
+}: {
+  roomId: string
+  description?: boolean
+  onEnded?: () => void
+}) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'controls.endMeeting' })
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -24,6 +32,7 @@ export const EndMeetingButton = ({ roomId }: { roomId: string }) => {
       await endMeeting(roomId, closeRequestId.current)
       markEnding()
       setIsOpen(false)
+      onEnded?.()
     } catch {
       setHasFailed(true)
     } finally {
@@ -37,6 +46,7 @@ export const EndMeetingButton = ({ roomId }: { roomId: string }) => {
         variant="danger"
         tooltip={t('label')}
         aria-label={t('label')}
+        description={description}
         isDisabled={isEnding}
         onPress={() => setIsOpen(true)}
         data-attr="controls-end-meeting"
@@ -50,7 +60,7 @@ export const EndMeetingButton = ({ roomId }: { roomId: string }) => {
         aria-label={t('dialog.title')}
       >
         <P>{t('dialog.body')}</P>
-        {hasFailed && <P>{t('dialog.error')}</P>}
+        {hasFailed && <P role="alert">{t('dialog.error')}</P>}
         <HStack gap={2}>
           <Button
             variant="secondary"

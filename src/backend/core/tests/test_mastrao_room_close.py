@@ -73,6 +73,7 @@ def _request():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
+    MASTRAO_ROOM_ADAPTER_ENABLED=True,
     MASTRAO_MEETING_CLOSE_ENABLED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
@@ -118,6 +119,7 @@ def test_close_tombstones_deletes_and_replays_without_second_provider_call():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
+    MASTRAO_ROOM_ADAPTER_ENABLED=True,
     MASTRAO_MEETING_CLOSE_ENABLED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     ROOM_TELEPHONY_ENABLED=False,
@@ -149,6 +151,7 @@ def test_provider_failure_keeps_pending_tombstone_that_blocks_creation():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
+    MASTRAO_ROOM_ADAPTER_ENABLED=True,
     MASTRAO_MEETING_CLOSE_ENABLED=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
@@ -184,6 +187,7 @@ def test_missing_provider_room_is_a_successful_idempotent_close():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
+    MASTRAO_ROOM_ADAPTER_ENABLED=True,
     MASTRAO_MEETING_CLOSE_ENABLED=False,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
@@ -215,3 +219,22 @@ def test_accepted_close_effect_reconciles_after_new_intent_flag_is_disabled():
     assert response.status_code == 200
     delete_room.assert_called_once_with(str(binding.room_id))
     assert models.MastraoRoomClosure.objects.filter(room_binding=binding).exists()
+
+
+@override_settings(MASTRAO_ROOM_ADAPTER_ENABLED=False)
+def test_close_adapter_refuses_effects_when_room_adapter_is_disabled():
+    """The global room adapter kill switch also closes the destructive endpoint."""
+
+    with (
+        mock.patch(
+            "core.mastrao_room_close_adapter.verify_room_close_effect"
+        ) as verify,
+        mock.patch(
+            "core.mastrao_room_close_adapter.RoomManagement.delete_room"
+        ) as delete_room,
+    ):
+        response = close_mastrao_room(_request())
+
+    assert response.status_code == 404
+    verify.assert_not_called()
+    delete_room.assert_not_called()

@@ -52,7 +52,6 @@ export function MobileControlBar({
         })}
       >
         <ControlBarRegion mobile>
-          {canEnd && <EndMeetingButton roomId={roomId} />}
           <LeaveButton />
           <AudioDevicesControl
             onDeviceError={(error) =>
@@ -124,6 +123,13 @@ export function MobileControlBar({
               description={true}
               onPress={() => setIsMenuOpened(false)}
             />
+            {canEnd && (
+              <EndMeetingButton
+                roomId={roomId}
+                description={true}
+                onEnded={() => setIsMenuOpened(false)}
+              />
+            )}
             <Button
               onPress={() => {
                 toggleEffects()

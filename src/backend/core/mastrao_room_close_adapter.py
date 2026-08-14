@@ -139,6 +139,9 @@ def _apply_tombstone(closure_id, effect):
 def close_mastrao_room(request):
     """Tombstone and delete one exact provider room, with replayable receipt."""
 
+    if not settings.MASTRAO_ROOM_ADAPTER_ENABLED:
+        return JsonResponse({"message": "Not found"}, status=404)
+
     try:
         declared = request.headers.get("content-length")
         if (
