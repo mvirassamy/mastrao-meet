@@ -45,7 +45,10 @@ def _session_bound_host_grant(request, room, *, observed_at=None, include_closed
         expires_at__gt=observed_at,
     )
     if not include_closed:
-        queryset = queryset.filter(room_binding__closure__isnull=True)
+        queryset = queryset.filter(
+            room_binding__closing_at__isnull=True,
+            room_binding__closure__isnull=True,
+        )
     return queryset.order_by("-expires_at").first()
 
 

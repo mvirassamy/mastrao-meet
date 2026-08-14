@@ -2,6 +2,8 @@
 
 # pylint: disable=no-member
 
+from django.db.models import Q
+
 from core import models
 
 
@@ -34,7 +36,11 @@ def is_mastrao_room_closed(value) -> bool:
             )
     if binding_id is None:
         return False
-    return models.MastraoRoomClosure.objects.filter(room_binding_id=binding_id).exists()
+    return (
+        models.MastraoRoomBinding.objects.filter(pk=binding_id)
+        .filter(Q(closing_at__isnull=False) | Q(closure__isnull=False))
+        .exists()
+    )
 
 
 def assert_mastrao_room_open(value):

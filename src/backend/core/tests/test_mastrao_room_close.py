@@ -11,6 +11,7 @@ from django.test import RequestFactory, override_settings
 import pytest
 
 from core import models
+from core.mastrao_meeting_close import request_meeting_close
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.services.room_management import (
@@ -69,6 +70,61 @@ def _request():
         data=json.dumps({"room_close_effect": "header.payload.signature"}),
         content_type="application/json",
     )
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_MEETING_CLOSE_ENABLED=True,
+    LIVEKIT_EXPLICIT_ROOM_CREATION=True,
+)
+def test_core_close_acceptance_fences_room_before_effect_delivery():
+    """A successful Core transition blocks local media before reconciliation."""
+
+    binding = _binding("accepted")
+    grant = mock.Mock(
+        room_binding_id=binding.pk,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+    )
+    response = {
+        "version": 1,
+        "matter_ref": "matter_accepted_0123456789",
+        "meeting_ref": binding.meeting_ref,
+        "room_ref": binding.room_ref,
+        "state": "ending",
+        "state_version": 2,
+        "requested_at": int(time.time()),
+    }
+    with (
+        mock.patch(
+            "core.mastrao_meeting_close.active_host_close_grant",
+            return_value=grant,
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.active_host_compact_grant",
+            return_value="host.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.sign_meeting_close_request",
+            return_value=("close.payload.signature", {}),
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.post_core_json",
+            return_value=response,
+        ),
+    ):
+        assert (
+            request_meeting_close(
+                mock.Mock(), binding.room, "close_request_accepted_0123456789"
+            )
+            == response
+        )
+
+    binding.refresh_from_db()
+    assert binding.closing_at is not None
+    assert not models.MastraoRoomClosure.objects.filter(room_binding=binding).exists()
+    with pytest.raises(MastraoRoomClosed):
+        ensure_livekit_room(str(binding.room_id))
 
 
 @pytest.mark.django_db(transaction=True)

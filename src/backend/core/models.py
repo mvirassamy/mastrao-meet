@@ -528,6 +528,7 @@ class MastraoRoomBinding(BaseModel):
         related_name="mastrao_room_bindings",
     )
     provider_binding_digest = models.CharField(max_length=64)
+    closing_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "meet_mastrao_room_binding"

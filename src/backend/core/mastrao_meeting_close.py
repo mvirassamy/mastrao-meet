@@ -1,7 +1,10 @@
 """Temporary host client for the canonical Cabinet Core close transition."""
 
 from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
 
+from core import models
 from core.mastrao_core_http import post_core_json
 from core.mastrao_host_grant import active_host_close_grant, active_host_compact_grant
 from core.mastrao_room_close_contract import (
@@ -54,6 +57,16 @@ def _validate_response(body, grant):
     return body
 
 
+@transaction.atomic
+def _persist_closing_fence(grant):
+    binding = models.MastraoRoomBinding.objects.select_for_update().get(
+        pk=grant.room_binding_id
+    )
+    if binding.closing_at is None:
+        binding.closing_at = timezone.now()
+        binding.save(update_fields=["closing_at", "updated_at"])
+
+
 def request_meeting_close(request, room, close_request_id):
     """Ask Core to commit an irreversible close for the exact active host grant."""
 
@@ -77,4 +90,6 @@ def request_meeting_close(request, room, close_request_id):
         passthrough_statuses={404, 409},
         client_error_status=None,
     )
-    return _validate_response(body, grant)
+    response = _validate_response(body, grant)
+    _persist_closing_fence(grant)
+    return response

@@ -430,6 +430,13 @@ def test_exact_host_can_end_and_retry_after_tombstone(client):
     assert room_response.status_code == 200
     assert room_response.json()["can_end"] is True
 
+    host = models.MastraoHostIdentity.objects.get().user
+    request = mock.Mock(user=host, session=client.session)
+    binding.closing_at = timezone.now()
+    binding.save(update_fields=["closing_at", "updated_at"])
+    assert active_host_grant(request, binding.room) is None
+    assert active_host_close_grant(request, binding.room) is not None
+
     models.MastraoRoomClosure.objects.create(
         room_binding=binding,
         organization_external_id="organization_0123456789",
@@ -441,8 +448,6 @@ def test_exact_host_can_end_and_retry_after_tombstone(client):
         arguments_digest="c" * 64,
         requested_at=timezone.now(),
     )
-    host = models.MastraoHostIdentity.objects.get().user
-    request = mock.Mock(user=host, session=client.session)
     assert active_host_grant(request, binding.room) is None
     assert active_host_close_grant(request, binding.room) is not None
 

@@ -37,6 +37,7 @@ def active_guest_grant(request, room, *, observed_at=None):
             room_binding__room=room,
             session_nonce_digest=digest,
             expires_at__gt=observed_at,
+            room_binding__closing_at__isnull=True,
             room_binding__closure__isnull=True,
         )
         .first()

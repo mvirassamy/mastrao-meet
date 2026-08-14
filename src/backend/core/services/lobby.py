@@ -378,6 +378,7 @@ class LobbyService:
         represented = {participant["id"] for participant in waiting_participants}
         durable_guests = models.MastraoGuestGrant.objects.filter(
             room_binding__room_id=room_id,
+            room_binding__closing_at__isnull=True,
             room_binding__closure__isnull=True,
             expires_at__gt=timezone.now(),
         ).filter(
