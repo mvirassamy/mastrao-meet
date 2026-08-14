@@ -17,6 +17,7 @@ import warnings
 from os import path
 from socket import gethostbyname, gethostname
 
+from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
 
 import dj_database_url
@@ -44,7 +45,19 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "receipt_assertion",
     "media_request_assertion",
     "media_grant",
+    "close_assertion",
+    "room_close_effect",
+    "room_close_receipt",
 )
+
+
+def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creation):
+    """Refuse a close rollout that cannot keep stale JWTs from recreating rooms."""
+
+    if close_enabled and not explicit_creation:
+        raise ImproperlyConfigured(
+            "MASTRAO_MEETING_CLOSE_ENABLED requires LIVEKIT_EXPLICIT_ROOM_CREATION=true"
+        )
 
 
 def get_release():
@@ -179,6 +192,17 @@ class Base(Configuration):
     MASTRAO_CORE_GUEST_TIMEOUT_SECONDS = values.FloatValue(
         5.0,
         environ_name="MASTRAO_CORE_GUEST_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    MASTRAO_MEETING_CLOSE_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_MEETING_CLOSE_ENABLED", environ_prefix=None
+    )
+    MASTRAO_CORE_MEETING_CLOSE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_MEETING_CLOSE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_MEETING_CLOSE_TIMEOUT_SECONDS = values.FloatValue(
+        5.0,
+        environ_name="MASTRAO_CORE_MEETING_CLOSE_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
 
@@ -751,6 +775,9 @@ class Base(Configuration):
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
     )
+    LIVEKIT_EXPLICIT_ROOM_CREATION = values.BooleanValue(
+        False, environ_name="LIVEKIT_EXPLICIT_ROOM_CREATION", environ_prefix=None
+    )
     LIVEKIT_DEFAULT_SOURCES = values.ListValue(
         [
             "camera",
@@ -1281,6 +1308,11 @@ class Base(Configuration):
         settings to be loaded.
         """
         super().post_setup()
+
+        validate_mastrao_meeting_close_configuration(
+            cls.MASTRAO_MEETING_CLOSE_ENABLED,
+            cls.LIVEKIT_EXPLICIT_ROOM_CREATION,
+        )
 
         if cls.FILE_UPLOAD_TMP_PATH == cls.FILE_UPLOAD_PATH:
             raise ValueError(

@@ -3,7 +3,8 @@
     "heading": {
       "normal": "Du hast das Meeting verlassen",
       "duplicateIdentity": "Du bist dem Meeting von einem anderen Gerät aus beigetreten",
-      "participantRemoved": "Du wurdest vom Host aus dem Meeting entfernt"
+      "participantRemoved": "Du wurdest vom Host aus dem Meeting entfernt",
+      "meetingEnded": "Der Host hat das Meeting beendet"
     },
     "home": "Zur Startseite zurückkehren",
     "back": "Dem Meeting erneut beitreten"
@@ -89,6 +90,10 @@
     "timeoutInvite": {
       "title": "Du kannst diesem Meeting nicht beitreten",
       "body": "Niemand hat auf deine Anfrage reagiert"
+    },
+    "ended": {
+      "title": "Dieses Meeting ist beendet",
+      "body": "Der Host hat das Meeting beendet. Dieser Link kann nicht mehr verwendet werden."
     }
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
@@ -266,6 +271,18 @@
       "stop": "Bildschirmfreigabe beenden"
     },
     "leave": "Verlassen",
+    "endMeeting": {
+      "label": "Meeting für alle beenden",
+      "status": "Meeting wird beendet…",
+      "dialog": {
+        "title": "Meeting für alle beenden?",
+        "body": "Alle werden getrennt und dieses Meeting kann nicht erneut geöffnet werden.",
+        "cancel": "Abbrechen",
+        "confirm": "Meeting beenden",
+        "ending": "Wird beendet…",
+        "error": "Das Meeting konnte nicht beendet werden. Versuche es erneut."
+      }
+    },
     "participants": {
       "open": "Alle ausblenden",
       "closed": "Alle anzeigen",

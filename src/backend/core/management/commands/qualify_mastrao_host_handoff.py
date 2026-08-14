@@ -33,6 +33,9 @@ class Command(BaseCommand):
             host_handoff = vector["host_handoff"]
             result_path = Path(vector["result_path"])
             expected_host_grants = int(vector.get("expected_host_grants", 1))
+            expected_resource_accesses = int(
+                vector.get("expected_resource_accesses", 1)
+            )
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise CommandError("Invalid host qualification vector") from error
 
@@ -48,6 +51,7 @@ class Command(BaseCommand):
                     result_path,
                     f"/{room_effect['room_ref']}",
                     expected_host_grants,
+                    expected_resource_accesses,
                 )
             else:
                 self._qualify(
@@ -96,11 +100,17 @@ class Command(BaseCommand):
         self._write_result(result_path, response["Location"], 1)
         self.stdout.write("Mastrao host handoff qualification passed")
 
-    def _write_result(self, result_path, location, expected_host_grants):
+    def _write_result(
+        self,
+        result_path,
+        location,
+        expected_host_grants,
+        expected_resource_accesses=1,
+    ):
         valid = (
             MastraoHostIdentity.objects.count() == 1
             and MastraoHostGrant.objects.count() == expected_host_grants
-            and ResourceAccess.objects.count() == 1
+            and ResourceAccess.objects.count() == expected_resource_accesses
         )
         if not valid:
             raise CommandError("Host handoff created durable room authority")

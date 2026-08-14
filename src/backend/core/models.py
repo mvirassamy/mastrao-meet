@@ -546,6 +546,84 @@ class MastraoRoomBinding(BaseModel):
         return f"Mastrao room binding {self.effect_key}"
 
 
+class MastraoRoomClosure(BaseModel):
+    """Durable tombstone for one canonical Mastrao room closure effect."""
+
+    class State(models.TextChoices):
+        """Local provider application state."""
+
+        PENDING = "pending", _("Pending")
+        APPLIED = "applied", _("Applied")
+
+    class ProviderObservation(models.TextChoices):
+        """Safe result of the LiveKit deletion attempt."""
+
+        DELETED = "deleted", _("Deleted")
+        ALREADY_ABSENT = "already_absent", _("Already absent")
+
+    room_binding = models.OneToOneField(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="closure",
+    )
+    organization_external_id = models.CharField(max_length=200)
+    meeting_ref = models.CharField(max_length=160)
+    room_ref = models.CharField(max_length=100)
+    provider_binding_digest = models.CharField(max_length=64)
+    close_ref = models.CharField(max_length=160, unique=True)
+    effect_key = models.CharField(max_length=160, unique=True)
+    arguments_digest = models.CharField(max_length=64)
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.PENDING,
+    )
+    requested_at = models.DateTimeField()
+    applied_at = models.DateTimeField(null=True, blank=True)
+    provider_observation = models.CharField(
+        max_length=24,
+        choices=ProviderObservation.choices,
+        null=True,
+        blank=True,
+    )
+    receipt_claims = models.JSONField(default=dict, blank=True)
+    receipt_digest = models.CharField(max_length=64, null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_room_closure"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_closure_arguments_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_closure_provider_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        state="pending",
+                        applied_at__isnull=True,
+                        provider_observation__isnull=True,
+                        receipt_digest__isnull=True,
+                        receipt_claims={},
+                    )
+                    | models.Q(
+                        state="applied",
+                        applied_at__isnull=False,
+                        provider_observation__isnull=False,
+                        receipt_digest__isnull=False,
+                    )
+                ),
+                name="mastrao_closure_state_shape",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao room closure {self.close_ref}"
+
+
 class MastraoHostIdentity(BaseModel):
     """Pseudonymous non-OIDC identity derived from a Cabinet Core host grant."""
 

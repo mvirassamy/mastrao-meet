@@ -9,13 +9,15 @@ import { css } from '@/styled-system/css'
 
 export interface ControlBarProps extends React.HTMLAttributes<HTMLDivElement> {
   onDeviceError?: (error: { source: Track.Source; error: Error }) => void
+  roomId: string
+  canEnd?: boolean
 }
 
 /**
  * The `ControlBar` prefab gives the user the basic user interface to control their
  * media devices (camera, microphone and screen share), open the `Chat` and leave the room.
  */
-export function ControlBar({ onDeviceError }: ControlBarProps) {
+export function ControlBar({ onDeviceError, roomId, canEnd }: ControlBarProps) {
   const isMobile = useIsMobile()
 
   return (
@@ -38,12 +40,23 @@ export function ControlBar({ onDeviceError }: ControlBarProps) {
         })}
       >
         {isMobile ? (
-          <MobileControlBar onDeviceError={onDeviceError} />
+          <MobileControlBar
+            onDeviceError={onDeviceError}
+            roomId={roomId}
+            canEnd={canEnd}
+          />
         ) : (
-          <DesktopControlBar onDeviceError={onDeviceError} />
+          <DesktopControlBar
+            onDeviceError={onDeviceError}
+            roomId={roomId}
+            canEnd={canEnd}
+          />
         )}
       </div>
     </div>
   )
 }
-export type ControlBarAuxProps = Pick<ControlBarProps, 'onDeviceError'>
+export type ControlBarAuxProps = Pick<
+  ControlBarProps,
+  'onDeviceError' | 'roomId' | 'canEnd'
+>

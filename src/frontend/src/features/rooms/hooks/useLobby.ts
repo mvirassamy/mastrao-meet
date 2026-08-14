@@ -6,6 +6,7 @@ import {
   ApiLobbyStatus,
   type ApiRequestEntry,
 } from '../api/requestEntry'
+import { ApiError } from '@/api/ApiError'
 
 export const WAIT_TIMEOUT_MS = 600000 // 10 minutes
 export const POLL_INTERVAL_MS = 1000
@@ -39,10 +40,17 @@ export const useLobby = ({
   const { data: waitingData } = useQuery({
     queryKey: [keys.requestEntry, roomId],
     queryFn: async () => {
-      const response = await requestEntry({
-        roomId,
-        username,
-      })
+      let response: ApiRequestEntry
+      try {
+        response = await requestEntry({ roomId, username })
+      } catch (error) {
+        if (error instanceof ApiError && error.statusCode === 404) {
+          clearWaitingTimeout()
+          setStatus(ApiLobbyStatus.ENDED)
+          return { status: ApiLobbyStatus.ENDED }
+        }
+        throw error
+      }
       if (response.status === ApiLobbyStatus.ACCEPTED) {
         clearWaitingTimeout()
         setStatus(ApiLobbyStatus.ACCEPTED)
@@ -64,6 +72,11 @@ export const useLobby = ({
     startWaitingTimeout()
   }, [startWaitingTimeout])
 
+  const markEnded = useCallback(() => {
+    clearWaitingTimeout()
+    setStatus(ApiLobbyStatus.ENDED)
+  }, [clearWaitingTimeout])
+
   useEffect(() => {
     return () => clearWaitingTimeout()
   }, [clearWaitingTimeout])
@@ -71,6 +84,7 @@ export const useLobby = ({
   return {
     status,
     startWaiting,
+    markEnded,
     waitingData,
   }
 }

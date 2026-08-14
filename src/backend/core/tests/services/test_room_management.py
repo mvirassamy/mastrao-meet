@@ -13,6 +13,39 @@ from core.services.room_management import (
 
 
 @mock.patch("core.services.room_management.utils.create_livekit_client")
+def test_ensure_room_creates_missing_room(mock_create_livekit_client):
+    """An absent room is explicitly created."""
+    mock_api = mock.MagicMock()
+    mock_api.room.list_rooms = mock.AsyncMock(return_value=mock.Mock(rooms=[]))
+    mock_api.room.create_room = mock.AsyncMock()
+    mock_api.aclose = mock.AsyncMock()
+    mock_create_livekit_client.return_value = mock_api
+
+    RoomManagement().ensure_room("room-abc")
+
+    mock_api.room.create_room.assert_awaited_once()
+    assert mock_api.room.create_room.await_args.args[0].name == "room-abc"
+    mock_api.aclose.assert_awaited_once()
+
+
+@mock.patch("core.services.room_management.utils.create_livekit_client")
+def test_ensure_room_reuses_existing_room(mock_create_livekit_client):
+    """An existing room does not trigger a duplicate create."""
+    mock_api = mock.MagicMock()
+    mock_api.room.list_rooms = mock.AsyncMock(
+        return_value=mock.Mock(rooms=[mock.Mock()])
+    )
+    mock_api.room.create_room = mock.AsyncMock()
+    mock_api.aclose = mock.AsyncMock()
+    mock_create_livekit_client.return_value = mock_api
+
+    RoomManagement().ensure_room("room-abc")
+
+    mock_api.room.create_room.assert_not_awaited()
+    mock_api.aclose.assert_awaited_once()
+
+
+@mock.patch("core.services.room_management.utils.create_livekit_client")
 def test_delete_room_calls_livekit(mock_create_livekit_client):
     """DeleteRoom is forwarded to the LiveKit API."""
     mock_api = mock.MagicMock()

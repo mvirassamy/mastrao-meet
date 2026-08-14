@@ -5,6 +5,8 @@ livekit:
   keys:
       devkey: secret
   log_level: debug
+  room:
+    auto_create: false
   rtc:
     use_external_ip: false
     port_range_start: 50000

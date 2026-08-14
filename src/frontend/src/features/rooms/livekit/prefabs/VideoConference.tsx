@@ -27,6 +27,9 @@ import { PinAnnouncer } from '@/features/layout/components/PinAnnouncer'
 import { ChatProvider } from '@/features/chat/components/ChatProvider'
 import { SyncDevicePreferences } from '@/features/rooms/livekit/components/SyncDevicePreferences'
 import { RoomSilentMicDetector } from '@/features/rooms/components/SilentMicDetector'
+import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
+import { useTranslation } from 'react-i18next'
+import { css } from '@/styled-system/css'
 
 /**
  * @public
@@ -34,6 +37,8 @@ import { RoomSilentMicDetector } from '@/features/rooms/components/SilentMicDete
 export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElement> {
   /** @alpha */
   SettingsComponent?: React.ComponentType
+  roomId: string
+  canEnd?: boolean
 }
 
 /**
@@ -54,8 +59,16 @@ export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElemen
  * ```
  * @public
  */
-export function VideoConference({ ...props }: VideoConferenceProps) {
+export function VideoConference({
+  roomId,
+  canEnd,
+  ...props
+}: VideoConferenceProps) {
   useNoiseReduction()
+  const { isEnding } = useMeetingLifecycle()
+  const { t } = useTranslation('rooms', {
+    keyPrefix: 'controls.endMeeting',
+  })
 
   const { isOpen: isPictureInPictureOpen } = usePictureInPicture()
 
@@ -67,6 +80,25 @@ export function VideoConference({ ...props }: VideoConferenceProps) {
       <ConnectionObserver />
       <SyncDevicePreferences />
       <RoomSilentMicDetector />
+      {isEnding && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={css({
+            position: 'absolute',
+            top: '1rem',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1001,
+            padding: '0.75rem 1rem',
+            borderRadius: 'md',
+            backgroundColor: 'primaryDark.100',
+            color: 'white',
+          })}
+        >
+          {t('status')}
+        </div>
+      )}
       <MediaStateObserver />
       <ChatProvider />
       <VideoResolutionSubscription />
@@ -93,6 +125,8 @@ export function VideoConference({ ...props }: VideoConferenceProps) {
               )}
             </RoomContentArea>
             <ControlBar
+              roomId={roomId}
+              canEnd={canEnd}
               onDeviceError={(e) => {
                 reportError('device_switch_failure', e.error, {
                   at: 'ControlBar.onDeviceError',

@@ -20,6 +20,12 @@ from core.mastrao_guest_handoff import (
 )
 from core.mastrao_host_grant import host_media_projection
 from core.mastrao_identity import is_mastrao_host_subject
+from core.mastrao_room_lifecycle import (
+    MastraoRoomClosed,
+    assert_mastrao_room_open,
+    room_binding,
+)
+from core.services.room_management import ensure_livekit_room
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +212,9 @@ class LobbyService:
         5. If denied, do nothing.
         """
 
+        binding = room_binding(room)
+        if binding is not None:
+            assert_mastrao_room_open(binding)
         guest_grant = active_guest_grant(request, room)
         participant_id = (
             guest_grant.guest_ref
@@ -245,6 +254,10 @@ class LobbyService:
             }
             if host_expires_at is not None:
                 livekit_arguments["expires_at"] = host_expires_at
+            try:
+                ensure_livekit_room(room_id)
+            except MastraoRoomClosed:
+                return participant, None
             livekit_config = utils.generate_livekit_config(**livekit_arguments)
             return participant, livekit_config
 
@@ -269,6 +282,10 @@ class LobbyService:
             }
             if host_expires_at is not None:
                 livekit_arguments["expires_at"] = host_expires_at
+            try:
+                ensure_livekit_room(room_id)
+            except MastraoRoomClosed:
+                return participant, None
             livekit_config = utils.generate_livekit_config(**livekit_arguments)
 
         return participant, livekit_config
@@ -361,6 +378,7 @@ class LobbyService:
         represented = {participant["id"] for participant in waiting_participants}
         durable_guests = models.MastraoGuestGrant.objects.filter(
             room_binding__room_id=room_id,
+            room_binding__closure__isnull=True,
             expires_at__gt=timezone.now(),
         ).filter(
             Q(admission_state=models.MastraoGuestGrant.AdmissionState.WAITING)

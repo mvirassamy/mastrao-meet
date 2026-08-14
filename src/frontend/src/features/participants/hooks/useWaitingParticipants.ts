@@ -11,11 +11,13 @@ import {
 import { decodeNotificationDataReceived } from '@/features/notifications/utils'
 import { NotificationType } from '@/features/notifications/NotificationType'
 import { reportError } from '@/features/analytics/telemetry'
+import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
 
 export const POLL_INTERVAL_MS = 1000
 
 export const useWaitingParticipants = () => {
   const [listEnabled, setListEnabled] = useState(true)
+  const { isEnding } = useMeetingLifecycle()
 
   const roomData = useRoomData()
   const roomId = roomData?.id || '' // FIXME - bad practice
@@ -42,14 +44,14 @@ export const useWaitingParticipants = () => {
   const { data: waitingData, refetch: refetchWaiting } =
     useListWaitingParticipants(roomId, {
       retry: false,
-      enabled: listEnabled && isAdminOrOwner,
+      enabled: listEnabled && isAdminOrOwner && !isEnding,
       refetchInterval: POLL_INTERVAL_MS,
       refetchIntervalInBackground: true,
     })
 
   const waitingParticipants = useMemo(
-    () => waitingData?.participants || [],
-    [waitingData]
+    () => (isEnding ? [] : waitingData?.participants || []),
+    [isEnding, waitingData]
   )
 
   useEffect(() => {
@@ -62,6 +64,7 @@ export const useWaitingParticipants = () => {
     participant: WaitingParticipant,
     allowEntry: boolean
   ) => {
+    if (isEnding) return
     await enterRoom({
       roomId: roomId,
       allowEntry,
@@ -73,6 +76,7 @@ export const useWaitingParticipants = () => {
   const handleParticipantsEntry = async (
     allowEntry: boolean
   ): Promise<void> => {
+    if (isEnding) return
     try {
       setListEnabled(false)
 

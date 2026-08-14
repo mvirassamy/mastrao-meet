@@ -1,5 +1,7 @@
 """Request-time projection of one expiring, session-bound media-host grant."""
 
+# pylint: disable=no-member
+
 import hashlib
 
 from django.utils import timezone
@@ -18,7 +20,7 @@ def _nonce_digest(nonce):
     return hashlib.sha256(nonce.encode()).hexdigest()
 
 
-def active_host_grant(request, room, *, observed_at=None):
+def _session_bound_host_grant(request, room, *, observed_at=None, include_closed=False):
     """Resolve the current session-bound grant for this exact room."""
     user = getattr(request, "user", None)
     if (
@@ -33,17 +35,31 @@ def active_host_grant(request, room, *, observed_at=None):
     if digest is None or not isinstance(platform_session_ref, str):
         return None
     observed_at = observed_at or timezone.now()
-    return (
-        models.MastraoHostGrant.objects.select_related("identity", "room_binding")
-        .filter(
-            identity__user=user,
-            room_binding__room=room,
-            session_nonce_digest=digest,
-            platform_session_ref=platform_session_ref,
-            expires_at__gt=observed_at,
-        )
-        .order_by("-expires_at")
-        .first()
+    queryset = models.MastraoHostGrant.objects.select_related(
+        "identity", "room_binding"
+    ).filter(
+        identity__user=user,
+        room_binding__room=room,
+        session_nonce_digest=digest,
+        platform_session_ref=platform_session_ref,
+        expires_at__gt=observed_at,
+    )
+    if not include_closed:
+        queryset = queryset.filter(room_binding__closure__isnull=True)
+    return queryset.order_by("-expires_at").first()
+
+
+def active_host_grant(request, room, *, observed_at=None):
+    """Resolve an open-room grant for media and lobby capabilities."""
+
+    return _session_bound_host_grant(request, room, observed_at=observed_at)
+
+
+def active_host_close_grant(request, room, *, observed_at=None):
+    """Resolve the exact host grant for close retries, including a tombstoned room."""
+
+    return _session_bound_host_grant(
+        request, room, observed_at=observed_at, include_closed=True
     )
 
 

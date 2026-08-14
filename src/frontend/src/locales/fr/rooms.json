@@ -3,7 +3,8 @@
     "heading": {
       "normal": "Vous avez quitté la réunion",
       "duplicateIdentity": "Vous avez rejoint la réunion depuis un autre appareil",
-      "participantRemoved": "Vous avez été exclu de l'appel par un administrateur"
+      "participantRemoved": "Vous avez été exclu de l'appel par un administrateur",
+      "meetingEnded": "L’hôte a terminé la réunion"
     },
     "home": "Retourner à l'accueil",
     "back": "Réintégrer la réunion"
@@ -89,6 +90,10 @@
     "timeoutInvite": {
       "title": "Vous ne pouvez pas participer à cet appel",
       "body": "Personne n'a répondu à votre demande de participation à l'appel"
+    },
+    "ended": {
+      "title": "Cette réunion est terminée",
+      "body": "L’hôte a terminé la réunion. Ce lien ne peut plus être utilisé."
     }
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",
@@ -266,6 +271,18 @@
       "stop": "Arrêter le partage"
     },
     "leave": "Quitter",
+    "endMeeting": {
+      "label": "Terminer la réunion pour tout le monde",
+      "status": "Fermeture de la réunion en cours…",
+      "dialog": {
+        "title": "Terminer la réunion pour tout le monde ?",
+        "body": "Tout le monde sera déconnecté et cette réunion ne pourra pas être rouverte.",
+        "cancel": "Annuler",
+        "confirm": "Terminer la réunion",
+        "ending": "Fermeture…",
+        "error": "La réunion n’a pas pu être terminée. Réessayez."
+      }
+    },
     "participants": {
       "open": "Masquer les participants",
       "closed": "Afficher les participants",

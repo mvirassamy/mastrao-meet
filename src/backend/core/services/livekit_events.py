@@ -12,6 +12,7 @@ from django.conf import settings
 from livekit import api
 
 from core import models
+from core.mastrao_room_lifecycle import is_mastrao_room_closed
 from core.recording.services.metadata_collector import (
     MetadataCollectorException,
     MetadataCollectorService,
@@ -256,6 +257,26 @@ class LiveKitEventsService:
             room = models.Room.objects.get(id=room_id)
         except models.Room.DoesNotExist as err:
             raise ActionFailedError(f"Room with ID {room_id} does not exist") from err
+
+        if is_mastrao_room_closed(room):
+            logger.warning("Deleting unexpectedly recreated closed room %s", room_id)
+            try:
+                RoomManagement().delete_room(str(room_id))
+            except RoomNotFoundException:
+                pass
+            except RoomManagementException as error:
+                raise ActionFailedError(
+                    f"Failed to delete recreated closed room {room_id}"
+                ) from error
+            self.lobby_service.clear_room_cache(room_id)
+            if settings.ROOM_TELEPHONY_ENABLED or settings.ROOMKIT_ENABLED:
+                try:
+                    self.sip_management.delete_dispatch_rule(room_id)
+                except SIPException as error:
+                    raise ActionFailedError(
+                        f"Failed to delete sip dispatch rule for closed room {room_id}"
+                    ) from error
+            return
 
         if settings.ROOM_TELEPHONY_ENABLED or settings.ROOMKIT_ENABLED:
             try:

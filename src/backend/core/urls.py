@@ -15,6 +15,7 @@ from core.mastrao_guest_handoff import (
 )
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
 from core.mastrao_room_adapter import ensure_mastrao_room
+from core.mastrao_room_close_adapter import close_mastrao_room
 from core.roomkit import viewsets as roomkit_viewsets
 
 # - Main endpoints
@@ -75,6 +76,11 @@ urlpatterns = [
         "internal/mastrao/rooms/ensure/",
         ensure_mastrao_room,
         name="ensure_mastrao_room",
+    ),
+    path(
+        "internal/mastrao/rooms/close/",
+        close_mastrao_room,
+        name="close_mastrao_room",
     ),
     path(
         f"api/{settings.API_VERSION}/",

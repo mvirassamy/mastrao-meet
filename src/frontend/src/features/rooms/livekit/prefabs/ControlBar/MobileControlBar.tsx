@@ -27,9 +27,12 @@ import { VideoDeviceControl } from '../../components/controls/Device/VideoDevice
 import { openSettingsDialog } from '@/stores/settings'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
+import { EndMeetingButton } from '../../components/controls/EndMeetingButton'
 
 export function MobileControlBar({
   onDeviceError,
+  roomId,
+  canEnd,
 }: Readonly<ControlBarAuxProps>) {
   const { t } = useTranslation('rooms')
   const [isMenuOpened, setIsMenuOpened] = React.useState(false)
@@ -49,6 +52,7 @@ export function MobileControlBar({
         })}
       >
         <ControlBarRegion mobile>
+          {canEnd && <EndMeetingButton roomId={roomId} />}
           <LeaveButton />
           <AudioDevicesControl
             onDeviceError={(error) =>

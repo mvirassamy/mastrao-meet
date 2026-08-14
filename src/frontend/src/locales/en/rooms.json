@@ -3,7 +3,8 @@
     "heading": {
       "normal": "You have left the meeting",
       "duplicateIdentity": "You have joined the meeting from another device",
-      "participantRemoved": "You have been removed from the meeting by a host"
+      "participantRemoved": "You have been removed from the meeting by a host",
+      "meetingEnded": "The host has ended the meeting"
     },
     "home": "Return to home",
     "back": "Rejoin the meeting"
@@ -89,6 +90,10 @@
     "timeoutInvite": {
       "title": "You cannot join this call",
       "body": "No one responded to your request"
+    },
+    "ended": {
+      "title": "This meeting has ended",
+      "body": "The host ended the meeting. This link can no longer be used."
     }
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",
@@ -266,6 +271,18 @@
       "stop": "Stop screen share"
     },
     "leave": "Leave",
+    "endMeeting": {
+      "label": "End meeting for everyone",
+      "status": "Meeting is ending…",
+      "dialog": {
+        "title": "End meeting for everyone?",
+        "body": "Everyone will be disconnected and this meeting cannot be reopened.",
+        "cancel": "Cancel",
+        "confirm": "End meeting",
+        "ending": "Ending…",
+        "error": "The meeting could not be ended. Try again."
+      }
+    },
     "participants": {
       "open": "Hide everyone",
       "closed": "See everyone",

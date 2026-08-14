@@ -18,9 +18,8 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-import requests
-
 from core import models, utils
+from core.mastrao_core_http import post_core_json
 from core.mastrao_guest_contract import (
     GuestHandoffRefused,
     compact_digest,
@@ -41,6 +40,8 @@ from core.mastrao_guest_grant import (
     active_guest_grant,
 )
 from core.mastrao_host_grant import active_host_compact_grant, active_host_grant
+from core.mastrao_room_lifecycle import MastraoRoomClosed, assert_mastrao_room_open
+from core.services.room_management import ensure_livekit_room
 
 MAX_BODY_BYTES = 20_000
 MAX_ATTEMPTS_PER_MINUTE = 5
@@ -84,68 +85,15 @@ def _same_origin(request):
     )
 
 
-def _safe_json_response(response, expected_field=None):
-    declared = response.headers.get("content-length")
-    if declared is not None and (not declared.isdecimal() or int(declared) > 20_000):
-        response.close()
-        raise GuestHandoffRefused(status=503)
-    if response.status_code != 200:
-        response.close()
-        raise GuestHandoffRefused(status=503 if response.status_code >= 500 else 404)
-    try:
-        chunks = []
-        size = 0
-        for chunk in response.iter_content(chunk_size=4_096):
-            size += len(chunk)
-            if size > 20_000:
-                raise GuestHandoffRefused(status=503)
-            chunks.append(chunk)
-        body = json.loads(b"".join(chunks))
-    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
-        raise GuestHandoffRefused(status=503) from error
-    finally:
-        response.close()
-    if not isinstance(body, dict):
-        raise GuestHandoffRefused(status=503)
-    if expected_field and set(body) != {expected_field}:
-        raise GuestHandoffRefused(status=503)
-    return body
-
-
-def _core_endpoint(setting_name, expected_path):
-    value = getattr(settings, setting_name, "")
-    endpoint = urlparse(value)
-    allowed_hosts = {
-        "127.0.0.1",
-        "localhost",
-        "::1",
-        "host.docker.internal",
-        "127.0.0.1.nip.io",
-    }
-    if endpoint.scheme != "http" or endpoint.hostname not in allowed_hosts:
-        raise GuestHandoffRefused(status=503)
-    if any((endpoint.username, endpoint.password, endpoint.query, endpoint.fragment)):
-        raise GuestHandoffRefused(status=503)
-    if endpoint.path != expected_path:
-        raise GuestHandoffRefused(status=503)
-    return value
-
-
 def _post_core(setting_name, expected_path, body, expected_field=None):
-    endpoint = _core_endpoint(setting_name, expected_path)
-    try:
-        with requests.Session() as session:
-            session.trust_env = False
-            response = session.post(
-                endpoint,
-                json=body,
-                timeout=settings.MASTRAO_CORE_GUEST_TIMEOUT_SECONDS,
-                allow_redirects=False,
-                stream=True,
-            )
-            return _safe_json_response(response, expected_field)
-    except requests.RequestException as error:
-        raise GuestHandoffRefused(status=503) from error
+    return post_core_json(
+        endpoint=getattr(settings, setting_name, ""),
+        expected_path=expected_path,
+        body=body,
+        timeout=settings.MASTRAO_CORE_GUEST_TIMEOUT_SECONDS,
+        refusal=GuestHandoffRefused,
+        expected_fields={expected_field} if expected_field else None,
+    )
 
 
 def _grant_cache_key(grant_ref):
@@ -183,6 +131,10 @@ def _binding_for(grant):
         or binding.room.access_level != models.RoomAccessLevel.RESTRICTED
     ):
         raise GuestHandoffRefused()
+    try:
+        assert_mastrao_room_open(binding)
+    except MastraoRoomClosed as error:
+        raise GuestHandoffRefused() from error
     return binding
 
 
@@ -504,6 +456,10 @@ def guest_media_config(request, room, username, color, participant_id):
         datetime.fromtimestamp(media["expires_at"], tz=UTC),
         timezone.now() + timedelta(seconds=300),
     )
+    try:
+        ensure_livekit_room(str(room.id))
+    except MastraoRoomClosed as error:
+        raise GuestHandoffRefused() from error
     return utils.generate_livekit_config(
         room_id=str(room.id),
         user=request.user,
