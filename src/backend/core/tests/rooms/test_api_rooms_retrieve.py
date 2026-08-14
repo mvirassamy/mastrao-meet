@@ -141,6 +141,16 @@ def test_api_rooms_retrieve_anonymous_unregistered_allowed(mock_token):
 
 
 @override_settings(ALLOW_UNREGISTERED_ROOMS=True)
+def test_api_rooms_retrieve_canonical_unregistered_never_falls_back():
+    """Canonical Mastrao slugs cannot become anonymous shadow rooms."""
+
+    client = APIClient()
+    response = client.get("/api/v1.0/rooms/room_0123456789abcdef0123456789abcdef/")
+
+    assert response.status_code == 404
+
+
+@override_settings(ALLOW_UNREGISTERED_ROOMS=True)
 @override_settings(
     LIVEKIT_CONFIGURATION={
         "api_key": "key",

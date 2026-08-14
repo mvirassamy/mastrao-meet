@@ -15,14 +15,20 @@ export type Layout = 'fullpage' | 'centered'
  * This component is meant to be used as a wrapper around the whole app.
  * In a specific page, use the `Screen` component and change its props to change global page layout.
  */
-export const Layout = ({ children }: { children: ReactNode }) => {
+export const Layout = ({
+  children,
+  bare = false,
+}: {
+  children: ReactNode
+  bare?: boolean
+}) => {
   const layoutSnap = useSnapshot(layoutStore)
   const showHeader = layoutSnap.showHeader
   const showFooter = layoutSnap.showFooter
 
   return (
     <>
-      {showHeader && <SkipLink />}
+      {!bare && showHeader && <SkipLink />}
       <div
         className={css({
           display: 'flex',
@@ -32,10 +38,10 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           flex: '1',
         })}
         style={{
-          height: !showFooter ? '100%' : undefined,
+          height: bare || !showFooter ? '100%' : undefined,
         }}
       >
-        {showHeader && <Header />}
+        {!bare && showHeader && <Header />}
         <main
           id={MAIN_CONTENT_ID}
           className={css({
@@ -49,7 +55,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           {children}
         </main>
       </div>
-      {showFooter && <Footer />}
+      {!bare && showFooter && <Footer />}
     </>
   )
 }

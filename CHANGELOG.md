@@ -11,10 +11,13 @@ and this project adheres to
 ### Added
 
 - 🔐(backend) consume short Mastrao host handoffs into session-bound media grants
+- 🔐(backend) redeem canonical guest invitations into anonymous room-bound lobby grants
+- ✨(frontend) add the fragment-safe Mastrao guest invitation landing flow
 
 ### Changed
 
 - 🔒️(backend) distinguish pseudonymous Mastrao hosts from non-interactive room owners
+- 🔒️(backend) require Core-confirmed guest admission before minting participant media tokens
 
 ## [1.26.0] - 2026-08-12
 

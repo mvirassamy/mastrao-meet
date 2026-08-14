@@ -44,6 +44,9 @@ from core import analytics, enums, models, utils
 from core.api import throttling
 from core.api.filters import ListFileFilter
 from core.enums import MEDIA_STORAGE_URL_PATTERN
+from core.mastrao_guest_contract import GuestHandoffRefused
+from core.mastrao_guest_grant import CANONICAL_ROOM_SLUG, can_access_canonical_room
+from core.mastrao_guest_handoff import decide_guest_admission
 from core.recording.enums import FileExtension
 from core.recording.event.authentication import (
     RecordingProcessWebhookAuthentication,
@@ -277,6 +280,8 @@ class RoomViewSet(
         try:
             instance = self.get_object()
         except Http404:
+            if CANONICAL_ROOM_SLUG.fullmatch(slugify(self.kwargs["pk"])):
+                raise
             if not settings.ALLOW_UNREGISTERED_ROOMS:
                 raise
             slug = slugify(self.kwargs["pk"])
@@ -522,13 +527,21 @@ class RoomViewSet(
         serializer.is_valid(raise_exception=True)
 
         room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
         lobby_service = LobbyService()
 
-        participant, livekit = lobby_service.request_entry(
-            room=room,
-            request=request,
-            **serializer.validated_data,
-        )
+        try:
+            participant, livekit = lobby_service.request_entry(
+                room=room,
+                request=request,
+                **serializer.validated_data,
+            )
+        except GuestHandoffRefused as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
         response = drf_response.Response({**participant.to_dict(), "livekit": livekit})
         lobby_service.prepare_response(response, participant.id)
 
@@ -559,6 +572,19 @@ class RoomViewSet(
         lobby_service = LobbyService()
 
         try:
+            if hasattr(room, "mastrao_binding"):
+                grant = decide_guest_admission(
+                    request,
+                    room,
+                    str(serializer.validated_data.get("participant_id")),
+                    serializer.validated_data.get("allow_entry"),
+                )
+                lobby_service.project_guest_decision(
+                    room_id=room.id,
+                    participant_id=grant.guest_ref,
+                    allow_entry=serializer.validated_data.get("allow_entry"),
+                )
+                return drf_response.Response({"message": "Participant was updated."})
             lobby_service.handle_participant_entry(
                 room_id=room.id,
                 participant_id=str(serializer.validated_data.get("participant_id")),
@@ -566,10 +592,10 @@ class RoomViewSet(
             )
             return drf_response.Response({"message": "Participant was updated."})
 
-        except LobbyParticipantNotFound:
+        except (LobbyParticipantNotFound, GuestHandoffRefused) as error:
+            status = getattr(error, "status", drf_status.HTTP_404_NOT_FOUND)
             return drf_response.Response(
-                {"message": "Participant not found."},
-                status=drf_status.HTTP_404_NOT_FOUND,
+                {"message": "Participant not found."}, status=status
             )
 
     @decorators.action(

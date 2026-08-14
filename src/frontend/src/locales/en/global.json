@@ -9,6 +9,13 @@
     "context": "Your feedback shapes the product!",
     "cta": "Share your feedback - new tab"
   },
+  "guestInvitation": {
+    "title": "Join a video conference",
+    "body": "This link lets you request access to a waiting room. Your identity is not verified and an organizer must admit you.",
+    "submit": "Request to join",
+    "missing": "This invitation link is missing or incomplete.",
+    "error": "This link is no longer available. Ask the organizer for a new link."
+  },
   "forbidden": {
     "heading": "You don't have the permission to view this page"
   },
