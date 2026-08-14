@@ -6,6 +6,7 @@ import time
 from datetime import timedelta
 from unittest import mock
 
+from django.conf import settings
 from django.core.cache import cache
 from django.test import Client, override_settings
 from django.urls import reverse
@@ -75,8 +76,7 @@ def _guest_grant(binding, compact_invitation="aaa.bbb.ccc"):
     }
 
 
-def _redeem_guest(client, binding):
-    invitation = "aaa.bbb.ccc"
+def _redeem_guest(client, binding, invitation="aaa.bbb.ccc"):
     grant = _guest_grant(binding, invitation)
     established = client.post(
         reverse("establish_mastrao_guest_session"),
@@ -240,6 +240,29 @@ def test_guest_redemption_creates_only_room_bound_anonymous_grant(settings):
     assert waiting.json()["status"] == "waiting"
     assert waiting.json()["id"] == grant["guest_ref"]
     assert waiting.json()["livekit"] is None
+
+
+@override_settings(
+    APPLICATION_BASE_URL="http://meet.test",
+    MASTRAO_GUEST_INVITATION_ENABLED=True,
+)
+def test_guest_redemption_rotates_the_anonymous_session_key():
+    """A known anonymous session cannot inherit the redeemed guest grant."""
+
+    binding = _room_binding()
+    client = Client(HTTP_HOST="meet.test")
+    anonymous_session = client.session
+    anonymous_session["pre_redemption_state"] = True
+    anonymous_session.save()
+    old_session_key = anonymous_session.session_key
+
+    response, _ = _redeem_guest(client, binding, "session.rotate.test")
+
+    assert response.status_code == 200
+    assert client.session.session_key != old_session_key
+    fixed_client = Client(HTTP_HOST="meet.test")
+    fixed_client.cookies[settings.SESSION_COOKIE_NAME] = old_session_key
+    assert fixed_client.get(f"/api/v1.0/rooms/{binding.room.slug}/").status_code == 404
 
 
 @override_settings(

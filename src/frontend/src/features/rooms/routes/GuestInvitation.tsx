@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { VStack } from '@/styled-system/jsx'
+import { ApiError } from '@/api/ApiError'
 import { Screen } from '@/layout/Screen'
 import { Button, H, Text } from '@/primitives'
 import { redeemGuestInvitation } from '../api/redeemGuestInvitation'
@@ -13,7 +14,9 @@ const GuestInvitation = () => {
   const redemptionId = useRef(
     `redemption_${crypto.randomUUID().replaceAll('-', '')}`
   )
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [status, setStatus] = useState<
+    'idle' | 'loading' | 'terminal-error' | 'temporary-error'
+  >('idle')
 
   const redeem = async () => {
     if (!invitation || status === 'loading') return
@@ -24,8 +27,12 @@ const GuestInvitation = () => {
         redemptionId.current
       )
       window.location.assign(`${result.room_url}?silentLogin=false`)
-    } catch {
-      setStatus('error')
+    } catch (error) {
+      setStatus(
+        error instanceof ApiError && error.statusCode === 404
+          ? 'terminal-error'
+          : 'temporary-error'
+      )
     }
   }
 
@@ -45,16 +52,29 @@ const GuestInvitation = () => {
         </Text>
         {!invitation ? (
           <Text as="p">{t('guestInvitation.missing')}</Text>
-        ) : (
+        ) : status !== 'terminal-error' ? (
           <Button
             onPress={redeem}
             loading={status === 'loading'}
             isDisabled={status === 'loading'}
           >
-            {t('guestInvitation.submit')}
+            {t(
+              status === 'temporary-error'
+                ? 'guestInvitation.retry'
+                : 'guestInvitation.submit'
+            )}
           </Button>
+        ) : null}
+        {status === 'terminal-error' && (
+          <Text as="p" role="alert">
+            {t('guestInvitation.error')}
+          </Text>
         )}
-        {status === 'error' && <Text as="p">{t('guestInvitation.error')}</Text>}
+        {status === 'temporary-error' && (
+          <Text as="p" role="alert">
+            {t('guestInvitation.temporaryError')}
+          </Text>
+        )}
       </VStack>
     </Screen>
   )

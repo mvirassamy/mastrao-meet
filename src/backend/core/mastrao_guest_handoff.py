@@ -233,6 +233,7 @@ def _commit_grant(request, grant, compact_grant):
         )
         if not exact:
             raise GuestHandoffRefused()
+        request.session.cycle_key()
         request.session[SESSION_GRANT_REF_KEY] = existing.grant_ref
         request.session[SESSION_NONCE_KEY] = current_nonce
         request.session[SESSION_COMPACT_GRANT_KEY] = compact_grant
@@ -258,6 +259,7 @@ def _commit_grant(request, grant, compact_grant):
         )
     except (IntegrityError, ValidationError) as error:
         raise GuestHandoffRefused() from error
+    request.session.cycle_key()
     request.session[SESSION_GRANT_REF_KEY] = grant["grant_ref"]
     request.session[SESSION_NONCE_KEY] = current_nonce
     request.session[SESSION_COMPACT_GRANT_KEY] = compact_grant
