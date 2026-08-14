@@ -33,6 +33,19 @@ KB = 1024
 MB = 1024 * KB
 GB = 1024 * MB
 
+MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
+    "host_handoff",
+    "host_grant",
+    "guest_invitation",
+    "guest_grant",
+    "decision_grant",
+    "redemption_assertion",
+    "decision_assertion",
+    "receipt_assertion",
+    "media_request_assertion",
+    "media_grant",
+)
+
 
 def get_release():
     """
@@ -61,23 +74,11 @@ def scrub_mastrao_handoff_credentials(event, _hint):
         return event
     data = request.get("data")
     if isinstance(data, dict):
-        for field in (
-            "host_handoff",
-            "host_grant",
-            "guest_invitation",
-            "guest_grant",
-            "decision_grant",
-            "redemption_assertion",
-            "decision_assertion",
-            "receipt_assertion",
-            "media_request_assertion",
-            "media_grant",
-        ):
+        for field in MASTRAO_HANDOFF_CREDENTIAL_FIELDS:
             if field in data:
                 data[field] = "[Filtered]"
     elif isinstance(data, str) and any(
-        marker in data
-        for marker in ("host_handoff", "host_grant", "guest_invitation", "guest_grant")
+        marker in data for marker in MASTRAO_HANDOFF_CREDENTIAL_FIELDS
     ):
         request["data"] = "[Filtered]"
     return event
