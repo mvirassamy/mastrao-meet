@@ -618,6 +618,92 @@ class MastraoHostGrant(BaseModel):
         return f"Mastrao host grant {self.grant_ref}"
 
 
+class MastraoGuestGrant(BaseModel):
+    """Room- and session-bound projection of one Core guest redemption."""
+
+    class AdmissionState(models.TextChoices):
+        """Durable canonical admission projection."""
+
+        WAITING = "waiting", _("Waiting")
+        ALLOWED = "allowed", _("Allowed")
+        DENIED = "denied", _("Denied")
+
+    grant_ref = models.CharField(max_length=160, unique=True)
+    redemption_id = models.CharField(max_length=160, unique=True)
+    invitation_ref = models.CharField(max_length=160)
+    guest_ref = models.CharField(max_length=160, unique=True)
+    organization_external_id = models.CharField(max_length=160)
+    grant_digest = models.CharField(max_length=64)
+    credential_digest = models.CharField(max_length=64)
+    meeting_ref = models.CharField(max_length=160)
+    room_ref = models.CharField(max_length=100)
+    provider_binding_digest = models.CharField(max_length=64)
+    room_binding = models.ForeignKey(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="guest_grants",
+    )
+    session_nonce_digest = models.CharField(max_length=64)
+    issued_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    admission_state = models.CharField(
+        max_length=16,
+        choices=AdmissionState.choices,
+        default=AdmissionState.WAITING,
+    )
+    decision_ref = models.CharField(max_length=160, unique=True, null=True, blank=True)
+    decision_allow = models.BooleanField(null=True, blank=True)
+    decision_grant_digest = models.CharField(max_length=64, null=True, blank=True)
+    decision_receipt_digest = models.CharField(max_length=64, null=True, blank=True)
+    decision_confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_guest_grant"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(grant_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_guest_grant_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(credential_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_guest_credential_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(session_nonce_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_guest_session_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_guest_provider_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(expires_at__gt=models.F("issued_at")),
+                name="mastrao_guest_grant_positive_lifetime",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        decision_ref__isnull=True,
+                        decision_allow__isnull=True,
+                        decision_grant_digest__isnull=True,
+                        decision_receipt_digest__isnull=True,
+                        decision_confirmed_at__isnull=True,
+                        admission_state="waiting",
+                    )
+                    | models.Q(
+                        decision_ref__isnull=False,
+                        decision_allow__isnull=False,
+                    )
+                ),
+                name="mastrao_guest_decision_shape",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao guest grant {self.grant_ref}"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

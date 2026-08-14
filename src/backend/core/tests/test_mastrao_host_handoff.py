@@ -274,6 +274,23 @@ def test_sentry_scrubs_host_handoff_credentials():
     }
 
 
+def test_sentry_scrubs_raw_guest_confirmation_credentials():
+    event = {
+        "request": {
+            "data": json.dumps(
+                {
+                    "decision_grant": "decision.payload.signature",
+                    "receipt_assertion": "receipt.payload.signature",
+                }
+            )
+        }
+    }
+
+    scrubbed = scrub_mastrao_handoff_credentials(event, {})
+
+    assert scrubbed["request"]["data"] == "[Filtered]"
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_HOST_HANDOFF_ENABLED=True,

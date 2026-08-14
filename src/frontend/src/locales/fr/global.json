@@ -9,6 +9,15 @@
     "context": "Vos retours sont essentiels !",
     "cta": "Partagez votre avis - nouvelle fenêtre"
   },
+  "guestInvitation": {
+    "title": "Rejoindre une visioconférence",
+    "body": "Ce lien vous permet de demander l’accès à une salle d’attente. Votre identité n’est pas vérifiée et un organisateur devra vous accepter.",
+    "submit": "Demander à rejoindre",
+    "missing": "Ce lien d’invitation est absent ou incomplet.",
+    "error": "Ce lien n’est plus disponible. Demandez un nouveau lien à l’organisateur.",
+    "temporaryError": "Le service est momentanément indisponible. Vous pouvez réessayer.",
+    "retry": "Réessayer"
+  },
   "forbidden": {
     "heading": "Accès interdit"
   },

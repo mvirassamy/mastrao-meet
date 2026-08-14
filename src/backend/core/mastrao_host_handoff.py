@@ -28,7 +28,11 @@ from core.mastrao_host_contract import (
     verify_host_grant,
     verify_host_handoff,
 )
-from core.mastrao_host_grant import SESSION_NONCE_KEY, SESSION_PLATFORM_REF_KEY
+from core.mastrao_host_grant import (
+    SESSION_COMPACT_GRANTS_KEY,
+    SESSION_NONCE_KEY,
+    SESSION_PLATFORM_REF_KEY,
+)
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
 
 MAX_HANDOFF_BODY_BYTES = 20_000
@@ -208,6 +212,13 @@ def _commit_grant(request, grant, compact_grant):
             )
             request.session[SESSION_NONCE_KEY] = session_nonce
             request.session[SESSION_PLATFORM_REF_KEY] = grant["platform_session_ref"]
+            compact_grants = request.session.get(SESSION_COMPACT_GRANTS_KEY, {})
+            if not isinstance(compact_grants, dict):
+                compact_grants = {}
+            if existing_platform_session_ref != grant["platform_session_ref"]:
+                compact_grants = {}
+            compact_grants[grant["grant_ref"]] = compact_grant
+            request.session[SESSION_COMPACT_GRANTS_KEY] = compact_grants
             request.session.set_expiry(remaining_seconds)
             created = models.MastraoHostGrant.objects.create(
                 handoff_ref=grant["handoff_ref"],

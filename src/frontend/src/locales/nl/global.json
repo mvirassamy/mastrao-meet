@@ -9,6 +9,15 @@
     "context": "Uw feedback vormt het product!",
     "cta": "Deel uw feedback - nieuw tabblad"
   },
+  "guestInvitation": {
+    "title": "Deelnemen aan een videovergadering",
+    "body": "Met deze link kunt u toegang vragen tot een wachtruimte. Uw identiteit is niet geverifieerd en een organisator moet u toelaten.",
+    "submit": "Toegang vragen",
+    "missing": "Deze uitnodigingslink ontbreekt of is onvolledig.",
+    "error": "Deze link is niet meer beschikbaar. Vraag de organisator om een nieuwe link.",
+    "temporaryError": "De dienst is tijdelijk niet beschikbaar. U kunt het opnieuw proberen.",
+    "retry": "Opnieuw proberen"
+  },
   "forbidden": {
     "heading": "U hebt geen toestemming om deze pagina te bekijken"
   },

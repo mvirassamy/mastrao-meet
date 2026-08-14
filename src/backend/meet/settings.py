@@ -33,6 +33,19 @@ KB = 1024
 MB = 1024 * KB
 GB = 1024 * MB
 
+MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
+    "host_handoff",
+    "host_grant",
+    "guest_invitation",
+    "guest_grant",
+    "decision_grant",
+    "redemption_assertion",
+    "decision_assertion",
+    "receipt_assertion",
+    "media_request_assertion",
+    "media_grant",
+)
+
 
 def get_release():
     """
@@ -61,10 +74,12 @@ def scrub_mastrao_handoff_credentials(event, _hint):
         return event
     data = request.get("data")
     if isinstance(data, dict):
-        for field in ("host_handoff", "host_grant"):
+        for field in MASTRAO_HANDOFF_CREDENTIAL_FIELDS:
             if field in data:
                 data[field] = "[Filtered]"
-    elif isinstance(data, str) and ("host_handoff" in data or "host_grant" in data):
+    elif isinstance(data, str) and any(
+        marker in data for marker in MASTRAO_HANDOFF_CREDENTIAL_FIELDS
+    ):
         request["data"] = "[Filtered]"
     return event
 
@@ -144,6 +159,26 @@ class Base(Configuration):
     MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS = values.FloatValue(
         5.0,
         environ_name="MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    MASTRAO_GUEST_INVITATION_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_GUEST_INVITATION_ENABLED", environ_prefix=None
+    )
+    MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_GUEST_DECISION_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_GUEST_DECISION_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_GUEST_CONFIRM_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_GUEST_CONFIRM_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_GUEST_MEDIA_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_GUEST_MEDIA_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_GUEST_TIMEOUT_SECONDS = values.FloatValue(
+        5.0,
+        environ_name="MASTRAO_CORE_GUEST_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
 

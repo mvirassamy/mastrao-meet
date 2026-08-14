@@ -9,6 +9,7 @@ from core.mastrao_identity import is_mastrao_host_subject
 
 SESSION_NONCE_KEY = "mastrao_host_session_nonce"
 SESSION_PLATFORM_REF_KEY = "mastrao_host_platform_session_ref"
+SESSION_COMPACT_GRANTS_KEY = "mastrao_host_compact_grants"
 
 
 def _nonce_digest(nonce):
@@ -56,3 +57,13 @@ def host_media_projection(request, room):
     if (grant.expires_at - observed_at).total_seconds() < 1:
         return None, None
     return models.RoleChoices.ADMIN, grant.expires_at
+
+
+def active_host_compact_grant(request, grant):
+    """Resolve the Core bearer retained only in the server-side host session."""
+
+    compact_grants = request.session.get(SESSION_COMPACT_GRANTS_KEY, {})
+    if not isinstance(compact_grants, dict):
+        return None
+    compact = compact_grants.get(grant.grant_ref)
+    return compact if isinstance(compact, str) else None

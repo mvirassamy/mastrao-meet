@@ -9,8 +9,15 @@ from uuid import UUID
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db.models import Q
+from django.utils import timezone
 
 from core import models, utils
+from core.mastrao_guest_grant import active_guest_grant
+from core.mastrao_guest_handoff import (
+    guest_media_config,
+    remember_guest_compact_grant,
+)
 from core.mastrao_host_grant import host_media_projection
 from core.mastrao_identity import is_mastrao_host_subject
 
@@ -133,6 +140,53 @@ class LobbyService:
             )
         )
 
+    def _request_guest_entry(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, room, request, username, guest_grant, participant
+    ):
+        """Project one durable canonical guest into the transient native lobby."""
+
+        participant_id = guest_grant.guest_ref
+        remember_guest_compact_grant(request, guest_grant)
+        if participant is None:
+            participant = self.enter(room.id, participant_id, username)
+        if (
+            guest_grant.admission_state
+            == models.MastraoGuestGrant.AdmissionState.DENIED
+        ):
+            participant.status = LobbyParticipantStatus.DENIED
+            cache.set(
+                self._get_cache_key(room.id, participant_id),
+                participant.to_dict(),
+                timeout=settings.LOBBY_DENIED_TIMEOUT,
+            )
+            return participant, None
+        if (
+            guest_grant.admission_state
+            == models.MastraoGuestGrant.AdmissionState.ALLOWED
+            and guest_grant.decision_confirmed_at is not None
+        ):
+            participant.status = LobbyParticipantStatus.ACCEPTED
+            cache.set(
+                self._get_cache_key(room.id, participant_id),
+                participant.to_dict(),
+                timeout=settings.LOBBY_ACCEPTED_TIMEOUT,
+            )
+            return participant, guest_media_config(
+                request,
+                room,
+                username,
+                participant.color,
+                participant_id,
+            )
+        if participant.status != LobbyParticipantStatus.WAITING:
+            participant.status = LobbyParticipantStatus.WAITING
+        cache.set(
+            self._get_cache_key(room.id, participant_id),
+            participant.to_dict(),
+            timeout=settings.LOBBY_WAITING_TIMEOUT,
+        )
+        return participant, None
+
     def request_entry(
         self,
         room: models.Room,
@@ -152,8 +206,18 @@ class LobbyService:
         5. If denied, do nothing.
         """
 
-        participant_id = self._get_or_create_participant_id(request)
+        guest_grant = active_guest_grant(request, room)
+        participant_id = (
+            guest_grant.guest_ref
+            if guest_grant is not None
+            else self._get_or_create_participant_id(request)
+        )
         participant = self._get_participant(room.id, participant_id)
+
+        if guest_grant is not None:
+            return self._request_guest_entry(
+                room, request, username, guest_grant, participant
+            )
 
         room_id = str(room.id)
         host_role, host_expires_at = host_media_projection(request, room)
@@ -282,10 +346,7 @@ class LobbyService:
         pattern = self._get_cache_key(room_id, "*")
         keys = cache.keys(pattern)
 
-        if not keys:
-            return []
-
-        data = cache.get_many(keys)
+        data = cache.get_many(keys) if keys else {}
 
         waiting_participants = []
         for cache_key, raw_participant in data.items():
@@ -297,7 +358,54 @@ class LobbyService:
             if participant.status == LobbyParticipantStatus.WAITING:
                 waiting_participants.append(participant.to_dict())
 
+        represented = {participant["id"] for participant in waiting_participants}
+        durable_guests = models.MastraoGuestGrant.objects.filter(
+            room_binding__room_id=room_id,
+            expires_at__gt=timezone.now(),
+        ).filter(
+            Q(admission_state=models.MastraoGuestGrant.AdmissionState.WAITING)
+            | Q(decision_confirmed_at__isnull=True)
+        )
+        for grant in durable_guests:
+            if grant.guest_ref in represented:
+                continue
+            waiting_participants.append(
+                LobbyParticipant(
+                    status=LobbyParticipantStatus.WAITING,
+                    username="Invité",
+                    id=grant.guest_ref,
+                    color=utils.generate_color(grant.guest_ref),
+                ).to_dict()
+            )
         return waiting_participants
+
+    def project_guest_decision(
+        self, room_id: UUID, participant_id: str, allow_entry: bool
+    ) -> None:
+        """Project a durable canonical decision into the transient lobby cache."""
+
+        try:
+            self.handle_participant_entry(room_id, participant_id, allow_entry)
+        except LobbyParticipantNotFound:
+            participant = LobbyParticipant(
+                status=(
+                    LobbyParticipantStatus.ACCEPTED
+                    if allow_entry
+                    else LobbyParticipantStatus.DENIED
+                ),
+                username="Invité",
+                id=participant_id,
+                color=utils.generate_color(participant_id),
+            )
+            cache.set(
+                self._get_cache_key(room_id, participant_id),
+                participant.to_dict(),
+                timeout=(
+                    settings.LOBBY_ACCEPTED_TIMEOUT
+                    if allow_entry
+                    else settings.LOBBY_DENIED_TIMEOUT
+                ),
+            )
 
     def handle_participant_entry(
         self,

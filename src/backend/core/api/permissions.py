@@ -5,6 +5,7 @@ from django.http import Http404
 
 from rest_framework import permissions
 
+from ..mastrao_guest_grant import can_access_canonical_room
 from ..mastrao_host_grant import active_host_grant
 from ..mastrao_identity import is_mastrao_host_subject
 from ..models import RoleChoices
@@ -69,6 +70,8 @@ class RoomPermissions(permissions.BasePermission):
         """Object permissions are only given to administrators of the room."""
 
         if request.method in permissions.SAFE_METHODS:
+            if not can_access_canonical_room(request, obj):
+                raise Http404
             return True
 
         user = request.user

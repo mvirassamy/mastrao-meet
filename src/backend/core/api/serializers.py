@@ -305,7 +305,9 @@ class RequestEntrySerializer(BaseValidationOnlySerializer):
 class ParticipantEntrySerializer(BaseValidationOnlySerializer):
     """Validate participant entry decision data."""
 
-    participant_id = serializers.UUIDField(required=True)
+    participant_id = serializers.RegexField(
+        regex=r"^[A-Za-z0-9_-]{16,160}$", required=True
+    )
     allow_entry = serializers.BooleanField(required=True)
 
 
