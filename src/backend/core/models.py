@@ -929,6 +929,7 @@ class MastraoRecordingEffect(BaseModel):
         STOP = "stop", _("Stop")
 
     class State(models.TextChoices):
+        APPLYING = "applying", _("Applying")
         PENDING = "pending", _("Pending")
         APPLIED = "applied", _("Applied")
         FAILED = "failed", _("Failed")

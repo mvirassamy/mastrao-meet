@@ -11,7 +11,10 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from core import models
+from asgiref.sync import async_to_sync
+from livekit import api as livekit_api
+
+from core import models, utils
 from core.mastrao_recording_contract import (
     RecordingContractRefused,
     build_start_receipt_claims,
@@ -27,6 +30,18 @@ from core.recording.worker.factories import get_worker_service
 from core.recording.worker.mediator import WorkerServiceMediator
 
 MAX_BODY_BYTES = 32_768
+
+ACTIVE_EGRESS_STATES = {
+    livekit_api.EgressStatus.EGRESS_STARTING,
+    livekit_api.EgressStatus.EGRESS_ACTIVE,
+}
+TERMINAL_EGRESS_STATES = {
+    livekit_api.EgressStatus.EGRESS_ENDING,
+    livekit_api.EgressStatus.EGRESS_COMPLETE,
+    livekit_api.EgressStatus.EGRESS_ABORTED,
+    livekit_api.EgressStatus.EGRESS_FAILED,
+    livekit_api.EgressStatus.EGRESS_LIMIT_REACHED,
+}
 
 
 def _safe_response(payload, status=200):
@@ -88,6 +103,35 @@ def _exact_effect(existing, effect, operation):
     return existing
 
 
+@async_to_sync
+async def _list_room_egresses(room_name):
+    client = utils.create_livekit_client(settings.LIVEKIT_CONFIGURATION)
+    try:
+        return await client.egress.list_egress(
+            livekit_api.ListEgressRequest(room_name=room_name)
+        )
+    except (livekit_api.TwirpError, OSError) as error:
+        raise RecordingContractRefused(status=503) from error
+    finally:
+        await client.aclose()
+
+
+def _exact_provider_egress(recording):
+    """Find only the Egress whose immutable output key names this recording."""
+
+    expected_key = recording.key
+    matches = []
+    for egress in _list_room_egresses(str(recording.room_id)).items:
+        outputs = getattr(getattr(egress, "room_composite", None), "file_outputs", ())
+        if egress.room_name == str(recording.room_id) and any(
+            output.filepath == expected_key for output in outputs
+        ):
+            matches.append(egress)
+    if len(matches) > 1:
+        raise RecordingContractRefused(status=409)
+    return matches[0] if matches else None
+
+
 @transaction.atomic
 def _prepare_start(effect):
     room_binding = _binding(effect, lock=True)
@@ -136,59 +180,65 @@ def _prepare_start(effect):
         .first()
     )
     if existing:
-        return recording_binding, _exact_effect(existing, effect, "start")
+        return recording_binding, _exact_effect(existing, effect, "start"), False
     created = models.MastraoRecordingEffect.objects.create(
         recording_binding=recording_binding,
         effect_key=effect["effect_key"],
         operation="start",
         arguments_digest=effect["arguments_digest"],
         effect_jti=effect["jti"],
+        state=models.MastraoRecordingEffect.State.APPLYING,
     )
-    return recording_binding, created
+    recording = models.Recording.objects.create(
+        room=room_binding.room,
+        mode=models.RecordingModeChoices.SCREEN_RECORDING,
+        options={
+            "mastrao_recording_ref": recording_binding.recording_ref,
+            "mastrao_retention_expires_at": int(
+                recording_binding.retention_expires_at.timestamp()
+            ),
+        },
+    )
+    models.RecordingAccess.objects.create(
+        user=room_binding.owner,
+        role=models.RoleChoices.OWNER,
+        recording=recording,
+    )
+    recording_binding.recording = recording
+    recording_binding.state = models.MastraoRecordingBinding.State.STARTING
+    recording_binding.save(update_fields=["recording", "state", "updated_at"])
+    return recording_binding, created, True
 
 
 def _apply_start(effect):
-    recording_binding, local_effect = _prepare_start(effect)
+    recording_binding, local_effect, first_delivery = _prepare_start(effect)
     if local_effect.state == models.MastraoRecordingEffect.State.APPLIED:
         return sign_start_receipt(local_effect.receipt_claims)
 
-    recording = recording_binding.recording
+    recording = models.Recording.objects.select_related("room").get(
+        pk=recording_binding.recording_id
+    )
     observation = "already_active"
-    if recording is None:
-        with transaction.atomic():
-            locked = models.MastraoRecordingBinding.objects.select_for_update().get(
-                pk=recording_binding.pk
-            )
-            recording = models.Recording.objects.create(
-                room=locked.room_binding.room,
-                mode=models.RecordingModeChoices.SCREEN_RECORDING,
-                options={
-                    "mastrao_recording_ref": locked.recording_ref,
-                    "mastrao_retention_expires_at": int(
-                        locked.retention_expires_at.timestamp()
-                    ),
-                },
-            )
-            models.RecordingAccess.objects.create(
-                user=locked.room_binding.owner,
-                role=models.RoleChoices.OWNER,
-                recording=recording,
-            )
-            locked.recording = recording
-            locked.state = models.MastraoRecordingBinding.State.STARTING
-            locked.save(update_fields=["recording", "state", "updated_at"])
-        observation = "started"
-
-    if recording.status == models.RecordingStatusChoices.INITIATED:
+    provider_egress = None if first_delivery else _exact_provider_egress(recording)
+    if provider_egress is not None:
+        recording.worker_id = provider_egress.egress_id
+        recording.status = models.RecordingStatusChoices.ACTIVE
+        recording.save(update_fields=["worker_id", "status", "updated_at"])
+    elif not first_delivery:
+        raise RecordingContractRefused(status=503)
+    elif recording.status == models.RecordingStatusChoices.INITIATED:
         try:
             WorkerServiceMediator(
                 get_worker_service(mode=models.RecordingModeChoices.SCREEN_RECORDING)
             ).start(recording)
         except RecordingStartError as error:
-            models.MastraoRecordingBinding.objects.filter(
-                pk=recording_binding.pk
-            ).update(state=models.MastraoRecordingBinding.State.FAILED)
-            raise RecordingContractRefused(status=503) from error
+            provider_egress = _exact_provider_egress(recording)
+            if provider_egress is None:
+                raise RecordingContractRefused(status=503) from error
+            recording.worker_id = provider_egress.egress_id
+            recording.status = models.RecordingStatusChoices.ACTIVE
+            recording.save(update_fields=["worker_id", "status", "updated_at"])
+        observation = "started"
     elif recording.status != models.RecordingStatusChoices.ACTIVE:
         raise RecordingContractRefused(status=409)
 
@@ -241,37 +291,56 @@ def _prepare_stop(effect):
         .first()
     )
     if existing:
-        return recording_binding, _exact_effect(existing, effect, "stop")
+        return recording_binding, _exact_effect(existing, effect, "stop"), False
     created = models.MastraoRecordingEffect.objects.create(
         recording_binding=recording_binding,
         effect_key=effect["effect_key"],
         operation="stop",
         arguments_digest=effect["arguments_digest"],
         effect_jti=effect["jti"],
+        state=models.MastraoRecordingEffect.State.APPLYING,
     )
     recording_binding.state = models.MastraoRecordingBinding.State.STOPPING
     recording_binding.save(update_fields=["state", "updated_at"])
-    return recording_binding, created
+    return recording_binding, created, True
 
 
-def _apply_stop(effect):
-    recording_binding, local_effect = _prepare_stop(effect)
+def _apply_stop(effect):  # noqa: PLR0912
+    recording_binding, local_effect, first_delivery = _prepare_stop(effect)
     if local_effect.state == models.MastraoRecordingEffect.State.APPLIED:
         return sign_stop_receipt(local_effect.receipt_claims)
     recording = recording_binding.recording
     if recording is None:
         raise RecordingContractRefused(status=409)
+    provider_egress = _exact_provider_egress(recording)
+    observation = None
     if hasattr(recording_binding.room_binding, "closure"):
         observation = "room_ended"
-    elif recording.status == models.RecordingStatusChoices.ACTIVE:
+    elif provider_egress is not None and provider_egress.status in TERMINAL_EGRESS_STATES:
+        observation = "already_stopped"
+    elif not first_delivery and local_effect.state == models.MastraoRecordingEffect.State.APPLYING:
+        raise RecordingContractRefused(status=503)
+    elif provider_egress is not None and provider_egress.status in ACTIVE_EGRESS_STATES:
+        recording.status = models.RecordingStatusChoices.ACTIVE
+        recording.save(update_fields=["status", "updated_at"])
+    if recording.status == models.RecordingStatusChoices.ACTIVE and observation not in {
+        "room_ended",
+        "already_stopped",
+    }:
         try:
             WorkerServiceMediator(get_worker_service(mode=recording.mode)).stop(
                 recording
             )
         except RecordingStopError as error:
-            raise RecordingContractRefused(status=503) from error
-        observation = "stopped"
-    elif recording.status in {
+            provider_egress = _exact_provider_egress(recording)
+            if provider_egress is None or provider_egress.status not in TERMINAL_EGRESS_STATES:
+                local_effect.state = models.MastraoRecordingEffect.State.PENDING
+                local_effect.save(update_fields=["state", "updated_at"])
+                raise RecordingContractRefused(status=503) from error
+            observation = "already_stopped"
+        else:
+            observation = "stopped"
+    elif observation not in {"room_ended", "already_stopped"} and recording.status in {
         models.RecordingStatusChoices.STOPPED,
         models.RecordingStatusChoices.SAVED,
         models.RecordingStatusChoices.NOTIFICATION_SUCCEEDED,
@@ -279,7 +348,7 @@ def _apply_stop(effect):
         models.RecordingStatusChoices.EXTERNAL_PROCESS_FAILED,
     }:
         observation = "already_stopped"
-    else:
+    elif observation not in {"room_ended", "already_stopped"}:
         raise RecordingContractRefused(status=409)
 
     claims = build_stop_receipt_claims(effect, observation)

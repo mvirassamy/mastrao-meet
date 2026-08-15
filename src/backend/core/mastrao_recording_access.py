@@ -163,6 +163,7 @@ def _consume(request):
             recording_ref=grant["recording_ref"],
             artifact_ref=grant["artifact_ref"],
             state=models.MastraoRecordingBinding.State.FINALIZED,
+            retention_expires_at__gt=datetime.now(tz=UTC),
             recording__isnull=False,
         )
         .first()
@@ -256,6 +257,7 @@ def _stream_once(request, session, retry_digest):
             retry_cookie_digest=retry_digest,
             expires_at__gt=datetime.now(tz=UTC),
             consumed_at__isnull=True,
+            recording_binding__retention_expires_at__gt=datetime.now(tz=UTC),
         )
         .first()
     )

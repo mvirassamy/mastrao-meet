@@ -109,6 +109,7 @@ export const Lobby = ({
       <RecordingConsent
         roomId={roomId}
         retentionExpiresAt={recording.retention_expires_at}
+        participantKind={recording.participant_kind}
         onDecided={async () => {
           await refetchRoom()
         }}

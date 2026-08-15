@@ -88,9 +88,7 @@ export function VideoConference({
   const [isShareErrorVisible, setIsShareErrorVisible] = useState(false)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [withdrawFailed, setWithdrawFailed] = useState(false)
-  const withdrawalIds = useRef(
-    crypto.randomUUID().replaceAll('-', '')
-  )
+  const withdrawalIds = useRef(crypto.randomUUID().replaceAll('-', ''))
 
   const withdraw = async () => {
     setIsWithdrawing(true)
@@ -103,11 +101,6 @@ export function VideoConference({
           roomId,
           'withdrawn',
           `withdrawal_${withdrawalIds.current}`
-        )
-        await stopRecording(
-          roomId,
-          'withdrawal',
-          `stop_${withdrawalIds.current}`
         )
       }
       await onRecordingChanged?.()
@@ -145,9 +138,12 @@ export function VideoConference({
       )}
       {recording?.mode === 'recorded' &&
         recording.decision === 'accepted' &&
-        ['starting', 'active'].includes(recording.recording_state ?? '') && (
+        ['starting', 'active', 'stopping'].includes(
+          recording.recording_state ?? ''
+        ) && (
           <div
             role="status"
+            aria-live="polite"
             className={css({
               position: 'absolute',
               top: '1rem',
@@ -164,15 +160,23 @@ export function VideoConference({
           >
             {withdrawFailed
               ? tRecording('withdrawError')
-              : tRecording('active')}
-            <Button
-              size="sm"
-              variant="danger"
-              isDisabled={isWithdrawing}
-              onPress={withdraw}
-            >
-              {tRecording(canEnd ? 'stop' : 'withdraw')}
-            </Button>
+              : tRecording(
+                  recording.recording_state === 'stopping'
+                    ? 'stopping'
+                    : recording.recording_state === 'starting'
+                      ? 'starting'
+                      : 'active'
+                )}
+            {recording.recording_state !== 'stopping' && (
+              <Button
+                size="sm"
+                variant="danger"
+                isDisabled={isWithdrawing}
+                onPress={withdraw}
+              >
+                {tRecording(canEnd ? 'stop' : 'withdraw')}
+              </Button>
+            )}
           </div>
         )}
       <MediaStateObserver />

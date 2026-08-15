@@ -266,6 +266,7 @@ class Migration(migrations.Migration):
                     "state",
                     models.CharField(
                         choices=[
+                            ("applying", "Applying"),
                             ("pending", "Pending"),
                             ("applied", "Applied"),
                             ("failed", "Failed"),

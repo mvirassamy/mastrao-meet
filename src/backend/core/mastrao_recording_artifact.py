@@ -3,6 +3,7 @@
 import hashlib
 import json
 import time
+from dataclasses import dataclass
 from uuid import uuid4
 
 from django.conf import settings
@@ -18,6 +19,20 @@ from core.mastrao_recording_contract import (
 )
 
 MAX_ARTIFACT_BYTES = 20_000_000_000
+
+
+@dataclass(frozen=True)
+class _ArtifactSnapshot:
+    """Stable database coordinates captured before inspecting object storage."""
+
+    binding_model: type
+    recording_model: type
+    binding_id: object
+    binding_version: object
+    recording_id: object
+    recording_version: object
+    object_ref: str
+    replay_claims: dict | None = None
 
 
 def _canonical_digest(value):
@@ -41,8 +56,8 @@ def _inspect_object(object_ref):
     return size, checksum.hexdigest()
 
 
-def _prepare_artifact_receipt(recording):
-    """Persist one exact receipt before attempting the Core callback."""
+def _snapshot_artifact(recording):
+    """Take a short locked snapshot, without reading object storage."""
 
     binding_model = type(recording.mastrao_binding)
     recording_model = type(recording)
@@ -54,9 +69,48 @@ def _prepare_artifact_receipt(recording):
             raise RecordingContractRefused(status=503)
         recording = recording_model.objects.get(pk=binding.recording_id)
         if binding.artifact_receipt_claims:
-            return binding_model, binding.pk, dict(binding.artifact_receipt_claims)
+            return _ArtifactSnapshot(
+                binding_model=binding_model,
+                recording_model=recording_model,
+                binding_id=binding.pk,
+                binding_version=binding.updated_at,
+                recording_id=binding.recording_id,
+                recording_version=recording.updated_at,
+                object_ref=recording.key,
+                replay_claims=dict(binding.artifact_receipt_claims),
+            )
+        return _ArtifactSnapshot(
+            binding_model=binding_model,
+            recording_model=recording_model,
+            binding_id=binding.pk,
+            binding_version=binding.updated_at,
+            recording_id=recording.pk,
+            recording_version=recording.updated_at,
+            object_ref=recording.key,
+        )
 
-        size, checksum = _inspect_object(recording.key)
+
+def _persist_artifact_receipt(snapshot, size, checksum):
+    """Revalidate the snapshot and persist one exact receipt under a short lock."""
+
+    with transaction.atomic():
+        binding = snapshot.binding_model.objects.select_for_update().get(
+            pk=snapshot.binding_id
+        )
+        if binding.artifact_receipt_claims:
+            return dict(binding.artifact_receipt_claims)
+        if (
+            binding.recording_id != snapshot.recording_id
+            or binding.updated_at != snapshot.binding_version
+        ):
+            raise RecordingContractRefused(status=409)
+        recording = snapshot.recording_model.objects.get(pk=snapshot.recording_id)
+        if (
+            recording.updated_at != snapshot.recording_version
+            or recording.key != snapshot.object_ref
+        ):
+            raise RecordingContractRefused(status=409)
+
         now = int(time.time())
         artifact_ref = binding.artifact_ref or f"artifact_{uuid4().hex}"
         claims = {
@@ -73,7 +127,7 @@ def _prepare_artifact_receipt(recording):
             "provider_binding_digest": binding.provider_binding_digest,
             "artifact_ref": artifact_ref,
             "storage_binding_digest": settings.MASTRAO_RECORDING_STORAGE_BINDING_DIGEST,
-            "object_ref": recording.key,
+            "object_ref": snapshot.object_ref,
             "content_type": "video/mp4",
             "byte_size": size,
             "checksum_algorithm": "sha256",
@@ -89,7 +143,7 @@ def _prepare_artifact_receipt(recording):
         }
         binding.artifact_ref = artifact_ref
         binding.storage_binding_digest = claims["storage_binding_digest"]
-        binding.object_ref = recording.key
+        binding.object_ref = snapshot.object_ref
         binding.content_type = "video/mp4"
         binding.byte_size = size
         binding.checksum_algorithm = "sha256"
@@ -102,7 +156,18 @@ def _prepare_artifact_receipt(recording):
         binding.artifact_receipt_digest = _canonical_digest(claims)
         binding.state = binding.State.PROCESSING
         binding.save()
-        return binding_model, binding.pk, claims
+        return claims
+
+
+def _prepare_artifact_receipt(recording):
+    """Inspect outside transactions, then persist before the Core callback."""
+
+    snapshot = _snapshot_artifact(recording)
+    if snapshot.replay_claims is not None:
+        return snapshot.binding_model, snapshot.binding_id, snapshot.replay_claims
+    size, checksum = _inspect_object(snapshot.object_ref)
+    claims = _persist_artifact_receipt(snapshot, size, checksum)
+    return snapshot.binding_model, snapshot.binding_id, claims
 
 
 def finalize_mastrao_artifact(recording):

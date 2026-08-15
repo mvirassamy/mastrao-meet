@@ -107,11 +107,17 @@
   "recordingConsent": {
     "title": "Diese Besprechung wird aufgezeichnet",
     "notice": "Audio, Video und geteilte Bildschirme werden aufgezeichnet. Sie können ablehnen und ohne Aufzeichnung teilnehmen oder später widerrufen.",
+    "purpose": "Zweck: eine Videoaufzeichnung dieser Besprechung erstellen und in der zugehörigen Akte aufbewahren.",
+    "recipients": "Zugriff: Nur Personen, die zum Zeitpunkt des Zugriffs über Rechte an dieser Akte verfügen, können die Aufzeichnung ansehen.",
     "retention": "Die Aufzeichnung wird spätestens am {{date}} gelöscht.",
+    "rights": "Rechte: Wenden Sie sich über den üblichen Kommunikationsweg der Akte an den Organisator, um Zugang oder Löschung zu beantragen oder ein anderes Recht auszuüben.",
+    "guestIdentity": "Der angezeigte Name wurde von Ihnen angegeben; Ihre Identität wurde nicht überprüft.",
     "accept": "Akzeptieren und fortfahren",
     "refuse": "Aufzeichnung ablehnen",
     "error": "Ihre Auswahl konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    "starting": "Aufzeichnung wird gestartet",
     "active": "Aufzeichnung läuft",
+    "stopping": "Aufzeichnung wird beendet",
     "withdraw": "Einwilligung widerrufen",
     "stop": "Aufzeichnung beenden",
     "withdrawError": "Die Aufzeichnung konnte nicht beendet werden. Erneut versuchen."

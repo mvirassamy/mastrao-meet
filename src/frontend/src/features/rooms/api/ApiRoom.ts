@@ -55,6 +55,7 @@ export type ApiRoom = {
       | 'cancelled'
       | 'failed'
     decision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
+    participant_kind?: 'host' | 'guest'
   }
   /**
    * Only present in the API response when the requesting user is an

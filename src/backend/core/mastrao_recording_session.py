@@ -192,7 +192,7 @@ def recording_session_status(request, room):
     )
     _validate_status(status, participant, room)
     _sync_binding(room, status)
-    return status
+    return {**status, "participant_kind": participant["kind"]}
 
 
 def media_allowed(status):
@@ -226,6 +226,7 @@ def public_projection(status):
             "retention_expires_at",
             "recording_state",
             "decision",
+            "participant_kind",
         )
     }
 

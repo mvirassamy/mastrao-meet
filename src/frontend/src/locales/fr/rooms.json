@@ -107,11 +107,17 @@
   "recordingConsent": {
     "title": "Cette réunion sera enregistrée",
     "notice": "L’audio, la vidéo et les écrans partagés seront enregistrés. Vous pouvez refuser et rejoindre sans être enregistré, ou retirer votre accord plus tard.",
+    "purpose": "Finalité : créer un enregistrement vidéo de cette réunion et le conserver dans le dossier concerné.",
+    "recipients": "Accès : seules les personnes disposant, au moment de la consultation, des droits sur ce dossier pourront voir l’enregistrement.",
     "retention": "La suppression de l’enregistrement est prévue au plus tard le {{date}}.",
+    "rights": "Droits : pour demander l’accès, la suppression ou exercer un autre droit, contactez l’organisateur par le canal habituel du dossier.",
+    "guestIdentity": "Le nom que vous affichez est déclaré par vous ; votre identité n’est pas vérifiée.",
     "accept": "Accepter et continuer",
     "refuse": "Refuser l’enregistrement",
     "error": "Votre choix n’a pas pu être enregistré. Réessayez.",
+    "starting": "Démarrage de l’enregistrement",
     "active": "Enregistrement en cours",
+    "stopping": "Arrêt de l’enregistrement en cours",
     "withdraw": "Retirer mon accord",
     "stop": "Arrêter l’enregistrement",
     "withdrawError": "L’enregistrement n’a pas pu être arrêté. Réessayez."

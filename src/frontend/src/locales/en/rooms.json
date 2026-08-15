@@ -107,11 +107,17 @@
   "recordingConsent": {
     "title": "This meeting will be recorded",
     "notice": "Audio, video and shared screens will be recorded for this meeting. You can refuse and still join without being recorded, or withdraw later.",
+    "purpose": "Purpose: create a video recording of this meeting and retain it in the relevant case file.",
+    "recipients": "Access: only people who have permission to this case file at the time of access will be able to view the recording.",
     "retention": "The recording is scheduled for deletion by {{date}}.",
+    "rights": "Rights: to request access, deletion, or exercise another right, contact the organizer through the usual case-file channel.",
+    "guestIdentity": "The displayed name is provided by you; your identity has not been verified.",
     "accept": "Accept and continue",
     "refuse": "Refuse recording",
     "error": "Your choice could not be saved. Please try again.",
+    "starting": "Recording is starting",
     "active": "Recording in progress",
+    "stopping": "Recording is stopping",
     "withdraw": "Withdraw consent",
     "stop": "Stop recording",
     "withdrawError": "Recording could not be stopped. Try again."
