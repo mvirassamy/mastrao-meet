@@ -14,6 +14,8 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils import timezone
 
+from botocore.exceptions import BotoCoreError, ClientError
+
 from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_contract import (
     ARTIFACT_RECEIPT_TYPE,
@@ -48,12 +50,15 @@ def _canonical_digest(value):
 def _inspect_object(object_ref):
     checksum = hashlib.sha256()
     size = 0
-    with default_storage.open(object_ref, "rb") as stream:
-        while chunk := stream.read(1024 * 1024):
-            size += len(chunk)
-            if size > MAX_ARTIFACT_BYTES:
-                raise RecordingContractRefused(status=503)
-            checksum.update(chunk)
+    try:
+        with default_storage.open(object_ref, "rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_ARTIFACT_BYTES:
+                    raise RecordingContractRefused(status=503)
+                checksum.update(chunk)
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise RecordingContractRefused(status=503) from error
     if size < 1:
         raise RecordingContractRefused(status=503)
     return size, checksum.hexdigest()
@@ -113,13 +118,20 @@ def _persist_artifact_receipt(snapshot, size, checksum):
             raise RecordingContractRefused(status=409)
         if binding.artifact_receipt_claims:
             claims = dict(binding.artifact_receipt_claims)
+            expected_artifact = (snapshot.object_ref, size, checksum)
+            claims_artifact = (
+                claims.get("object_ref"),
+                claims.get("byte_size"),
+                claims.get("checksum_digest"),
+            )
+            persisted_artifact = (
+                binding.object_ref,
+                binding.byte_size,
+                binding.checksum_digest,
+            )
             if (
-                claims.get("object_ref") != snapshot.object_ref
-                or claims.get("byte_size") != size
-                or claims.get("checksum_digest") != checksum
-                or binding.object_ref != snapshot.object_ref
-                or binding.byte_size != size
-                or binding.checksum_digest != checksum
+                claims_artifact != expected_artifact
+                or persisted_artifact != expected_artifact
             ):
                 raise RecordingContractRefused(status=409)
             now = int(time.time())

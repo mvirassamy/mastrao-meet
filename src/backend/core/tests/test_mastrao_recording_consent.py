@@ -756,6 +756,9 @@ def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(db, setting
             HTTP_SEC_FETCH_SITE="same-site",
         )
         assert bootstrap.status_code == 200
+        assert 'lang="fr"' in bootstrap.content.decode()
+        assert 'role="status"' in bootstrap.content.decode()
+        assert "Vérification de l’intégrité" in bootstrap.content.decode()
         consumed = client.post(
             "/recordings/access/",
             urlencode({"stage": "consume", "recording_access_grant": compact}),
@@ -785,7 +788,7 @@ def test_artifact_download_prepares_then_streams_exactly_once(db):
 
     with mock.patch(
         "core.mastrao_recording_access.default_storage.open",
-        side_effect=[io.BytesIO(b"mp4"), io.BytesIO(b"mp4")],
+        return_value=io.BytesIO(b"mp4"),
     ):
         streamed = client.get("/recordings/download/current")
         assert streamed.status_code == 200
@@ -803,6 +806,34 @@ def test_artifact_download_rejects_changed_object(db):
         return_value=io.BytesIO(b"changed"),
     ):
         assert client.get("/recordings/download/current").status_code == 404
+    access.refresh_from_db()
+    assert access.consumed_at is None
+
+
+def test_artifact_download_reads_and_serves_one_verified_stream(db):
+    access, retry = _artifact_access()
+    client = _client_for_access(access, retry, stage="prepared")
+    with mock.patch(
+        "core.mastrao_recording_access.default_storage.open",
+        side_effect=[io.BytesIO(b"mp4"), io.BytesIO(b"changed")],
+    ) as storage:
+        response = client.get("/recordings/download/current")
+        assert response.status_code == 200
+        assert b"".join(response.streaming_content) == b"mp4"
+    storage.assert_called_once()
+
+
+def test_artifact_download_storage_failure_is_opaque_and_retryable(db):
+    access, retry = _artifact_access()
+    client = _client_for_access(access, retry, stage="prepared")
+    with mock.patch(
+        "core.mastrao_recording_access.default_storage.open",
+        side_effect=OSError("storage unavailable"),
+    ):
+        response = client.get("/recordings/download/current")
+    assert response.status_code == 404
+    assert response["Content-Type"].startswith("text/html")
+    assert "réessayez depuis votre dossier Mastrao" in response.content.decode()
     access.refresh_from_db()
     assert access.consumed_at is None
 

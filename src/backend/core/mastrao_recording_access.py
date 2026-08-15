@@ -16,8 +16,10 @@ from django.http import FileResponse, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from botocore.exceptions import BotoCoreError, ClientError
+
 from core import models
-from core.mastrao_recording_artifact import _inspect_object
+from core.mastrao_recording_artifact import MAX_ARTIFACT_BYTES
 from core.mastrao_recording_contract import (
     RecordingContractRefused,
     compact_digest,
@@ -28,6 +30,20 @@ MAX_BODY_BYTES = 20_000
 RETRY_COOKIE = "mastrao_recording_retry"
 SESSION_KEY = "mastrao_recording_download"
 logger = logging.getLogger(__name__)
+
+
+def _html_page(title, message, *, status=200):
+    markup = f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="referrer" content="no-referrer"><title>{html.escape(title)}</title></head>
+<body><main><h1>{html.escape(title)}</h1>
+<p role="status" aria-live="polite">{html.escape(message)}</p></main></body></html>"""
+    response = HttpResponse(
+        markup, status=status, content_type="text/html; charset=utf-8"
+    )
+    for name, value in _headers().items():
+        response[name] = value
+    response["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    return response
 
 
 def _headers():
@@ -99,9 +115,11 @@ def _bootstrap(request):
         timeout=remaining,
     )
     nonce = secrets.token_urlsafe(18)
-    markup = f"""<!doctype html><html><head><meta charset=\"utf-8\">
-<meta name=\"referrer\" content=\"no-referrer\"><title>Recording</title></head>
-<body><form id=\"continue\" method=\"post\" action=\"/recordings/access/\">
+    markup = f"""<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\">
+<meta name=\"referrer\" content=\"no-referrer\"><title>Vérification de l’enregistrement</title></head>
+<body><main><h1>Préparation du téléchargement</h1>
+<p role=\"status\" aria-live=\"polite\">Vérification de l’intégrité de l’enregistrement…</p></main>
+<form id=\"continue\" method=\"post\" action=\"/recordings/access/\">
 <input type=\"hidden\" name=\"stage\" value=\"consume\">
 <input type=\"hidden\" name=\"recording_access_grant\" value=\"{html.escape(compact, quote=True)}\">
 <noscript><button type=\"submit\">Continue</button></noscript></form>
@@ -110,7 +128,8 @@ def _bootstrap(request):
     for name, value in _headers().items():
         response[name] = value
     response["Content-Security-Policy"] = (
-        f"default-src 'none'; form-action 'self'; script-src 'nonce-{nonce}'; base-uri 'none'; frame-ancestors 'none'"
+        "default-src 'none'; form-action 'self'; "
+        f"script-src 'nonce-{nonce}'; base-uri 'none'; frame-ancestors 'none'"
     )
     response.set_cookie(
         RETRY_COOKIE,
@@ -248,6 +267,31 @@ def _download_session(request):
     return session, retry_digest
 
 
+def _open_verified_stream(object_ref, expected_size, expected_checksum):
+    stream = None
+    try:
+        stream = default_storage.open(object_ref, "rb")
+        checksum = hashlib.sha256()
+        size = 0
+        while chunk := stream.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_ARTIFACT_BYTES:
+                raise RecordingContractRefused()
+            checksum.update(chunk)
+        if size != expected_size or checksum.hexdigest() != expected_checksum:
+            raise RecordingContractRefused()
+        stream.seek(0)
+        return stream
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        if stream is not None:
+            stream.close()
+        raise RecordingContractRefused() from error
+    except RecordingContractRefused:
+        if stream is not None:
+            stream.close()
+        raise
+
+
 def _stream_once(request, session, retry_digest):
     snapshot = (
         models.MastraoRecordingArtifactAccess.objects.select_related(
@@ -265,12 +309,11 @@ def _stream_once(request, session, retry_digest):
     if not snapshot or not snapshot.recording_binding.object_ref:
         raise RecordingContractRefused()
     object_ref = snapshot.recording_binding.object_ref
-    size, checksum = _inspect_object(object_ref)
-    if (
-        snapshot.recording_binding.byte_size != size
-        or snapshot.recording_binding.checksum_digest != checksum
-    ):
+    size = snapshot.recording_binding.byte_size
+    checksum = snapshot.recording_binding.checksum_digest
+    if not isinstance(size, int) or not isinstance(checksum, str):
         raise RecordingContractRefused()
+    stream = _open_verified_stream(object_ref, size, checksum)
     with transaction.atomic():
         access = (
             models.MastraoRecordingArtifactAccess.objects.select_for_update()
@@ -288,11 +331,8 @@ def _stream_once(request, session, retry_digest):
             .first()
         )
         if not access:
+            stream.close()
             raise RecordingContractRefused()
-        try:
-            stream = default_storage.open(object_ref, "rb")
-        except OSError:
-            raise RecordingContractRefused() from None
         access.consumed_at = datetime.now(tz=UTC)
         access.save(update_fields=["consumed_at", "updated_at"])
         request.session.pop(SESSION_KEY, None)
@@ -330,4 +370,8 @@ def recording_download(request):
         return _stream_once(request, session, retry_digest)
     except RecordingContractRefused:
         request.session.pop(SESSION_KEY, None)
-        return JsonResponse({"message": "Not found"}, status=404, headers=_headers())
+        return _html_page(
+            "Enregistrement indisponible",
+            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
+            status=404,
+        )
