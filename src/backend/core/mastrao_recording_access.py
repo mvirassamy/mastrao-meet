@@ -293,6 +293,7 @@ def _open_verified_stream(object_ref, expected_size, expected_checksum):
 
 
 def _stream_once(request, session, retry_digest):
+    started_at = datetime.now(tz=UTC)
     snapshot = (
         models.MastraoRecordingArtifactAccess.objects.select_related(
             "recording_binding"
@@ -300,9 +301,9 @@ def _stream_once(request, session, retry_digest):
         .filter(
             id=session.get("access_id"),
             retry_cookie_digest=retry_digest,
-            expires_at__gt=datetime.now(tz=UTC),
+            expires_at__gt=started_at,
             consumed_at__isnull=True,
-            recording_binding__retention_expires_at__gt=datetime.now(tz=UTC),
+            recording_binding__retention_expires_at__gt=started_at,
         )
         .first()
     )
@@ -314,6 +315,7 @@ def _stream_once(request, session, retry_digest):
     if not isinstance(size, int) or not isinstance(checksum, str):
         raise RecordingContractRefused()
     stream = _open_verified_stream(object_ref, size, checksum)
+    verified_at = datetime.now(tz=UTC)
     with transaction.atomic():
         access = (
             models.MastraoRecordingArtifactAccess.objects.select_for_update()
@@ -321,9 +323,9 @@ def _stream_once(request, session, retry_digest):
             .filter(
                 id=snapshot.id,
                 retry_cookie_digest=retry_digest,
-                expires_at__gt=datetime.now(tz=UTC),
+                expires_at__gt=started_at,
                 consumed_at__isnull=True,
-                recording_binding__retention_expires_at__gt=datetime.now(tz=UTC),
+                recording_binding__retention_expires_at__gt=verified_at,
                 recording_binding__object_ref=object_ref,
                 recording_binding__byte_size=size,
                 recording_binding__checksum_digest=checksum,
@@ -333,7 +335,7 @@ def _stream_once(request, session, retry_digest):
         if not access:
             stream.close()
             raise RecordingContractRefused()
-        access.consumed_at = datetime.now(tz=UTC)
+        access.consumed_at = verified_at
         access.save(update_fields=["consumed_at", "updated_at"])
         request.session.pop(SESSION_KEY, None)
         request.session.modified = True

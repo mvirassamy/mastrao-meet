@@ -838,6 +838,40 @@ def test_artifact_download_storage_failure_is_opaque_and_retryable(db):
     assert access.consumed_at is None
 
 
+def test_artifact_download_started_before_expiry_finishes_after_expiry(db):
+    access, retry = _artifact_access()
+    started_at = timezone.now()
+    access.expires_at = started_at + timedelta(seconds=30)
+    access.save(update_fields=["expires_at", "updated_at"])
+    client = _client_for_access(access, retry, stage="prepared")
+    with (
+        mock.patch("core.mastrao_recording_access.datetime") as clock,
+        mock.patch(
+            "core.mastrao_recording_access._open_verified_stream",
+            return_value=io.BytesIO(b"mp4"),
+        ),
+    ):
+        clock.now.side_effect = [started_at, started_at + timedelta(minutes=2)]
+        response = client.get("/recordings/download/current")
+    assert response.status_code == 200
+    assert b"".join(response.streaming_content) == b"mp4"
+    access.refresh_from_db()
+    assert access.consumed_at == started_at + timedelta(minutes=2)
+
+
+def test_artifact_download_started_after_expiry_is_refused(db):
+    access, retry = _artifact_access()
+    access.expires_at = timezone.now() - timedelta(seconds=1)
+    access.save(update_fields=["expires_at", "updated_at"])
+    client = _client_for_access(access, retry, stage="prepared")
+    with mock.patch("core.mastrao_recording_access.default_storage.open") as storage:
+        response = client.get("/recordings/download/current")
+    assert response.status_code == 404
+    storage.assert_not_called()
+    access.refresh_from_db()
+    assert access.consumed_at is None
+
+
 def test_artifact_download_rejects_old_cookie_and_other_browser(db):
     access, retry = _artifact_access()
     wrong_cookie = _client_for_access(access, f"{retry}-old")
