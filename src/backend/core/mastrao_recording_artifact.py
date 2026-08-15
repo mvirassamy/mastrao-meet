@@ -41,22 +41,21 @@ def _inspect_object(object_ref):
     return size, checksum.hexdigest()
 
 
-@transaction.atomic
-def finalize_mastrao_artifact(recording):
-    """Inspect, persist, sign and replay one exact artifact finalization."""
+def _prepare_artifact_receipt(recording):
+    """Persist one exact receipt before attempting the Core callback."""
 
-    binding = recording.mastrao_binding
-    required_settings = (
-        settings.MASTRAO_RECORDING_STORAGE_BINDING_DIGEST,
-        settings.MASTRAO_RECORDING_REGION_REF,
-        settings.MASTRAO_RECORDING_ENCRYPTION_REF,
-        settings.MASTRAO_RECORDING_LIFECYCLE_POLICY_REF,
-    )
-    if not all(required_settings):
-        raise RecordingContractRefused(status=503)
-    if binding.artifact_receipt_claims:
-        claims = binding.artifact_receipt_claims
-    else:
+    binding_model = type(recording.mastrao_binding)
+    recording_model = type(recording)
+    with transaction.atomic():
+        binding = binding_model.objects.select_for_update().get(
+            pk=recording.mastrao_binding.pk
+        )
+        if binding.recording_id is None:
+            raise RecordingContractRefused(status=503)
+        recording = recording_model.objects.get(pk=binding.recording_id)
+        if binding.artifact_receipt_claims:
+            return binding_model, binding.pk, dict(binding.artifact_receipt_claims)
+
         size, checksum = _inspect_object(recording.key)
         now = int(time.time())
         artifact_ref = binding.artifact_ref or f"artifact_{uuid4().hex}"
@@ -103,6 +102,21 @@ def finalize_mastrao_artifact(recording):
         binding.artifact_receipt_digest = _canonical_digest(claims)
         binding.state = binding.State.PROCESSING
         binding.save()
+        return binding_model, binding.pk, claims
+
+
+def finalize_mastrao_artifact(recording):
+    """Inspect, persist, sign and replay one exact artifact finalization."""
+
+    required_settings = (
+        settings.MASTRAO_RECORDING_STORAGE_BINDING_DIGEST,
+        settings.MASTRAO_RECORDING_REGION_REF,
+        settings.MASTRAO_RECORDING_ENCRYPTION_REF,
+        settings.MASTRAO_RECORDING_LIFECYCLE_POLICY_REF,
+    )
+    if not all(required_settings):
+        raise RecordingContractRefused(status=503)
+    binding_model, binding_id, claims = _prepare_artifact_receipt(recording)
     result = post_core_json(
         endpoint=settings.MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT,
         expected_path="/internal/v1/meetings/recording/artifacts/finalize",
@@ -113,6 +127,14 @@ def finalize_mastrao_artifact(recording):
     )
     if result["artifactRef"] != claims["artifact_ref"]:
         raise RecordingContractRefused(status=503)
-    binding.state = binding.State.FINALIZED
-    binding.save(update_fields=["state", "updated_at"])
-    return binding
+    with transaction.atomic():
+        binding = binding_model.objects.select_for_update().get(pk=binding_id)
+        if (
+            binding.artifact_ref != claims["artifact_ref"]
+            or binding.artifact_receipt_claims != claims
+            or binding.artifact_receipt_digest != _canonical_digest(claims)
+        ):
+            raise RecordingContractRefused(status=503)
+        binding.state = binding.State.FINALIZED
+        binding.save(update_fields=["state", "updated_at"])
+        return binding

@@ -15,7 +15,10 @@ from core.factories import RoomFactory, UserFactory
 from core.mastrao_recording_access import RETRY_COOKIE, SESSION_KEY
 from core.mastrao_recording_adapter import _prepare_start
 from core.mastrao_recording_artifact import finalize_mastrao_artifact
-from core.mastrao_recording_contract import build_start_receipt_claims
+from core.mastrao_recording_contract import (
+    RecordingContractRefused,
+    build_start_receipt_claims,
+)
 from core.mastrao_recording_session import media_allowed, recording_session_status
 from core.models import RoomAccessLevel
 
@@ -182,9 +185,7 @@ def test_recording_start_locks_only_the_non_nullable_binding(db):
         "notice_digest": "c" * 64,
         "purpose": "meeting_recording",
         "scope": "room_composite_audio_video_screen",
-        "retention_expires_at": int(
-            (timezone.now() + timedelta(days=30)).timestamp()
-        ),
+        "retention_expires_at": int((timezone.now() + timedelta(days=30)).timestamp()),
         "effect_key": "effect_start_0123456789",
         "arguments_digest": "d" * 64,
         "jti": "request_0123456789abcdef",
@@ -318,7 +319,8 @@ def test_artifact_finalization_verifies_and_replays_persisted_metadata(db, setti
         mock.patch("core.mastrao_recording_artifact.post_core_json") as post_core_json,
     ):
         post_core_json.side_effect = lambda **kwargs: {
-            "artifactRef": kwargs["body"] and binding.artifact_ref
+            "artifactRef": kwargs["body"]
+            and models.MastraoRecordingBinding.objects.get(pk=binding.pk).artifact_ref
         }
         finalize_mastrao_artifact(recording)
     binding.refresh_from_db()
@@ -327,3 +329,64 @@ def test_artifact_finalization_verifies_and_replays_persisted_metadata(db, setti
     assert binding.checksum_digest == hashlib.sha256(payload).hexdigest()
     assert binding.artifact_receipt_claims["content_type"] == "video/mp4"
     post_core_json.assert_called_once()
+
+
+def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
+    access, _retry = _artifact_access()
+    binding = access.recording_binding
+    binding.artifact_ref = None
+    binding.object_ref = None
+    binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.save()
+    recording = binding.recording
+    settings.MASTRAO_RECORDING_STORAGE_BINDING_DIGEST = "1" * 64
+    settings.MASTRAO_RECORDING_REGION_REF = "fr-par"
+    settings.MASTRAO_RECORDING_ENCRYPTION_REF = "sse-s3"
+    settings.MASTRAO_RECORDING_LIFECYCLE_POLICY_REF = "retention-30-days"
+    settings.MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT = (
+        "http://cabinet-core:3911/internal/v1/meetings/recording/artifacts/finalize"
+    )
+    with (
+        mock.patch(
+            "core.mastrao_recording_artifact.default_storage.open",
+            return_value=io.BytesIO(b"verified-room-composite-mp4"),
+        ),
+        mock.patch(
+            "core.mastrao_recording_artifact.sign_artifact_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_recording_artifact.post_core_json",
+            side_effect=RecordingContractRefused(status=503),
+        ),
+    ):
+        try:
+            finalize_mastrao_artifact(recording)
+        except RecordingContractRefused:
+            pass
+        else:
+            raise AssertionError("Core failure should remain visible")
+
+    binding.refresh_from_db()
+    first_claims = dict(binding.artifact_receipt_claims)
+    assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
+    assert first_claims["artifact_ref"] == binding.artifact_ref
+
+    with (
+        mock.patch(
+            "core.mastrao_recording_artifact.default_storage.open"
+        ) as storage_open,
+        mock.patch(
+            "core.mastrao_recording_artifact.sign_artifact_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_recording_artifact.post_core_json",
+            return_value={"artifactRef": binding.artifact_ref},
+        ),
+    ):
+        finalize_mastrao_artifact(recording)
+    storage_open.assert_not_called()
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.FINALIZED
+    assert binding.artifact_receipt_claims == first_claims
