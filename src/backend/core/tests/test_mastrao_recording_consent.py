@@ -518,6 +518,53 @@ def test_stop_response_loss_reconciles_terminal_exact_egress(db):
     assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
 
 
+def test_stop_retry_from_applying_reissues_exact_active_egress(db):
+    access, _ = _artifact_access()
+    binding = access.recording_binding
+    recording = binding.recording
+    recording.status = models.RecordingStatusChoices.ACTIVE
+    recording.worker_id = "EG_oju7PDAhx8k7"
+    recording.save(update_fields=["status", "worker_id", "updated_at"])
+    binding.state = models.MastraoRecordingBinding.State.STOPPING
+    binding.provider_recording_ref = recording.worker_id
+    binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
+    effect = {
+        "organization_external_id": binding.organization_external_id,
+        "meeting_ref": binding.meeting_ref,
+        "room_ref": binding.room_ref,
+        "recording_ref": binding.recording_ref,
+        "provider_binding_digest": binding.provider_binding_digest,
+        "provider_recording_ref": recording.worker_id,
+        "effect_key": "effect_stop_applying_012345",
+        "arguments_digest": "f" * 64,
+        "jti": "request_stop_applying_012345",
+    }
+    models.MastraoRecordingEffect.objects.create(
+        recording_binding=binding,
+        effect_key=effect["effect_key"],
+        operation=models.MastraoRecordingEffect.Operation.STOP,
+        arguments_digest=effect["arguments_digest"],
+        effect_jti=effect["jti"],
+        state=models.MastraoRecordingEffect.State.APPLYING,
+    )
+    active = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_ACTIVE)
+    with (
+        mock.patch(
+            "core.mastrao_recording_adapter._exact_provider_egress",
+            return_value=active,
+        ),
+        mock.patch("core.mastrao_recording_adapter.WorkerServiceMediator.stop") as stop,
+        mock.patch(
+            "core.mastrao_recording_adapter.sign_stop_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_stop(effect) == "receipt.payload.signature"
+    stop.assert_called_once_with(recording)
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
+
+
 def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings):
     access, _ = _artifact_access()
     binding = access.recording_binding

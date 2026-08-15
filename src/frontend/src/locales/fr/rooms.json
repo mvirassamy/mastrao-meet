@@ -121,6 +121,8 @@
     "withdraw": "Retirer mon accord",
     "stop": "Arrêter l’enregistrement",
     "activationError": "L’enregistrement n’a pas pu démarrer. Nouvelle tentative…",
+    "activationExhausted": "L’enregistrement n’a pas pu démarrer.",
+    "activationRetry": "Réessayer",
     "withdrawError": "L’enregistrement n’a pas pu être arrêté. Réessayez."
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",

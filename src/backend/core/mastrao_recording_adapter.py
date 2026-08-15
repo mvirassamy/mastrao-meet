@@ -317,8 +317,8 @@ def _prepare_stop(effect):
     return recording_binding, created, True
 
 
-def _apply_stop(effect):  # noqa: PLR0912
-    recording_binding, local_effect, first_delivery = _prepare_stop(effect)
+def _apply_stop(effect):
+    recording_binding, local_effect, _first_delivery = _prepare_stop(effect)
     if local_effect.state == models.MastraoRecordingEffect.State.APPLIED:
         return sign_stop_receipt(local_effect.receipt_claims)
     recording = recording_binding.recording
@@ -332,11 +332,6 @@ def _apply_stop(effect):  # noqa: PLR0912
         provider_egress is not None and provider_egress.status in TERMINAL_EGRESS_STATES
     ):
         observation = "already_stopped"
-    elif (
-        not first_delivery
-        and local_effect.state == models.MastraoRecordingEffect.State.APPLYING
-    ):
-        raise RecordingContractRefused(status=503)
     elif provider_egress is not None and provider_egress.status in ACTIVE_EGRESS_STATES:
         recording.status = models.RecordingStatusChoices.ACTIVE
         recording.save(update_fields=["status", "updated_at"])

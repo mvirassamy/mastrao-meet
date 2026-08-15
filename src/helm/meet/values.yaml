@@ -289,6 +289,9 @@ backend:
   ## @param backend.cronjobs[1].name Name of the CronJob
   ## @param backend.cronjobs[1].schedule Schedule in cron format
   ## @param backend.cronjobs[1].command The bash command to execute in the CronJob
+  ## @param backend.cronjobs[2].name Name of the recording reconciliation CronJob
+  ## @param backend.cronjobs[2].schedule Recording reconciliation schedule
+  ## @param backend.cronjobs[2].command Recording reconciliation command
 
   cronjobs:
     - name: clean-pending-files
@@ -303,6 +306,12 @@ backend:
         - "/bin/sh"
         - "-c"
         - "python manage.py purge_deleted_files"
+    - name: reconcile-mastrao-recordings
+      schedule: "* * * * *"
+      command:
+        - "/bin/sh"
+        - "-c"
+        - "python manage.py reconcile_mastrao_recordings --limit 20"
 
   ## @param backend.mergeDuplicateUsers.command backend merge_duplicate_users command
   ## @param backend.mergeDuplicateUsers.restartPolicy backend merge_duplicate_users job restart policy

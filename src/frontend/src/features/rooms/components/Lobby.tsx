@@ -119,7 +119,27 @@ export const Lobby = ({
   const recording = roomData?.recording
   if (
     recording?.mode === 'recorded' &&
+    recording.recording_state === 'stopping'
+  ) {
+    return (
+      <VStack alignItems="center" textAlign="center">
+        <H lvl={1} margin={false} centered>
+          {t('recordingStopping.title')}
+        </H>
+        <Text as="p" variant="note">
+          {t('recordingStopping.body')}
+        </Text>
+        <Spinner />
+      </VStack>
+    )
+  }
+
+  if (
+    recording?.mode === 'recorded' &&
     recording.decision === 'absent' &&
+    ['collecting', 'authorized', 'starting', 'active'].includes(
+      recording.recording_state ?? ''
+    ) &&
     recording.retention_expires_at
   ) {
     return (
@@ -143,23 +163,6 @@ export const Lobby = ({
         <Text as="p" variant="note" role="alert">
           {t('recordingUnavailable.body')}
         </Text>
-      </VStack>
-    )
-  }
-
-  if (
-    recording?.mode === 'recorded' &&
-    recording.recording_state === 'stopping'
-  ) {
-    return (
-      <VStack alignItems="center" textAlign="center">
-        <H lvl={1} margin={false} centered>
-          {t('recordingStopping.title')}
-        </H>
-        <Text as="p" variant="note">
-          {t('recordingStopping.body')}
-        </Text>
-        <Spinner />
       </VStack>
     )
   }

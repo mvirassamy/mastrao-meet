@@ -40,6 +40,7 @@ import { WatchMediaDeviceErrors } from './WatchMediaDeviceErrors'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 import { activateRecording } from '../api/recordingConsent'
+import { Button } from '@/primitives'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -71,6 +72,7 @@ export const Conference = ({
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)
   const [isLiveKitConnected, setIsLiveKitConnected] = useState(false)
   const [activationFailed, setActivationFailed] = useState(false)
+  const [activationExhausted, setActivationExhausted] = useState(false)
   const [activationRetry, setActivationRetry] = useState(0)
 
   const userPreferencesSnap = useSnapshot(userPreferencesStore)
@@ -221,6 +223,7 @@ export const Conference = ({
       if (recording?.recording_state !== 'collecting') {
         activationAttempts.current = 0
         setActivationFailed(false)
+        setActivationExhausted(false)
       }
       return
     }
@@ -234,6 +237,7 @@ export const Conference = ({
         await refetchRoom()
         activationAttempts.current = 0
         setActivationFailed(false)
+        setActivationExhausted(false)
       })
       .catch((error) => {
         setActivationFailed(true)
@@ -245,6 +249,8 @@ export const Conference = ({
             () => setActivationRetry((value) => value + 1),
             1000 * 2 ** (activationAttempts.current - 1)
           )
+        } else {
+          setActivationExhausted(true)
         }
       })
       .finally(() => {
@@ -407,7 +413,24 @@ export const Conference = ({
                   color: 'white',
                 })}
               >
-                {t('recordingConsent.activationError')}
+                {t(
+                  activationExhausted
+                    ? 'recordingConsent.activationExhausted'
+                    : 'recordingConsent.activationError'
+                )}
+                {activationExhausted && (
+                  <Button
+                    variant="secondary"
+                    onPress={() => {
+                      activationAttempts.current = 0
+                      setActivationFailed(false)
+                      setActivationExhausted(false)
+                      setActivationRetry((value) => value + 1)
+                    }}
+                  >
+                    {t('recordingConsent.activationRetry')}
+                  </Button>
+                )}
               </div>
             )}
             <VideoConference

@@ -121,6 +121,8 @@
     "withdraw": "Toestemming intrekken",
     "stop": "Opname stoppen",
     "activationError": "De opname kon niet worden gestart. Nieuwe poging…",
+    "activationExhausted": "De opname kon niet worden gestart.",
+    "activationRetry": "Opnieuw proberen",
     "withdrawError": "De opname kon niet worden gestopt. Probeer het opnieuw."
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",
