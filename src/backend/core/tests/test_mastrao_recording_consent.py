@@ -287,11 +287,20 @@ def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(db, setting
         "core.mastrao_recording_access.verify_recording_access_grant",
         return_value=grant,
     ):
+        refused_bootstrap = Client().post(
+            "/recordings/access/",
+            urlencode({"recording_access_grant": compact}),
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="null",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+        assert refused_bootstrap.status_code == 404
         bootstrap = client.post(
             "/recordings/access/",
             urlencode({"recording_access_grant": compact}),
             content_type="application/x-www-form-urlencoded",
-            HTTP_ORIGIN=settings.MASTRAO_PLATFORM_ORIGIN,
+            HTTP_ORIGIN="null",
+            HTTP_SEC_FETCH_SITE="same-site",
         )
         assert bootstrap.status_code == 200
         consumed = client.post(

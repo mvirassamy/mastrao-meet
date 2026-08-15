@@ -45,7 +45,7 @@ def _origin(value):
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def _form(request, expected):
+def _bounded_post(request):
     if request.content_type != "application/x-www-form-urlencoded":
         raise RecordingContractRefused()
     declared = request.headers.get("content-length")
@@ -54,15 +54,25 @@ def _form(request, expected):
         or not declared.isdecimal()
         or int(declared) > MAX_BODY_BYTES
         or len(request.body) > MAX_BODY_BYTES
-        or set(request.POST) != expected
-        or any(len(request.POST.getlist(name)) != 1 for name in expected)
     ):
         raise RecordingContractRefused()
     return request.POST
 
 
+def _form(request, expected):
+    fields = _bounded_post(request)
+    if set(fields) != expected or any(
+        len(fields.getlist(name)) != 1 for name in expected
+    ):
+        raise RecordingContractRefused()
+    return fields
+
+
 def _bootstrap(request):
-    if request.headers.get("origin") != settings.MASTRAO_PLATFORM_ORIGIN:
+    if request.headers.get("origin") != settings.MASTRAO_PLATFORM_ORIGIN and not (
+        request.headers.get("origin") == "null"
+        and request.headers.get("sec-fetch-site") == "same-site"
+    ):
         logger.warning("Mastrao recording access refused: bootstrap_origin")
         raise RecordingContractRefused()
     try:
@@ -80,6 +90,7 @@ def _bootstrap(request):
     retry_digest = hashlib.sha256(retry.encode()).hexdigest()
     remaining = grant["expires_at"] - int(time.time())
     if remaining < 1:
+        logger.warning("Mastrao recording access refused: bootstrap_expired")
         raise RecordingContractRefused()
     cache.set(
         f"mastrao-recording-bootstrap:{retry_digest}",
@@ -120,11 +131,22 @@ def _consume(request):
     ):
         logger.warning("Mastrao recording access refused: consume_origin")
         raise RecordingContractRefused()
-    fields = _form(request, {"stage", "recording_access_grant"})
+    try:
+        fields = _form(request, {"stage", "recording_access_grant"})
+    except RecordingContractRefused:
+        logger.warning(
+            "Mastrao recording access refused: consume_form content_type=%s content_length=%s keys=%s",
+            request.content_type,
+            request.headers.get("content-length"),
+            sorted(request.POST),
+        )
+        raise
     if fields["stage"] != "consume":
+        logger.warning("Mastrao recording access refused: consume_stage")
         raise RecordingContractRefused()
     retry = request.COOKIES.get(RETRY_COOKIE)
     if not isinstance(retry, str) or len(retry) < 32:
+        logger.warning("Mastrao recording access refused: consume_cookie")
         raise RecordingContractRefused()
     retry_digest = hashlib.sha256(retry.encode()).hexdigest()
     compact = fields["recording_access_grant"]
@@ -132,7 +154,11 @@ def _consume(request):
     if cache.get(f"mastrao-recording-bootstrap:{retry_digest}") != digest:
         logger.warning("Mastrao recording access refused: consume_retry")
         raise RecordingContractRefused()
-    grant = verify_recording_access_grant(compact)
+    try:
+        grant = verify_recording_access_grant(compact)
+    except RecordingContractRefused:
+        logger.warning("Mastrao recording access refused: consume_grant")
+        raise
     binding = (
         models.MastraoRecordingBinding.objects.select_for_update()
         .select_related("recording")
@@ -165,12 +191,14 @@ def _consume(request):
             grant_jti=grant["jti"], defaults=defaults
         )
     except IntegrityError as error:
+        logger.warning("Mastrao recording access refused: consume_conflict")
         raise RecordingContractRefused() from error
     if not created and (
         access.grant_digest != digest
         or access.retry_cookie_digest != retry_digest
         or access.recording_binding_id != binding.id
     ):
+        logger.warning("Mastrao recording access refused: consume_replay")
         raise RecordingContractRefused()
     request.session.cycle_key()
     request.session[SESSION_KEY] = {
@@ -194,9 +222,12 @@ def recording_access(request):
     if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
         return JsonResponse({"message": "Not found"}, status=404, headers=_headers())
     try:
-        if request.headers.get("origin") == settings.MASTRAO_PLATFORM_ORIGIN:
+        fields = _bounded_post(request)
+        if set(fields) == {"recording_access_grant"}:
             return _bootstrap(request)
-        return _consume(request)
+        if set(fields) == {"stage", "recording_access_grant"}:
+            return _consume(request)
+        raise RecordingContractRefused()
     except RecordingContractRefused as error:
         return JsonResponse(
             {"message": "Not found" if error.status == 404 else "Unavailable"},
