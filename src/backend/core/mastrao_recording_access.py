@@ -17,6 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from core import models
+from core.mastrao_recording_artifact import _inspect_object
 from core.mastrao_recording_contract import (
     RecordingContractRefused,
     compact_digest,
@@ -247,11 +248,11 @@ def _download_session(request):
     return session, retry_digest
 
 
-@transaction.atomic
 def _stream_once(request, session, retry_digest):
-    access = (
-        models.MastraoRecordingArtifactAccess.objects.select_for_update()
-        .select_related("recording_binding")
+    snapshot = (
+        models.MastraoRecordingArtifactAccess.objects.select_related(
+            "recording_binding"
+        )
         .filter(
             id=session.get("access_id"),
             retry_cookie_digest=retry_digest,
@@ -261,26 +262,53 @@ def _stream_once(request, session, retry_digest):
         )
         .first()
     )
-    if not access or not access.recording_binding.object_ref:
+    if not snapshot or not snapshot.recording_binding.object_ref:
         raise RecordingContractRefused()
-    try:
-        stream = default_storage.open(access.recording_binding.object_ref, "rb")
-    except OSError:
-        raise RecordingContractRefused() from None
-    access.consumed_at = datetime.now(tz=UTC)
-    access.save(update_fields=["consumed_at", "updated_at"])
-    request.session.pop(SESSION_KEY, None)
-    request.session.modified = True
-    response = FileResponse(
-        stream,
-        as_attachment=True,
-        filename=f"meeting-{access.recording_binding.meeting_ref}.mp4",
-        content_type="video/mp4",
-    )
-    for name, value in _headers().items():
-        response[name] = value
-    response["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
-    return response
+    object_ref = snapshot.recording_binding.object_ref
+    size, checksum = _inspect_object(object_ref)
+    if (
+        snapshot.recording_binding.byte_size != size
+        or snapshot.recording_binding.checksum_digest != checksum
+    ):
+        raise RecordingContractRefused()
+    with transaction.atomic():
+        access = (
+            models.MastraoRecordingArtifactAccess.objects.select_for_update()
+            .select_related("recording_binding")
+            .filter(
+                id=snapshot.id,
+                retry_cookie_digest=retry_digest,
+                expires_at__gt=datetime.now(tz=UTC),
+                consumed_at__isnull=True,
+                recording_binding__retention_expires_at__gt=datetime.now(tz=UTC),
+                recording_binding__object_ref=object_ref,
+                recording_binding__byte_size=size,
+                recording_binding__checksum_digest=checksum,
+            )
+            .first()
+        )
+        if not access:
+            raise RecordingContractRefused()
+        try:
+            stream = default_storage.open(object_ref, "rb")
+        except OSError:
+            raise RecordingContractRefused() from None
+        access.consumed_at = datetime.now(tz=UTC)
+        access.save(update_fields=["consumed_at", "updated_at"])
+        request.session.pop(SESSION_KEY, None)
+        request.session.modified = True
+        response = FileResponse(
+            stream,
+            as_attachment=True,
+            filename=f"meeting-{access.recording_binding.meeting_ref}.mp4",
+            content_type="video/mp4",
+        )
+        for name, value in _headers().items():
+            response[name] = value
+        response["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'"
+        )
+        return response
 
 
 @require_GET

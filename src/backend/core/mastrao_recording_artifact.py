@@ -100,8 +100,28 @@ def _persist_artifact_receipt(snapshot, size, checksum):
         binding = snapshot.binding_model.objects.select_for_update().get(
             pk=snapshot.binding_id
         )
+        if (
+            binding.recording_id != snapshot.recording_id
+            or binding.updated_at != snapshot.binding_version
+        ):
+            raise RecordingContractRefused(status=409)
+        recording = snapshot.recording_model.objects.get(pk=snapshot.recording_id)
+        if (
+            recording.updated_at != snapshot.recording_version
+            or recording.key != snapshot.object_ref
+        ):
+            raise RecordingContractRefused(status=409)
         if binding.artifact_receipt_claims:
             claims = dict(binding.artifact_receipt_claims)
+            if (
+                claims.get("object_ref") != snapshot.object_ref
+                or claims.get("byte_size") != size
+                or claims.get("checksum_digest") != checksum
+                or binding.object_ref != snapshot.object_ref
+                or binding.byte_size != size
+                or binding.checksum_digest != checksum
+            ):
+                raise RecordingContractRefused(status=409)
             now = int(time.time())
             if claims.get("expires_at", 0) >= now:
                 return claims
@@ -120,18 +140,6 @@ def _persist_artifact_receipt(snapshot, size, checksum):
                 ]
             )
             return claims
-        if (
-            binding.recording_id != snapshot.recording_id
-            or binding.updated_at != snapshot.binding_version
-        ):
-            raise RecordingContractRefused(status=409)
-        recording = snapshot.recording_model.objects.get(pk=snapshot.recording_id)
-        if (
-            recording.updated_at != snapshot.recording_version
-            or recording.key != snapshot.object_ref
-        ):
-            raise RecordingContractRefused(status=409)
-
         now = int(time.time())
         artifact_ref = binding.artifact_ref or f"artifact_{uuid4().hex}"
         claims = {
@@ -184,9 +192,6 @@ def _prepare_artifact_receipt(recording):
     """Inspect outside transactions, then persist before the Core callback."""
 
     snapshot = _snapshot_artifact(recording)
-    if snapshot.replay_claims is not None:
-        claims = _persist_artifact_receipt(snapshot, 0, "")
-        return snapshot.binding_model, snapshot.binding_id, claims
     size, checksum = _inspect_object(snapshot.object_ref)
     claims = _persist_artifact_receipt(snapshot, size, checksum)
     return snapshot.binding_model, snapshot.binding_id, claims

@@ -683,6 +683,9 @@ def _artifact_access():
         state=models.MastraoRecordingBinding.State.FINALIZED,
         artifact_ref="artifact_0123456789abcdef",
         object_ref="recordings/recording_0123456789abcdef.mp4",
+        byte_size=3,
+        checksum_algorithm="sha256",
+        checksum_digest=hashlib.sha256(b"mp4").hexdigest(),
     )
     retry = "retry_0123456789abcdefghijklmnopqrstuvwxyz"
     retry_digest = hashlib.sha256(retry.encode()).hexdigest()
@@ -782,7 +785,7 @@ def test_artifact_download_prepares_then_streams_exactly_once(db):
 
     with mock.patch(
         "core.mastrao_recording_access.default_storage.open",
-        return_value=io.BytesIO(b"mp4"),
+        side_effect=[io.BytesIO(b"mp4"), io.BytesIO(b"mp4")],
     ):
         streamed = client.get("/recordings/download/current")
         assert streamed.status_code == 200
@@ -790,6 +793,18 @@ def test_artifact_download_prepares_then_streams_exactly_once(db):
     access.refresh_from_db()
     assert access.consumed_at is not None
     assert client.get("/recordings/download/current").status_code == 404
+
+
+def test_artifact_download_rejects_changed_object(db):
+    access, retry = _artifact_access()
+    client = _client_for_access(access, retry, stage="prepared")
+    with mock.patch(
+        "core.mastrao_recording_access.default_storage.open",
+        return_value=io.BytesIO(b"changed"),
+    ):
+        assert client.get("/recordings/download/current").status_code == 404
+    access.refresh_from_db()
+    assert access.consumed_at is None
 
 
 def test_artifact_download_rejects_old_cookie_and_other_browser(db):
@@ -1001,7 +1016,20 @@ def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
 
     with (
         mock.patch(
-            "core.mastrao_recording_artifact.default_storage.open"
+            "core.mastrao_recording_artifact.default_storage.open",
+            return_value=io.BytesIO(b"changed-room-composite-mp4"),
+        ),
+        mock.patch("core.mastrao_recording_artifact.post_core_json") as post_core_json,
+    ):
+        with pytest.raises(RecordingContractRefused) as replay_error:
+            finalize_mastrao_artifact(recording)
+    assert replay_error.value.status == 409
+    post_core_json.assert_not_called()
+
+    with (
+        mock.patch(
+            "core.mastrao_recording_artifact.default_storage.open",
+            return_value=io.BytesIO(b"verified-room-composite-mp4"),
         ) as storage_open,
         mock.patch(
             "core.mastrao_recording_artifact.sign_artifact_receipt",
@@ -1013,7 +1041,7 @@ def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
         ),
     ):
         finalize_mastrao_artifact(recording)
-    storage_open.assert_not_called()
+    storage_open.assert_called_once()
     binding.refresh_from_db()
     assert binding.state == models.MastraoRecordingBinding.State.FINALIZED
     assert binding.artifact_receipt_claims["jti"] != first_claims["jti"]
