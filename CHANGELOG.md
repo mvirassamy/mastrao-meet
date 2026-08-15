@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- 🚀(helm) add secret-safe staging and production LiveKit Egress overlays
 - 🔐(backend) consume short Mastrao host handoffs into session-bound media grants
 - 🔐(backend) redeem canonical guest invitations into anonymous room-bound lobby grants
 - 🔐(backend) enforce canonical recording consent before issuing media grants
@@ -19,6 +20,12 @@ and this project adheres to
 
 ### Changed
 
+- 🔒️(backend) split new recording starts from emergency artifact-access shutdown
+- 🔒️(backend) revoke prepared downloads when emergency artifact access closes
+- 🩺(backend) isolate recording reconciliation failures during bounded drain batches
+- 🩺(backend) rotate poison recording items behind the bounded drain queue
+- 🚀(helm) harden recording reconciliation scheduling for rollout and rollback
+- 🔐(helm) bind secret-safe Meet and Egress overlays through trusted handoffs
 - 🔒️(backend) distinguish pseudonymous Mastrao hosts from non-interactive room owners
 - 🔒️(backend) require Core-confirmed guest admission before minting participant media tokens
 - 🔒️(backend) stream recording artifacts through single-use session-bound access

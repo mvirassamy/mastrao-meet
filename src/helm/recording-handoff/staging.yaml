@@ -1,0 +1,16 @@
+apiVersion: mastrao.io/v1
+kind: MeetRecordingDeploymentHandoff
+metadata:
+  name: staging-recording
+spec:
+  environment: staging
+  atomicDeploymentRequired: true
+  trustedExecutorRequired: true
+  meet:
+    chart: ../meet
+    recordingValues: ../env.d/staging/values.meet.yaml.gotmpl
+    baseValuesRequired: true
+  egress:
+    chart: ../egress
+    recordingValues: ../env.d/staging/values.egress.yaml.gotmpl
+    existingConfigSecret: meet-recording-egress-staging-config

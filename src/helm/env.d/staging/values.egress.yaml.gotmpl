@@ -1,0 +1,38 @@
+replicaCount: 1
+maxConcurrentRecordingsPerReplica: 1
+terminationGracePeriodSeconds: 18000
+
+image:
+  repository: livekit/egress
+  digest: sha256:57a3cbaf9098407c2b8b5575e04a8a4c77c2a90f0b8e7621f4af7af419619fb4
+  pullPolicy: IfNotPresent
+
+existingConfigSecret:
+  name: meet-recording-egress-staging-config
+  key: config.yaml
+
+metrics:
+  port: 9090
+  serviceAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+
+resources:
+  requests:
+    cpu: "3"
+    memory: 4Gi
+  limits:
+    cpu: "4"
+    memory: 6Gi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+nodeSelector:
+  mastrao.io/recording-egress: "true"
+tolerations:
+  - key: mastrao.io/recording-egress
+    operator: Equal
+    value: "true"
+    effect: NoSchedule

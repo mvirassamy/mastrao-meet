@@ -1,0 +1,16 @@
+apiVersion: mastrao.io/v1
+kind: MeetRecordingDeploymentHandoff
+metadata:
+  name: production-recording
+spec:
+  environment: production
+  atomicDeploymentRequired: true
+  trustedExecutorRequired: true
+  meet:
+    chart: ../meet
+    recordingValues: ../env.d/production/values.meet.yaml.gotmpl
+    baseValuesRequired: true
+  egress:
+    chart: ../egress
+    recordingValues: ../env.d/production/values.egress.yaml.gotmpl
+    existingConfigSecret: meet-recording-egress-production-config

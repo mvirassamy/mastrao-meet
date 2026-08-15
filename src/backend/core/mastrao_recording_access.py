@@ -235,7 +235,10 @@ def _consume(request):
 def recording_access(request):
     """Bootstrap then consume a short access grant without URL disclosure."""
 
-    if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
+    if not (
+        settings.MASTRAO_MEETING_RECORDING_ENABLED
+        and settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED
+    ):
         return JsonResponse({"message": "Not found"}, status=404, headers=_headers())
     try:
         fields = _bounded_post(request)
@@ -358,6 +361,8 @@ def recording_download(request):
     """Prepare once, then atomically stream once from the same clean URL."""
 
     try:
+        if not settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED:
+            raise RecordingContractRefused()
         session, retry_digest = _download_session(request)
         if session.get("stage") == "ready":
             session["stage"] = "prepared"
@@ -372,8 +377,10 @@ def recording_download(request):
         return _stream_once(request, session, retry_digest)
     except RecordingContractRefused:
         request.session.pop(SESSION_KEY, None)
-        return _html_page(
+        response = _html_page(
             "Enregistrement indisponible",
             "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
             status=404,
         )
+        response.delete_cookie(RETRY_COOKIE, path="/recordings")
+        return response

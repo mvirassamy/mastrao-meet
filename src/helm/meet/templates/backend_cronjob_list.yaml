@@ -16,10 +16,22 @@ items:
     spec:
       schedule: "{{ .schedule }}"
       concurrencyPolicy: {{ .concurrencyPolicy | default "Forbid" }}
+      {{- with .startingDeadlineSeconds }}
+      startingDeadlineSeconds: {{ . }}
+      {{- end }}
       successfulJobsHistoryLimit: {{ .successfulJobsHistoryLimit | default 3 }}
       failedJobsHistoryLimit: {{ .failedJobsHistoryLimit | default 1 }}
       jobTemplate:
         spec:
+          {{- with .backoffLimit }}
+          backoffLimit: {{ . }}
+          {{- end }}
+          {{- with .activeDeadlineSeconds }}
+          activeDeadlineSeconds: {{ . }}
+          {{- end }}
+          {{- with .ttlSecondsAfterFinished }}
+          ttlSecondsAfterFinished: {{ . }}
+          {{- end }}
           template:
             metadata:
               name: {{ $fullName }}-{{ .name }}
