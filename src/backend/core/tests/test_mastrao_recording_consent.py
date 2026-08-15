@@ -4,7 +4,7 @@ import hashlib
 import io
 import time
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest import mock
 from urllib.parse import urlencode
@@ -36,6 +36,7 @@ from core.mastrao_recording_contract import (
 )
 from core.mastrao_recording_reconciler import reconcile_mastrao_recording
 from core.mastrao_recording_session import (
+    _sync_binding,
     activate_recording,
     media_allowed,
     public_projection,
@@ -197,6 +198,49 @@ def test_session_status_posts_only_the_bound_participant_grant(settings):
         "participant_grant": "header.payload.signature",
         "participant_session_digest": "d" * 64,
     }
+
+
+def test_sync_binding_does_not_touch_an_unchanged_projection():
+    retention_expires_at = 2_000_000_000
+    room_binding = SimpleNamespace(provider_binding_digest="b" * 64)
+    room = SimpleNamespace(mastrao_binding=room_binding)
+    status = {
+        "mode": "recorded",
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": "meeting_0123456789abcdef",
+        "room_ref": "room_0123456789abcdef",
+        "recording_ref": "recording_0123456789abcdef",
+        "policy_ref": "policy_0123456789abcdef",
+        "notice_version": "notice_0123456789abcdef",
+        "notice_digest": "a" * 64,
+        "purpose": "meeting_recording",
+        "scope": "room_composite_audio_video_screen",
+        "retention_expires_at": retention_expires_at,
+        "recording_state": "processing",
+    }
+    binding = SimpleNamespace(
+        recording_ref=status["recording_ref"],
+        organization_external_id=status["organization_external_id"],
+        meeting_ref=status["meeting_ref"],
+        room_ref=status["room_ref"],
+        provider_binding_digest=room_binding.provider_binding_digest,
+        policy_ref=status["policy_ref"],
+        notice_version=status["notice_version"],
+        notice_digest=status["notice_digest"],
+        purpose=status["purpose"],
+        scope=status["scope"],
+        retention_expires_at=datetime.fromtimestamp(retention_expires_at, tz=UTC),
+        state=models.MastraoRecordingBinding.State.PROCESSING,
+        save=mock.Mock(),
+    )
+
+    with mock.patch(
+        "core.mastrao_recording_session.models.MastraoRecordingBinding.objects.filter"
+    ) as bindings:
+        bindings.return_value.first.return_value = binding
+        assert _sync_binding(room, status) is binding
+
+    binding.save.assert_not_called()
 
 
 def test_recorded_public_projection_exposes_only_safe_participant_kind():
@@ -815,7 +859,11 @@ def test_artifact_inspection_runs_outside_database_transaction(db, settings):
     binding.artifact_ref = None
     binding.object_ref = None
     binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.retention_expires_at = datetime.fromtimestamp(
+        int(binding.retention_expires_at.timestamp()), tz=UTC
+    )
     binding.save()
+    binding.refresh_from_db()
     settings.MASTRAO_RECORDING_STORAGE_BINDING_DIGEST = "1" * 64
     settings.MASTRAO_RECORDING_REGION_REF = "fr-par"
     settings.MASTRAO_RECORDING_ENCRYPTION_REF = "sse-s3"
@@ -823,6 +871,20 @@ def test_artifact_inspection_runs_outside_database_transaction(db, settings):
     transaction_depth = 0
     inspection_depths = []
     real_atomic = django_transaction.atomic
+    status = {
+        "mode": "recorded",
+        "organization_external_id": binding.organization_external_id,
+        "meeting_ref": binding.meeting_ref,
+        "room_ref": binding.room_ref,
+        "recording_ref": binding.recording_ref,
+        "policy_ref": binding.policy_ref,
+        "notice_version": binding.notice_version,
+        "notice_digest": binding.notice_digest,
+        "purpose": binding.purpose,
+        "scope": binding.scope,
+        "retention_expires_at": int(binding.retention_expires_at.timestamp()),
+        "recording_state": "processing",
+    }
 
     @contextmanager
     def tracked_atomic(*args, **kwargs):
@@ -836,6 +898,7 @@ def test_artifact_inspection_runs_outside_database_transaction(db, settings):
 
     def inspect(_object_ref):
         inspection_depths.append(transaction_depth)
+        _sync_binding(binding.room_binding.room, status)
         return 4, hashlib.sha256(b"mp4!").hexdigest()
 
     with (

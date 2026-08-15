@@ -170,9 +170,13 @@ def _sync_binding(room, status):
     if binding and binding.recording_ref != status["recording_ref"]:
         raise RecordingContractRefused(status=409)
     if binding:
+        changed_fields = []
         for field, value in defaults.items():
-            setattr(binding, field, value)
-        binding.save(update_fields=[*defaults, "updated_at"])
+            if getattr(binding, field) != value:
+                setattr(binding, field, value)
+                changed_fields.append(field)
+        if changed_fields:
+            binding.save(update_fields=[*changed_fields, "updated_at"])
     else:
         binding = models.MastraoRecordingBinding.objects.create(
             room_binding=room.mastrao_binding,
