@@ -298,8 +298,8 @@ def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(db, setting
             "/recordings/access/",
             urlencode({"stage": "consume", "recording_access_grant": compact}),
             content_type="application/x-www-form-urlencoded",
-            HTTP_ORIGIN="http://testserver",
-            HTTP_SEC_FETCH_SITE="same-origin",
+            HTTP_ORIGIN="null",
+            HTTP_SEC_FETCH_SITE="same-site",
         )
         assert consumed.status_code == 303
         assert consumed["Location"] == "/recordings/download/current"
