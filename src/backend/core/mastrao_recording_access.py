@@ -134,12 +134,7 @@ def _consume(request):
     try:
         fields = _form(request, {"stage", "recording_access_grant"})
     except RecordingContractRefused:
-        logger.warning(
-            "Mastrao recording access refused: consume_form content_type=%s content_length=%s keys=%s",
-            request.content_type,
-            request.headers.get("content-length"),
-            sorted(request.POST),
-        )
+        logger.warning("Mastrao recording access refused: consume_form")
         raise
     if fields["stage"] != "consume":
         logger.warning("Mastrao recording access refused: consume_stage")
