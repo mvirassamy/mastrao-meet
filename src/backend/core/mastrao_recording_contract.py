@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import time
 
 from django.conf import settings
@@ -29,6 +30,7 @@ MAX_ASSERTION_SECONDS = 30
 MAX_ACCESS_SECONDS = 60
 PURPOSE = "meeting_recording"
 SCOPE = "room_composite_audio_video_screen"
+PROVIDER_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,160}$")
 
 START_EFFECT_TYPE = "mastrao.core-meeting-recording-start-effect"
 START_EFFECT_JOSE_TYPE = "mastrao-meeting-recording-start-effect+jws"
@@ -229,6 +231,12 @@ def _validate_ref(payload, name, *, max_length=160):
         raise RecordingContractRefused()
 
 
+def _validate_provider_ref(payload, name="provider_recording_ref"):
+    value = payload.get(name)
+    if not isinstance(value, str) or not PROVIDER_REFERENCE.fullmatch(value):
+        raise RecordingContractRefused()
+
+
 def _validate_common(payload):
     if (
         payload.get("version") != CONTRACT_VERSION
@@ -310,7 +318,7 @@ def verify_recording_stop_effect(compact_jws):
         or effect.get("operation") != "stop_room_composite_recording"
     ):
         raise RecordingContractRefused()
-    _validate_ref(effect, "provider_recording_ref")
+    _validate_provider_ref(effect)
     if effect["arguments_digest"] != _sha256_canonical(
         _effect_arguments(effect, "stop")
     ):
@@ -321,9 +329,7 @@ def verify_recording_stop_effect(compact_jws):
 def build_start_receipt_claims(effect, provider_recording_ref, observation):
     """Build strict persisted start receipt claims."""
 
-    _validate_ref(
-        {"provider_recording_ref": provider_recording_ref}, "provider_recording_ref"
-    )
+    _validate_provider_ref({"provider_recording_ref": provider_recording_ref})
     if observation not in {"started", "already_active"}:
         raise RecordingContractRefused()
     now = int(time.time())

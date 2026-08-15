@@ -15,6 +15,7 @@ from core.factories import RoomFactory, UserFactory
 from core.mastrao_recording_access import RETRY_COOKIE, SESSION_KEY
 from core.mastrao_recording_adapter import _prepare_start
 from core.mastrao_recording_artifact import finalize_mastrao_artifact
+from core.mastrao_recording_contract import build_start_receipt_claims
 from core.mastrao_recording_session import media_allowed, recording_session_status
 from core.models import RoomAccessLevel
 
@@ -37,6 +38,24 @@ def test_recording_media_gate_matches_capture_semantics():
     assert not media_allowed(_recorded("stopping", "accepted"))
     for state in ("cancelled", "failed", "processing", "available"):
         assert media_allowed(_recorded(state))
+
+
+def test_livekit_egress_reference_is_a_valid_provider_receipt_reference():
+    claims = build_start_receipt_claims(
+        {
+            "organization_external_id": "organization_0123456789",
+            "meeting_ref": "meeting_0123456789abcdef",
+            "room_ref": "room_0123456789abcdef",
+            "recording_ref": "recording_0123456789abcdef",
+            "provider_binding_digest": "a" * 64,
+            "effect_key": "effect_0123456789abcdef",
+            "arguments_digest": "b" * 64,
+            "jti": "request_0123456789abcdef",
+        },
+        "EG_oju7PDAhx8k7",
+        "started",
+    )
+    assert claims["provider_recording_ref"] == "EG_oju7PDAhx8k7"
 
 
 def test_feature_off_does_not_call_core_or_change_native_projection(settings):
