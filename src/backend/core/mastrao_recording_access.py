@@ -28,6 +28,7 @@ from core.mastrao_recording_contract import (
 
 MAX_BODY_BYTES = 20_000
 RETRY_COOKIE = "mastrao_recording_retry"
+RETRY_COOKIE_PATH = "/recordings/"
 SESSION_KEY = "mastrao_recording_download"
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ def _bootstrap(request):
         httponly=True,
         secure=request.is_secure(),
         samesite="Lax",
-        path="/recordings/",
+        path=RETRY_COOKIE_PATH,
     )
     return response
 
@@ -386,5 +387,5 @@ def recording_download(request):
             "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
             status=404,
         )
-        response.delete_cookie(RETRY_COOKIE, path="/recordings")
+        response.delete_cookie(RETRY_COOKIE, path=RETRY_COOKIE_PATH)
         return response

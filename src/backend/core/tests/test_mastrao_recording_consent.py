@@ -943,6 +943,8 @@ def test_artifact_access_shutdown_revokes_a_prepared_download(db, settings):
 
     assert response.status_code == 404
     assert SESSION_KEY not in client.session
+    assert response.cookies[RETRY_COOKIE]["path"] == "/recordings/"
+    assert response.cookies[RETRY_COOKIE]["max-age"] == 0
     storage.assert_not_called()
     access.refresh_from_db()
     assert access.consumed_at is None
