@@ -92,7 +92,7 @@ def _exact_effect(existing, effect, operation):
 def _prepare_start(effect):
     room_binding = _binding(effect, lock=True)
     recording_binding = (
-        models.MastraoRecordingBinding.objects.select_for_update()
+        models.MastraoRecordingBinding.objects.select_for_update(of=("self",))
         .select_related("recording")
         .filter(room_binding=room_binding)
         .first()
@@ -225,7 +225,7 @@ def _prepare_stop(effect):
     ):
         raise RecordingContractRefused()
     recording_binding = (
-        models.MastraoRecordingBinding.objects.select_for_update()
+        models.MastraoRecordingBinding.objects.select_for_update(of=("self",))
         .select_related("recording")
         .filter(room_binding=room_binding, recording_ref=effect["recording_ref"])
         .first()

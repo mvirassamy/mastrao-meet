@@ -13,6 +13,7 @@ from rest_framework.test import APIClient
 from core import models, utils
 from core.factories import RoomFactory, UserFactory
 from core.mastrao_recording_access import RETRY_COOKIE, SESSION_KEY
+from core.mastrao_recording_adapter import _prepare_start
 from core.mastrao_recording_artifact import finalize_mastrao_artifact
 from core.mastrao_recording_session import media_allowed, recording_session_status
 from core.models import RoomAccessLevel
@@ -136,6 +137,45 @@ def test_recorded_terminal_state_allows_unrecorded_token(db):
     assert response.status_code == 200
     assert response.json()["livekit"] == {"token": "unrecorded"}
     generate.assert_called_once()
+
+
+def test_recording_start_locks_only_the_non_nullable_binding(db):
+    owner = UserFactory()
+    room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
+    room_binding = models.MastraoRoomBinding.objects.create(
+        effect_key="effect_room_0123456789",
+        arguments_digest="a" * 64,
+        meeting_ref="meeting_0123456789abcdef",
+        room_ref="room_0123456789abcdef",
+        owner_ref="owner_0123456789abcdef",
+        room=room,
+        owner=owner,
+        provider_binding_digest="b" * 64,
+    )
+    effect = {
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": room_binding.meeting_ref,
+        "room_ref": room_binding.room_ref,
+        "recording_ref": "recording_0123456789abcdef",
+        "provider_binding_digest": room_binding.provider_binding_digest,
+        "policy_ref": "policy_0123456789abcdef",
+        "notice_version": "notice_0123456789abcdef",
+        "notice_digest": "c" * 64,
+        "purpose": "meeting_recording",
+        "scope": "room_composite_audio_video_screen",
+        "retention_expires_at": int(
+            (timezone.now() + timedelta(days=30)).timestamp()
+        ),
+        "effect_key": "effect_start_0123456789",
+        "arguments_digest": "d" * 64,
+        "jti": "request_0123456789abcdef",
+    }
+
+    recording_binding, local_effect = _prepare_start(effect)
+
+    assert recording_binding.recording is None
+    assert local_effect.recording_binding == recording_binding
+    assert local_effect.operation == "start"
 
 
 def _artifact_access():
