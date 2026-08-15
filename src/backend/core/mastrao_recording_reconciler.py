@@ -65,6 +65,10 @@ def reconcile_mastrao_recordings(limit=20):
         try:
             if reconcile_mastrao_recording(binding):
                 reconciled += 1
+            else:
+                models.MastraoRecordingBinding.objects.filter(pk=binding.pk).update(
+                    updated_at=timezone.now()
+                )
         # A bounded scheduler must keep progressing when one provider object or
         # Core receipt is temporarily invalid. The exception remains observable
         # without logging room, meeting or recording references.

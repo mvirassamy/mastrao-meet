@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -239,7 +239,11 @@ def recording_access(request):
         settings.MASTRAO_MEETING_RECORDING_ENABLED
         and settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED
     ):
-        return JsonResponse({"message": "Not found"}, status=404, headers=_headers())
+        return _html_page(
+            "Enregistrement indisponible",
+            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
+            status=404,
+        )
     try:
         fields = _bounded_post(request)
         if set(fields) == {"recording_access_grant"}:
@@ -248,10 +252,10 @@ def recording_access(request):
             return _consume(request)
         raise RecordingContractRefused()
     except RecordingContractRefused as error:
-        return JsonResponse(
-            {"message": "Not found" if error.status == 404 else "Unavailable"},
+        return _html_page(
+            "Enregistrement indisponible",
+            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
             status=error.status,
-            headers=_headers(),
         )
 
 

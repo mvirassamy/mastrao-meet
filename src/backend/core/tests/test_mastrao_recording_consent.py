@@ -740,6 +740,26 @@ def test_reconciler_isolates_one_bad_item_while_rollout_controls_are_off(db, set
     assert bindings[0].updated_at > failed_before
 
 
+def test_reconciler_rotates_observed_active_items_before_the_next_batch(db):
+    accesses = [_artifact_access(suffix) for suffix in ("first", "second", "third")]
+    bindings = [access.recording_binding for access, _retry in accesses]
+    for index, binding in enumerate(bindings):
+        binding.provider_recording_ref = f"EG_fair_{index}"
+        binding.state = models.MastraoRecordingBinding.State.ACTIVE
+        binding.save(update_fields=["provider_recording_ref", "state", "updated_at"])
+
+    with mock.patch(
+        "core.mastrao_recording_reconciler.reconcile_mastrao_recording",
+        side_effect=[False, False, True, False],
+    ) as reconcile:
+        assert reconcile_mastrao_recordings(limit=2) == 0
+        assert reconcile_mastrao_recordings(limit=2) == 1
+
+    attempted = [call.args[0].pk for call in reconcile.call_args_list]
+    assert bindings[2].pk not in attempted[:2]
+    assert bindings[2].pk in attempted[2:]
+
+
 def _artifact_access(suffix=""):
     owner = UserFactory()
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
@@ -885,6 +905,8 @@ def test_artifact_access_shutdown_is_independent_from_capture_rollback(db, setti
     )
 
     assert response.status_code == 404
+    assert response["Content-Type"].startswith("text/html")
+    assert "réessayez depuis votre dossier Mastrao" in response.content.decode()
 
 
 def test_capture_rollback_preserves_artifact_download(db, settings):
