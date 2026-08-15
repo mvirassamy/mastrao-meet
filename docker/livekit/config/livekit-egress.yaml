@@ -5,3 +5,5 @@ ws_url: "ws://livekit:7880"
 insecure: true
 redis:
   address: redis:6379
+cpu_cost:
+  room_composite_cpu_cost: 1.0

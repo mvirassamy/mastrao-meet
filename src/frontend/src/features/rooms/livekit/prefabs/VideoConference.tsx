@@ -103,12 +103,13 @@ export function VideoConference({
           `withdrawal_${withdrawalIds.current}`
         )
       }
-      await onRecordingChanged?.()
     } catch {
       setWithdrawFailed(true)
+      return
     } finally {
       setIsWithdrawing(false)
     }
+    await onRecordingChanged?.().catch(() => undefined)
   }
 
   return (
@@ -157,15 +158,15 @@ export function VideoConference({
               color: 'white',
             })}
           >
-            {withdrawFailed
-              ? tRecording('withdrawError')
-              : tRecording(
-                  recording.recording_state === 'stopping'
-                    ? 'stopping'
-                    : recording.recording_state === 'starting'
+            {recording.recording_state === 'stopping'
+              ? tRecording('stopping')
+              : withdrawFailed
+                ? tRecording('withdrawError')
+                : tRecording(
+                    recording.recording_state === 'starting'
                       ? 'starting'
                       : 'active'
-                )}
+                  )}
             {recording.decision === 'accepted' &&
               recording.recording_state !== 'stopping' && (
                 <Button
