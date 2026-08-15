@@ -178,8 +178,12 @@ def _sync_binding(room, status):
 def recording_session_status(request, room):
     """Fetch the authoritative Core projection for an exact browser grant."""
 
-    if not settings.MASTRAO_MEETING_RECORDING_ENABLED or not hasattr(
-        room, "mastrao_binding"
+    if not hasattr(room, "mastrao_binding"):
+        return None
+    if not settings.MASTRAO_MEETING_RECORDING_ENABLED and not (
+        models.MastraoRecordingBinding.objects.filter(
+            room_binding=room.mastrao_binding
+        ).exists()
     ):
         return None
     participant = _participant(request, room)
@@ -392,9 +396,15 @@ def record_decision(request, room, decision, decision_request_id):
 def activate_recording(request, room, activation_request_id):
     """Activate only after the accepted host reports a real LiveKit connection."""
 
+    if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
+        raise RecordingContractRefused()
     participant = _participant(request, room)
     status = recording_session_status(request, room)
-    if participant["kind"] != "host" or status.get("decision") != "accepted":
+    if (
+        not status
+        or participant["kind"] != "host"
+        or status.get("decision") != "accepted"
+    ):
         raise RecordingContractRefused()
     payload = {
         **_base_assertion(ACTIVATION_TYPE, "activate_meeting_recording"),

@@ -181,6 +181,8 @@ def _prepare_start(effect):
     )
     if existing:
         return recording_binding, _exact_effect(existing, effect, "start"), False
+    if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
+        raise RecordingContractRefused()
     created = models.MastraoRecordingEffect.objects.create(
         recording_binding=recording_binding,
         effect_key=effect["effect_key"],
@@ -316,9 +318,14 @@ def _apply_stop(effect):  # noqa: PLR0912
     observation = None
     if hasattr(recording_binding.room_binding, "closure"):
         observation = "room_ended"
-    elif provider_egress is not None and provider_egress.status in TERMINAL_EGRESS_STATES:
+    elif (
+        provider_egress is not None and provider_egress.status in TERMINAL_EGRESS_STATES
+    ):
         observation = "already_stopped"
-    elif not first_delivery and local_effect.state == models.MastraoRecordingEffect.State.APPLYING:
+    elif (
+        not first_delivery
+        and local_effect.state == models.MastraoRecordingEffect.State.APPLYING
+    ):
         raise RecordingContractRefused(status=503)
     elif provider_egress is not None and provider_egress.status in ACTIVE_EGRESS_STATES:
         recording.status = models.RecordingStatusChoices.ACTIVE
@@ -333,7 +340,10 @@ def _apply_stop(effect):  # noqa: PLR0912
             )
         except RecordingStopError as error:
             provider_egress = _exact_provider_egress(recording)
-            if provider_egress is None or provider_egress.status not in TERMINAL_EGRESS_STATES:
+            if (
+                provider_egress is None
+                or provider_egress.status not in TERMINAL_EGRESS_STATES
+            ):
                 local_effect.state = models.MastraoRecordingEffect.State.PENDING
                 local_effect.save(update_fields=["state", "updated_at"])
                 raise RecordingContractRefused(status=503) from error
@@ -372,8 +382,6 @@ def _apply_stop(effect):  # noqa: PLR0912
 
 
 def _handle(request, field, verifier, applier, response_field):
-    if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
-        return _safe_response({"message": "Not found"}, 404)
     try:
         effect = _read_effect(request, field, verifier)
         return _safe_response({response_field: applier(effect)})
