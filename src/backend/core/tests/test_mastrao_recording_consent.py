@@ -2,8 +2,10 @@
 
 import hashlib
 import io
+import time
 from datetime import timedelta
 from unittest import mock
+from urllib.parse import urlencode
 
 from django.test import Client
 from django.utils import timezone
@@ -259,6 +261,56 @@ def _client_for_access(access, retry, stage="ready"):
     session.save()
     client.cookies[RETRY_COOKIE] = retry
     return client
+
+
+def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(db, settings):
+    access, _retry = _artifact_access()
+    binding = access.recording_binding
+    access.delete()
+    now = int(time.time())
+    grant = {
+        "organization_external_id": binding.organization_external_id,
+        "meeting_ref": binding.meeting_ref,
+        "recording_ref": binding.recording_ref,
+        "artifact_ref": binding.artifact_ref,
+        "subject_external_id": "subject_0123456789abcdef",
+        "platform_session_digest": "f" * 64,
+        "issued_at": now,
+        "expires_at": now + 60,
+        "jti": "recordingaccess_0123456789abcdef",
+    }
+    settings.MASTRAO_MEETING_RECORDING_ENABLED = True
+    settings.MASTRAO_PLATFORM_ORIGIN = "http://platform.test"
+    compact = "header.payload.signature"
+    client = Client()
+    with mock.patch(
+        "core.mastrao_recording_access.verify_recording_access_grant",
+        return_value=grant,
+    ):
+        bootstrap = client.post(
+            "/recordings/access/",
+            urlencode({"recording_access_grant": compact}),
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN=settings.MASTRAO_PLATFORM_ORIGIN,
+        )
+        assert bootstrap.status_code == 200
+        consumed = client.post(
+            "/recordings/access/",
+            urlencode({"stage": "consume", "recording_access_grant": compact}),
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="http://testserver",
+            HTTP_SEC_FETCH_SITE="same-origin",
+        )
+        assert consumed.status_code == 303
+        assert consumed["Location"] == "/recordings/download/current"
+        refused = client.post(
+            "/recordings/access/",
+            urlencode({"stage": "consume", "recording_access_grant": compact}),
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN=settings.MASTRAO_PLATFORM_ORIGIN,
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+        assert refused.status_code == 404
 
 
 def test_artifact_download_prepares_then_streams_exactly_once(db):

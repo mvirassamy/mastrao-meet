@@ -103,7 +103,9 @@ def _bootstrap(request):
 
 @transaction.atomic
 def _consume(request):
-    if request.headers.get("origin") != _origin(settings.APPLICATION_BASE_URL):
+    if request.headers.get("sec-fetch-site") != "same-origin" or request.headers.get(
+        "origin"
+    ) != _origin(request.build_absolute_uri("/")):
         raise RecordingContractRefused()
     fields = _form(request, {"stage", "recording_access_grant"})
     if fields["stage"] != "consume":
