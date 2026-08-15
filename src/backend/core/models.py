@@ -783,6 +783,228 @@ class MastraoGuestGrant(BaseModel):
         return f"Mastrao guest grant {self.grant_ref}"
 
 
+class MastraoRecordingBinding(BaseModel):
+    """Exact local projection of one canonical Mastrao recording."""
+
+    class State(models.TextChoices):
+        """Provider-side lifecycle without claiming Core artifact availability."""
+
+        PREPARED = "prepared", _("Prepared")
+        STARTING = "starting", _("Starting")
+        ACTIVE = "active", _("Active")
+        STOPPING = "stopping", _("Stopping")
+        PROCESSING = "processing", _("Processing")
+        FINALIZED = "finalized", _("Finalized")
+        CANCELLED = "cancelled", _("Cancelled")
+        FAILED = "failed", _("Failed")
+
+    room_binding = models.OneToOneField(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="recording_binding",
+    )
+    recording = models.OneToOneField(
+        "Recording",
+        on_delete=models.PROTECT,
+        related_name="mastrao_binding",
+        null=True,
+        blank=True,
+    )
+    organization_external_id = models.CharField(max_length=200)
+    meeting_ref = models.CharField(max_length=160)
+    room_ref = models.CharField(max_length=100)
+    recording_ref = models.CharField(max_length=160, unique=True)
+    provider_binding_digest = models.CharField(max_length=64)
+    policy_ref = models.CharField(max_length=160)
+    notice_version = models.CharField(max_length=160)
+    notice_digest = models.CharField(max_length=64)
+    purpose = models.CharField(max_length=64, default="meeting_recording")
+    scope = models.CharField(max_length=80, default="room_composite_audio_video_screen")
+    retention_expires_at = models.DateTimeField()
+    state = models.CharField(
+        max_length=20,
+        choices=State.choices,
+        default=State.PREPARED,
+    )
+    provider_recording_ref = models.CharField(
+        max_length=160, unique=True, null=True, blank=True
+    )
+    artifact_ref = models.CharField(max_length=160, unique=True, null=True, blank=True)
+    storage_binding_digest = models.CharField(max_length=64, null=True, blank=True)
+    object_ref = models.CharField(max_length=1024, null=True, blank=True)
+    content_type = models.CharField(max_length=100, null=True, blank=True)
+    byte_size = models.PositiveBigIntegerField(null=True, blank=True)
+    checksum_algorithm = models.CharField(max_length=20, null=True, blank=True)
+    checksum_digest = models.CharField(max_length=64, null=True, blank=True)
+    provider_version_digest = models.CharField(max_length=64, null=True, blank=True)
+    region_ref = models.CharField(max_length=160, null=True, blank=True)
+    encryption_ref = models.CharField(max_length=160, null=True, blank=True)
+    lifecycle_policy_ref = models.CharField(max_length=160, null=True, blank=True)
+    artifact_verified_at = models.DateTimeField(null=True, blank=True)
+    artifact_receipt_claims = models.JSONField(default=dict, blank=True)
+    artifact_receipt_digest = models.CharField(max_length=64, null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_recording_binding"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_recording_provider_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(notice_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_recording_notice_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(purpose="meeting_recording"),
+                name="mastrao_recording_purpose_fixed",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(scope="room_composite_audio_video_screen"),
+                name="mastrao_recording_scope_fixed",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao recording {self.recording_ref}"
+
+
+class MastraoRecordingDecision(BaseModel):
+    """Append-only local receipt for a session-bound participant decision."""
+
+    class ParticipantKind(models.TextChoices):
+        HOST = "host", _("Host")
+        GUEST = "guest", _("Guest")
+
+    class Decision(models.TextChoices):
+        ACCEPTED = "accepted", _("Accepted")
+        REFUSED = "refused", _("Refused")
+        WITHDRAWN = "withdrawn", _("Withdrawn")
+
+    recording_binding = models.ForeignKey(
+        MastraoRecordingBinding,
+        on_delete=models.PROTECT,
+        related_name="decisions",
+    )
+    decision_request_id = models.CharField(max_length=160, unique=True)
+    participant_kind = models.CharField(max_length=8, choices=ParticipantKind.choices)
+    participant_ref = models.CharField(max_length=160)
+    participant_session_digest = models.CharField(max_length=64)
+    participant_grant_digest = models.CharField(max_length=64)
+    decision = models.CharField(max_length=12, choices=Decision.choices)
+    assertion_jti = models.CharField(max_length=200, unique=True)
+    assertion_digest = models.CharField(max_length=64)
+    semantic_digest = models.CharField(max_length=64)
+    decided_at = models.DateTimeField(default=timezone.now)
+    core_state_version = models.PositiveBigIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_recording_decision"
+        ordering = ("created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "recording_binding",
+                    "participant_ref",
+                    "participant_session_digest",
+                    "decision",
+                ],
+                name="unique_mastrao_recording_session_decision",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(participant_session_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_recording_session_digest_format",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao recording decision {self.decision_request_id}"
+
+
+class MastraoRecordingEffect(BaseModel):
+    """Durable exact Core recording effect and replayable receipt."""
+
+    class Operation(models.TextChoices):
+        START = "start", _("Start")
+        STOP = "stop", _("Stop")
+
+    class State(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        APPLIED = "applied", _("Applied")
+        FAILED = "failed", _("Failed")
+
+    recording_binding = models.ForeignKey(
+        MastraoRecordingBinding,
+        on_delete=models.PROTECT,
+        related_name="effects",
+    )
+    effect_key = models.CharField(max_length=160, unique=True)
+    operation = models.CharField(max_length=8, choices=Operation.choices)
+    arguments_digest = models.CharField(max_length=64)
+    effect_jti = models.CharField(max_length=200, unique=True)
+    state = models.CharField(
+        max_length=12, choices=State.choices, default=State.PENDING
+    )
+    provider_observation = models.CharField(max_length=32, null=True, blank=True)
+    receipt_claims = models.JSONField(default=dict, blank=True)
+    receipt_digest = models.CharField(max_length=64, null=True, blank=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_recording_effect"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recording_binding", "operation"],
+                name="unique_mastrao_recording_operation",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_recording_effect_digest_format",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao recording effect {self.effect_key}"
+
+
+class MastraoRecordingArtifactAccess(BaseModel):
+    """Single-artifact short-lived grant consumption journal."""
+
+    recording_binding = models.ForeignKey(
+        MastraoRecordingBinding,
+        on_delete=models.PROTECT,
+        related_name="artifact_accesses",
+    )
+    grant_jti = models.CharField(max_length=200, unique=True)
+    grant_digest = models.CharField(max_length=64, unique=True)
+    artifact_ref = models.CharField(max_length=160)
+    subject_external_id_digest = models.CharField(max_length=64)
+    platform_session_digest = models.CharField(max_length=64)
+    retry_cookie_digest = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_recording_artifact_access"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(grant_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_recording_access_grant_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(platform_session_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_recording_access_session_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(retry_cookie_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_recording_access_retry_digest_format",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao recording access {self.grant_jti}"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

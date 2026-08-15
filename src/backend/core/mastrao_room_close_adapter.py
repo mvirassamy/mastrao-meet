@@ -20,6 +20,9 @@ from core.mastrao_room_close_contract import (
     sign_room_close_receipt,
     verify_room_close_effect,
 )
+from core.recording.worker.exceptions import RecordingStopError
+from core.recording.worker.factories import get_worker_service
+from core.recording.worker.mediator import WorkerServiceMediator
 from core.services.lobby import LobbyService
 from core.services.room_management import (
     RoomManagement,
@@ -97,6 +100,25 @@ def _apply_tombstone(closure_id, effect):
         return sign_room_close_receipt(closure.receipt_claims)
 
     room_id = closure.room_binding.room_id
+    recording_binding = (
+        models.MastraoRecordingBinding.objects.select_for_update()
+        .filter(room_binding=closure.room_binding)
+        .first()
+    )
+    if (
+        recording_binding
+        and recording_binding.recording
+        and recording_binding.recording.status == models.RecordingStatusChoices.ACTIVE
+    ):
+        try:
+            WorkerServiceMediator(
+                get_worker_service(mode=recording_binding.recording.mode)
+            ).stop(recording_binding.recording)
+        except RecordingStopError as error:
+            raise RoomCloseRefused(status=503) from error
+        recording_binding.state = models.MastraoRecordingBinding.State.PROCESSING
+        recording_binding.save(update_fields=["state", "updated_at"])
+
     try:
         RoomManagement().delete_room(str(room_id))
         observation = models.MastraoRoomClosure.ProviderObservation.DELETED

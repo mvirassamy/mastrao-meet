@@ -94,7 +94,27 @@
     "ended": {
       "title": "Cette réunion est terminée",
       "body": "L’hôte a terminé la réunion. Ce lien ne peut plus être utilisé."
+    },
+    "recordingStopping": {
+      "title": "L’enregistrement s’arrête",
+      "body": "Patientez jusqu’à l’arrêt complet de la capture avant de rejoindre."
+    },
+    "recordingUnavailable": {
+      "title": "Cette réunion n’est pas prête",
+      "body": "L’organisateur doit choisir le réglage d’enregistrement avant que les participants puissent rejoindre."
     }
+  },
+  "recordingConsent": {
+    "title": "Cette réunion sera enregistrée",
+    "notice": "L’audio, la vidéo et les écrans partagés seront enregistrés. Vous pouvez refuser et rejoindre sans être enregistré, ou retirer votre accord plus tard.",
+    "retention": "La suppression de l’enregistrement est prévue au plus tard le {{date}}.",
+    "accept": "Accepter et continuer",
+    "refuse": "Refuser l’enregistrement",
+    "error": "Votre choix n’a pas pu être enregistré. Réessayez.",
+    "active": "Enregistrement en cours",
+    "withdraw": "Retirer mon accord",
+    "stop": "Arrêter l’enregistrement",
+    "withdrawError": "L’enregistrement n’a pas pu être arrêté. Réessayez."
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",
   "shareDialog": {

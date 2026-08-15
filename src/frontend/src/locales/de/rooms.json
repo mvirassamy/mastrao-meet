@@ -94,7 +94,27 @@
     "ended": {
       "title": "Dieses Meeting ist beendet",
       "body": "Der Host hat das Meeting beendet. Dieser Link kann nicht mehr verwendet werden."
+    },
+    "recordingStopping": {
+      "title": "Die Aufzeichnung wird beendet",
+      "body": "Bitte warten Sie, bis die Aufnahme vollständig beendet ist."
+    },
+    "recordingUnavailable": {
+      "title": "Diese Besprechung ist noch nicht bereit",
+      "body": "Die organisierende Person muss zuerst die Aufzeichnungseinstellung wählen."
     }
+  },
+  "recordingConsent": {
+    "title": "Diese Besprechung wird aufgezeichnet",
+    "notice": "Audio, Video und geteilte Bildschirme werden aufgezeichnet. Sie können ablehnen und ohne Aufzeichnung teilnehmen oder später widerrufen.",
+    "retention": "Die Aufzeichnung wird spätestens am {{date}} gelöscht.",
+    "accept": "Akzeptieren und fortfahren",
+    "refuse": "Aufzeichnung ablehnen",
+    "error": "Ihre Auswahl konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    "active": "Aufzeichnung läuft",
+    "withdraw": "Einwilligung widerrufen",
+    "stop": "Aufzeichnung beenden",
+    "withdrawError": "Die Aufzeichnung konnte nicht beendet werden. Erneut versuchen."
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
   "shareDialog": {

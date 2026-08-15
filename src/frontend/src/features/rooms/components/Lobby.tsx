@@ -19,6 +19,7 @@ import { ApiAccessLevel } from '../api/ApiRoom'
 import { ApiLobbyStatus, type ApiRequestEntry } from '../api/requestEntry'
 import { useLobby } from '../hooks/useLobby'
 import { isMastraoRoomId } from '../utils/isRoomValid'
+import { RecordingConsent } from './RecordingConsent'
 
 export const Lobby = ({
   roomId,
@@ -96,6 +97,53 @@ export const Lobby = ({
     }
 
     enterRoom()
+  }
+
+  const recording = roomData?.recording
+  if (
+    recording?.mode === 'recorded' &&
+    recording.decision === 'absent' &&
+    recording.retention_expires_at
+  ) {
+    return (
+      <RecordingConsent
+        roomId={roomId}
+        retentionExpiresAt={recording.retention_expires_at}
+        onDecided={async () => {
+          await refetchRoom()
+        }}
+      />
+    )
+  }
+
+  if (recording?.mode === 'unset') {
+    return (
+      <VStack alignItems="center" textAlign="center">
+        <H lvl={1} margin={false} centered>
+          {t('recordingUnavailable.title')}
+        </H>
+        <Text as="p" variant="note" role="alert">
+          {t('recordingUnavailable.body')}
+        </Text>
+      </VStack>
+    )
+  }
+
+  if (
+    recording?.mode === 'recorded' &&
+    recording.recording_state === 'stopping'
+  ) {
+    return (
+      <VStack alignItems="center" textAlign="center">
+        <H lvl={1} margin={false} centered>
+          {t('recordingStopping.title')}
+        </H>
+        <Text as="p" variant="note">
+          {t('recordingStopping.body')}
+        </Text>
+        <Spinner />
+      </VStack>
+    )
   }
 
   switch (status) {

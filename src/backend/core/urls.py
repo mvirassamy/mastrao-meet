@@ -14,6 +14,11 @@ from core.mastrao_guest_handoff import (
     establish_mastrao_guest_session,
 )
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
+from core.mastrao_recording_adapter import (
+    start_mastrao_recording,
+    stop_mastrao_recording,
+)
+from core.mastrao_recording_access import recording_access, recording_download
 from core.mastrao_room_adapter import ensure_mastrao_room
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.roomkit import viewsets as roomkit_viewsets
@@ -57,6 +62,12 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("recordings/access/", recording_access, name="mastrao_recording_access"),
+    path(
+        "recordings/download/current",
+        recording_download,
+        name="mastrao_recording_download",
+    ),
     path(
         "handoff/guest/session/",
         establish_mastrao_guest_session,
@@ -81,6 +92,16 @@ urlpatterns = [
         "internal/mastrao/rooms/close/",
         close_mastrao_room,
         name="close_mastrao_room",
+    ),
+    path(
+        "internal/mastrao/recordings/start/",
+        start_mastrao_recording,
+        name="start_mastrao_recording",
+    ),
+    path(
+        "internal/mastrao/recordings/stop/",
+        stop_mastrao_recording,
+        name="stop_mastrao_recording",
     ),
     path(
         f"api/{settings.API_VERSION}/",

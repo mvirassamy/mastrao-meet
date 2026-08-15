@@ -94,7 +94,27 @@
     "ended": {
       "title": "Deze vergadering is beëindigd",
       "body": "De host heeft de vergadering beëindigd. Deze link kan niet meer worden gebruikt."
+    },
+    "recordingStopping": {
+      "title": "De opname wordt gestopt",
+      "body": "Wacht tot de opname volledig is gestopt voordat u deelneemt."
+    },
+    "recordingUnavailable": {
+      "title": "Deze vergadering is nog niet klaar",
+      "body": "De organisator moet eerst de opname-instelling kiezen."
     }
+  },
+  "recordingConsent": {
+    "title": "Deze vergadering wordt opgenomen",
+    "notice": "Audio, video en gedeelde schermen worden opgenomen. U kunt weigeren en zonder opname deelnemen, of later uw toestemming intrekken.",
+    "retention": "De opname wordt uiterlijk op {{date}} verwijderd.",
+    "accept": "Accepteren en doorgaan",
+    "refuse": "Opname weigeren",
+    "error": "Uw keuze kon niet worden opgeslagen. Probeer het opnieuw.",
+    "active": "Opname bezig",
+    "withdraw": "Toestemming intrekken",
+    "stop": "Opname stoppen",
+    "withdrawError": "De opname kon niet worden gestopt. Probeer het opnieuw."
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",
   "shareDialog": {

@@ -94,7 +94,27 @@
     "ended": {
       "title": "This meeting has ended",
       "body": "The host ended the meeting. This link can no longer be used."
+    },
+    "recordingStopping": {
+      "title": "Recording is stopping",
+      "body": "Please wait until capture has fully stopped before joining."
+    },
+    "recordingUnavailable": {
+      "title": "This meeting is not ready",
+      "body": "The organizer must choose the recording setting before anyone can join."
     }
+  },
+  "recordingConsent": {
+    "title": "This meeting will be recorded",
+    "notice": "Audio, video and shared screens will be recorded for this meeting. You can refuse and still join without being recorded, or withdraw later.",
+    "retention": "The recording is scheduled for deletion by {{date}}.",
+    "accept": "Accept and continue",
+    "refuse": "Refuse recording",
+    "error": "Your choice could not be saved. Please try again.",
+    "active": "Recording in progress",
+    "withdraw": "Withdraw consent",
+    "stop": "Stop recording",
+    "withdrawError": "Recording could not be stopped. Try again."
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",
   "shareDialog": {

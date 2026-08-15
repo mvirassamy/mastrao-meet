@@ -39,6 +39,7 @@ import { userStore } from '@/stores/user'
 import { WatchMediaDeviceErrors } from './WatchMediaDeviceErrors'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
+import { activateRecording } from '../api/recordingConsent'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -85,6 +86,7 @@ export const Conference = ({
     status: fetchStatus,
     isError: isFetchError,
     data,
+    refetch: refetchRoom,
   } = useQuery({
     queryKey: fetchKey,
     staleTime: 6 * 60 * 60 * 1000, // By default, LiveKit access tokens expire 6 hours after generation
@@ -99,6 +101,15 @@ export const Conference = ({
         }
       }),
     retry: false,
+    refetchInterval: (query) => {
+      const state = (query.state.data as ApiRoom | undefined)?.recording
+        ?.recording_state
+      return state &&
+        ['authorized', 'starting', 'stopping', 'processing'].includes(state)
+        ? 1000
+        : false
+    },
+    refetchIntervalInBackground: true,
   })
 
   const roomOptions = useMemo((): RoomOptions => {
@@ -179,6 +190,10 @@ export const Conference = ({
   const isMobile = useIsMobile()
 
   const hasAutoMutedRef = useRef(false)
+  const activationRequestId = useRef(
+    `activation_${crypto.randomUUID().replaceAll('-', '')}`
+  )
+  const activationSent = useRef(false)
 
   /*
    * Ensure stable WebSocket connection URL. This is critical for legacy browser compatibility
@@ -239,6 +254,26 @@ export const Conference = ({
             })
           }}
           onConnected={async () => {
+            if (
+              data?.can_end &&
+              data.recording?.mode === 'recorded' &&
+              data.recording.decision === 'accepted' &&
+              ['collecting', 'authorized'].includes(
+                data.recording.recording_state ?? ''
+              ) &&
+              !activationSent.current
+            ) {
+              activationSent.current = true
+              try {
+                await activateRecording(roomId, activationRequestId.current)
+                await refetchRoom()
+              } catch (error) {
+                activationSent.current = false
+                reportError('livekit_room_error', error, {
+                  path: 'recording_activation_after_livekit_connected',
+                })
+              }
+            }
             if (!apiConfig) return
             if (
               userPreferencesSnap.is_auto_mute_large_room_enabled &&
@@ -307,7 +342,12 @@ export const Conference = ({
         >
           <MeetingLifecycleProvider key={roomId}>
             <WatchMediaDeviceErrors />
-            <VideoConference roomId={roomId} canEnd={data?.can_end} />
+            <VideoConference
+              roomId={roomId}
+              canEnd={data?.can_end}
+              recording={data?.recording}
+              onRecordingChanged={refetchRoom}
+            />
             {!isMobile && <ActiveInviteDialog mode={mode} />}
             <PictureInPictureConference />
           </MeetingLifecycleProvider>

@@ -52,6 +52,9 @@ export const useLobby = ({
         throw error
       }
       if (response.status === ApiLobbyStatus.ACCEPTED) {
+        if (!response.livekit) {
+          return response
+        }
         clearWaitingTimeout()
         setStatus(ApiLobbyStatus.ACCEPTED)
         onAccepted(response)

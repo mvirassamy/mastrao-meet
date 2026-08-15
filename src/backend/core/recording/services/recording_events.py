@@ -7,6 +7,7 @@ from logging import getLogger
 from livekit import api
 
 from core import models, utils
+from core.mastrao_recording_artifact import finalize_mastrao_artifact
 from core.models import Recording
 from core.recording.event.notification import notification_service
 from core.services.room_management import (
@@ -95,6 +96,12 @@ class RecordingEventsService:
 
         if not recording.is_savable():
             raise RecordingNotSavableError
+
+        if hasattr(recording, "mastrao_binding"):
+            finalize_mastrao_artifact(recording)
+            recording.status = models.RecordingStatusChoices.SAVED
+            recording.save(update_fields=["status", "updated_at"])
+            return
 
         # Attempt to notify external services about the recording
         # This is a non-blocking operation - failures are logged but don't interrupt the flow

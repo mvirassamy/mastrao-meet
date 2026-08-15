@@ -146,8 +146,8 @@ class LobbyService:
             )
         )
 
-    def _request_guest_entry(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-        self, room, request, username, guest_grant, participant
+    def _request_guest_entry(  # noqa: PLR0913,PLR0917  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self, room, request, username, guest_grant, participant, allow_media=True
     ):
         """Project one durable canonical guest into the transient native lobby."""
 
@@ -177,6 +177,8 @@ class LobbyService:
                 participant.to_dict(),
                 timeout=settings.LOBBY_ACCEPTED_TIMEOUT,
             )
+            if not allow_media:
+                return participant, None
             return participant, guest_media_config(
                 request,
                 room,
@@ -193,11 +195,12 @@ class LobbyService:
         )
         return participant, None
 
-    def request_entry(
+    def request_entry(  # noqa: PLR0911,PLR0912
         self,
         room: models.Room,
         request,
         username: str,
+        allow_media: bool = True,
     ) -> Tuple[LobbyParticipant, Optional[Dict]]:
         """Request entry to a room for a participant.
 
@@ -225,7 +228,7 @@ class LobbyService:
 
         if guest_grant is not None:
             return self._request_guest_entry(
-                room, request, username, guest_grant, participant
+                room, request, username, guest_grant, participant, allow_media
             )
 
         room_id = str(room.id)
@@ -242,6 +245,9 @@ class LobbyService:
                 )
             else:
                 participant.status = LobbyParticipantStatus.ACCEPTED
+
+            if not allow_media:
+                return participant, None
 
             livekit_arguments = {
                 "room_id": room_id,
@@ -270,6 +276,8 @@ class LobbyService:
             self.refresh_waiting_status(room.id, participant_id)
 
         elif participant.status == LobbyParticipantStatus.ACCEPTED:
+            if not allow_media:
+                return participant, None
             # wrongly named, contains access token to join a room
             livekit_arguments = {
                 "room_id": room_id,
