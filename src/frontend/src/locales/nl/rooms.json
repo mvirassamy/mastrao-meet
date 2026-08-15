@@ -94,7 +94,36 @@
     "ended": {
       "title": "Deze vergadering is beëindigd",
       "body": "De host heeft de vergadering beëindigd. Deze link kan niet meer worden gebruikt."
+    },
+    "recordingStopping": {
+      "title": "De opname wordt gestopt",
+      "body": "Wacht tot de opname volledig is gestopt voordat u deelneemt."
+    },
+    "recordingUnavailable": {
+      "title": "Deze vergadering is nog niet klaar",
+      "body": "De organisator moet eerst de opname-instelling kiezen."
     }
+  },
+  "recordingConsent": {
+    "title": "Deze vergadering wordt opgenomen",
+    "notice": "Audio, video en gedeelde schermen worden opgenomen. U kunt weigeren en zonder opname deelnemen, of later uw toestemming intrekken.",
+    "purpose": "Doel: een video-opname van deze vergadering maken en deze in het bijbehorende dossier bewaren.",
+    "recipients": "Toegang: alleen personen die op het moment van raadpleging toegang tot dit dossier hebben, kunnen de opname bekijken.",
+    "retention": "De opname wordt uiterlijk op {{date}} verwijderd.",
+    "rights": "Rechten: neem via het gebruikelijke kanaal van het dossier contact op met de organisator om toegang of verwijdering te vragen of een ander recht uit te oefenen.",
+    "guestIdentity": "De weergegeven naam is door u opgegeven; uw identiteit is niet geverifieerd.",
+    "accept": "Accepteren en doorgaan",
+    "refuse": "Opname weigeren",
+    "error": "Uw keuze kon niet worden opgeslagen. Probeer het opnieuw.",
+    "starting": "Opname wordt gestart",
+    "active": "Opname bezig",
+    "stopping": "Opname wordt gestopt",
+    "withdraw": "Toestemming intrekken",
+    "stop": "Opname stoppen",
+    "activationError": "De opname kon niet worden gestart. Nieuwe poging…",
+    "activationExhausted": "De opname kon niet worden gestart.",
+    "activationRetry": "Opnieuw proberen",
+    "withdrawError": "De opname kon niet worden gestopt. Probeer het opnieuw."
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",
   "shareDialog": {

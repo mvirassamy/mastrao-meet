@@ -15,10 +15,11 @@ import { useUser } from '@/features/auth/api/useUser'
 import { useConfig } from '@/api/useConfig'
 import { saveUsername, userStore } from '@/stores/user'
 import { fetchRoom } from '../api/fetchRoom'
-import { ApiAccessLevel } from '../api/ApiRoom'
+import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
 import { ApiLobbyStatus, type ApiRequestEntry } from '../api/requestEntry'
 import { useLobby } from '../hooks/useLobby'
 import { isMastraoRoomId } from '../utils/isRoomValid'
+import { RecordingConsent } from './RecordingConsent'
 
 export const Lobby = ({
   roomId,
@@ -49,12 +50,29 @@ export const Lobby = ({
     staleTime: 6 * 60 * 60 * 1000, // By default, LiveKit access tokens expire 6 hours after generation
     retry: false,
     enabled: isMastraoRoomId(roomId),
+    refetchInterval: (query) => {
+      const state = (query.state.data as ApiRoom | undefined)?.recording
+        ?.recording_state
+      return state &&
+        [
+          'collecting',
+          'authorized',
+          'starting',
+          'active',
+          'stopping',
+          'processing',
+        ].includes(state)
+        ? 1000
+        : false
+    },
+    refetchIntervalInBackground: true,
   })
 
   const handleAccepted = (response: ApiRequestEntry) => {
     queryClient.setQueryData([keys.room, roomId], {
       ...roomData,
       livekit: response.livekit,
+      ...(response.recording ? { recording: response.recording } : {}),
     })
     enterRoom()
   }
@@ -96,6 +114,57 @@ export const Lobby = ({
     }
 
     enterRoom()
+  }
+
+  const recording = roomData?.recording
+  if (
+    recording?.mode === 'recorded' &&
+    recording.recording_state === 'stopping'
+  ) {
+    return (
+      <VStack alignItems="center" textAlign="center">
+        <H lvl={1} margin={false} centered>
+          {t('recordingStopping.title')}
+        </H>
+        <Text as="p" variant="note">
+          {t('recordingStopping.body')}
+        </Text>
+        <Spinner />
+      </VStack>
+    )
+  }
+
+  if (
+    recording?.mode === 'recorded' &&
+    recording.decision === 'absent' &&
+    ['collecting', 'authorized', 'starting', 'active'].includes(
+      recording.recording_state ?? ''
+    ) &&
+    recording.retention_expires_at
+  ) {
+    return (
+      <RecordingConsent
+        roomId={roomId}
+        retentionExpiresAt={recording.retention_expires_at}
+        participantKind={recording.participant_kind}
+        onDecided={async () => {
+          await refetchRoom()
+        }}
+      />
+    )
+  }
+
+  if (recording?.mode === 'unset') {
+    return (
+      <VStack alignItems="center" textAlign="center">
+        <H lvl={1} margin={false} centered>
+          {t('recordingUnavailable.title')}
+        </H>
+        <Text as="p" variant="note" role="alert">
+          {t('recordingUnavailable.body')}
+        </Text>
+      </VStack>
+    )
   }
 
   switch (status) {

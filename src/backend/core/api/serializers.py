@@ -22,6 +22,11 @@ from timezone_field.rest_framework import TimeZoneSerializerField
 from core import models, utils
 from core.mastrao_host_grant import host_media_projection
 from core.mastrao_identity import is_mastrao_host_subject
+from core.mastrao_recording_session import (
+    media_allowed,
+    public_projection,
+    recording_session_status,
+)
 from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.services.room_management import ensure_livekit_room
 
@@ -193,7 +198,12 @@ class RoomSerializer(serializers.ModelSerializer):
             )
             output["accesses"] = access_serializer.data
 
-        should_access_room = (
+        recording_status = recording_session_status(request, instance)
+        recording_projection = public_projection(recording_status)
+        if recording_projection is not None:
+            output["recording"] = recording_projection
+
+        should_access_room = media_allowed(recording_status) and (
             (
                 instance.access_level == models.RoomAccessLevel.TRUSTED
                 and request.user.is_authenticated
@@ -231,6 +241,26 @@ class EndMeetingSerializer(serializers.Serializer):
     """Validate one stable browser close request identifier."""
 
     close_request_id = serializers.RegexField(r"^[A-Za-z0-9_-]{16,160}$")
+
+
+class RecordingDecisionSerializer(serializers.Serializer):
+    """Validate an idempotent participant recording decision."""
+
+    decision_request_id = serializers.RegexField(r"^[A-Za-z0-9_-]{16,160}$")
+    decision = serializers.ChoiceField(choices=("accepted", "refused", "withdrawn"))
+
+
+class RecordingActivationSerializer(serializers.Serializer):
+    """Validate an idempotent post-LiveKit-connection activation."""
+
+    activation_request_id = serializers.RegexField(r"^[A-Za-z0-9_-]{16,160}$")
+
+
+class RecordingStopSerializer(serializers.Serializer):
+    """Validate an idempotent participant stop request."""
+
+    stop_request_id = serializers.RegexField(r"^[A-Za-z0-9_-]{16,160}$")
+    source = serializers.ChoiceField(choices=("host", "refusal", "withdrawal"))
 
 
 class RecordingSerializer(serializers.ModelSerializer):

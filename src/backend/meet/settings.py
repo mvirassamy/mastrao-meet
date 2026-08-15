@@ -48,6 +48,17 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "close_assertion",
     "room_close_effect",
     "room_close_receipt",
+    "participant_grant",
+    "activation_assertion",
+    "stop_assertion",
+    "recording_start_effect",
+    "recording_start_receipt",
+    "recording_stop_effect",
+    "recording_stop_receipt",
+    "recording_artifact_receipt",
+    "recording_failure_receipt",
+    "recording_access_grant",
+    "object_ref",
 )
 
 
@@ -154,6 +165,86 @@ class Base(Configuration):
     )
     MASTRAO_ROOM_RECEIPT_KEY_ID = values.Value(
         "", environ_name="MASTRAO_ROOM_RECEIPT_KEY_ID", environ_prefix=None
+    )
+    MASTRAO_MEETING_RECORDING_ENABLED = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_MEETING_RECORDING_ENABLED",
+        environ_prefix=None,
+    )
+    MASTRAO_RECORDING_EFFECT_ISSUER = values.Value(
+        "", environ_name="MASTRAO_RECORDING_EFFECT_ISSUER", environ_prefix=None
+    )
+    MASTRAO_RECORDING_EFFECT_AUDIENCE = values.Value(
+        "", environ_name="MASTRAO_RECORDING_EFFECT_AUDIENCE", environ_prefix=None
+    )
+    MASTRAO_RECORDING_EFFECT_PUBLIC_JWK = SecretFileValue(
+        "", environ_name="MASTRAO_RECORDING_EFFECT_PUBLIC_JWK", environ_prefix=None
+    )
+    MASTRAO_RECORDING_EFFECT_KEY_ID = values.Value(
+        "", environ_name="MASTRAO_RECORDING_EFFECT_KEY_ID", environ_prefix=None
+    )
+    MASTRAO_RECORDING_RECEIPT_ISSUER = values.Value(
+        "", environ_name="MASTRAO_RECORDING_RECEIPT_ISSUER", environ_prefix=None
+    )
+    MASTRAO_RECORDING_RECEIPT_AUDIENCE = values.Value(
+        "", environ_name="MASTRAO_RECORDING_RECEIPT_AUDIENCE", environ_prefix=None
+    )
+    MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = SecretFileValue(
+        "", environ_name="MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK", environ_prefix=None
+    )
+    MASTRAO_RECORDING_RECEIPT_KEY_ID = values.Value(
+        "", environ_name="MASTRAO_RECORDING_RECEIPT_KEY_ID", environ_prefix=None
+    )
+    MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_RECORDING_DECISION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_RECORDING_DECISION_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_RECORDING_ACTIVATION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_RECORDING_ACTIVATION_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_RECORDING_STOP_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_RECORDING_STOP_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS = values.FloatValue(
+        5.0,
+        environ_name="MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    MASTRAO_RECORDING_REGION_REF = values.Value(
+        "", environ_name="MASTRAO_RECORDING_REGION_REF", environ_prefix=None
+    )
+    MASTRAO_RECORDING_STORAGE_BINDING_DIGEST = values.Value(
+        "",
+        environ_name="MASTRAO_RECORDING_STORAGE_BINDING_DIGEST",
+        environ_prefix=None,
+    )
+    MASTRAO_RECORDING_ENCRYPTION_REF = values.Value(
+        "", environ_name="MASTRAO_RECORDING_ENCRYPTION_REF", environ_prefix=None
+    )
+    MASTRAO_RECORDING_LIFECYCLE_POLICY_REF = values.Value(
+        "",
+        environ_name="MASTRAO_RECORDING_LIFECYCLE_POLICY_REF",
+        environ_prefix=None,
     )
     MASTRAO_HOST_HANDOFF_ENABLED = values.BooleanValue(
         False, environ_name="MASTRAO_HOST_HANDOFF_ENABLED", environ_prefix=None

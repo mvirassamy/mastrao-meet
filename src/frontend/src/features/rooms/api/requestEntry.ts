@@ -18,6 +18,7 @@ export enum ApiLobbyStatus {
 export interface ApiRequestEntry {
   status: ApiLobbyStatus
   livekit?: ApiLiveKit
+  recording?: import('./ApiRoom').ApiRoom['recording']
 }
 
 export const requestEntry = async ({

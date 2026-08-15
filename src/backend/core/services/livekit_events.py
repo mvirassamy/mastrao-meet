@@ -12,6 +12,7 @@ from django.conf import settings
 from livekit import api
 
 from core import models
+from core.mastrao_recording_failure import report_mastrao_recording_failure
 from core.mastrao_room_lifecycle import is_mastrao_room_closed
 from core.recording.services.metadata_collector import (
     MetadataCollectorException,
@@ -234,7 +235,16 @@ class LiveKitEventsService:
                     recording.id,
                 )
 
-        # Silently ignoring EGRESS_ABORTED, EGRESS_FAILED
+        if data.egress_info.status in [
+            api.EgressStatus.EGRESS_ABORTED,
+            api.EgressStatus.EGRESS_FAILED,
+        ]:
+            try:
+                report_mastrao_recording_failure(recording, data.egress_info.status)
+            except Exception as error:
+                raise ActionFailedError(
+                    f"Failed to report terminal Mastrao recording {recording.id}"
+                ) from error
 
     @staticmethod
     def _is_connection_test_room(room_name: str) -> bool:

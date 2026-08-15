@@ -36,6 +36,27 @@ export type ApiRoom = {
   livekit?: ApiLiveKit
   configuration?: RoomConfiguration
   can_end?: boolean
+  recording?: {
+    mode: 'unset' | 'disabled' | 'recorded'
+    recording_ref?: string
+    notice_version?: string
+    notice_digest?: string
+    purpose?: 'meeting_recording'
+    scope?: 'room_composite_audio_video_screen'
+    retention_expires_at?: number
+    recording_state?:
+      | 'collecting'
+      | 'authorized'
+      | 'starting'
+      | 'active'
+      | 'stopping'
+      | 'processing'
+      | 'available'
+      | 'cancelled'
+      | 'failed'
+    decision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
+    participant_kind?: 'host' | 'guest'
+  }
   /**
    * Only present in the API response when the requesting user is an
    * administrator or owner of the room (see RoomSerializer.to_representation

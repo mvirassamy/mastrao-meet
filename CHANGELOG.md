@@ -12,12 +12,16 @@ and this project adheres to
 
 - 🔐(backend) consume short Mastrao host handoffs into session-bound media grants
 - 🔐(backend) redeem canonical guest invitations into anonymous room-bound lobby grants
+- 🔐(backend) enforce canonical recording consent before issuing media grants
+- 📹(backend) reconcile one room-composite recording and finalized MP4 artifact
 - ✨(frontend) add the fragment-safe Mastrao guest invitation landing flow
+- ✨(frontend) add accessible recording consent and active-capture controls
 
 ### Changed
 
 - 🔒️(backend) distinguish pseudonymous Mastrao hosts from non-interactive room owners
 - 🔒️(backend) require Core-confirmed guest admission before minting participant media tokens
+- 🔒️(backend) stream recording artifacts through single-use session-bound access
 
 ## [1.26.0] - 2026-08-12
 

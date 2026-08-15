@@ -47,7 +47,17 @@ from core.enums import MEDIA_STORAGE_URL_PATTERN
 from core.mastrao_guest_contract import GuestHandoffRefused
 from core.mastrao_guest_grant import CANONICAL_ROOM_SLUG, can_access_canonical_room
 from core.mastrao_guest_handoff import decide_guest_admission
+from core.mastrao_host_contract import HostHandoffRefused
 from core.mastrao_meeting_close import request_meeting_close
+from core.mastrao_recording_contract import RecordingContractRefused
+from core.mastrao_recording_session import (
+    activate_recording,
+    media_allowed,
+    public_projection,
+    record_decision,
+    recording_session_status,
+    request_recording_stop,
+)
 from core.mastrao_room_close_contract import RoomCloseRefused
 from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.recording.enums import FileExtension
@@ -305,7 +315,12 @@ class RoomViewSet(
                 },
             }
         else:
-            data = self.get_serializer(instance).data
+            try:
+                data = self.get_serializer(instance).data
+            except RecordingContractRefused as error:
+                return drf_response.Response(
+                    {"message": "Unavailable"}, status=error.status
+                )
 
         return drf_response.Response(data)
 
@@ -537,9 +552,11 @@ class RoomViewSet(
         lobby_service = LobbyService()
 
         try:
+            recording_status = recording_session_status(request, room)
             participant, livekit = lobby_service.request_entry(
                 room=room,
                 request=request,
+                allow_media=media_allowed(recording_status),
                 **serializer.validated_data,
             )
         except (GuestHandoffRefused, MastraoRoomClosed) as error:
@@ -551,10 +568,99 @@ class RoomViewSet(
                 },
                 status=getattr(error, "status", 404),
             )
-        response = drf_response.Response({**participant.to_dict(), "livekit": livekit})
+        except RecordingContractRefused as error:
+            return drf_response.Response(
+                {"message": "Unavailable"}, status=error.status
+            )
+        response_payload = {**participant.to_dict(), "livekit": livekit}
+        recording_projection = public_projection(recording_status)
+        if recording_projection is not None:
+            response_payload["recording"] = recording_projection
+        response = drf_response.Response(response_payload)
         lobby_service.prepare_response(response, participant.id)
 
         return response
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="recording-decision",
+        permission_classes=[],
+    )
+    def recording_decision(self, request, pk=None):  # pylint: disable=unused-argument
+        """Record one exact browser session's informed recording decision."""
+
+        serializer = serializers.RecordingDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = record_decision(request, room, **serializer.validated_data)
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="recording-activate",
+        permission_classes=[],
+    )
+    def recording_activate(self, request, pk=None):  # pylint: disable=unused-argument
+        """Activate recording only after the accepted host connected to LiveKit."""
+
+        serializer = serializers.RecordingActivationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = activate_recording(request, room, **serializer.validated_data)
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="recording-stop",
+        permission_classes=[],
+    )
+    def recording_stop(self, request, pk=None):  # pylint: disable=unused-argument
+        """Ask Core to stop one exact canonical recording."""
+
+        serializer = serializers.RecordingStopSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = request_recording_stop(request, room, **serializer.validated_data)
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
 
     @decorators.action(
         detail=True,

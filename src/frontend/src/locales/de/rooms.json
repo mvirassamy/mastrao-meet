@@ -94,7 +94,36 @@
     "ended": {
       "title": "Dieses Meeting ist beendet",
       "body": "Der Host hat das Meeting beendet. Dieser Link kann nicht mehr verwendet werden."
+    },
+    "recordingStopping": {
+      "title": "Die Aufzeichnung wird beendet",
+      "body": "Bitte warten Sie, bis die Aufnahme vollständig beendet ist."
+    },
+    "recordingUnavailable": {
+      "title": "Diese Besprechung ist noch nicht bereit",
+      "body": "Die organisierende Person muss zuerst die Aufzeichnungseinstellung wählen."
     }
+  },
+  "recordingConsent": {
+    "title": "Diese Besprechung wird aufgezeichnet",
+    "notice": "Audio, Video und geteilte Bildschirme werden aufgezeichnet. Sie können ablehnen und ohne Aufzeichnung teilnehmen oder später widerrufen.",
+    "purpose": "Zweck: eine Videoaufzeichnung dieser Besprechung erstellen und in der zugehörigen Akte aufbewahren.",
+    "recipients": "Zugriff: Nur Personen, die zum Zeitpunkt des Zugriffs über Rechte an dieser Akte verfügen, können die Aufzeichnung ansehen.",
+    "retention": "Die Aufzeichnung wird spätestens am {{date}} gelöscht.",
+    "rights": "Rechte: Wenden Sie sich über den üblichen Kommunikationsweg der Akte an den Organisator, um Zugang oder Löschung zu beantragen oder ein anderes Recht auszuüben.",
+    "guestIdentity": "Der angezeigte Name wurde von Ihnen angegeben; Ihre Identität wurde nicht überprüft.",
+    "accept": "Akzeptieren und fortfahren",
+    "refuse": "Aufzeichnung ablehnen",
+    "error": "Ihre Auswahl konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    "starting": "Aufzeichnung wird gestartet",
+    "active": "Aufzeichnung läuft",
+    "stopping": "Aufzeichnung wird beendet",
+    "withdraw": "Einwilligung widerrufen",
+    "stop": "Aufzeichnung beenden",
+    "activationError": "Die Aufzeichnung konnte nicht gestartet werden. Neuer Versuch…",
+    "activationExhausted": "Die Aufzeichnung konnte nicht gestartet werden.",
+    "activationRetry": "Erneut versuchen",
+    "withdrawError": "Die Aufzeichnung konnte nicht beendet werden. Erneut versuchen."
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
   "shareDialog": {
