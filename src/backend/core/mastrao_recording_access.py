@@ -2,6 +2,7 @@
 
 import hashlib
 import html
+import logging
 import secrets
 import time
 from datetime import UTC, datetime
@@ -25,6 +26,7 @@ from core.mastrao_recording_contract import (
 MAX_BODY_BYTES = 20_000
 RETRY_COOKIE = "mastrao_recording_retry"
 SESSION_KEY = "mastrao_recording_download"
+logger = logging.getLogger(__name__)
 
 
 def _headers():
@@ -61,10 +63,19 @@ def _form(request, expected):
 
 def _bootstrap(request):
     if request.headers.get("origin") != settings.MASTRAO_PLATFORM_ORIGIN:
+        logger.warning("Mastrao recording access refused: bootstrap_origin")
         raise RecordingContractRefused()
-    fields = _form(request, {"recording_access_grant"})
+    try:
+        fields = _form(request, {"recording_access_grant"})
+    except RecordingContractRefused:
+        logger.warning("Mastrao recording access refused: bootstrap_form")
+        raise
     compact = fields["recording_access_grant"]
-    grant = verify_recording_access_grant(compact)
+    try:
+        grant = verify_recording_access_grant(compact)
+    except RecordingContractRefused:
+        logger.warning("Mastrao recording access refused: bootstrap_grant")
+        raise
     retry = secrets.token_urlsafe(32)
     retry_digest = hashlib.sha256(retry.encode()).hexdigest()
     remaining = grant["expires_at"] - int(time.time())
@@ -106,6 +117,7 @@ def _consume(request):
     if request.headers.get("sec-fetch-site") != "same-origin" or request.headers.get(
         "origin"
     ) != _origin(request.build_absolute_uri("/")):
+        logger.warning("Mastrao recording access refused: consume_origin")
         raise RecordingContractRefused()
     fields = _form(request, {"stage", "recording_access_grant"})
     if fields["stage"] != "consume":
@@ -117,6 +129,7 @@ def _consume(request):
     compact = fields["recording_access_grant"]
     digest = compact_digest(compact)
     if cache.get(f"mastrao-recording-bootstrap:{retry_digest}") != digest:
+        logger.warning("Mastrao recording access refused: consume_retry")
         raise RecordingContractRefused()
     grant = verify_recording_access_grant(compact)
     binding = (
@@ -133,6 +146,7 @@ def _consume(request):
         .first()
     )
     if not binding or not binding.object_ref:
+        logger.warning("Mastrao recording access refused: consume_binding")
         raise RecordingContractRefused()
     defaults = {
         "recording_binding": binding,
