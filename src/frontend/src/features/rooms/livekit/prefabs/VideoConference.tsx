@@ -137,7 +137,6 @@ export function VideoConference({
         </div>
       )}
       {recording?.mode === 'recorded' &&
-        recording.decision === 'accepted' &&
         ['starting', 'active', 'stopping'].includes(
           recording.recording_state ?? ''
         ) && (
@@ -167,16 +166,17 @@ export function VideoConference({
                       ? 'starting'
                       : 'active'
                 )}
-            {recording.recording_state !== 'stopping' && (
-              <Button
-                size="sm"
-                variant="danger"
-                isDisabled={isWithdrawing}
-                onPress={withdraw}
-              >
-                {tRecording(canEnd ? 'stop' : 'withdraw')}
-              </Button>
-            )}
+            {recording.decision === 'accepted' &&
+              recording.recording_state !== 'stopping' && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  isDisabled={isWithdrawing}
+                  onPress={withdraw}
+                >
+                  {tRecording(canEnd ? 'stop' : 'withdraw')}
+                </Button>
+              )}
           </div>
         )}
       <MediaStateObserver />

@@ -410,7 +410,7 @@ export const Conference = ({
                   padding: '0.75rem 1rem',
                   borderRadius: 'md',
                   backgroundColor: 'danger.100',
-                  color: 'white',
+                  color: 'danger.800',
                 })}
               >
                 {t(
