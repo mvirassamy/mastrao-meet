@@ -1,5 +1,8 @@
 """Strict signed contracts for the canonical Mastrao recording boundary."""
 
+# Strict contract validation keeps all binding predicates visible in one place.
+# pylint: disable=too-many-boolean-expressions
+
 import hashlib
 import json
 import re
@@ -48,6 +51,8 @@ STOP_REQUEST_TYPE = "mastrao.meet-recording-stop-request"
 STOP_REQUEST_JOSE_TYPE = "mastrao-meeting-recording-stop-request+jws"
 ARTIFACT_RECEIPT_TYPE = "mastrao.meeting-recording-artifact-receipt"
 ARTIFACT_RECEIPT_JOSE_TYPE = "mastrao-meeting-recording-artifact-receipt+jws"
+FAILURE_RECEIPT_TYPE = "mastrao.meeting-recording-failure-receipt"
+FAILURE_RECEIPT_JOSE_TYPE = "mastrao-meeting-recording-failure-receipt+jws"
 ACCESS_GRANT_TYPE = "mastrao.core-meeting-recording-access-grant"
 ACCESS_GRANT_JOSE_TYPE = "mastrao-meeting-recording-access-grant+jws"
 
@@ -76,6 +81,7 @@ START_EFFECT_FIELDS = {
     "operation_version",
     *EFFECT_BINDING_FIELDS,
     *POLICY_FIELDS,
+    "resolve_only",
     "issued_at",
     "expires_at",
     "jti",
@@ -287,6 +293,7 @@ def verify_recording_start_effect(compact_jws):
         or effect.get("operation") != "start_room_composite_recording"
         or effect.get("purpose") != PURPOSE
         or effect.get("scope") != SCOPE
+        or not isinstance(effect.get("resolve_only"), bool)
     ):
         raise RecordingContractRefused()
     for name in ("policy_ref", "notice_version"):
@@ -374,27 +381,38 @@ def build_stop_receipt_claims(effect, observation):
 
 
 def sign_start_receipt(claims):
+    """Sign one exact start receipt."""
     return _sign(claims, START_RECEIPT_JOSE_TYPE)
 
 
 def sign_stop_receipt(claims):
+    """Sign one exact stop receipt."""
     return _sign(claims, STOP_RECEIPT_JOSE_TYPE)
 
 
 def sign_decision_assertion(payload):
+    """Sign one participant recording decision."""
     return _sign(payload, DECISION_JOSE_TYPE)
 
 
 def sign_activation_assertion(payload):
+    """Sign one host activation assertion."""
     return _sign(payload, ACTIVATION_JOSE_TYPE)
 
 
 def sign_stop_request_assertion(payload):
+    """Sign one host stop assertion."""
     return _sign(payload, STOP_REQUEST_JOSE_TYPE)
 
 
 def sign_artifact_receipt(payload):
+    """Sign one verified artifact receipt."""
     return _sign(payload, ARTIFACT_RECEIPT_JOSE_TYPE)
+
+
+def sign_failure_receipt(payload):
+    """Sign one provider terminal failure receipt."""
+    return _sign(payload, FAILURE_RECEIPT_JOSE_TYPE)
 
 
 def verify_recording_access_grant(compact_jws):

@@ -120,6 +120,7 @@
     "stopping": "Recording is stopping",
     "withdraw": "Withdraw consent",
     "stop": "Stop recording",
+    "activationError": "Recording could not start. Retrying…",
     "withdrawError": "Recording could not be stopped. Try again."
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",

@@ -120,6 +120,7 @@
     "stopping": "Arrêt de l’enregistrement en cours",
     "withdraw": "Retirer mon accord",
     "stop": "Arrêter l’enregistrement",
+    "activationError": "L’enregistrement n’a pas pu démarrer. Nouvelle tentative…",
     "withdrawError": "L’enregistrement n’a pas pu être arrêté. Réessayez."
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",

@@ -69,6 +69,9 @@ export const Conference = ({
   const fetchKey = [keys.room, roomId]
 
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)
+  const [isLiveKitConnected, setIsLiveKitConnected] = useState(false)
+  const [activationFailed, setActivationFailed] = useState(false)
+  const [activationRetry, setActivationRetry] = useState(0)
 
   const userPreferencesSnap = useSnapshot(userPreferencesStore)
 
@@ -105,8 +108,17 @@ export const Conference = ({
       const state = (query.state.data as ApiRoom | undefined)?.recording
         ?.recording_state
       return state &&
-        ['authorized', 'starting', 'stopping', 'processing'].includes(state)
-        ? 1000
+        [
+          'collecting',
+          'authorized',
+          'starting',
+          'active',
+          'stopping',
+          'processing',
+        ].includes(state)
+        ? state === 'active'
+          ? 2000
+          : 1000
         : false
     },
     refetchIntervalInBackground: true,
@@ -194,6 +206,62 @@ export const Conference = ({
     `activation_${crypto.randomUUID().replaceAll('-', '')}`
   )
   const activationSent = useRef(false)
+  const activationAttempts = useRef(0)
+
+  useEffect(() => {
+    const recording = data?.recording
+    const shouldActivate =
+      isLiveKitConnected &&
+      data?.can_end &&
+      recording?.mode === 'recorded' &&
+      recording.decision === 'accepted' &&
+      ['collecting', 'authorized'].includes(recording.recording_state ?? '')
+
+    if (!shouldActivate) {
+      if (recording?.recording_state !== 'collecting') {
+        activationAttempts.current = 0
+        setActivationFailed(false)
+      }
+      return
+    }
+    if (activationSent.current || activationAttempts.current >= 3) return
+
+    activationSent.current = true
+    activationAttempts.current += 1
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    void activateRecording(roomId, activationRequestId.current)
+      .then(async () => {
+        await refetchRoom()
+        activationAttempts.current = 0
+        setActivationFailed(false)
+      })
+      .catch((error) => {
+        setActivationFailed(true)
+        reportError('livekit_room_error', error, {
+          path: 'recording_activation_after_livekit_connected',
+        })
+        if (activationAttempts.current < 3) {
+          retryTimer = setTimeout(
+            () => setActivationRetry((value) => value + 1),
+            1000 * 2 ** (activationAttempts.current - 1)
+          )
+        }
+      })
+      .finally(() => {
+        activationSent.current = false
+      })
+
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer)
+    }
+  }, [
+    activationRetry,
+    data?.can_end,
+    data?.recording,
+    isLiveKitConnected,
+    refetchRoom,
+    roomId,
+  ])
 
   /*
    * Ensure stable WebSocket connection URL. This is critical for legacy browser compatibility
@@ -254,26 +322,7 @@ export const Conference = ({
             })
           }}
           onConnected={async () => {
-            if (
-              data?.can_end &&
-              data.recording?.mode === 'recorded' &&
-              data.recording.decision === 'accepted' &&
-              ['collecting', 'authorized'].includes(
-                data.recording.recording_state ?? ''
-              ) &&
-              !activationSent.current
-            ) {
-              activationSent.current = true
-              try {
-                await activateRecording(roomId, activationRequestId.current)
-                await refetchRoom()
-              } catch (error) {
-                activationSent.current = false
-                reportError('livekit_room_error', error, {
-                  path: 'recording_activation_after_livekit_connected',
-                })
-              }
-            }
+            setIsLiveKitConnected(true)
             if (!apiConfig) return
             if (
               userPreferencesSnap.is_auto_mute_large_room_enabled &&
@@ -287,6 +336,7 @@ export const Conference = ({
             }
           }}
           onDisconnected={(e) => {
+            setIsLiveKitConnected(false)
             const metadata = {
               room_id: roomId,
               pc_publisher: connectionObserverStore.publisher && {
@@ -342,6 +392,24 @@ export const Conference = ({
         >
           <MeetingLifecycleProvider key={roomId}>
             <WatchMediaDeviceErrors />
+            {activationFailed && (
+              <div
+                role="alert"
+                className={css({
+                  position: 'absolute',
+                  top: '1rem',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1002,
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'md',
+                  backgroundColor: 'danger.100',
+                  color: 'white',
+                })}
+              >
+                {t('recordingConsent.activationError')}
+              </div>
+            )}
             <VideoConference
               roomId={roomId}
               canEnd={data?.can_end}

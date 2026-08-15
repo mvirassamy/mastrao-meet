@@ -1,7 +1,10 @@
 """Private adapter for exact canonical Mastrao recording effects."""
 
+# Generated LiveKit symbols and strict binding predicates are intentionally explicit.
+# pylint: disable=no-member,too-many-boolean-expressions,too-many-branches,missing-function-docstring
+
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -25,6 +28,7 @@ from core.mastrao_recording_contract import (
     verify_recording_start_effect,
     verify_recording_stop_effect,
 )
+from core.mastrao_recording_failure import report_mastrao_recording_failure
 from core.recording.worker.exceptions import RecordingStartError, RecordingStopError
 from core.recording.worker.factories import get_worker_service
 from core.recording.worker.mediator import WorkerServiceMediator
@@ -226,6 +230,12 @@ def _apply_start(effect):
         recording.worker_id = provider_egress.egress_id
         recording.status = models.RecordingStatusChoices.ACTIVE
         recording.save(update_fields=["worker_id", "status", "updated_at"])
+    elif effect["resolve_only"]:
+        if timezone.now() - local_effect.created_at >= timedelta(seconds=30):
+            # A previously accepted start with no matching provider Egress is
+            # terminal after the provider registration grace period.
+            report_mastrao_recording_failure(recording, None)
+        raise RecordingContractRefused(status=503)
     elif not first_delivery:
         raise RecordingContractRefused(status=503)
     elif recording.status == models.RecordingStatusChoices.INITIATED:

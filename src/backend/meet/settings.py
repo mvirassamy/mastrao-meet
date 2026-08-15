@@ -56,6 +56,7 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "recording_stop_effect",
     "recording_stop_receipt",
     "recording_artifact_receipt",
+    "recording_failure_receipt",
     "recording_access_grant",
     "object_ref",
 )
@@ -217,6 +218,11 @@ class Base(Configuration):
     MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT",
         environ_prefix=None,
     )
     MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS = values.FloatValue(

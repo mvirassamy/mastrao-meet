@@ -120,6 +120,7 @@
     "stopping": "Aufzeichnung wird beendet",
     "withdraw": "Einwilligung widerrufen",
     "stop": "Aufzeichnung beenden",
+    "activationError": "Die Aufzeichnung konnte nicht gestartet werden. Neuer Versuch…",
     "withdrawError": "Die Aufzeichnung konnte nicht beendet werden. Erneut versuchen."
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",

@@ -1,5 +1,8 @@
 """Session-bound recording consent projection for canonical Mastrao rooms."""
 
+# Exact host/guest bindings are intentionally expressed as explicit predicates.
+# pylint: disable=too-many-boolean-expressions
+
 import hashlib
 import time
 from datetime import UTC, datetime
@@ -10,9 +13,13 @@ from django.db import transaction
 
 from core import models
 from core.mastrao_core_http import post_core_json
-from core.mastrao_guest_contract import GuestHandoffRefused, verify_guest_bootstrap
-from core.mastrao_guest_grant import active_guest_compact_grant, active_guest_grant
-from core.mastrao_host_contract import HostHandoffRefused, verify_host_grant
+from core.mastrao_guest_contract import verify_guest_bootstrap
+from core.mastrao_guest_grant import (
+    CANONICAL_ROOM_SLUG,
+    active_guest_compact_grant,
+    active_guest_grant,
+)
+from core.mastrao_host_contract import verify_host_grant
 from core.mastrao_host_grant import active_host_compact_grant, active_host_grant
 from core.mastrao_recording_contract import (
     ACTIVATION_TYPE,
@@ -178,6 +185,14 @@ def _sync_binding(room, status):
 def recording_session_status(request, room):
     """Fetch the authoritative Core projection for an exact browser grant."""
 
+    # Native Meet rooms must keep the legacy, zero-I/O path when the feature is
+    # disabled. Canonical room slugs are reserved for Mastrao room bindings, so
+    # only those rooms need the durable-binding lookup required by rollback.
+    if (
+        not settings.MASTRAO_MEETING_RECORDING_ENABLED
+        and not CANONICAL_ROOM_SLUG.fullmatch(room.slug or "")
+    ):
+        return None
     if not hasattr(room, "mastrao_binding"):
         return None
     if not settings.MASTRAO_MEETING_RECORDING_ENABLED and not (
@@ -190,7 +205,10 @@ def recording_session_status(request, room):
     status = post_core_json(
         endpoint=settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT,
         expected_path="/internal/v1/meetings/recording/session-status",
-        body={"participant_grant": participant["compact"]},
+        body={
+            "participant_grant": participant["compact"],
+            "participant_session_digest": participant["session_digest"],
+        },
         timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
         refusal=RecordingContractRefused,
     )

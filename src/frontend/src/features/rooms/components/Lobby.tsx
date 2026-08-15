@@ -15,7 +15,7 @@ import { useUser } from '@/features/auth/api/useUser'
 import { useConfig } from '@/api/useConfig'
 import { saveUsername, userStore } from '@/stores/user'
 import { fetchRoom } from '../api/fetchRoom'
-import { ApiAccessLevel } from '../api/ApiRoom'
+import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
 import { ApiLobbyStatus, type ApiRequestEntry } from '../api/requestEntry'
 import { useLobby } from '../hooks/useLobby'
 import { isMastraoRoomId } from '../utils/isRoomValid'
@@ -50,12 +50,29 @@ export const Lobby = ({
     staleTime: 6 * 60 * 60 * 1000, // By default, LiveKit access tokens expire 6 hours after generation
     retry: false,
     enabled: isMastraoRoomId(roomId),
+    refetchInterval: (query) => {
+      const state = (query.state.data as ApiRoom | undefined)?.recording
+        ?.recording_state
+      return state &&
+        [
+          'collecting',
+          'authorized',
+          'starting',
+          'active',
+          'stopping',
+          'processing',
+        ].includes(state)
+        ? 1000
+        : false
+    },
+    refetchIntervalInBackground: true,
   })
 
   const handleAccepted = (response: ApiRequestEntry) => {
     queryClient.setQueryData([keys.room, roomId], {
       ...roomData,
       livekit: response.livekit,
+      ...(response.recording ? { recording: response.recording } : {}),
     })
     enterRoom()
   }

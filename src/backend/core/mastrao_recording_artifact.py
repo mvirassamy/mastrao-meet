@@ -1,5 +1,8 @@
 """Finalize one verified RoomComposite MP4 with Cabinet Core."""
 
+# The immutable storage snapshot deliberately carries every value revalidated later.
+# pylint: disable=too-many-instance-attributes
+
 import hashlib
 import json
 import time
@@ -98,7 +101,25 @@ def _persist_artifact_receipt(snapshot, size, checksum):
             pk=snapshot.binding_id
         )
         if binding.artifact_receipt_claims:
-            return dict(binding.artifact_receipt_claims)
+            claims = dict(binding.artifact_receipt_claims)
+            now = int(time.time())
+            if claims.get("expires_at", 0) >= now:
+                return claims
+            claims.update(
+                issued_at=now,
+                expires_at=now + 30,
+                jti=f"artifact_{uuid4().hex}",
+            )
+            binding.artifact_receipt_claims = claims
+            binding.artifact_receipt_digest = _canonical_digest(claims)
+            binding.save(
+                update_fields=[
+                    "artifact_receipt_claims",
+                    "artifact_receipt_digest",
+                    "updated_at",
+                ]
+            )
+            return claims
         if (
             binding.recording_id != snapshot.recording_id
             or binding.updated_at != snapshot.binding_version
@@ -164,7 +185,8 @@ def _prepare_artifact_receipt(recording):
 
     snapshot = _snapshot_artifact(recording)
     if snapshot.replay_claims is not None:
-        return snapshot.binding_model, snapshot.binding_id, snapshot.replay_claims
+        claims = _persist_artifact_receipt(snapshot, 0, "")
+        return snapshot.binding_model, snapshot.binding_id, claims
     size, checksum = _inspect_object(snapshot.object_ref)
     claims = _persist_artifact_receipt(snapshot, size, checksum)
     return snapshot.binding_model, snapshot.binding_id, claims

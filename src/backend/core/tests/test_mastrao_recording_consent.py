@@ -34,6 +34,7 @@ from core.mastrao_recording_contract import (
     RecordingContractRefused,
     build_start_receipt_claims,
 )
+from core.mastrao_recording_reconciler import reconcile_mastrao_recording
 from core.mastrao_recording_session import (
     activate_recording,
     media_allowed,
@@ -85,6 +86,7 @@ def test_livekit_egress_reference_is_a_valid_provider_receipt_reference():
 def test_feature_off_does_not_call_core_or_change_native_projection(settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     room = mock.Mock()
+    room.slug = "native-room"
     room.mastrao_binding = mock.Mock()
     with (
         mock.patch(
@@ -105,6 +107,7 @@ def test_feature_off_keeps_existing_recording_policy_fail_closed(settings):
     participant = {
         "kind": "guest",
         "compact": "header.payload.signature",
+        "session_digest": "d" * 64,
         "claims": {
             "organization_external_id": "organization_0123456789",
             "meeting_ref": "meeting_0123456789abcdef",
@@ -112,6 +115,7 @@ def test_feature_off_keeps_existing_recording_policy_fail_closed(settings):
         },
     }
     room = mock.Mock()
+    room.slug = "room_0123456789abcdef0123456789abcdef"
     room.mastrao_binding.room_ref = participant["claims"]["room_ref"]
     status = {
         "version": 1,
@@ -162,6 +166,7 @@ def test_session_status_posts_only_the_bound_participant_grant(settings):
     participant = {
         "kind": "guest",
         "compact": "header.payload.signature",
+        "session_digest": "d" * 64,
         "claims": {
             "organization_external_id": "organization_0123456789",
             "meeting_ref": "meeting_0123456789abcdef",
@@ -189,7 +194,8 @@ def test_session_status_posts_only_the_bound_participant_grant(settings):
             "participant_kind": "guest",
         }
     assert post_core_json.call_args.kwargs["body"] == {
-        "participant_grant": "header.payload.signature"
+        "participant_grant": "header.payload.signature",
+        "participant_session_digest": "d" * 64,
     }
 
 
@@ -411,6 +417,7 @@ def test_start_retry_discovers_exact_egress_without_starting_again(db, settings)
         "retention_expires_at": int((timezone.now() + timedelta(days=30)).timestamp()),
         "effect_key": "effect_start_retry_012345",
         "arguments_digest": "d" * 64,
+        "resolve_only": False,
         "jti": "request_start_retry_012345",
     }
     binding, _, _ = _prepare_start(effect)
@@ -436,6 +443,37 @@ def test_start_retry_discovers_exact_egress_without_starting_again(db, settings)
     binding.refresh_from_db()
     assert binding.provider_recording_ref == provider.egress_id
     assert models.Recording.objects.filter(room=room).count() == 1
+
+
+def test_resolve_only_start_without_provider_converges_after_grace_period():
+    recording = SimpleNamespace(status=models.RecordingStatusChoices.INITIATED)
+    recording_binding = SimpleNamespace(recording_id="recording-id")
+    local_effect = SimpleNamespace(
+        state=models.MastraoRecordingEffect.State.APPLYING,
+        created_at=timezone.now() - timedelta(seconds=31),
+    )
+    effect = {"resolve_only": True}
+    with (
+        mock.patch(
+            "core.mastrao_recording_adapter._prepare_start",
+            return_value=(recording_binding, local_effect, False),
+        ),
+        mock.patch(
+            "core.mastrao_recording_adapter.models.Recording.objects.select_related"
+        ) as recordings,
+        mock.patch(
+            "core.mastrao_recording_adapter._exact_provider_egress",
+            return_value=None,
+        ),
+        mock.patch(
+            "core.mastrao_recording_adapter.report_mastrao_recording_failure"
+        ) as report_failure,
+    ):
+        recordings.return_value.get.return_value = recording
+        with pytest.raises(RecordingContractRefused) as refusal:
+            _apply_start(effect)
+    assert refusal.value.status == 503
+    report_failure.assert_called_once_with(recording, None)
 
 
 def test_stop_response_loss_reconciles_terminal_exact_egress(db):
@@ -478,6 +516,47 @@ def test_stop_response_loss_reconciles_terminal_exact_egress(db):
         assert _apply_stop(effect) == "receipt.payload.signature"
     binding.refresh_from_db()
     assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
+
+
+def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings):
+    access, _ = _artifact_access()
+    binding = access.recording_binding
+    recording = binding.recording
+    recording.status = models.RecordingStatusChoices.ACTIVE
+    recording.worker_id = "EG_oju7PDAhx8k7"
+    recording.save(update_fields=["status", "worker_id", "updated_at"])
+    binding.state = models.MastraoRecordingBinding.State.ACTIVE
+    binding.provider_recording_ref = recording.worker_id
+    binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
+    settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = (
+        "http://cabinet-core:3911/internal/v1/meetings/recording/failures"
+    )
+    failed = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_FAILED)
+    with (
+        mock.patch(
+            "core.mastrao_recording_reconciler._exact_provider_egress",
+            return_value=failed,
+        ),
+        mock.patch(
+            "core.mastrao_recording_failure.sign_failure_receipt",
+            return_value="failure.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_recording_failure.post_core_json",
+            return_value={"recordingRef": binding.recording_ref, "state": "failed"},
+        ) as post_core_json,
+    ):
+        assert reconcile_mastrao_recording(binding)
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.FAILED
+    post_core_json.assert_called_once_with(
+        endpoint=settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT,
+        expected_path="/internal/v1/meetings/recording/failures",
+        body={"recording_failure_receipt": "failure.payload.signature"},
+        timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
+        refusal=RecordingContractRefused,
+        expected_fields={"recordingRef", "state"},
+    )
 
 
 def _artifact_access():
@@ -802,6 +881,13 @@ def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
     first_claims = dict(binding.artifact_receipt_claims)
     assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
     assert first_claims["artifact_ref"] == binding.artifact_ref
+    expired_claims = {
+        **first_claims,
+        "issued_at": int(time.time()) - 31,
+        "expires_at": int(time.time()) - 1,
+    }
+    binding.artifact_receipt_claims = expired_claims
+    binding.save(update_fields=["artifact_receipt_claims", "updated_at"])
 
     with (
         mock.patch(
@@ -820,4 +906,11 @@ def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
     storage_open.assert_not_called()
     binding.refresh_from_db()
     assert binding.state == models.MastraoRecordingBinding.State.FINALIZED
-    assert binding.artifact_receipt_claims == first_claims
+    assert binding.artifact_receipt_claims["jti"] != first_claims["jti"]
+    assert (
+        binding.artifact_receipt_claims["artifact_ref"] == first_claims["artifact_ref"]
+    )
+    assert (
+        binding.artifact_receipt_claims["checksum_digest"]
+        == first_claims["checksum_digest"]
+    )
