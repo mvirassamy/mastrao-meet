@@ -292,6 +292,11 @@ backend:
   ## @param backend.cronjobs[2].name Name of the recording reconciliation CronJob
   ## @param backend.cronjobs[2].schedule Recording reconciliation schedule
   ## @param backend.cronjobs[2].command Recording reconciliation command
+  ## @extra backend.cronjobs[].concurrencyPolicy Kubernetes CronJob concurrency policy
+  ## @extra backend.cronjobs[].startingDeadlineSeconds Maximum delay before a missed schedule is skipped
+  ## @extra backend.cronjobs[].backoffLimit Maximum job retries
+  ## @extra backend.cronjobs[].activeDeadlineSeconds Maximum job execution duration
+  ## @extra backend.cronjobs[].ttlSecondsAfterFinished Retention of completed Job resources
 
   cronjobs:
     - name: clean-pending-files

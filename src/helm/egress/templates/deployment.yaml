@@ -1,0 +1,92 @@
+{{- $digest := required "image.digest must pin an immutable sha256 digest" .Values.image.digest -}}
+{{- $secretName := required "existingConfigSecret.name is required" .Values.existingConfigSecret.name -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mastrao-recording-egress.fullname" . }}
+  labels:
+    {{- include "mastrao-recording-egress.labels" . | nindent 4 }}
+spec:
+  replicas: {{ max 1 (int .Values.replicaCount) }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "mastrao-recording-egress.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        mastrao.io/max-concurrent-recordings: {{ mul (max 1 (int .Values.replicaCount)) (max 1 (int .Values.maxConcurrentRecordingsPerReplica)) | quote }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "mastrao-recording-egress.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "mastrao-recording-egress.fullname" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ max 3600 (int .Values.terminationGracePeriodSeconds) }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: egress
+          image: {{ printf "%s@%s" .Values.image.repository $digest | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: EGRESS_CONFIG_FILE
+              value: /etc/egress/config.yaml
+          ports:
+            - name: health
+              containerPort: {{ .Values.health.port }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: health
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: health
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: health
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: egress-config
+              mountPath: /etc/egress
+              readOnly: true
+      volumes:
+        - name: egress-config
+          secret:
+            secretName: {{ $secretName }}
+            items:
+              - key: {{ .Values.existingConfigSecret.key }}
+                path: config.yaml
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

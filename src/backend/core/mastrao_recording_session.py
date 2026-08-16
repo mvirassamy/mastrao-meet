@@ -114,6 +114,8 @@ def _validate_status(status, participant, room):
     if status["mode"] == "recorded" and (
         status["purpose"] != PURPOSE
         or status["scope"] != SCOPE
+        or status["notice_version"] != settings.MASTRAO_RECORDING_NOTICE_VERSION
+        or status["notice_digest"] != settings.MASTRAO_RECORDING_NOTICE_DIGEST
         or status["decision"] not in {"absent", "accepted", "refused", "withdrawn"}
         or status["recording_state"]
         not in CAPTURE_STATES | NO_CAPTURE_STATES | {"stopping"}

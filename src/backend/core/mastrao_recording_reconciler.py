@@ -3,6 +3,10 @@
 # LiveKit's generated enum members are not visible to pylint.
 # pylint: disable=no-member
 
+import logging
+
+from django.utils import timezone
+
 from livekit import api as livekit_api
 
 from core import models
@@ -17,6 +21,8 @@ COMPLETION_STATES = {
     livekit_api.EgressStatus.EGRESS_COMPLETE,
     livekit_api.EgressStatus.EGRESS_LIMIT_REACHED,
 }
+
+logger = logging.getLogger(__name__)
 
 
 def reconcile_mastrao_recording(binding):
@@ -56,6 +62,22 @@ def reconcile_mastrao_recordings(limit=20):
     )
     reconciled = 0
     for binding in bindings:
-        if reconcile_mastrao_recording(binding):
-            reconciled += 1
+        try:
+            if reconcile_mastrao_recording(binding):
+                reconciled += 1
+            else:
+                models.MastraoRecordingBinding.objects.filter(pk=binding.pk).update(
+                    updated_at=timezone.now()
+                )
+        # A bounded scheduler must keep progressing when one provider object or
+        # Core receipt is temporarily invalid. The exception remains observable
+        # without logging room, meeting or recording references.
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Mastrao recording reconciliation item failed")
+            # Move a poison item behind the rest of the bounded queue. This
+            # preserves retryability while preventing the oldest failing rows
+            # from occupying every subsequent batch.
+            models.MastraoRecordingBinding.objects.filter(pk=binding.pk).update(
+                updated_at=timezone.now()
+            )
     return reconciled

@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -28,6 +28,7 @@ from core.mastrao_recording_contract import (
 
 MAX_BODY_BYTES = 20_000
 RETRY_COOKIE = "mastrao_recording_retry"
+RETRY_COOKIE_PATH = "/recordings/"
 SESSION_KEY = "mastrao_recording_download"
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ def _bootstrap(request):
         httponly=True,
         secure=request.is_secure(),
         samesite="Lax",
-        path="/recordings/",
+        path=RETRY_COOKIE_PATH,
     )
     return response
 
@@ -235,8 +236,15 @@ def _consume(request):
 def recording_access(request):
     """Bootstrap then consume a short access grant without URL disclosure."""
 
-    if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
-        return JsonResponse({"message": "Not found"}, status=404, headers=_headers())
+    if not (
+        settings.MASTRAO_MEETING_RECORDING_ENABLED
+        and settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED
+    ):
+        return _html_page(
+            "Enregistrement indisponible",
+            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
+            status=404,
+        )
     try:
         fields = _bounded_post(request)
         if set(fields) == {"recording_access_grant"}:
@@ -245,10 +253,10 @@ def recording_access(request):
             return _consume(request)
         raise RecordingContractRefused()
     except RecordingContractRefused as error:
-        return JsonResponse(
-            {"message": "Not found" if error.status == 404 else "Unavailable"},
+        return _html_page(
+            "Enregistrement indisponible",
+            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
             status=error.status,
-            headers=_headers(),
         )
 
 
@@ -358,6 +366,8 @@ def recording_download(request):
     """Prepare once, then atomically stream once from the same clean URL."""
 
     try:
+        if not settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED:
+            raise RecordingContractRefused()
         session, retry_digest = _download_session(request)
         if session.get("stage") == "ready":
             session["stage"] = "prepared"
@@ -372,8 +382,10 @@ def recording_download(request):
         return _stream_once(request, session, retry_digest)
     except RecordingContractRefused:
         request.session.pop(SESSION_KEY, None)
-        return _html_page(
+        response = _html_page(
             "Enregistrement indisponible",
             "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
             status=404,
         )
+        response.delete_cookie(RETRY_COOKIE, path=RETRY_COOKIE_PATH)
+        return response

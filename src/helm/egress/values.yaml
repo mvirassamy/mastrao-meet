@@ -1,0 +1,49 @@
+replicaCount: 1
+maxConcurrentRecordingsPerReplica: 1
+terminationGracePeriodSeconds: 18000
+
+image:
+  repository: livekit/egress
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# The trusted executor creates this Secret. Its config.yaml contains the
+# LiveKit, Redis and S3-compatible endpoints and credentials. The chart never
+# renders those values into a ConfigMap or release values.
+existingConfigSecret:
+  name: ""
+  key: config.yaml
+
+health:
+  port: 8080
+  path: /
+
+metrics:
+  port: 9090
+  serviceAnnotations: {}
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: false
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  # RoomComposite uses Chromium's kernel sandbox. SYS_ADMIN and privilege
+  # escalation are isolated to dedicated recording nodes; no Kubernetes API
+  # token or RBAC permission is mounted into the pod.
+  allowPrivilegeEscalation: true
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - SYS_ADMIN
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

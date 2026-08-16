@@ -185,7 +185,10 @@ def _prepare_start(effect):
     )
     if existing:
         return recording_binding, _exact_effect(existing, effect, "start"), False
-    if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
+    if not (
+        settings.MASTRAO_MEETING_RECORDING_ENABLED
+        and settings.MASTRAO_MEETING_RECORDING_START_ENABLED
+    ):
         raise RecordingContractRefused()
     created = models.MastraoRecordingEffect.objects.create(
         recording_binding=recording_binding,

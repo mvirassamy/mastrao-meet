@@ -171,6 +171,25 @@ class Base(Configuration):
         environ_name="MASTRAO_MEETING_RECORDING_ENABLED",
         environ_prefix=None,
     )
+    # Rollout controls deliberately separate starting new provider work from
+    # serving already governed artifacts. Both default closed; disabling either
+    # must never disable stop, observation, finalization or reconciliation.
+    MASTRAO_MEETING_RECORDING_START_ENABLED = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_MEETING_RECORDING_START_ENABLED",
+        environ_prefix=None,
+    )
+    MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED",
+        environ_prefix=None,
+    )
+    MASTRAO_RECORDING_NOTICE_VERSION = values.Value(
+        "", environ_name="MASTRAO_RECORDING_NOTICE_VERSION", environ_prefix=None
+    )
+    MASTRAO_RECORDING_NOTICE_DIGEST = values.Value(
+        "", environ_name="MASTRAO_RECORDING_NOTICE_DIGEST", environ_prefix=None
+    )
     MASTRAO_RECORDING_EFFECT_ISSUER = values.Value(
         "", environ_name="MASTRAO_RECORDING_EFFECT_ISSUER", environ_prefix=None
     )

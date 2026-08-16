@@ -1,0 +1,13 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "mastrao-recording-egress.fullname" . }}
+  labels:
+    {{- include "mastrao-recording-egress.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ max 1 (int .Values.podDisruptionBudget.minAvailable) }}
+  selector:
+    matchLabels:
+      {{- include "mastrao-recording-egress.selectorLabels" . | nindent 6 }}
+{{- end }}
