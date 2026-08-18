@@ -14,13 +14,14 @@ from core.mastrao_guest_handoff import (
     establish_mastrao_guest_session,
 )
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
+from core.mastrao_recording_access import recording_access, recording_download
 from core.mastrao_recording_adapter import (
     start_mastrao_recording,
     stop_mastrao_recording,
 )
-from core.mastrao_recording_access import recording_access, recording_download
 from core.mastrao_room_adapter import ensure_mastrao_room
 from core.mastrao_room_close_adapter import close_mastrao_room
+from core.mastrao_transcription_adapter import transcribe_mastrao_recording
 from core.roomkit import viewsets as roomkit_viewsets
 
 # - Main endpoints
@@ -102,6 +103,11 @@ urlpatterns = [
         "internal/mastrao/recordings/stop/",
         stop_mastrao_recording,
         name="stop_mastrao_recording",
+    ),
+    path(
+        "internal/mastrao/transcriptions/transcribe/",
+        transcribe_mastrao_recording,
+        name="transcribe_mastrao_recording",
     ),
     path(
         f"api/{settings.API_VERSION}/",

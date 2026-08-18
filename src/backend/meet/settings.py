@@ -184,6 +184,26 @@ class Base(Configuration):
         environ_name="MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED",
         environ_prefix=None,
     )
+    # Transcription is a distinct processing purpose; the worker enablement
+    # defaults closed so an unconfigured deployment shows zero change.
+    MASTRAO_MEETING_TRANSCRIPTION_ENABLED = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_MEETING_TRANSCRIPTION_ENABLED",
+        environ_prefix=None,
+    )
+    # "fake" keeps qualification provider-free; "real" requires the private
+    # sovereign ASR endpoint below and is never active by default.
+    MASTRAO_TRANSCRIPTION_ASR_MODE = values.Value(
+        "fake", environ_name="MASTRAO_TRANSCRIPTION_ASR_MODE", environ_prefix=None
+    )
+    MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_TRANSCRIPTION_ASR_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS = values.FloatValue(
+        600.0,
+        environ_name="MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
     MASTRAO_RECORDING_NOTICE_VERSION = values.Value(
         "", environ_name="MASTRAO_RECORDING_NOTICE_VERSION", environ_prefix=None
     )
