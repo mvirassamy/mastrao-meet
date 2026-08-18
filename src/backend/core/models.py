@@ -1006,6 +1006,142 @@ class MastraoRecordingArtifactAccess(BaseModel):
         return f"Mastrao recording access {self.grant_jti}"
 
 
+class MastraoTranscriptionBinding(BaseModel):
+    """Exact local projection of one canonical Mastrao transcription."""
+
+    class State(models.TextChoices):
+        """Provider-side lifecycle without claiming Core artifact availability."""
+
+        PREPARED = "prepared", _("Prepared")
+        PROCESSING = "processing", _("Processing")
+        AVAILABLE = "available", _("Available")
+        FAILED = "failed", _("Failed")
+
+    recording_binding = models.OneToOneField(
+        MastraoRecordingBinding,
+        on_delete=models.PROTECT,
+        related_name="transcription_binding",
+    )
+    organization_external_id = models.CharField(max_length=200)
+    meeting_ref = models.CharField(max_length=160)
+    room_ref = models.CharField(max_length=100)
+    recording_ref = models.CharField(max_length=160)
+    transcription_ref = models.CharField(max_length=160, unique=True)
+    artifact_ref = models.CharField(max_length=160)
+    provider_binding_digest = models.CharField(max_length=64)
+    artifact_checksum_digest = models.CharField(max_length=64)
+    artifact_byte_size = models.PositiveBigIntegerField()
+    purpose = models.CharField(max_length=64, default="meeting_transcription")
+    scope = models.CharField(max_length=80, default="recording_artifact_audio")
+    state = models.CharField(
+        max_length=20,
+        choices=State.choices,
+        default=State.PREPARED,
+    )
+    transcript_artifact_ref = models.CharField(
+        max_length=160, unique=True, null=True, blank=True
+    )
+    object_ref = models.CharField(max_length=1024, null=True, blank=True)
+    content_type = models.CharField(max_length=100, null=True, blank=True)
+    byte_size = models.PositiveBigIntegerField(null=True, blank=True)
+    checksum_algorithm = models.CharField(max_length=20, null=True, blank=True)
+    checksum_digest = models.CharField(max_length=64, null=True, blank=True)
+    segment_count = models.PositiveIntegerField(null=True, blank=True)
+    engine_ref = models.CharField(max_length=160, null=True, blank=True)
+    transcript_verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_transcription_binding"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_transcription_provider_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(artifact_checksum_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_transcription_artifact_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(purpose="meeting_transcription"),
+                name="mastrao_transcription_purpose_fixed",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(scope="recording_artifact_audio"),
+                name="mastrao_transcription_scope_fixed",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao transcription {self.transcription_ref}"
+
+
+class MastraoTranscriptionEffect(BaseModel):
+    """Durable exact Core transcribe effect and replayable receipt."""
+
+    class State(models.TextChoices):
+        APPLYING = "applying", _("Applying")
+        PENDING = "pending", _("Pending")
+        APPLIED = "applied", _("Applied")
+        FAILED = "failed", _("Failed")
+
+    transcription_binding = models.ForeignKey(
+        MastraoTranscriptionBinding,
+        on_delete=models.PROTECT,
+        related_name="effects",
+    )
+    effect_key = models.CharField(max_length=160, unique=True)
+    operation = models.CharField(max_length=16, default="transcribe")
+    arguments_digest = models.CharField(max_length=64)
+    effect_jti = models.CharField(max_length=200, unique=True)
+    state = models.CharField(
+        max_length=12, choices=State.choices, default=State.PENDING
+    )
+    provider_observation = models.CharField(max_length=32, null=True, blank=True)
+    receipt_claims = models.JSONField(default=dict, blank=True)
+    receipt_digest = models.CharField(max_length=64, null=True, blank=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_transcription_effect"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["transcription_binding", "operation"],
+                name="unique_mastrao_transcription_operation",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_transcription_effect_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(operation="transcribe"),
+                name="mastrao_transcription_operation_fixed",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao transcription effect {self.effect_key}"
+
+
+class MastraoActiveSpeakerSample(BaseModel):
+    """Bounded active-speaker timeline sample for one recorded meeting."""
+
+    recording_binding = models.ForeignKey(
+        MastraoRecordingBinding,
+        on_delete=models.CASCADE,
+        related_name="active_speaker_samples",
+    )
+    participant_ref = models.CharField(max_length=200)
+    speaking_started_at_ms = models.PositiveBigIntegerField()
+    speaking_ended_at_ms = models.PositiveBigIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_active_speaker_sample"
+        ordering = ("speaking_started_at_ms",)
+
+    def __str__(self):
+        return f"Mastrao active speaker sample {self.pk}"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 
