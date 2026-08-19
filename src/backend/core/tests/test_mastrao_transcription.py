@@ -5,25 +5,33 @@
 
 import hashlib
 import json
-from types import SimpleNamespace
 from unittest import mock
 
+from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 
 import pytest
 
 from core import models
 from core.factories import RoomFactory, UserFactory
+from core.mastrao_recording_contract import RecordingContractRefused
+from core.mastrao_recording_session import (
+    public_projection,
+    record_transcription_decision,
+)
 from core.mastrao_transcription_adapter import (
     _apply_transcription,
+    _notify_core_artifact,
     _prepare_transcription,
     transcribe_mastrao_recording,
 )
 from core.mastrao_transcription_artifact import map_speakers, persist_transcript
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
+    TranscriptionPipelineFailed,
     build_submit_receipt_claims,
     build_transcript_artifact_receipt_claims,
+    build_transcription_failure_receipt_claims,
 )
 from core.mastrao_transcription_worker import (
     FAKE_ENGINE_REF,
@@ -121,7 +129,7 @@ def test_real_mode_without_endpoint_fails_closed(settings):
 
 def test_speaker_mapping_falls_back_to_stable_anonymous_indexes():
     transcript = transcribe_audio(b"mapping fallback audio")
-    mapped = map_speakers(json.loads(json.dumps(transcript)), samples=[])
+    mapped = map_speakers(json.loads(json.dumps(transcript)))
     indexes = {
         segment["speaker"]["index"]
         for segment in mapped["segments"]
@@ -132,41 +140,6 @@ def test_speaker_mapping_falls_back_to_stable_anonymous_indexes():
         segment["speaker"]["kind"] == "anonymous" for segment in mapped["segments"]
     )
     assert indexes == set(range(1, len(indexes) + 1))
-
-
-def test_speaker_mapping_uses_dominant_active_speaker_overlap():
-    transcript = {
-        "version": 1,
-        "engine_ref": FAKE_ENGINE_REF,
-        "language": "fr",
-        "segments": [
-            {
-                "segment_id": "segment_x_0000",
-                "start_ms": 0,
-                "end_ms": 4000,
-                "speaker": {"kind": "acoustic", "ref": "SPEAKER_0"},
-                "text": "dossier",
-                "confidence": 0.9,
-            }
-        ],
-    }
-    samples = [
-        SimpleNamespace(
-            participant_ref="participant_alpha",
-            speaking_started_at_ms=0,
-            speaking_ended_at_ms=3500,
-        ),
-        SimpleNamespace(
-            participant_ref="participant_beta",
-            speaking_started_at_ms=3500,
-            speaking_ended_at_ms=4000,
-        ),
-    ]
-    mapped = map_speakers(transcript, samples)
-    assert mapped["segments"][0]["speaker"] == {
-        "kind": "participant",
-        "label": "participant_alpha",
-    }
 
 
 def test_feature_off_refuses_new_effects_without_side_effects(settings):
@@ -213,6 +186,7 @@ def test_apply_transcription_persists_effect_and_binding_states():
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
     ):
         assert _apply_transcription(effect) == "receipt.payload.signature"
     transcription = models.MastraoTranscriptionBinding.objects.get(
@@ -238,6 +212,7 @@ def test_exact_replay_returns_receipt_without_second_transcription():
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
     ):
         assert _apply_transcription(effect) == "receipt.payload.signature"
         assert _apply_transcription(effect) == "receipt.payload.signature"
@@ -256,6 +231,7 @@ def test_divergent_replay_is_refused_with_conflict():
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
     ):
         _apply_transcription(effect)
     with pytest.raises(TranscriptionContractRefused) as refusal:
@@ -308,7 +284,7 @@ def test_persist_transcript_is_checksummed_and_idempotent(settings, tmp_path):
             "OPTIONS": {"location": str(tmp_path / "static")},
         },
     }
-    transcript = map_speakers(transcribe_audio(b"persisted audio"), samples=[])
+    transcript = map_speakers(transcribe_audio(b"persisted audio"))
     artifact = persist_transcript("transcription_persist_01234", transcript)
     replay = persist_transcript("transcription_persist_01234", transcript)
     payload = json.dumps(
@@ -377,9 +353,227 @@ def test_endpoint_returns_signed_receipt_for_verified_effect(rf):
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
     ):
         response = transcribe_mastrao_recording(request)
     assert response.status_code == 200
     assert json.loads(response.content) == {
         "transcription_submit_receipt": "receipt.payload.signature"
     }
+
+
+def test_invalid_asr_mode_fails_explicitly(settings):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "typo"
+    with pytest.raises(ImproperlyConfigured):
+        transcribe_audio(b"audio")
+
+
+def test_concurrent_applying_effect_is_refused_without_second_pipeline():
+    binding = _finalized_recording_binding("applying_0123456789")
+    effect = _effect(binding)
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=_fake_artifact(),
+        ) as produce,
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+    ):
+        _prepare_transcription(effect)
+        with pytest.raises(TranscriptionContractRefused) as refusal:
+            _apply_transcription(effect)
+    assert refusal.value.status == 503
+    produce.assert_not_called()
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.APPLYING
+
+
+def test_apply_transcription_notifies_core_of_the_persisted_artifact():
+    binding = _finalized_recording_binding("notify_0123456789ab")
+    effect = _effect(binding)
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=_fake_artifact(),
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact"
+        ) as notify,
+    ):
+        _apply_transcription(effect)
+    notify.assert_called_once_with(effect, _fake_artifact())
+
+
+def test_artifact_notification_posts_signed_receipt_to_core(settings):
+    settings.MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT = (
+        "http://cabinet-core:3911/internal/v1/meetings/transcription/artifacts/finalize"
+    )
+    binding = _finalized_recording_binding("notifypost_01234567")
+    effect = _effect(binding)
+    claims = {"artifact_ref": "transcript_0123456789abcdef"}
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter."
+            "build_transcript_artifact_receipt_claims",
+            return_value=claims,
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_transcript_artifact_receipt",
+            return_value="artifact.receipt.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.post_core_json",
+            return_value={"artifactRef": "transcript_0123456789abcdef"},
+        ) as post,
+    ):
+        _notify_core_artifact(effect, _fake_artifact())
+    post.assert_called_once()
+    body = post.call_args.kwargs["body"]
+    assert body == {"transcription_artifact_receipt": "artifact.receipt.signature"}
+
+
+def test_pipeline_failure_marks_local_state_and_notifies_core():
+    binding = _finalized_recording_binding("failure_0123456789a")
+    effect = _effect(binding)
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            side_effect=TranscriptionPipelineFailed("asr_failed"),
+        ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_failure") as notify,
+    ):
+        with pytest.raises(TranscriptionPipelineFailed):
+            _apply_transcription(effect)
+    notify.assert_called_once_with(effect, "asr_failed")
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
+    transcription = models.MastraoTranscriptionBinding.objects.get()
+    assert transcription.state == models.MastraoTranscriptionBinding.State.FAILED
+
+
+def test_failure_receipt_claims_bind_effect_and_code():
+    binding = _finalized_recording_binding("failclaims_01234567")
+    effect = _effect(binding)
+    claims = build_transcription_failure_receipt_claims(effect, "asr_failed")
+    assert claims["type"] == "mastrao.meeting-transcription-failure-receipt"
+    assert claims["operation"] == "confirm_meeting_transcription_failed"
+    assert claims["failure_code"] == "asr_failed"
+    assert claims["transcription_ref"] == effect["transcription_ref"]
+    assert claims["provider_job_ref"].startswith("asrjob_")
+    with pytest.raises(TranscriptionContractRefused):
+        build_transcription_failure_receipt_claims(effect, "unknown_code")
+
+
+def _transcribed_status(**overrides):
+    status = {
+        "version": 1,
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": "meeting_0123456789abcdef",
+        "room_ref": "room_0123456789abcdef",
+        "mode": "recorded",
+        "recording_ref": "recording_0123456789abcdef",
+        "policy_ref": "policy_0123456789abcdef",
+        "notice_version": "notice_0123456789abcdef",
+        "notice_digest": "a" * 64,
+        "purpose": "meeting_recording",
+        "scope": "room_composite_audio_video_screen",
+        "retention_expires_at": 2_000_000_000,
+        "recording_state": "collecting",
+        "decision": "absent",
+        "transcription_mode": "transcribed",
+        "transcription_notice_version": "notice_transcription_01234",
+        "transcription_notice_digest": "b" * 64,
+        "transcription_decision": "absent",
+    }
+    status.update(overrides)
+    return status
+
+
+def test_transcription_decision_posts_dedicated_purpose_assertion(settings):
+    settings.MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT = (
+        "http://cabinet-core:3911/internal/v1/meetings/transcription/decisions"
+    )
+    participant = {
+        "kind": "guest",
+        "ref": "guest_0123456789abcdef",
+        "session_digest": "d" * 64,
+        "compact": "header.payload.signature",
+        "claims": {},
+    }
+    status = _transcribed_status()
+    room = mock.Mock()
+    room.mastrao_binding.provider_binding_digest = "c" * 64
+    result = {
+        "version": 1,
+        "meeting_ref": status["meeting_ref"],
+        "recording_ref": status["recording_ref"],
+        "purpose": "meeting_transcription",
+        "decision": "accepted",
+    }
+    with (
+        mock.patch(
+            "core.mastrao_recording_session._participant", return_value=participant
+        ),
+        mock.patch(
+            "core.mastrao_recording_session.recording_session_status",
+            return_value=status,
+        ),
+        mock.patch(
+            "core.mastrao_recording_session.sign_transcription_decision_assertion",
+            return_value="decision.assertion.signature",
+        ) as sign,
+        mock.patch(
+            "core.mastrao_recording_session.post_core_json", return_value=result
+        ) as post,
+    ):
+        assert (
+            record_transcription_decision(
+                mock.Mock(), room, "accepted", "consentrequest_0123456789"
+            )
+            == result
+        )
+    payload = sign.call_args.args[0]
+    assert payload["purpose"] == "meeting_transcription"
+    assert payload["scope"] == "recording_artifact_audio_transcript"
+    assert payload["notice_version"] == "notice_transcription_01234"
+    assert payload["notice_digest"] == "b" * 64
+    assert post.call_args.kwargs["body"] == {
+        "participant_grant": "header.payload.signature",
+        "decision_assertion": "decision.assertion.signature",
+    }
+
+
+def test_transcription_decision_refused_when_policy_not_transcribed():
+    status = _transcribed_status(transcription_mode="disabled")
+    del status["transcription_notice_version"]
+    del status["transcription_notice_digest"]
+    del status["transcription_decision"]
+    with (
+        mock.patch("core.mastrao_recording_session._participant"),
+        mock.patch(
+            "core.mastrao_recording_session.recording_session_status",
+            return_value=status,
+        ),
+        mock.patch("core.mastrao_recording_session.post_core_json") as post,
+    ):
+        with pytest.raises(RecordingContractRefused):
+            record_transcription_decision(
+                mock.Mock(), mock.Mock(), "accepted", "consentrequest_0123456789"
+            )
+    post.assert_not_called()
+
+
+def test_public_projection_exposes_transcription_notice_and_decision():
+    projection = public_projection(
+        {**_transcribed_status(), "participant_kind": "guest"}
+    )
+    assert projection["transcription_mode"] == "transcribed"
+    assert projection["transcription_notice_version"] == ("notice_transcription_01234")
+    assert projection["transcription_decision"] == "absent"

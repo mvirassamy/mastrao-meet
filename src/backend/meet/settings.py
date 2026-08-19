@@ -264,6 +264,21 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT",
         environ_prefix=None,
     )
+    MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT",
+        environ_prefix=None,
+    )
     MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS = values.FloatValue(
         5.0,
         environ_name="MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS",

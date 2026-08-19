@@ -32,12 +32,16 @@ from core.mastrao_room_contract import (
 PURPOSE = "meeting_transcription"
 SCOPE = "recording_artifact_audio_transcript"
 
+DECISION_TYPE = "mastrao.meet-transcription-decision"
+DECISION_JOSE_TYPE = "mastrao-meeting-transcription-decision+jws"
 SUBMIT_EFFECT_TYPE = "mastrao.core-meeting-transcription-submit-effect"
 SUBMIT_EFFECT_JOSE_TYPE = "mastrao-meeting-transcription-submit-effect+jws"
 SUBMIT_RECEIPT_TYPE = "mastrao.meeting-transcription-submit-receipt"
 SUBMIT_RECEIPT_JOSE_TYPE = "mastrao-meeting-transcription-submit-receipt+jws"
 ARTIFACT_RECEIPT_TYPE = "mastrao.meeting-transcription-artifact-receipt"
 ARTIFACT_RECEIPT_JOSE_TYPE = "mastrao-meeting-transcription-artifact-receipt+jws"
+FAILURE_RECEIPT_TYPE = "mastrao.meeting-transcription-failure-receipt"
+FAILURE_RECEIPT_JOSE_TYPE = "mastrao-meeting-transcription-failure-receipt+jws"
 
 SUBMIT_EFFECT_FIELDS = {
     "version",
@@ -71,6 +75,14 @@ SUBMIT_EFFECT_FIELDS = {
 
 class TranscriptionContractRefused(RecordingContractRefused):
     """Opaque refusal for transcription effects and receipts."""
+
+
+class TranscriptionPipelineFailed(TranscriptionContractRefused):
+    """Terminal pipeline failure carrying the exact Core failure code."""
+
+    def __init__(self, failure_code, status=503):
+        super().__init__(status=status)
+        self.failure_code = failure_code
 
 
 def _submit_arguments(effect):
@@ -219,6 +231,33 @@ def build_transcript_artifact_receipt_claims(effect, artifact):
     }
 
 
+def build_transcription_failure_receipt_claims(effect, failure_code):
+    """Build strict pipeline-failure receipt claims for one exact effect."""
+
+    if failure_code not in {"audio_extraction_failed", "asr_failed"}:
+        raise TranscriptionContractRefused()
+    now = int(time.time())
+    return {
+        "version": CONTRACT_VERSION,
+        "type": FAILURE_RECEIPT_TYPE,
+        "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
+        "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
+        "operation": "confirm_meeting_transcription_failed",
+        "operation_version": 1,
+        "organization_external_id": effect["organization_external_id"],
+        "meeting_ref": effect["meeting_ref"],
+        "room_ref": effect["room_ref"],
+        "recording_ref": effect["recording_ref"],
+        "transcription_ref": effect["transcription_ref"],
+        "provider_binding_digest": effect["provider_binding_digest"],
+        "provider_job_ref": submit_provider_job_ref(effect),
+        "failure_code": failure_code,
+        "issued_at": now,
+        "expires_at": now + MAX_ASSERTION_SECONDS,
+        "jti": f"transcript_failure_{uuid4().hex}",
+    }
+
+
 def sign_submit_receipt(claims):
     """Sign one exact transcription submit receipt."""
     return _sign(claims, SUBMIT_RECEIPT_JOSE_TYPE)
@@ -227,3 +266,13 @@ def sign_submit_receipt(claims):
 def sign_transcript_artifact_receipt(claims):
     """Sign one exact transcript artifact receipt."""
     return _sign(claims, ARTIFACT_RECEIPT_JOSE_TYPE)
+
+
+def sign_transcription_decision_assertion(payload):
+    """Sign one participant transcription decision."""
+    return _sign(payload, DECISION_JOSE_TYPE)
+
+
+def sign_transcription_failure_receipt(claims):
+    """Sign one exact transcription pipeline-failure receipt."""
+    return _sign(claims, FAILURE_RECEIPT_JOSE_TYPE)
