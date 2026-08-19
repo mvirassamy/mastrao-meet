@@ -73,36 +73,17 @@ def extract_verified_audio(object_ref, expected_size, expected_checksum):
     return audio_bytes
 
 
-def _overlap_ms(sample, segment):
-    ended = sample.speaking_ended_at_ms
-    if ended is None:
-        ended = segment["end_ms"]
-    return min(ended, segment["end_ms"]) - max(
-        sample.speaking_started_at_ms, segment["start_ms"]
-    )
+def map_speakers(transcript):
+    """Give every acoustic speaker a stable anonymous index.
 
-
-def map_speakers(transcript, samples):
-    """Map acoustic speakers to participants via the active-speaker timeline.
-
-    Fallback is deliberate: without a timeline (the LiveKit webhook stream
-    exposes no active-speaker events today), every acoustic speaker keeps a
-    stable anonymous index.
+    The LiveKit webhook stream exposes no active-speaker events today, so
+    participant mapping is out of scope; the anonymous fallback keeps the
+    citation contract stable until a real timeline producer exists.
     """
 
     anonymous = {}
     for segment in transcript["segments"]:
         speaker = segment["speaker"]
-        best_ref, best_overlap = None, 0
-        for sample in samples:
-            overlap = _overlap_ms(sample, segment)
-            if overlap > best_overlap:
-                best_ref, best_overlap = sample.participant_ref, overlap
-        if best_ref is not None and best_overlap * 2 > (
-            segment["end_ms"] - segment["start_ms"]
-        ):
-            segment["speaker"] = {"kind": "participant", "label": best_ref}
-            continue
         index = anonymous.setdefault(speaker["ref"], len(anonymous) + 1)
         segment["speaker"] = {"kind": "anonymous", "index": index}
     return transcript

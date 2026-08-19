@@ -1124,26 +1124,6 @@ class MastraoTranscriptionEffect(BaseModel):
         return f"Mastrao transcription effect {self.effect_key}"
 
 
-class MastraoActiveSpeakerSample(BaseModel):
-    """Bounded active-speaker timeline sample for one recorded meeting."""
-
-    recording_binding = models.ForeignKey(
-        MastraoRecordingBinding,
-        on_delete=models.CASCADE,
-        related_name="active_speaker_samples",
-    )
-    participant_ref = models.CharField(max_length=200)
-    speaking_started_at_ms = models.PositiveBigIntegerField()
-    speaking_ended_at_ms = models.PositiveBigIntegerField(null=True, blank=True)
-
-    class Meta:
-        db_table = "meet_mastrao_active_speaker_sample"
-        ordering = ("speaking_started_at_ms",)
-
-    def __str__(self):
-        return f"Mastrao active speaker sample {self.pk}"
-
-
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

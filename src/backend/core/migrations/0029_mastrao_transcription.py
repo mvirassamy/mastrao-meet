@@ -13,56 +13,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name="MastraoActiveSpeakerSample",
-            fields=[
-                (
-                    "id",
-                    models.UUIDField(
-                        default=uuid.uuid4,
-                        editable=False,
-                        help_text="primary key for the record as UUID",
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="id",
-                    ),
-                ),
-                (
-                    "created_at",
-                    models.DateTimeField(
-                        auto_now_add=True,
-                        help_text="date and time at which a record was created",
-                        verbose_name="created on",
-                    ),
-                ),
-                (
-                    "updated_at",
-                    models.DateTimeField(
-                        auto_now=True,
-                        help_text="date and time at which a record was last updated",
-                        verbose_name="updated on",
-                    ),
-                ),
-                ("participant_ref", models.CharField(max_length=200)),
-                ("speaking_started_at_ms", models.PositiveBigIntegerField()),
-                (
-                    "speaking_ended_at_ms",
-                    models.PositiveBigIntegerField(blank=True, null=True),
-                ),
-                (
-                    "recording_binding",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="active_speaker_samples",
-                        to="core.mastraorecordingbinding",
-                    ),
-                ),
-            ],
-            options={
-                "db_table": "meet_mastrao_active_speaker_sample",
-                "ordering": ("speaking_started_at_ms",),
-            },
-        ),
-        migrations.CreateModel(
             name="MastraoTranscriptionBinding",
             fields=[
                 (
