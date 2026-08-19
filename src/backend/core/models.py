@@ -1032,7 +1032,9 @@ class MastraoTranscriptionBinding(BaseModel):
     artifact_checksum_digest = models.CharField(max_length=64)
     artifact_byte_size = models.PositiveBigIntegerField()
     purpose = models.CharField(max_length=64, default="meeting_transcription")
-    scope = models.CharField(max_length=80, default="recording_artifact_audio")
+    scope = models.CharField(
+        max_length=80, default="recording_artifact_audio_transcript"
+    )
     state = models.CharField(
         max_length=20,
         choices=State.choices,
@@ -1066,7 +1068,7 @@ class MastraoTranscriptionBinding(BaseModel):
                 name="mastrao_transcription_purpose_fixed",
             ),
             models.CheckConstraint(
-                condition=models.Q(scope="recording_artifact_audio"),
+                condition=models.Q(scope="recording_artifact_audio_transcript"),
                 name="mastrao_transcription_scope_fixed",
             ),
         ]

@@ -19,9 +19,9 @@ from core.mastrao_transcription_artifact import (
 )
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
-    build_transcript_receipt_claims,
-    sign_transcript_receipt,
-    verify_transcribe_effect,
+    build_submit_receipt_claims,
+    sign_submit_receipt,
+    verify_transcription_submit_effect,
 )
 from core.mastrao_transcription_worker import transcribe_audio
 
@@ -54,9 +54,9 @@ def _read_effect(request):
         body = json.loads(request.body)
     except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
         raise TranscriptionContractRefused() from error
-    if not isinstance(body, dict) or set(body) != {"transcription_effect"}:
+    if not isinstance(body, dict) or set(body) != {"transcription_submit_effect"}:
         raise TranscriptionContractRefused()
-    return verify_transcribe_effect(body["transcription_effect"])
+    return verify_transcription_submit_effect(body["transcription_submit_effect"])
 
 
 def _recording_binding(effect):
@@ -70,7 +70,7 @@ def _recording_binding(effect):
             room_ref=effect["room_ref"],
             recording_ref=effect["recording_ref"],
             provider_binding_digest=effect["provider_binding_digest"],
-            artifact_ref=effect["artifact_ref"],
+            artifact_ref=effect["recording_artifact_ref"],
             state=models.MastraoRecordingBinding.State.FINALIZED,
         )
         .first()
@@ -78,8 +78,8 @@ def _recording_binding(effect):
     if (
         binding is None
         or binding.object_ref is None
-        or binding.byte_size != effect["artifact_byte_size"]
-        or binding.checksum_digest != effect["artifact_checksum_digest"]
+        or binding.byte_size is None
+        or binding.checksum_digest != effect["recording_checksum_digest"]
     ):
         raise TranscriptionContractRefused()
     return binding
@@ -107,10 +107,10 @@ def _prepare_transcription(effect):
     if transcription_binding:
         if (
             transcription_binding.transcription_ref != effect["transcription_ref"]
-            or transcription_binding.artifact_ref != effect["artifact_ref"]
+            or transcription_binding.artifact_ref != effect["recording_artifact_ref"]
             or transcription_binding.artifact_checksum_digest
-            != effect["artifact_checksum_digest"]
-            or transcription_binding.artifact_byte_size != effect["artifact_byte_size"]
+            != effect["recording_checksum_digest"]
+            or transcription_binding.artifact_byte_size != recording_binding.byte_size
         ):
             raise TranscriptionContractRefused(status=409)
     else:
@@ -126,10 +126,10 @@ def _prepare_transcription(effect):
             room_ref=effect["room_ref"],
             recording_ref=effect["recording_ref"],
             transcription_ref=effect["transcription_ref"],
-            artifact_ref=effect["artifact_ref"],
+            artifact_ref=effect["recording_artifact_ref"],
             provider_binding_digest=effect["provider_binding_digest"],
-            artifact_checksum_digest=effect["artifact_checksum_digest"],
-            artifact_byte_size=effect["artifact_byte_size"],
+            artifact_checksum_digest=effect["recording_checksum_digest"],
+            artifact_byte_size=recording_binding.byte_size,
         )
     existing = (
         models.MastraoTranscriptionEffect.objects.select_for_update()
@@ -174,10 +174,10 @@ def _produce_transcript(transcription_binding):
 def _apply_transcription(effect):
     transcription_binding, local_effect = _prepare_transcription(effect)
     if local_effect.state == models.MastraoTranscriptionEffect.State.APPLIED:
-        return sign_transcript_receipt(local_effect.receipt_claims)
+        return sign_submit_receipt(local_effect.receipt_claims)
 
     artifact = _produce_transcript(transcription_binding)
-    claims = build_transcript_receipt_claims(effect, artifact)
+    claims = build_submit_receipt_claims(effect, "submitted")
     with transaction.atomic():
         locked_effect = (
             models.MastraoTranscriptionEffect.objects.select_for_update().get(
@@ -185,7 +185,7 @@ def _apply_transcription(effect):
             )
         )
         if locked_effect.state == models.MastraoTranscriptionEffect.State.APPLIED:
-            return sign_transcript_receipt(locked_effect.receipt_claims)
+            return sign_submit_receipt(locked_effect.receipt_claims)
         locked_binding = (
             models.MastraoTranscriptionBinding.objects.select_for_update().get(
                 pk=transcription_binding.pk
@@ -197,9 +197,9 @@ def _apply_transcription(effect):
         ):
             raise TranscriptionContractRefused(status=409)
         locked_effect.state = models.MastraoTranscriptionEffect.State.APPLIED
-        locked_effect.provider_observation = "transcribed"
+        locked_effect.provider_observation = "submitted"
         locked_effect.receipt_claims = claims
-        locked_effect.receipt_digest = compact_digest(sign_transcript_receipt(claims))
+        locked_effect.receipt_digest = compact_digest(sign_submit_receipt(claims))
         locked_effect.applied_at = timezone.now()
         locked_effect.save()
         locked_binding.transcript_artifact_ref = artifact["transcript_artifact_ref"]
@@ -213,17 +213,19 @@ def _apply_transcription(effect):
         locked_binding.transcript_verified_at = timezone.now()
         locked_binding.state = models.MastraoTranscriptionBinding.State.AVAILABLE
         locked_binding.save()
-    return sign_transcript_receipt(claims)
+    return sign_submit_receipt(claims)
 
 
 @csrf_exempt
 @require_POST
 def transcribe_mastrao_recording(request):
-    """Claim one exact signed transcribe effect and return a signed receipt."""
+    """Claim one exact signed submit effect and return a signed submit receipt."""
 
     try:
         effect = _read_effect(request)
-        return _safe_response({"transcription_receipt": _apply_transcription(effect)})
+        return _safe_response(
+            {"transcription_submit_receipt": _apply_transcription(effect)}
+        )
     except TranscriptionContractRefused as error:
         return _safe_response(
             {"message": "Not found" if error.status == 404 else "Unavailable"},

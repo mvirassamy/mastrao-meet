@@ -107,7 +107,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "scope",
-                    models.CharField(default="recording_artifact_audio", max_length=80),
+                    models.CharField(default="recording_artifact_audio_transcript", max_length=80),
                 ),
                 (
                     "state",
@@ -259,7 +259,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="mastraotranscriptionbinding",
             constraint=models.CheckConstraint(
-                condition=models.Q(("scope", "recording_artifact_audio")),
+                condition=models.Q(("scope", "recording_artifact_audio_transcript")),
                 name="mastrao_transcription_scope_fixed",
             ),
         ),

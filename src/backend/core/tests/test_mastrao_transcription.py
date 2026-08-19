@@ -22,7 +22,8 @@ from core.mastrao_transcription_adapter import (
 from core.mastrao_transcription_artifact import map_speakers, persist_transcript
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
-    build_transcript_receipt_claims,
+    build_submit_receipt_claims,
+    build_transcript_artifact_receipt_claims,
 )
 from core.mastrao_transcription_worker import (
     FAKE_ENGINE_REF,
@@ -82,10 +83,10 @@ def _effect(binding, **overrides):
         "room_ref": binding.room_ref,
         "recording_ref": binding.recording_ref,
         "transcription_ref": "transcription_0123456789ab",
-        "artifact_ref": binding.artifact_ref,
+        "recording_artifact_ref": binding.artifact_ref,
         "provider_binding_digest": binding.provider_binding_digest,
-        "artifact_checksum_digest": binding.checksum_digest,
-        "artifact_byte_size": binding.byte_size,
+        "recording_checksum_digest": binding.checksum_digest,
+        "retention_expires_at": int(binding.retention_expires_at.timestamp()),
         "effect_key": "effect_transcribe_0123456789",
         "arguments_digest": "e" * 64,
         "resolve_only": False,
@@ -180,7 +181,7 @@ def test_feature_off_refuses_new_effects_without_side_effects(settings):
 def test_unfinalized_or_mismatched_artifact_is_refused():
     binding = _finalized_recording_binding("mismatch_0123456789")
     with pytest.raises(TranscriptionContractRefused):
-        _prepare_transcription(_effect(binding, artifact_checksum_digest="f" * 64))
+        _prepare_transcription(_effect(binding, recording_checksum_digest="f" * 64))
     binding.state = models.MastraoRecordingBinding.State.PROCESSING
     binding.save(update_fields=["state", "updated_at"])
     with pytest.raises(TranscriptionContractRefused):
@@ -209,7 +210,7 @@ def test_apply_transcription_persists_effect_and_binding_states():
             return_value=_fake_artifact(),
         ),
         mock.patch(
-            "core.mastrao_transcription_adapter.sign_transcript_receipt",
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
     ):
@@ -234,7 +235,7 @@ def test_exact_replay_returns_receipt_without_second_transcription():
             return_value=_fake_artifact(),
         ) as produce,
         mock.patch(
-            "core.mastrao_transcription_adapter.sign_transcript_receipt",
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
     ):
@@ -252,7 +253,7 @@ def test_divergent_replay_is_refused_with_conflict():
             return_value=_fake_artifact(),
         ),
         mock.patch(
-            "core.mastrao_transcription_adapter.sign_transcript_receipt",
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
     ):
@@ -273,13 +274,27 @@ def test_resolve_only_never_creates_a_first_effect():
 
 def test_receipt_claims_bind_effect_and_artifact_exactly():
     binding = _finalized_recording_binding("claims_0123456789ab")
-    claims = build_transcript_receipt_claims(_effect(binding), _fake_artifact())
-    assert claims["type"] == "mastrao.meeting-transcription-receipt"
-    assert claims["transcription_ref"] == "transcription_0123456789ab"
-    assert claims["checksum_digest"] == "9" * 64
-    assert claims["content_type"] == "application/json"
-    assert claims["segment_count"] == 4
-    assert claims["jti"] == "request_transcribe_012345678"
+    effect = _effect(binding)
+    submit = build_submit_receipt_claims(effect, "submitted")
+    assert submit["type"] == "mastrao.meeting-transcription-submit-receipt"
+    assert submit["operation"] == "confirm_meeting_transcription_submitted"
+    assert submit["transcription_ref"] == "transcription_0123456789ab"
+    assert submit["effect_key"] == "effect_transcribe_0123456789"
+    assert submit["arguments_digest"] == "e" * 64
+    assert submit["status"] == "confirmed"
+    assert submit["provider_observation"] == "submitted"
+    assert submit["provider_job_ref"].startswith("asrjob_")
+    assert submit["jti"] == "request_transcribe_012345678"
+    artifact = build_transcript_artifact_receipt_claims(effect, _fake_artifact())
+    assert artifact["type"] == "mastrao.meeting-transcription-artifact-receipt"
+    assert artifact["operation"] == "confirm_meeting_transcription_artifact"
+    assert artifact["transcription_ref"] == "transcription_0123456789ab"
+    assert artifact["recording_artifact_ref"] == binding.artifact_ref
+    assert artifact["checksum_digest"] == "9" * 64
+    assert artifact["content_type"] == "application/json"
+    assert artifact["segment_count"] == 4
+    assert artifact["retention_expires_at"] == effect["retention_expires_at"]
+    assert artifact["jti"].startswith("transcript_artifact_")
 
 
 def test_persist_transcript_is_checksummed_and_idempotent(settings, tmp_path):
@@ -320,12 +335,12 @@ def test_endpoint_returns_signed_receipt_for_verified_effect(rf):
     effect = _effect(binding)
     request = rf.post(
         "/internal/mastrao/transcriptions/transcribe/",
-        data=json.dumps({"transcription_effect": "header.payload.signature"}),
+        data=json.dumps({"transcription_submit_effect": "header.payload.signature"}),
         content_type="application/json",
     )
     with (
         mock.patch(
-            "core.mastrao_transcription_adapter.verify_transcribe_effect",
+            "core.mastrao_transcription_adapter.verify_transcription_submit_effect",
             return_value=effect,
         ),
         mock.patch(
@@ -333,12 +348,12 @@ def test_endpoint_returns_signed_receipt_for_verified_effect(rf):
             return_value=_fake_artifact(),
         ),
         mock.patch(
-            "core.mastrao_transcription_adapter.sign_transcript_receipt",
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
     ):
         response = transcribe_mastrao_recording(request)
     assert response.status_code == 200
     assert json.loads(response.content) == {
-        "transcription_receipt": "receipt.payload.signature"
+        "transcription_submit_receipt": "receipt.payload.signature"
     }
