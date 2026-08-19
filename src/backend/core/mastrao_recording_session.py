@@ -112,6 +112,11 @@ def _participant(request, room):
 def _validate_status(status, participant, room):
     if not isinstance(status, dict):
         raise RecordingContractRefused(status=503)
+    if status.get("mode") == "recorded" and "transcription_mode" not in status:
+        # An older Core release does not project the transcription policy
+        # yet; default to disabled so recording consent keeps working
+        # during a staggered Core/Meet deploy.
+        status["transcription_mode"] = "disabled"
     fields = set(status)
     if status.get("mode") != "recorded":
         expected = SESSION_STATUS_FIELDS

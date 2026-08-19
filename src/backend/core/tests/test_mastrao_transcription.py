@@ -16,6 +16,7 @@ from core import models
 from core.factories import RoomFactory, UserFactory
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
+    _validate_status,
     public_projection,
     record_transcription_decision,
 )
@@ -577,3 +578,27 @@ def test_public_projection_exposes_transcription_notice_and_decision():
     assert projection["transcription_mode"] == "transcribed"
     assert projection["transcription_notice_version"] == ("notice_transcription_01234")
     assert projection["transcription_decision"] == "absent"
+
+
+def test_validate_status_defaults_missing_transcription_mode_to_disabled(settings):
+    """A staggered deploy where Core predates the transcription projection
+    must not break recording consent: the missing field defaults to
+    disabled instead of failing the exact-fields check."""
+    settings.MASTRAO_RECORDING_NOTICE_VERSION = "notice_0123456789abcdef"
+    settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
+    status = _transcribed_status(transcription_mode="disabled")
+    del status["transcription_mode"]
+    del status["transcription_notice_version"]
+    del status["transcription_notice_digest"]
+    del status["transcription_decision"]
+    participant = {
+        "claims": {
+            "organization_external_id": status["organization_external_id"],
+            "meeting_ref": status["meeting_ref"],
+            "room_ref": status["room_ref"],
+        }
+    }
+    room = mock.Mock()
+    room.mastrao_binding.room_ref = status["room_ref"]
+    _validate_status(status, participant, room)
+    assert status["transcription_mode"] == "disabled"
