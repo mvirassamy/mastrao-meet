@@ -16,12 +16,14 @@ import hashlib
 import json
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 import requests
 
 from core.mastrao_transcription_contract import TranscriptionContractRefused
 
 FAKE_ENGINE_REF = "fake-asr-deterministic-v1"
+ASR_MODES = {"fake", "real"}
 TRANSCRIPT_SCHEMA_VERSION = 1
 MAX_WORKER_RESPONSE_BYTES = 5_000_000
 MAX_SEGMENTS = 10_000
@@ -159,6 +161,12 @@ def transcribe_audio(audio_bytes):
 
     if not isinstance(audio_bytes, bytes) or len(audio_bytes) < 1:
         raise TranscriptionContractRefused(status=503)
-    if settings.MASTRAO_TRANSCRIPTION_ASR_MODE == "real":
+    mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
+    if mode not in ASR_MODES:
+        raise ImproperlyConfigured(
+            f"MASTRAO_TRANSCRIPTION_ASR_MODE must be one of {sorted(ASR_MODES)}, "
+            f"got {mode!r}"
+        )
+    if mode == "real":
         return _validated_transcript(_real_transcribe(audio_bytes))
     return _validated_transcript(_fake_transcribe(audio_bytes))
