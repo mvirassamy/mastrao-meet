@@ -147,6 +147,7 @@ export const Lobby = ({
         roomId={roomId}
         retentionExpiresAt={recording.retention_expires_at}
         participantKind={recording.participant_kind}
+        transcriptionOffered={recording.transcription_mode === 'transcribed'}
         onDecided={async () => {
           await refetchRoom()
         }}

@@ -123,7 +123,11 @@
     "activationError": "Die Aufzeichnung konnte nicht gestartet werden. Neuer Versuch…",
     "activationExhausted": "Die Aufzeichnung konnte nicht gestartet werden.",
     "activationRetry": "Erneut versuchen",
-    "withdrawError": "Die Aufzeichnung konnte nicht beendet werden. Erneut versuchen."
+    "withdrawError": "Die Aufzeichnung konnte nicht beendet werden. Erneut versuchen.",
+    "transcription": {
+      "checkbox": "Ich stimme auch einer schriftlichen Transkription dieses Meetings zu",
+      "notice": "Transkription: Die aufgezeichnete Tonspur wird in Text umgewandelt und mit denselben Zugriffsrechten und derselben Aufbewahrungsdauer wie die Aufzeichnung in der Akte gespeichert. Ohne Ihre ausdrückliche Zustimmung wird keine Transkription erstellt."
+    }
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
   "shareDialog": {

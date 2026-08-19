@@ -34,6 +34,18 @@ from core.mastrao_recording_contract import (
     sign_stop_request_assertion,
 )
 from core.mastrao_room_contract import DIGEST, OPAQUE_REFERENCE
+from core.mastrao_transcription_contract import (
+    DECISION_TYPE as TRANSCRIPTION_DECISION_TYPE,
+)
+from core.mastrao_transcription_contract import (
+    PURPOSE as TRANSCRIPTION_PURPOSE,
+)
+from core.mastrao_transcription_contract import (
+    SCOPE as TRANSCRIPTION_SCOPE,
+)
+from core.mastrao_transcription_contract import (
+    sign_transcription_decision_assertion,
+)
 
 CAPTURE_STATES = {"collecting", "authorized", "starting", "active"}
 NO_CAPTURE_STATES = {"cancelled", "failed", "processing", "available"}
@@ -54,6 +66,12 @@ RECORDED_STATUS_FIELDS = SESSION_STATUS_FIELDS | {
     "retention_expires_at",
     "recording_state",
     "decision",
+    "transcription_mode",
+}
+TRANSCRIBED_STATUS_FIELDS = RECORDED_STATUS_FIELDS | {
+    "transcription_notice_version",
+    "transcription_notice_digest",
+    "transcription_decision",
 }
 
 
@@ -95,11 +113,12 @@ def _validate_status(status, participant, room):
     if not isinstance(status, dict):
         raise RecordingContractRefused(status=503)
     fields = set(status)
-    expected = (
-        RECORDED_STATUS_FIELDS
-        if status.get("mode") == "recorded"
-        else SESSION_STATUS_FIELDS
-    )
+    if status.get("mode") != "recorded":
+        expected = SESSION_STATUS_FIELDS
+    elif status.get("transcription_mode") == "transcribed":
+        expected = TRANSCRIBED_STATUS_FIELDS
+    else:
+        expected = RECORDED_STATUS_FIELDS
     claims = participant["claims"]
     if (
         fields != expected
@@ -117,6 +136,7 @@ def _validate_status(status, participant, room):
         or status["notice_version"] != settings.MASTRAO_RECORDING_NOTICE_VERSION
         or status["notice_digest"] != settings.MASTRAO_RECORDING_NOTICE_DIGEST
         or status["decision"] not in {"absent", "accepted", "refused", "withdrawn"}
+        or status["transcription_mode"] not in {"disabled", "transcribed"}
         or status["recording_state"]
         not in CAPTURE_STATES | NO_CAPTURE_STATES | {"stopping"}
         or any(
@@ -132,6 +152,18 @@ def _validate_status(status, participant, room):
         or not isinstance(status["retention_expires_at"], int)
         or isinstance(status["retention_expires_at"], bool)
         or status["retention_expires_at"] <= int(time.time())
+    ):
+        raise RecordingContractRefused(status=503)
+    if (
+        status["mode"] == "recorded"
+        and status["transcription_mode"] == "transcribed"
+        and (
+            not isinstance(status["transcription_notice_version"], str)
+            or not OPAQUE_REFERENCE.fullmatch(status["transcription_notice_version"])
+            or not DIGEST.fullmatch(status.get("transcription_notice_digest") or "")
+            or status["transcription_decision"]
+            not in {"absent", "accepted", "refused", "withdrawn"}
+        )
     ):
         raise RecordingContractRefused(status=503)
     return status
@@ -242,7 +274,7 @@ def public_projection(status):
         return None
     if status["mode"] != "recorded":
         return {"mode": status["mode"]}
-    return {
+    projection = {
         name: status[name]
         for name in (
             "mode",
@@ -257,6 +289,19 @@ def public_projection(status):
             "participant_kind",
         )
     }
+    projection["transcription_mode"] = status.get("transcription_mode", "disabled")
+    if projection["transcription_mode"] == "transcribed":
+        projection.update(
+            {
+                name: status[name]
+                for name in (
+                    "transcription_notice_version",
+                    "transcription_notice_digest",
+                    "transcription_decision",
+                )
+            }
+        )
+    return projection
 
 
 def _validate_core_status(result, session_status):
@@ -414,6 +459,76 @@ def record_decision(request, room, decision, decision_request_id):
             "core_state_version": result["state_version"],
         },
     )
+    return result
+
+
+def record_transcription_decision(request, room, decision, decision_request_id):
+    """Forward one exact transcription decision under its own purpose.
+
+    The Core transcription-consent ledger is the durable record; Meet only
+    seals and forwards the assertion, then re-reads the projection. No local
+    row is written because the recording-decision table binds one decision
+    value per session and would collide with the recording purpose.
+    """
+
+    if decision not in {"accepted", "refused", "withdrawn"}:
+        raise RecordingContractRefused()
+    participant = _participant(request, room)
+    status = recording_session_status(request, room)
+    if (
+        not status
+        or status["mode"] != "recorded"
+        or status.get("transcription_mode") != "transcribed"
+    ):
+        raise RecordingContractRefused()
+    payload = {
+        **_base_assertion(
+            TRANSCRIPTION_DECISION_TYPE, "record_meeting_transcription_decision"
+        ),
+        "decision_request_id": decision_request_id,
+        "organization_external_id": status["organization_external_id"],
+        "meeting_ref": status["meeting_ref"],
+        "room_ref": status["room_ref"],
+        "recording_ref": status["recording_ref"],
+        "provider_binding_digest": room.mastrao_binding.provider_binding_digest,
+        "participant_kind": participant["kind"],
+        "participant_ref": participant["ref"],
+        "participant_session_digest": participant["session_digest"],
+        "decision": decision,
+        "policy_ref": status["policy_ref"],
+        "notice_version": status["transcription_notice_version"],
+        "notice_digest": status["transcription_notice_digest"],
+        "purpose": TRANSCRIPTION_PURPOSE,
+        "scope": TRANSCRIPTION_SCOPE,
+        "retention_expires_at": status["retention_expires_at"],
+        "participant_grant_digest": compact_digest(participant["compact"]),
+    }
+    compact = sign_transcription_decision_assertion(payload)
+    result = post_core_json(
+        endpoint=settings.MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT,
+        expected_path="/internal/v1/meetings/transcription/decisions",
+        body={
+            "participant_grant": participant["compact"],
+            "decision_assertion": compact,
+        },
+        timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
+        refusal=RecordingContractRefused,
+        expected_fields={
+            "version",
+            "meeting_ref",
+            "recording_ref",
+            "purpose",
+            "decision",
+        },
+    )
+    if (
+        result["version"] != 1
+        or result["meeting_ref"] != status["meeting_ref"]
+        or result["recording_ref"] != status["recording_ref"]
+        or result["purpose"] != TRANSCRIPTION_PURPOSE
+        or result["decision"] != decision
+    ):
+        raise RecordingContractRefused(status=503)
     return result
 
 

@@ -56,6 +56,10 @@ export type ApiRoom = {
       | 'failed'
     decision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
     participant_kind?: 'host' | 'guest'
+    transcription_mode?: 'disabled' | 'transcribed'
+    transcription_notice_version?: string
+    transcription_notice_digest?: string
+    transcription_decision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
   }
   /**
    * Only present in the API response when the requesting user is an

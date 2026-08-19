@@ -15,6 +15,19 @@ export const decideRecording = (
     }),
   })
 
+export const decideTranscription = (
+  roomId: string,
+  decision: RecordingDecision,
+  decisionRequestId: string
+) =>
+  fetchApi(`/rooms/${roomId}/transcription-decision/`, {
+    method: 'POST',
+    body: JSON.stringify({
+      decision,
+      decision_request_id: decisionRequestId,
+    }),
+  })
+
 export const activateRecording = (
   roomId: string,
   activationRequestId: string

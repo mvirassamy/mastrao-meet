@@ -123,7 +123,11 @@
     "activationError": "De opname kon niet worden gestart. Nieuwe poging…",
     "activationExhausted": "De opname kon niet worden gestart.",
     "activationRetry": "Opnieuw proberen",
-    "withdrawError": "De opname kon niet worden gestopt. Probeer het opnieuw."
+    "withdrawError": "De opname kon niet worden gestopt. Probeer het opnieuw.",
+    "transcription": {
+      "checkbox": "Ik ga ook akkoord met een schriftelijke transcriptie van deze vergadering",
+      "notice": "Transcriptie: de opgenomen audio wordt omgezet naar tekst en bewaard in het dossier met dezelfde toegang en bewaartermijn als de opname. Zonder uw uitdrukkelijke toestemming wordt er geen transcriptie gemaakt."
+    }
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",
   "shareDialog": {

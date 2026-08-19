@@ -55,6 +55,7 @@ from core.mastrao_recording_session import (
     media_allowed,
     public_projection,
     record_decision,
+    record_transcription_decision,
     recording_session_status,
     request_recording_stop,
 )
@@ -597,6 +598,35 @@ class RoomViewSet(
             raise Http404
         try:
             result = record_decision(request, room, **serializer.validated_data)
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="transcription-decision",
+        permission_classes=[],
+    )
+    def transcription_decision(self, request, pk=None):  # pylint: disable=unused-argument
+        """Record one exact browser session's informed transcription decision."""
+
+        serializer = serializers.TranscriptionDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = record_transcription_decision(
+                request, room, **serializer.validated_data
+            )
         except (
             RecordingContractRefused,
             HostHandoffRefused,
