@@ -18,7 +18,7 @@ from core.mastrao_transcription_contract import TranscriptionContractRefused
 TRANSCRIPT_PREFIX = "mastrao-transcripts"
 FFMPEG_TIMEOUT_SECONDS = 900
 MAX_AUDIO_BYTES = 2_000_000_000
-ANONYMOUS_SPEAKER_LABEL = "Locuteur"
+ARTIFACT_SCHEMA_VERSION = 1
 
 
 def extract_verified_audio(object_ref, expected_size, expected_checksum):
@@ -87,7 +87,7 @@ def map_speakers(transcript, samples):
 
     Fallback is deliberate: without a timeline (the LiveKit webhook stream
     exposes no active-speaker events today), every acoustic speaker keeps a
-    stable anonymous label.
+    stable anonymous index.
     """
 
     anonymous = {}
@@ -101,20 +101,44 @@ def map_speakers(transcript, samples):
         if best_ref is not None and best_overlap * 2 > (
             segment["end_ms"] - segment["start_ms"]
         ):
-            segment["speaker"] = {"kind": "participant", "ref": best_ref}
+            segment["speaker"] = {"kind": "participant", "label": best_ref}
             continue
-        label = anonymous.setdefault(
-            speaker["ref"], f"{ANONYMOUS_SPEAKER_LABEL} {len(anonymous) + 1}"
-        )
-        segment["speaker"] = {"kind": "anonymous", "ref": label}
+        index = anonymous.setdefault(speaker["ref"], len(anonymous) + 1)
+        segment["speaker"] = {"kind": "anonymous", "index": index}
     return transcript
+
+
+def _canonical_artifact(transcription_ref, transcript):
+    """Shape the exact Core transcript artifact schema v1: the citation
+    anchor contract. Engine facts stay out of the artifact bytes; they are
+    reported through the receipt, not the canonical JSON."""
+
+    artifact = {
+        "version": ARTIFACT_SCHEMA_VERSION,
+        "transcription_ref": transcription_ref,
+        "segments": [
+            {
+                "segment_id": segment["segment_id"],
+                "start_ms": segment["start_ms"],
+                "end_ms": segment["end_ms"],
+                "speaker": segment["speaker"],
+                "text": segment["text"],
+                "confidence": segment["confidence"],
+            }
+            for segment in transcript["segments"]
+        ],
+    }
+    if isinstance(transcript.get("language"), str):
+        artifact["language"] = transcript["language"]
+    return artifact
 
 
 def persist_transcript(transcription_ref, transcript):
     """Store the canonical transcript JSON and return its exact artifact facts."""
 
+    artifact = _canonical_artifact(transcription_ref, transcript)
     payload = json.dumps(
-        transcript, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        artifact, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode()
     checksum = hashlib.sha256(payload).hexdigest()
     object_ref = f"{TRANSCRIPT_PREFIX}/{transcription_ref}.json"
@@ -132,6 +156,6 @@ def persist_transcript(transcription_ref, transcript):
         "object_ref": object_ref,
         "byte_size": len(payload),
         "checksum_digest": checksum,
-        "segment_count": len(transcript["segments"]),
+        "segment_count": len(artifact["segments"]),
         "engine_ref": transcript["engine_ref"],
     }

@@ -105,7 +105,7 @@ def test_fake_asr_is_deterministic_and_schema_valid():
     assert transcript["engine_ref"] == FAKE_ENGINE_REF
     assert transcript["version"] == 1
     for segment in transcript["segments"]:
-        assert segment["id"].startswith("segment_")
+        assert segment["segment_id"].startswith("segment_")
         assert 0 <= segment["start_ms"] < segment["end_ms"]
         assert segment["speaker"]["kind"] == "acoustic"
         assert isinstance(segment["text"], str) and segment["text"]
@@ -119,11 +119,11 @@ def test_real_mode_without_endpoint_fails_closed(settings):
         transcribe_audio(b"audio")
 
 
-def test_speaker_mapping_falls_back_to_stable_anonymous_labels():
+def test_speaker_mapping_falls_back_to_stable_anonymous_indexes():
     transcript = transcribe_audio(b"mapping fallback audio")
     mapped = map_speakers(json.loads(json.dumps(transcript)), samples=[])
-    labels = {
-        segment["speaker"]["ref"]
+    indexes = {
+        segment["speaker"]["index"]
         for segment in mapped["segments"]
         if segment["speaker"]["kind"] == "anonymous"
     }
@@ -131,7 +131,7 @@ def test_speaker_mapping_falls_back_to_stable_anonymous_labels():
     assert all(
         segment["speaker"]["kind"] == "anonymous" for segment in mapped["segments"]
     )
-    assert all(label.startswith("Locuteur ") for label in labels)
+    assert indexes == set(range(1, len(indexes) + 1))
 
 
 def test_speaker_mapping_uses_dominant_active_speaker_overlap():
@@ -141,7 +141,7 @@ def test_speaker_mapping_uses_dominant_active_speaker_overlap():
         "language": "fr",
         "segments": [
             {
-                "id": "segment_x_0000",
+                "segment_id": "segment_x_0000",
                 "start_ms": 0,
                 "end_ms": 4000,
                 "speaker": {"kind": "acoustic", "ref": "SPEAKER_0"},
@@ -165,7 +165,7 @@ def test_speaker_mapping_uses_dominant_active_speaker_overlap():
     mapped = map_speakers(transcript, samples)
     assert mapped["segments"][0]["speaker"] == {
         "kind": "participant",
-        "ref": "participant_alpha",
+        "label": "participant_alpha",
     }
 
 
@@ -308,16 +308,42 @@ def test_persist_transcript_is_checksummed_and_idempotent(settings, tmp_path):
             "OPTIONS": {"location": str(tmp_path / "static")},
         },
     }
-    transcript = transcribe_audio(b"persisted audio")
+    transcript = map_speakers(transcribe_audio(b"persisted audio"), samples=[])
     artifact = persist_transcript("transcription_persist_01234", transcript)
     replay = persist_transcript("transcription_persist_01234", transcript)
     payload = json.dumps(
-        transcript, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        {
+            "version": 1,
+            "transcription_ref": "transcription_persist_01234",
+            "language": transcript["language"],
+            "segments": transcript["segments"],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
     ).encode()
     assert artifact["checksum_digest"] == hashlib.sha256(payload).hexdigest()
     assert artifact["byte_size"] == len(payload)
     assert replay["checksum_digest"] == artifact["checksum_digest"]
     assert artifact["segment_count"] == len(transcript["segments"])
+    with (tmp_path / "mastrao-transcripts" / "transcription_persist_01234.json").open(
+        encoding="utf-8"
+    ) as stream:
+        stored = json.load(stream)
+    assert stored["version"] == 1
+    assert stored["transcription_ref"] == "transcription_persist_01234"
+    assert "engine_ref" not in stored
+    assert "audio_digest" not in stored
+    for segment in stored["segments"]:
+        assert set(segment) == {
+            "segment_id",
+            "start_ms",
+            "end_ms",
+            "speaker",
+            "text",
+            "confidence",
+        }
+        assert segment["speaker"]["kind"] in {"participant", "anonymous"}
 
 
 def test_endpoint_refuses_oversized_and_malformed_bodies(rf):

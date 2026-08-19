@@ -62,7 +62,7 @@ def _fake_segments(audio_digest):
         ]
         segments.append(
             {
-                "id": f"segment_{audio_digest[:16]}_{index:04d}",
+                "segment_id": f"segment_{audio_digest[:16]}_{index:04d}",
                 "start_ms": start_ms,
                 "end_ms": start_ms + SEGMENT_DURATION_MS,
                 "speaker": {"kind": "acoustic", "ref": f"SPEAKER_{seed[index] % 3}"},
@@ -139,7 +139,7 @@ def _validated_transcript(transcript):
         speaker = segment.get("speaker") if isinstance(segment, dict) else None
         if (
             not isinstance(segment, dict)
-            or not isinstance(segment.get("id"), str)
+            or not isinstance(segment.get("segment_id"), str)
             or not isinstance(segment.get("start_ms"), int)
             or not isinstance(segment.get("end_ms"), int)
             or segment["start_ms"] < 0
