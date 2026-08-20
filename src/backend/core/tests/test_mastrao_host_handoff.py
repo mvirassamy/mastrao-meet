@@ -300,6 +300,35 @@ def test_sentry_scrubs_raw_guest_confirmation_credentials():
     assert scrubbed["request"]["data"] == "[Filtered]"
 
 
+def test_sentry_scrubs_transcription_effects_and_receipts():
+    event = {
+        "request": {
+            "data": {
+                "transcription_submit_effect": "effect.payload.signature",
+                "transcription_artifact_receipt": "receipt.payload.signature",
+                "safe": "kept",
+            }
+        }
+    }
+    scrubbed = scrub_mastrao_handoff_credentials(event, {})
+    assert scrubbed["request"]["data"] == {
+        "transcription_submit_effect": "[Filtered]",
+        "transcription_artifact_receipt": "[Filtered]",
+        "safe": "kept",
+    }
+
+    raw = {
+        "request": {
+            "data": json.dumps(
+                {"transcription_failure_receipt": "receipt.payload.signature"}
+            )
+        }
+    }
+    assert scrub_mastrao_handoff_credentials(raw, {})["request"]["data"] == (
+        "[Filtered]"
+    )
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_HOST_HANDOFF_ENABLED=True,

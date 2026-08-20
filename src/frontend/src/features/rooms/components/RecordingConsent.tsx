@@ -14,12 +14,16 @@ export const RecordingConsent = ({
   retentionExpiresAt,
   participantKind,
   transcriptionOffered,
+  recordingDecision,
+  transcriptionDecision,
   onDecided,
 }: {
   roomId: string
   retentionExpiresAt: number
   participantKind?: 'host' | 'guest'
   transcriptionOffered?: boolean
+  recordingDecision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
+  transcriptionDecision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
   onDecided: () => Promise<void>
 }) => {
   const { t, i18n } = useTranslation('rooms', {
@@ -43,12 +47,27 @@ export const RecordingConsent = ({
     setPending(decision)
     setFailed(false)
     try {
-      await decideRecording(roomId, decision, requestIds.current[decision])
-      if (transcriptionOffered) {
+      if (
+        transcriptionOffered &&
+        transcriptionDecision === 'absent' &&
+        decision === 'refused'
+      ) {
+        await decideTranscription(
+          roomId,
+          'refused',
+          transcriptionRequestIds.current.refused
+        )
+      }
+      if (recordingDecision === 'absent') {
+        await decideRecording(roomId, decision, requestIds.current[decision])
+      }
+      if (
+        transcriptionOffered &&
+        transcriptionDecision === 'absent' &&
+        decision === 'accepted'
+      ) {
         const transcriptionDecision =
-          decision === 'accepted' && transcriptionAccepted
-            ? 'accepted'
-            : 'refused'
+          transcriptionAccepted ? 'accepted' : 'refused'
         await decideTranscription(
           roomId,
           transcriptionDecision,

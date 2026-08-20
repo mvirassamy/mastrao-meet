@@ -119,7 +119,11 @@ def persist_transcript(transcription_ref, transcript):
 
     artifact = _canonical_artifact(transcription_ref, transcript)
     payload = json.dumps(
-        artifact, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        artifact,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     ).encode()
     checksum = hashlib.sha256(payload).hexdigest()
     object_ref = f"{TRANSCRIPT_PREFIX}/{transcription_ref}.json"

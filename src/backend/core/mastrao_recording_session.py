@@ -268,7 +268,13 @@ def media_allowed(status):
     if status["mode"] == "unset" or status["recording_state"] == "stopping":
         return False
     if status["recording_state"] in CAPTURE_STATES:
-        return status["decision"] == "accepted"
+        recording_accepted = status["decision"] == "accepted"
+        if status.get("transcription_mode") == "transcribed":
+            return (
+                recording_accepted
+                and status.get("transcription_decision") == "accepted"
+            )
+        return recording_accepted
     return status["recording_state"] in NO_CAPTURE_STATES
 
 

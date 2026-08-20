@@ -17,6 +17,7 @@ from core.factories import RoomFactory, UserFactory
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
     _validate_status,
+    media_allowed,
     public_projection,
     record_transcription_decision,
 )
@@ -36,6 +37,7 @@ from core.mastrao_transcription_contract import (
 )
 from core.mastrao_transcription_worker import (
     FAKE_ENGINE_REF,
+    _validated_transcript,
     transcribe_audio,
 )
 from core.models import RoomAccessLevel
@@ -121,11 +123,55 @@ def test_fake_asr_is_deterministic_and_schema_valid():
         assert 0 < segment["confidence"] <= 1
 
 
+def test_transcribed_capture_waits_for_an_explicit_transcription_decision():
+    status = {
+        "mode": "recorded",
+        "recording_state": "active",
+        "decision": "accepted",
+        "transcription_mode": "transcribed",
+        "transcription_decision": "absent",
+    }
+    assert not media_allowed(status)
+    status["transcription_decision"] = "accepted"
+    assert media_allowed(status)
+    status["transcription_decision"] = "refused"
+    assert not media_allowed(status)
+
+
 def test_real_mode_without_endpoint_fails_closed(settings):
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
     settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = ""
     with pytest.raises(TranscriptionContractRefused):
         transcribe_audio(b"audio")
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("segment_id", "invalid segment id"),
+        ("text", ""),
+        ("text", "x" * 4_001),
+        ("confidence", -0.1),
+        ("confidence", 1.1),
+        ("confidence", float("nan")),
+    ],
+)
+def test_asr_output_rejects_noncanonical_segment_values(field, value):
+    transcript = transcribe_audio(b"strict output")
+    transcript["segments"][0][field] = value
+    with pytest.raises(TranscriptionContractRefused):
+        _validated_transcript(transcript)
+
+
+def test_asr_output_rejects_duplicate_segments_and_invalid_language():
+    transcript = transcribe_audio(b"duplicate output")
+    transcript["segments"][1]["segment_id"] = transcript["segments"][0]["segment_id"]
+    with pytest.raises(TranscriptionContractRefused):
+        _validated_transcript(transcript)
+    transcript = transcribe_audio(b"invalid language")
+    transcript["language"] = "fr-fr"
+    with pytest.raises(TranscriptionContractRefused):
+        _validated_transcript(transcript)
 
 
 def test_speaker_mapping_falls_back_to_stable_anonymous_indexes():

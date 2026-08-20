@@ -14,6 +14,8 @@ The worker never receives storage credentials and never logs content.
 
 import hashlib
 import json
+import math
+import re
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -28,6 +30,8 @@ TRANSCRIPT_SCHEMA_VERSION = 1
 MAX_WORKER_RESPONSE_BYTES = 5_000_000
 MAX_SEGMENTS = 10_000
 SEGMENT_DURATION_MS = 4_000
+SEGMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
+LANGUAGE_PATTERN = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
 
 _FAKE_LEXICON = (
     "audience",
@@ -133,26 +137,39 @@ def _validated_transcript(transcript):
         or transcript.get("version") != TRANSCRIPT_SCHEMA_VERSION
         or not isinstance(transcript.get("engine_ref"), str)
         or not isinstance(transcript.get("language"), str)
+        or not LANGUAGE_PATTERN.fullmatch(transcript["language"])
         or not isinstance(transcript.get("segments"), list)
         or len(transcript["segments"]) > MAX_SEGMENTS
     ):
         raise TranscriptionContractRefused(status=503)
+    segment_ids = set()
     for segment in transcript["segments"]:
         speaker = segment.get("speaker") if isinstance(segment, dict) else None
+        confidence = segment.get("confidence") if isinstance(segment, dict) else None
+        segment_id = segment.get("segment_id") if isinstance(segment, dict) else None
         if (
             not isinstance(segment, dict)
-            or not isinstance(segment.get("segment_id"), str)
+            or not isinstance(segment_id, str)
+            or not SEGMENT_ID_PATTERN.fullmatch(segment_id)
+            or segment_id in segment_ids
             or not isinstance(segment.get("start_ms"), int)
             or not isinstance(segment.get("end_ms"), int)
             or segment["start_ms"] < 0
             or segment["end_ms"] <= segment["start_ms"]
             or not isinstance(segment.get("text"), str)
-            or not isinstance(segment.get("confidence"), (int, float))
+            or not 1 <= len(segment["text"]) <= 4_000
+            or not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool)
+            or not math.isfinite(confidence)
+            or not 0 <= confidence <= 1
             or not isinstance(speaker, dict)
-            or not isinstance(speaker.get("kind"), str)
+            or set(speaker) != {"kind", "ref"}
+            or speaker.get("kind") != "acoustic"
             or not isinstance(speaker.get("ref"), str)
+            or not 1 <= len(speaker["ref"]) <= 160
         ):
             raise TranscriptionContractRefused(status=503)
+        segment_ids.add(segment_id)
     return transcript
 
 

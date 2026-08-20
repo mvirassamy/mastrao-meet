@@ -58,6 +58,10 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "recording_artifact_receipt",
     "recording_failure_receipt",
     "recording_access_grant",
+    "transcription_submit_effect",
+    "transcription_submit_receipt",
+    "transcription_artifact_receipt",
+    "transcription_failure_receipt",
     "object_ref",
 )
 

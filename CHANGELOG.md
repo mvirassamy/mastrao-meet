@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- 📝(backend) produce canonical consent-bound transcript artifacts with strict ASR validation
+- ✨(frontend) collect a distinct recoverable transcription decision before media entry
 - 🚀(helm) add secret-safe staging and production LiveKit Egress overlays
 - 🔐(backend) consume short Mastrao host handoffs into session-bound media grants
 - 🔐(backend) redeem canonical guest invitations into anonymous room-bound lobby grants
@@ -20,6 +22,7 @@ and this project adheres to
 
 ### Changed
 
+- 🔒️(backend) scrub transcription capabilities and receipts from error telemetry
 - 🔒️(backend) split new recording starts from emergency artifact-access shutdown
 - 🔒️(backend) revoke prepared downloads when emergency artifact access closes
 - 🩺(backend) isolate recording reconciliation failures during bounded drain batches
