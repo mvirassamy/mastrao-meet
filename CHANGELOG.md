@@ -22,6 +22,7 @@ and this project adheres to
 
 ### Changed
 
+- 🔐(backend) preserve recording-only access after transcription refusal
 - 🔒️(backend) scrub transcription capabilities and receipts from error telemetry
 - 🔒️(backend) split new recording starts from emergency artifact-access shutdown
 - 🔒️(backend) revoke prepared downloads when emergency artifact access closes

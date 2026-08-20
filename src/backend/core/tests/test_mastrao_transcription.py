@@ -135,7 +135,9 @@ def test_transcribed_capture_waits_for_an_explicit_transcription_decision():
     status["transcription_decision"] = "accepted"
     assert media_allowed(status)
     status["transcription_decision"] = "refused"
-    assert not media_allowed(status)
+    assert media_allowed(status)
+    status["transcription_decision"] = "withdrawn"
+    assert media_allowed(status)
 
 
 def test_real_mode_without_endpoint_fails_closed(settings):

@@ -42,6 +42,10 @@ export const RecordingConsent = ({
   const [pending, setPending] = useState<RecordingDecision | null>(null)
   const [failed, setFailed] = useState(false)
   const [transcriptionAccepted, setTranscriptionAccepted] = useState(false)
+  const transcriptionOnly =
+    recordingDecision === 'accepted' &&
+    transcriptionOffered &&
+    transcriptionDecision === 'absent'
 
   const decide = async (decision: 'accepted' | 'refused') => {
     setPending(decision)
@@ -67,7 +71,7 @@ export const RecordingConsent = ({
         decision === 'accepted'
       ) {
         const transcriptionDecision =
-          transcriptionAccepted ? 'accepted' : 'refused'
+          transcriptionOnly || transcriptionAccepted ? 'accepted' : 'refused'
         await decideTranscription(
           roomId,
           transcriptionDecision,
@@ -85,11 +89,17 @@ export const RecordingConsent = ({
   return (
     <VStack gap="1rem" alignItems="center" textAlign="center">
       <H lvl={1} margin="sm" centered>
-        {t('title')}
+        {t(transcriptionOnly ? 'transcription.title' : 'title')}
       </H>
-      <Text as="p">{t('notice')}</Text>
-      <Text as="p">{t('purpose')}</Text>
-      <Text as="p">{t('recipients')}</Text>
+      {transcriptionOnly ? (
+        <Text as="p">{t('transcription.pendingNotice')}</Text>
+      ) : (
+        <>
+          <Text as="p">{t('notice')}</Text>
+          <Text as="p">{t('purpose')}</Text>
+          <Text as="p">{t('recipients')}</Text>
+        </>
+      )}
       <Text as="p" variant="note">
         {t('retention', {
           date: new Intl.DateTimeFormat(i18n.language, {
@@ -105,7 +115,7 @@ export const RecordingConsent = ({
           {t('guestIdentity')}
         </Text>
       )}
-      {transcriptionOffered && (
+      {transcriptionOffered && !transcriptionOnly && (
         <VStack gap="0.25rem" alignItems="flex-start" textAlign="left">
           <Checkbox
             isSelected={transcriptionAccepted}
@@ -129,14 +139,14 @@ export const RecordingConsent = ({
           isDisabled={pending !== null}
           onPress={() => decide('refused')}
         >
-          {t('refuse')}
+          {t(transcriptionOnly ? 'transcription.refuse' : 'refuse')}
         </Button>
         <Button
           isDisabled={pending !== null}
           loading={pending === 'accepted'}
           onPress={() => decide('accepted')}
         >
-          {t('accept')}
+          {t(transcriptionOnly ? 'transcription.accept' : 'accept')}
         </Button>
       </HStack>
     </VStack>

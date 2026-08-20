@@ -270,10 +270,11 @@ def media_allowed(status):
     if status["recording_state"] in CAPTURE_STATES:
         recording_accepted = status["decision"] == "accepted"
         if status.get("transcription_mode") == "transcribed":
-            return (
-                recording_accepted
-                and status.get("transcription_decision") == "accepted"
-            )
+            return recording_accepted and status.get("transcription_decision") in {
+                "accepted",
+                "refused",
+                "withdrawn",
+            }
         return recording_accepted
     return status["recording_state"] in NO_CAPTURE_STATES
 
