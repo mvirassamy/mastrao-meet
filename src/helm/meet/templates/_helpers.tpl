@@ -255,3 +255,36 @@ data:
   .dockerconfigjson: {{ template "meet.secret.dockerconfigjson.data" .imageCredentials }}
 {{- end -}}
 {{- end }}
+
+{{/*
+Canonical public Ingress paths routed to the Meet backend Service.
+
+This is the single declaration of the backend public route table so the
+primary-host block and the additional-host block cannot drift. The recording
+download contract (POST /recordings/access/ and GET
+/recordings/download/current) must reach Django with the original URI, so the
+path is declared as a standard Kubernetes Prefix match and never rewritten.
+Longest-path precedence makes it outrank the frontend "/" catch-all without
+any controller-specific annotation or snippet.
+
+Usage : {{ include "meet.ingress.backendPaths" (dict "root" $) }}
+*/}}
+{{- define "meet.ingress.backendPaths" -}}
+{{- $root := .root -}}
+{{- range $path := list "/api/" "/external-api/" "/recordings" }}
+- path: {{ $path | quote }}
+  {{- if semverCompare ">=1.18-0" $root.Capabilities.KubeVersion.GitVersion }}
+  pathType: Prefix
+  {{- end }}
+  backend:
+    {{- if semverCompare ">=1.19-0" $root.Capabilities.KubeVersion.GitVersion }}
+    service:
+      name: {{ include "meet.backend.fullname" $root }}
+      port:
+        number: {{ $root.Values.backend.service.port }}
+    {{- else }}
+    serviceName: {{ include "meet.backend.fullname" $root }}
+    servicePort: {{ $root.Values.backend.service.port }}
+    {{- end }}
+{{- end }}
+{{- end }}

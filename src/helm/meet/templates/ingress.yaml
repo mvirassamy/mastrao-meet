@@ -60,34 +60,7 @@ spec:
               serviceName: {{ include "meet.frontend.fullname" . }}
               servicePort: {{ .Values.frontend.service.port }}
             {{- end }}
-          - path: /api/
-            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
-            pathType: Prefix
-            {{- end }}
-            backend:
-              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
-              service:
-                name: {{ include "meet.backend.fullname" . }}
-                port:
-                  number: {{ .Values.backend.service.port }}
-              {{- else }}
-              serviceName: {{ include "meet.backend.fullname" . }}
-              servicePort: {{ .Values.backend.service.port }}
-            {{- end }}
-          - path: /external-api/
-            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
-            pathType: Prefix
-            {{- end }}
-            backend:
-              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
-              service:
-                name: {{ include "meet.backend.fullname" . }}
-                port:
-                  number: {{ .Values.backend.service.port }}
-              {{- else }}
-              serviceName: {{ include "meet.backend.fullname" . }}
-              servicePort: {{ .Values.backend.service.port }}
-            {{- end }}
+          {{- include "meet.ingress.backendPaths" (dict "root" $) | nindent 10 }}
           {{- with .Values.ingress.customBackends }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
@@ -110,37 +83,9 @@ spec:
               serviceName: {{ include "meet.frontend.fullname" $ }}
               servicePort: {{ $.Values.frontend.service.port }}
             {{- end }}
-          - path: /api/
-            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
-            pathType: Prefix
-            {{- end }}
-            backend:
-              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
-              service:
-                name: {{ include "meet.backend.fullname" $ }}
-                port:
-                  number: {{ $.Values.backend.service.port }}
-              {{- else }}
-              serviceName: {{ include "meet.backend.fullname" $ }}
-              servicePort: {{ $.Values.backend.service.port }}
-            {{- end }}
-          - path: /external-api/
-            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
-            pathType: Prefix
-            {{- end }}
-            backend:
-              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
-              service:
-                name: {{ include "meet.backend.fullname" $ }}
-                port:
-                  number: {{ $.Values.backend.service.port }}
-              {{- else }}
-              serviceName: {{ include "meet.backend.fullname" $ }}
-              servicePort: {{ $.Values.backend.service.port }}
-            {{- end }}
+          {{- include "meet.ingress.backendPaths" (dict "root" $) | nindent 10 }}
           {{- with $.Values.ingress.customBackends }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
     {{- end }}
 {{- end }}
-

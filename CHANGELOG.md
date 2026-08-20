@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- 🔐(helm) route the public /recordings path family to the backend Service on every configured host
 - 📝(backend) produce canonical consent-bound transcript artifacts with strict ASR validation
 - ✨(frontend) collect a distinct recoverable transcription decision before media entry
 - 🚀(helm) add secret-safe staging and production LiveKit Egress overlays
