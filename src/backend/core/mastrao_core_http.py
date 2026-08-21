@@ -84,7 +84,10 @@ def read_bounded_core_json(
         outcome = None
         try:
             body = _read_core_body(response, refusal)
-            if isinstance(body, dict) and body.get("outcome") in TRANSCRIPTION_CALLBACK_OUTCOMES:
+            if (
+                isinstance(body, dict)
+                and body.get("outcome") in TRANSCRIPTION_CALLBACK_OUTCOMES
+            ):
                 outcome = body["outcome"]
         except (UnicodeDecodeError, ValueError, json.JSONDecodeError, TypeError):
             outcome = None

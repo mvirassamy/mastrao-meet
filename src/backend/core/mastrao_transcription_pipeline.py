@@ -178,13 +178,24 @@ def complete_transcription(effect_pk):
         action = _persist_artifact_pending(
             local_effect.pk, transcription_binding.pk, artifact
         )
+    discarded_artifact = (
+        artifact if action in {"notify_failure", "completed_failed"} else None
+    )
     local_effect.refresh_from_db()
     transcription_binding.refresh_from_db()
     effect = _effect_from_local(transcription_binding, local_effect)
-    _finish_completion(action, effect, transcription_binding, local_effect)
+    _finish_completion(
+        action,
+        effect,
+        transcription_binding,
+        local_effect,
+        discarded_artifact=discarded_artifact,
+    )
 
 
-def _finish_completion(action, effect, transcription_binding, local_effect):
+def _finish_completion(
+    action, effect, transcription_binding, local_effect, *, discarded_artifact=None
+):
     if action == "retry_later":
         raise TranscriptionContractRefused(status=503)
     if action == "incident":
@@ -193,7 +204,12 @@ def _finish_completion(action, effect, transcription_binding, local_effect):
         _deliver_artifact(effect, transcription_binding, local_effect)
         return
     if action in {"completed_failed", "notify_failure"}:
-        _deliver_failure(effect, local_effect, transcription_binding)
+        _deliver_failure(
+            effect,
+            local_effect,
+            transcription_binding,
+            discarded_artifact=discarded_artifact,
+        )
 
 
 def _acquire_completion_lease(effect_pk):
@@ -238,6 +254,14 @@ def _action_for_dispatch(locked_effect):
     return None
 
 
+def _remember_discarded_object(locked_binding, artifact):
+    object_ref = artifact.get("object_ref") if artifact else None
+    if locked_binding.checksum_digest is not None or not object_ref:
+        return
+    locked_binding.object_ref = object_ref
+    locked_binding.save(update_fields=["object_ref", "updated_at"])
+
+
 def _persist_artifact_pending(effect_pk, binding_pk, artifact):
     with transaction.atomic():
         locked_effect = (
@@ -246,12 +270,15 @@ def _persist_artifact_pending(effect_pk, binding_pk, artifact):
             )
         )
         durable = _action_for_dispatch(locked_effect)
-        if durable in {
-            "completed_failed",
-            "completed_available",
-            "incident",
-            "notify_failure",
-        }:
+        if durable in {"notify_failure", "completed_failed"}:
+            locked_binding = (
+                models.MastraoTranscriptionBinding.objects.select_for_update().get(
+                    pk=binding_pk
+                )
+            )
+            _remember_discarded_object(locked_binding, artifact)
+            return durable
+        if durable is not None:
             return durable
         locked_binding = (
             models.MastraoTranscriptionBinding.objects.select_for_update().get(
@@ -394,7 +421,23 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
     _commit_available(local_effect.pk, transcription_binding.pk)
 
 
-def _deliver_failure(effect, local_effect, transcription_binding):
+def _discarded_object_ref(transcription_binding, discarded_artifact):
+    if transcription_binding.checksum_digest:
+        return None
+    if discarded_artifact and discarded_artifact.get("object_ref"):
+        return discarded_artifact["object_ref"]
+    return transcription_binding.object_ref
+
+
+def _cleanup_discarded_transcript(transcription_binding, discarded_artifact):
+    object_ref = _discarded_object_ref(transcription_binding, discarded_artifact)
+    if object_ref:
+        delete_transcript_object(object_ref)
+
+
+def _deliver_failure(
+    effect, local_effect, transcription_binding, *, discarded_artifact=None
+):
     # pylint: disable=import-outside-toplevel
     from core.mastrao_transcription_adapter import _notify_core_failure
 
@@ -410,9 +453,11 @@ def _deliver_failure(effect, local_effect, transcription_binding):
         if outcome in INCIDENT_OUTCOMES:
             _commit_incident(local_effect.pk)
             return
+        _cleanup_discarded_transcript(transcription_binding, discarded_artifact)
         _commit_failed(local_effect.pk, transcription_binding.pk)
         return
     if result["outcome"] == "available":
         _commit_available(local_effect.pk, transcription_binding.pk)
         return
+    _cleanup_discarded_transcript(transcription_binding, discarded_artifact)
     _commit_failed(local_effect.pk, transcription_binding.pk)

@@ -31,7 +31,11 @@ from core.mastrao_transcription_adapter import (
     _prepare_transcription,
     transcribe_mastrao_recording,
 )
-from core.mastrao_transcription_artifact import map_speakers, persist_transcript
+from core.mastrao_transcription_artifact import (
+    delete_transcript_object,
+    map_speakers,
+    persist_transcript,
+)
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
@@ -41,6 +45,7 @@ from core.mastrao_transcription_contract import (
 )
 from core.mastrao_transcription_pipeline import (
     _persist_artifact_pending,
+    _persist_failure_pending,
     complete_transcription,
     reconcile_transcription_dispatches,
 )
@@ -1005,6 +1010,158 @@ def test_concurrent_failure_does_not_notify_after_artifact_persisted():
     assert local_effect.state == models.MastraoTranscriptionEffect.State.APPLIED
     assert models.MastraoTranscriptionBinding.objects.get().state == (
         models.MastraoTranscriptionBinding.State.AVAILABLE
+    )
+
+
+def test_first_artifact_pending_is_not_replaced_by_a_concurrent_producer():
+    first = _fake_artifact(transcript_artifact_ref="transcript_aaaaaaaaaaaaaaaa")
+    second = _fake_artifact(
+        transcript_artifact_ref="transcript_bbbbbbbbbbbbbbbb",
+        checksum_digest="b" * 64,
+        byte_size=1024,
+    )
+    binding = _finalized_recording_binding("raceart_012345678")
+    effect = _effect(binding)
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+        local_effect = models.MastraoTranscriptionEffect.objects.get()
+        transcription = models.MastraoTranscriptionBinding.objects.get()
+        assert (
+            _persist_artifact_pending(local_effect.pk, transcription.pk, first)
+            == "notify_artifact"
+        )
+        assert (
+            _persist_artifact_pending(local_effect.pk, transcription.pk, second)
+            == "notify_artifact"
+        )
+    transcription.refresh_from_db()
+    assert transcription.transcript_artifact_ref == first["transcript_artifact_ref"]
+    assert transcription.checksum_digest == first["checksum_digest"]
+    assert transcription.byte_size == first["byte_size"]
+
+
+def test_losing_artifact_is_deleted_after_core_confirms_failure(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("loserart_01234567")
+    effect = _effect(binding, transcription_ref="transcription_loserart_012")
+    notify_artifact = mock.Mock()
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            return_value=CORE_FAILED_OUTCOME,
+        ) as notify_failure,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact",
+            new=notify_artifact,
+        ),
+    ):
+        _apply_transcription(effect)
+        local_effect = models.MastraoTranscriptionEffect.objects.get()
+        transcription = models.MastraoTranscriptionBinding.objects.get()
+        _persist_failure_pending(local_effect.pk, "asr_failed")
+        transcript = map_speakers(transcribe_audio(b"losing artifact audio"))
+        artifact = persist_transcript(effect["transcription_ref"], transcript)
+        object_path = (
+            tmp_path / "mastrao-transcripts" / f"{effect['transcription_ref']}.json"
+        )
+        assert object_path.exists()
+        assert (
+            _persist_artifact_pending(local_effect.pk, transcription.pk, artifact)
+            == "notify_failure"
+        )
+        complete_transcription(local_effect.pk)
+    notify_artifact.assert_not_called()
+    notify_failure.assert_called_once()
+    assert not object_path.exists()
+    local_effect.refresh_from_db()
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+    assert models.MastraoTranscriptionBinding.objects.get().checksum_digest is None
+
+
+def test_losing_artifact_delete_retries_after_storage_503(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("del503_0123456789")
+    effect = _effect(binding, transcription_ref="transcription_del503_01234")
+    delete_attempts = []
+
+    def flaky_delete(object_ref):
+        delete_attempts.append(1)
+        if len(delete_attempts) == 1:
+            raise TranscriptionContractRefused(status=503)
+        delete_transcript_object(object_ref)
+
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            return_value=CORE_FAILED_OUTCOME,
+        ),
+        mock.patch(
+            "core.mastrao_transcription_pipeline.delete_transcript_object",
+            side_effect=flaky_delete,
+        ),
+    ):
+        _apply_transcription(effect)
+        local_effect = models.MastraoTranscriptionEffect.objects.get()
+        transcription = models.MastraoTranscriptionBinding.objects.get()
+        _persist_failure_pending(local_effect.pk, "asr_failed")
+        transcript = map_speakers(transcribe_audio(b"retry delete audio"))
+        artifact = persist_transcript(effect["transcription_ref"], transcript)
+        object_path = (
+            tmp_path / "mastrao-transcripts" / f"{effect['transcription_ref']}.json"
+        )
+        _persist_artifact_pending(local_effect.pk, transcription.pk, artifact)
+        with pytest.raises(TranscriptionContractRefused) as refusal:
+            complete_transcription(local_effect.pk)
+        assert refusal.value.status == 503
+        assert object_path.exists()
+        local_effect.refresh_from_db()
+        assert local_effect.dispatch_state == (
+            models.MastraoTranscriptionEffect.DispatchState.FAILURE_NOTIFICATION_PENDING
+        )
+        complete_transcription(local_effect.pk)
+    assert len(delete_attempts) == 2
+    assert not object_path.exists()
+    local_effect.refresh_from_db()
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
     )
 
 

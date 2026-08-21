@@ -52,7 +52,9 @@ def test_private_core_endpoint_rejects_unqualified_targets(endpoint):
 def test_bounded_json_preserves_close_conflict_status():
     """The close client keeps its intentional opaque 409 mapping."""
 
-    response = mock.Mock(headers={}, status_code=409, iter_content=mock.Mock(return_value=[]))
+    response = mock.Mock(
+        headers={}, status_code=409, iter_content=mock.Mock(return_value=[])
+    )
     with pytest.raises(RoomCloseRefused) as error:
         read_bounded_core_json(
             response, RoomCloseRefused, passthrough_statuses={404, 409}
@@ -64,7 +66,9 @@ def test_bounded_json_preserves_close_conflict_status():
 def test_bounded_json_keeps_unexpected_close_status_unavailable():
     """Only the close boundary's explicit 404/409 statuses pass through."""
 
-    response = mock.Mock(headers={}, status_code=403, iter_content=mock.Mock(return_value=[]))
+    response = mock.Mock(
+        headers={}, status_code=403, iter_content=mock.Mock(return_value=[])
+    )
     with pytest.raises(RoomCloseRefused) as error:
         read_bounded_core_json(
             response,
