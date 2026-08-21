@@ -17,9 +17,12 @@ import json
 import logging
 import math
 import re
+from datetime import timezone as datetime_timezone
+from email.utils import parsedate_to_datetime
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.utils import timezone
 
 import requests
 
@@ -30,6 +33,7 @@ FAKE_ENGINE_REF = "fake-asr-deterministic-v1"
 ASR_MODES = {"fake", "real"}
 TRANSCRIPT_SCHEMA_VERSION = 1
 MAX_WORKER_RESPONSE_BYTES = 5_000_000
+MAX_RETRY_AFTER_SECONDS = 3_600
 MAX_SEGMENTS = 10_000
 SEGMENT_DURATION_MS = 4_000
 SEGMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
@@ -253,7 +257,11 @@ def _gateway_transcribe(extracted, attempt):
             if response.status_code in {401, 403}:
                 raise TranscriptionContractRefused(status=503)
             if response.status_code == 429:
-                raise TranscriptionContractRefused(status=503, outcome="retry")
+                raise TranscriptionContractRefused(
+                    status=503,
+                    outcome="retry",
+                    retry_after_seconds=_retry_after_seconds(response),
+                )
             payload = json.loads(_read_bounded_http_body(response))
     except TranscriptionContractRefused:
         raise
@@ -279,6 +287,27 @@ def _read_bounded_http_body(response):
             raise TranscriptionContractRefused(status=503)
         chunks.append(chunk)
     return b"".join(chunks)
+
+
+def _retry_after_seconds(response):
+    """Parse a bounded Retry-After delay from a Gateway 429."""
+
+    raw = response.headers.get("Retry-After") if response is not None else None
+    if not raw:
+        return 1
+    trimmed = str(raw).strip()
+    try:
+        return min(MAX_RETRY_AFTER_SECONDS, max(1, int(trimmed)))
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(trimmed)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=datetime_timezone.utc)
+        seconds = int((when - timezone.now()).total_seconds())
+        return min(MAX_RETRY_AFTER_SECONDS, max(1, seconds))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return 1
 
 
 def ack_gateway_attempt(extracted, attempt):

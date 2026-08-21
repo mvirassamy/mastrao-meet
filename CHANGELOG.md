@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) honor Retry-After and keep the absolute 429 deadline
 - 🐛(backend) add dispatch cleanup_pending and replay ACK after recovery
 - 🐛(backend) require exact provider:model on paid recovery engines
 - 🐛(backend) treat provider 429 as a bounded retry, not unknown

@@ -530,9 +530,7 @@ def test_pre_egress_failure_defers_without_notifying_core():
                 status=503, outcome="failed_pre_egress"
             ),
         ),
-        mock.patch(
-            "core.mastrao_transcription_adapter._notify_core_failure"
-        ) as notify,
+        mock.patch("core.mastrao_transcription_adapter._notify_core_failure") as notify,
     ):
         complete_transcription(local_effect.pk)
     notify.assert_not_called()
@@ -541,3 +539,39 @@ def test_pre_egress_failure_defers_without_notifying_core():
         models.MastraoTranscriptionEffect.DispatchState.DISPATCH_PENDING
     )
     assert local_effect.next_attempt_at > timezone.now()
+
+
+def test_retry_after_holds_deadline_without_burning_retries():
+    binding = _finalized_recording_binding("retryafter01234567")
+    effect = _effect(binding, transcription_ref="transcription_retryafter012")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            side_effect=TranscriptionContractRefused(
+                status=503, outcome="retry", retry_after_seconds=60
+            ),
+        ) as produce,
+        mock.patch("core.mastrao_transcription_adapter._notify_core_failure") as notify,
+    ):
+        _apply_transcription(effect)
+        local_effect = models.MastraoTranscriptionEffect.objects.get()
+        complete_transcription(local_effect.pk)
+        local_effect.refresh_from_db()
+        due = local_effect.next_attempt_at
+        count = local_effect.attempt_count
+        complete_transcription(local_effect.pk)
+        complete_transcription(local_effect.pk)
+    local_effect.refresh_from_db()
+    assert produce.call_count == 1
+    notify.assert_not_called()
+    assert local_effect.attempt_count == count
+    assert local_effect.next_attempt_at == due
+    assert due >= timezone.now() + timezone.timedelta(seconds=50)
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.DISPATCH_PENDING
+    )

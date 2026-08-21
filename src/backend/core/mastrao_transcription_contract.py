@@ -76,6 +76,10 @@ SUBMIT_EFFECT_FIELDS = {
 class TranscriptionContractRefused(RecordingContractRefused):
     """Opaque refusal for transcription effects and receipts."""
 
+    def __init__(self, status=404, outcome=None, retry_after_seconds=None):
+        super().__init__(status=status, outcome=outcome)
+        self.retry_after_seconds = retry_after_seconds
+
 
 class TranscriptionPipelineFailed(TranscriptionContractRefused):
     """Terminal pipeline failure carrying the exact Core failure code."""

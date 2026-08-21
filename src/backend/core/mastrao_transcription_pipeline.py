@@ -164,6 +164,8 @@ def complete_transcription(effect_pk):
 
     transcription_binding, local_effect, action = _acquire_completion_lease(effect_pk)
     effect = _effect_from_local(transcription_binding, local_effect)
+    if action == "wait":
+        return
     if action != "produce":
         _finish_completion(action, effect, transcription_binding, local_effect)
         return
@@ -250,6 +252,11 @@ def _acquire_completion_lease(effect_pk):
         durable = _action_for_dispatch(local_effect)
         if durable is not None:
             return transcription_binding, local_effect, durable
+        if (
+            local_effect.dispatch_state == DispatchState.DISPATCH_PENDING
+            and local_effect.next_attempt_at > timezone.now()
+        ):
+            return transcription_binding, local_effect, "wait"
         stale_lease = timezone.now() - local_effect.updated_at >= timezone.timedelta(
             seconds=_pipeline_timeout_seconds()
         )
@@ -296,7 +303,7 @@ def _action_after_produce_error(effect_pk, error):
     retryable = error.outcome in {"failed_pre_egress", "retry"} or (
         error.status == 503 and error.outcome is None
     )
-    if not terminal and retryable and _defer_pre_egress_retry(effect_pk):
+    if not terminal and retryable and _defer_pre_egress_retry(effect_pk, error):
         return None
     return _persist_failure_pending(effect_pk, "asr_failed")
 
@@ -518,16 +525,39 @@ def _cleanup_discarded_transcript(transcription_binding, discarded_artifact):
         _cleanup_effect_recovery(local_effect.pk)
 
 
-def _defer_pre_egress_retry(effect_pk):
+def _defer_pre_egress_retry(effect_pk, error=None):
     """Keep a proven pre-egress failure local until retries are exhausted."""
 
     now = timezone.now()
+    retry_after = getattr(error, "retry_after_seconds", None)
     with transaction.atomic():
         locked = models.MastraoTranscriptionEffect.objects.select_for_update().get(
             pk=effect_pk
         )
         if locked.dispatch_state == DispatchState.COMPLETED:
             return False
+        if retry_after is not None:
+            due_at = now + timezone.timedelta(seconds=max(1, int(retry_after)))
+            locked.dispatch_state = DispatchState.DISPATCH_PENDING
+            if locked.next_attempt_at > now:
+                locked.next_attempt_at = max(locked.next_attempt_at, due_at)
+                locked.save(
+                    update_fields=["dispatch_state", "next_attempt_at", "updated_at"]
+                )
+                return True
+            if locked.attempt_count >= PRE_EGRESS_RETRY_LIMIT:
+                return False
+            locked.attempt_count = locked.attempt_count + 1
+            locked.next_attempt_at = due_at
+            locked.save(
+                update_fields=[
+                    "dispatch_state",
+                    "attempt_count",
+                    "next_attempt_at",
+                    "updated_at",
+                ]
+            )
+            return True
         if locked.attempt_count >= PRE_EGRESS_RETRY_LIMIT:
             return False
         locked.dispatch_state = DispatchState.DISPATCH_PENDING
