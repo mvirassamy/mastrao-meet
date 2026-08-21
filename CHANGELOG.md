@@ -23,6 +23,10 @@ and this project adheres to
 
 ### Changed
 
+- 🔒️(backend) refuse enabled transcription with the deterministic fake ASR in any deployable configuration
+- 🚀(backend) enqueue transcription completion on Celery so submit HTTP returns the signed receipt immediately
+- 🔐(backend) bind transcript objects to the authorized transcription and delete them when Core refuses a deleted-recording callback
+- ✨(frontend) show the dedicated transcription notice when recording is already accepted
 - 🔐(backend) preserve recording-only access after transcription refusal
 - 🔒️(backend) scrub transcription capabilities and receipts from error telemetry
 - 🔒️(backend) split new recording starts from emergency artifact-access shutdown
@@ -34,6 +38,12 @@ and this project adheres to
 - 🔒️(backend) distinguish pseudonymous Mastrao hosts from non-interactive room owners
 - 🔒️(backend) require Core-confirmed guest admission before minting participant media tokens
 - 🔒️(backend) stream recording artifacts through single-use session-bound access
+
+### Fixed
+
+- 🐛(backend) install the pinned ffmpeg runtime required for transcript audio extraction
+- 🐛(backend) seed the CSRF cookie during host handoff so the first consent mutation is accepted
+- 🐛(backend) isolate pytest-xdist cache and session keys so parallel workers cannot drop each other
 
 ## [1.26.0] - 2026-08-12
 
