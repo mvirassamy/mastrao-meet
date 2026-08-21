@@ -12,6 +12,7 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse, JsonResponse
+from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -233,6 +234,10 @@ def consume_mastrao_host_handoff(request):
         _admit_public_attempt(request, fields["host_handoff"])
         grant, compact_grant = _redeem(fields["host_handoff"])
         _, binding = _commit_grant(request, grant, compact_grant)
+        # The handoff authenticates an otherwise anonymous browser. Seed the
+        # CSRF cookie now so the first authenticated room mutation can carry a
+        # matching token instead of being rejected by DRF session auth.
+        get_token(request)
         response = HttpResponse(status=303)
         response["Location"] = f"/{binding.room.slug}"
         response["Cache-Control"] = "private, no-store"

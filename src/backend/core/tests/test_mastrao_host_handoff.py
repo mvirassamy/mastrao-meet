@@ -353,6 +353,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     assert response.status_code == 303
     assert response["Location"] == f"/{binding.room.slug}"
     assert response["Referrer-Policy"] == "no-referrer"
+    assert response.cookies["csrftoken"].value
     assert models.MastraoHostIdentity.objects.count() == 1
     assert models.MastraoHostGrant.objects.count() == 1
     assert models.ResourceAccess.objects.count() == 1
