@@ -92,7 +92,10 @@ export const RecordingConsent = ({
         {t(transcriptionOnly ? 'transcription.title' : 'title')}
       </H>
       {transcriptionOnly ? (
-        <Text as="p">{t('transcription.pendingNotice')}</Text>
+        <>
+          <Text as="p">{t('transcription.pendingNotice')}</Text>
+          <Text as="p">{t('transcription.notice')}</Text>
+        </>
       ) : (
         <>
           <Text as="p">{t('notice')}</Text>
