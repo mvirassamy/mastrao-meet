@@ -24,6 +24,7 @@ from core.mastrao_recording_session import (
     public_projection,
     record_transcription_decision,
 )
+from core.mastrao_room_contract import CONTRACT_VERSION, _sha256_canonical
 from core.mastrao_transcription_adapter import (
     _apply_transcription,
     _notify_core_artifact,
@@ -37,11 +38,20 @@ from core.mastrao_transcription_artifact import (
     persist_transcript,
 )
 from core.mastrao_transcription_contract import (
+    PURPOSE,
+    SCOPE,
+    SUBMIT_EFFECT_FIELDS,
+    SUBMIT_EFFECT_JOSE_TYPE,
+    SUBMIT_EFFECT_TYPE,
+    SUBMIT_EFFECT_V2_FIELDS,
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
+    _submit_arguments,
+    _verified_submit_payload,
     build_submit_receipt_claims,
     build_transcript_artifact_receipt_claims,
     build_transcription_failure_receipt_claims,
+    verify_transcription_submit_effect,
 )
 from core.mastrao_transcription_pipeline import (
     _persist_artifact_pending,
@@ -124,6 +134,45 @@ def _effect(binding, **overrides):
     return effect
 
 
+def _v2_effect(binding, **overrides):
+    effect = _effect(
+        binding,
+        operation_version=2,
+        asr_profile_ref="openai-gpt-transcribe-v1",
+        asr_profile_digest="1" * 64,
+        asr_provider_ref="openai",
+        requested_model_ref="gpt-transcribe",
+        request_config_digest="2" * 64,
+        normalization_version="meeting-transcript-v1",
+        processing_region_ref="provider-default",
+        data_control_ref="dpa-standard",
+    )
+    effect.update(overrides)
+    return effect
+
+
+def _contract_effect(binding, settings, operation_version=2):
+    effect = _v2_effect(binding) if operation_version == 2 else _effect(binding)
+    now = int(timezone.now().timestamp())
+    effect.update(
+        version=CONTRACT_VERSION,
+        type=SUBMIT_EFFECT_TYPE,
+        issuer=settings.MASTRAO_RECORDING_EFFECT_ISSUER,
+        audience=settings.MASTRAO_RECORDING_EFFECT_AUDIENCE,
+        operation="submit_meeting_transcription",
+        operation_version=operation_version,
+        policy_ref=binding.policy_ref,
+        notice_version=binding.notice_version,
+        notice_digest=binding.notice_digest,
+        purpose=PURPOSE,
+        scope=SCOPE,
+        issued_at=now,
+        expires_at=now + 20,
+    )
+    effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
+    return effect
+
+
 def test_fake_asr_is_deterministic_and_schema_valid():
     transcript = transcribe_audio(b"identical audio bytes")
     again = transcribe_audio(b"identical audio bytes")
@@ -138,6 +187,89 @@ def test_fake_asr_is_deterministic_and_schema_valid():
         assert segment["speaker"]["kind"] == "acoustic"
         assert isinstance(segment["text"], str) and segment["text"]
         assert 0 < segment["confidence"] <= 1
+
+
+def test_submit_contract_accepts_only_the_exact_v2_field_set():
+    verified = {"operation_version": 2}
+    with mock.patch(
+        "core.mastrao_transcription_contract._verify", return_value=verified
+    ) as verify:
+        assert _verified_submit_payload("header.payload.signature") == (verified, 2)
+    verify.assert_called_once_with(
+        "header.payload.signature", SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V2_FIELDS
+    )
+
+
+def test_submit_contract_falls_back_to_the_exact_v1_field_set():
+    verified = {"operation_version": 1}
+    with mock.patch(
+        "core.mastrao_transcription_contract._verify",
+        side_effect=[RecordingContractRefused(), verified],
+    ) as verify:
+        assert _verified_submit_payload("header.payload.signature") == (verified, 1)
+    assert verify.call_args_list == [
+        mock.call(
+            "header.payload.signature",
+            SUBMIT_EFFECT_JOSE_TYPE,
+            SUBMIT_EFFECT_V2_FIELDS,
+        ),
+        mock.call(
+            "header.payload.signature", SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_FIELDS
+        ),
+    ]
+
+
+@pytest.mark.parametrize(("schema_version", "operation_version"), [(2, 1), (1, 2)])
+def test_submit_contract_refuses_schema_operation_version_mismatch(
+    settings, schema_version, operation_version
+):
+    binding = _finalized_recording_binding(
+        f"mixedschema_{schema_version}_{operation_version}"
+    )
+    effect = _contract_effect(binding, settings, operation_version=schema_version)
+    effect["operation_version"] = operation_version
+    verify_behavior = (
+        {"return_value": effect}
+        if schema_version == 2
+        else {"side_effect": [RecordingContractRefused(), effect]}
+    )
+    with (
+        mock.patch(
+            "core.mastrao_transcription_contract._verify",
+            **verify_behavior,
+        ),
+        pytest.raises(TranscriptionContractRefused),
+    ):
+        verify_transcription_submit_effect("header.payload.signature")
+
+
+@pytest.mark.parametrize(
+    ("profile_ref", "provider_ref", "model_ref", "region_ref"),
+    [
+        ("openai-gpt-transcribe-v1", "openai", "gpt-transcribe", "eu-west"),
+        (
+            "mistral-voxtral-mini-2602-v1",
+            "mistral",
+            "voxtral-mini-2602",
+            "eu-west",
+        ),
+    ],
+)
+def test_submit_contract_accepts_closed_v2_asr_references(
+    settings, profile_ref, provider_ref, model_ref, region_ref
+):
+    binding = _finalized_recording_binding(f"closedprofile_{provider_ref}")
+    effect = _contract_effect(binding, settings)
+    effect.update(
+        asr_profile_ref=profile_ref,
+        asr_provider_ref=provider_ref,
+        requested_model_ref=model_ref,
+        processing_region_ref=region_ref,
+    )
+    effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
+    with mock.patch("core.mastrao_transcription_contract._verify", return_value=effect):
+        verified = verify_transcription_submit_effect("header.payload.signature")
+    assert verified == effect
 
 
 def test_transcription_runtime_contains_ffmpeg():
@@ -314,6 +446,37 @@ def test_divergent_replay_is_refused_with_conflict():
     with pytest.raises(TranscriptionContractRefused) as refusal:
         _prepare_transcription(
             _effect(binding, effect_key="effect_transcribe_divergent01")
+        )
+    assert refusal.value.status == 409
+
+
+def test_two_transcription_runs_can_share_one_recording():
+    binding = _finalized_recording_binding("multirun_012345678")
+    first = _effect(binding)
+    second = _v2_effect(
+        binding,
+        transcription_ref="transcription_second_012345",
+        effect_key="effect_transcribe_second_012345",
+        arguments_digest="f" * 64,
+        jti="request_transcribe_second_012345",
+    )
+    _prepare_transcription(first)
+    _prepare_transcription(second)
+    runs = models.MastraoTranscriptionBinding.objects.order_by("transcription_ref")
+    assert runs.count() == 2
+    assert {run.recording_binding_id for run in runs} == {binding.pk}
+
+
+def test_v2_replay_requires_the_exact_signed_profile_binding():
+    recording = _finalized_recording_binding("v2binding_01234567")
+    effect = _v2_effect(recording)
+    transcription, _local_effect = _prepare_transcription(effect)
+    assert transcription.asr_provider_ref == "openai"
+    assert transcription.requested_model_ref == "gpt-transcribe"
+    assert transcription.request_config_digest == "2" * 64
+    with pytest.raises(TranscriptionContractRefused) as refusal:
+        _prepare_transcription(
+            _v2_effect(recording, requested_model_ref="gpt-4o-transcribe")
         )
     assert refusal.value.status == 409
 

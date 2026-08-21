@@ -33,6 +33,8 @@ and this project adheres to
 
 ### Added
 
+- ✨(backend) accept consent-bound v2 ASR profiles beside draining v1 jobs
+- ✨(backend) allow immutable transcript runs to share one recording
 - 🔐(backend) add durable provider-attempt state, object-save recovery and a dedicated mastrao-transcription Celery worker
 - 🔐(backend) freeze the first pending transcript artifact and delete a losing object after Core failure
 - 🔐(backend) send only the durable transcription callback chosen under lock

@@ -1017,10 +1017,10 @@ class MastraoTranscriptionBinding(BaseModel):
         AVAILABLE = "available", _("Available")
         FAILED = "failed", _("Failed")
 
-    recording_binding = models.OneToOneField(
+    recording_binding = models.ForeignKey(
         MastraoRecordingBinding,
         on_delete=models.PROTECT,
-        related_name="transcription_binding",
+        related_name="transcription_bindings",
     )
     organization_external_id = models.CharField(max_length=200)
     meeting_ref = models.CharField(max_length=160)
@@ -1029,6 +1029,15 @@ class MastraoTranscriptionBinding(BaseModel):
     transcription_ref = models.CharField(max_length=160, unique=True)
     artifact_ref = models.CharField(max_length=160)
     provider_binding_digest = models.CharField(max_length=64)
+    contract_operation_version = models.PositiveSmallIntegerField(default=1)
+    asr_profile_ref = models.CharField(max_length=160, null=True, blank=True)
+    asr_profile_digest = models.CharField(max_length=64, null=True, blank=True)
+    asr_provider_ref = models.CharField(max_length=32, null=True, blank=True)
+    requested_model_ref = models.CharField(max_length=160, null=True, blank=True)
+    request_config_digest = models.CharField(max_length=64, null=True, blank=True)
+    normalization_version = models.CharField(max_length=40, null=True, blank=True)
+    processing_region_ref = models.CharField(max_length=160, null=True, blank=True)
+    data_control_ref = models.CharField(max_length=160, null=True, blank=True)
     artifact_checksum_digest = models.CharField(max_length=64)
     artifact_byte_size = models.PositiveBigIntegerField()
     purpose = models.CharField(max_length=64, default="meeting_transcription")
@@ -1070,6 +1079,58 @@ class MastraoTranscriptionBinding(BaseModel):
             models.CheckConstraint(
                 condition=models.Q(scope="recording_artifact_audio_transcript"),
                 name="mastrao_transcription_scope_fixed",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(contract_operation_version__in=[1, 2]),
+                name="mastrao_tx_contract_version_closed",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        contract_operation_version=1,
+                        asr_profile_ref__isnull=True,
+                        asr_profile_digest__isnull=True,
+                        asr_provider_ref__isnull=True,
+                        requested_model_ref__isnull=True,
+                        request_config_digest__isnull=True,
+                        normalization_version__isnull=True,
+                        processing_region_ref__isnull=True,
+                        data_control_ref__isnull=True,
+                    )
+                    | models.Q(
+                        contract_operation_version=2,
+                        asr_profile_ref__isnull=False,
+                        asr_profile_digest__isnull=False,
+                        asr_provider_ref__isnull=False,
+                        requested_model_ref__isnull=False,
+                        request_config_digest__isnull=False,
+                        normalization_version__isnull=False,
+                        processing_region_ref__isnull=False,
+                        data_control_ref__isnull=False,
+                    )
+                ),
+                name="mastrao_tx_profile_complete_by_version",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(asr_provider_ref__isnull=True)
+                    | models.Q(asr_provider_ref__in=["fake", "mistral", "openai"])
+                ),
+                name="mastrao_tx_binding_provider_closed",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(asr_profile_digest__isnull=True)
+                    | models.Q(asr_profile_digest__regex=r"^[a-f0-9]{64}$")
+                ),
+                name="mastrao_tx_profile_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(request_config_digest__isnull=True)
+                    | models.Q(request_config_digest__regex=r"^[a-f0-9]{64}$")
+                ),
+                name="mastrao_tx_config_digest_format",
             ),
         ]
 
@@ -1229,9 +1290,7 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
                 name="mastrao_tx_attempt_config_digest_format",
             ),
             models.CheckConstraint(
-                condition=models.Q(
-                    provider_ref__in=["fake", "mistral", "openai"]
-                ),
+                condition=models.Q(provider_ref__in=["fake", "mistral", "openai"]),
                 name="mastrao_tx_attempt_provider_closed",
             ),
         ]

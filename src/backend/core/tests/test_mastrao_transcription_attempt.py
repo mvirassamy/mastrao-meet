@@ -2,6 +2,7 @@
 
 # pylint: disable=missing-function-docstring
 
+import hashlib
 import json
 from unittest import mock
 
@@ -33,7 +34,11 @@ from core.mastrao_transcription_contract import (
     TranscriptionPipelineFailed,
 )
 from core.mastrao_transcription_pipeline import complete_transcription
-from core.mastrao_transcription_worker import _validated_transcript, transcribe_audio
+from core.mastrao_transcription_worker import (
+    _gateway_fingerprint,
+    _validated_transcript,
+    transcribe_audio,
+)
 from core.tests.test_mastrao_transcription import (
     ENQUEUE,
     _effect,
@@ -56,6 +61,59 @@ def test_missing_confidence_is_accepted_and_not_fabricated():
     del transcript["segments"][0]["confidence"]
     validated = _validated_transcript(transcript)
     assert "confidence" not in validated["segments"][0]
+
+
+def test_gateway_fingerprint_binds_signed_request_configuration():
+    class _Extracted:
+        sha256 = "a" * 64
+        duration_ms = 4_000
+        codec = "flac"
+
+    config_digest = "b" * 64
+
+    class _Attempt:
+        provider_ref = "openai"
+        requested_model_ref = "gpt-transcribe"
+        request_config_digest = config_digest
+
+    class _ChangedAttempt(_Attempt):
+        request_config_digest = "c" * 64
+
+    expected = hashlib.sha256(
+        "|".join(
+            [
+                _Extracted.sha256,
+                "4000",
+                "flac",
+                "openai",
+                "gpt-transcribe",
+                "asr-gateway-v1",
+                "1",
+                config_digest,
+                "fr",
+                "",
+                "0",
+            ]
+        ).encode()
+    ).hexdigest()
+
+    assert (
+        _gateway_fingerprint(
+            _Extracted(),
+            _Attempt(),
+            language="fr",
+        )
+        == expected
+    )
+    assert _gateway_fingerprint(
+        _Extracted(),
+        _ChangedAttempt(),
+        language="fr",
+    ) != _gateway_fingerprint(
+        _Extracted(),
+        _Attempt(),
+        language="fr",
+    )
 
 
 def test_enqueue_uses_dedicated_mastrao_transcription_queue():
@@ -100,6 +158,94 @@ def test_concurrent_prepare_creates_one_attempt():
         ).count()
         == 1
     )
+
+
+def test_v2_attempt_uses_signed_provider_binding_not_runtime_default(settings):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+    settings.MASTRAO_TRANSCRIPTION_PROVIDER = "mistral"
+    settings.MASTRAO_TRANSCRIPTION_MODEL = "voxtral-mini-2602"
+    settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
+    recording = _finalized_recording_binding("signedprovider_0123")
+    effect = _effect(
+        recording,
+        operation_version=2,
+        asr_profile_ref="openai-gpt-transcribe-v1",
+        asr_profile_digest="1" * 64,
+        asr_provider_ref="openai",
+        requested_model_ref="gpt-transcribe",
+        request_config_digest="2" * 64,
+        normalization_version="meeting-transcript-v1",
+        processing_region_ref="provider-default",
+        data_control_ref="dpa-standard",
+    )
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.select_related(
+        "transcription_binding"
+    ).get()
+
+    class _Extracted:
+        sha256 = "7" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, _Extracted())
+    assert attempt.provider_ref == "openai"
+    assert attempt.requested_model_ref == "gpt-transcribe"
+    assert attempt.request_config_digest == "2" * 64
+
+
+@pytest.mark.parametrize(
+    ("mode", "profile_ref", "provider_ref", "model_ref"),
+    [
+        ("fake", "openai-gpt-transcribe-v1", "openai", "gpt-transcribe"),
+        ("real", "fake-asr-qualification-v1", "fake", "fake-asr-deterministic-v1"),
+    ],
+)
+def test_v2_attempt_refuses_execution_mode_profile_mismatch(
+    settings, mode, profile_ref, provider_ref, model_ref
+):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = mode
+    recording = _finalized_recording_binding(f"modemismatch_{mode}")
+    effect = _effect(
+        recording,
+        operation_version=2,
+        asr_profile_ref=profile_ref,
+        asr_profile_digest="1" * 64,
+        asr_provider_ref=provider_ref,
+        requested_model_ref=model_ref,
+        request_config_digest="2" * 64,
+        normalization_version="meeting-transcript-v1",
+        processing_region_ref="provider-default",
+        data_control_ref="dpa-standard",
+    )
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.select_related(
+        "transcription_binding"
+    ).get()
+
+    class _Extracted:
+        sha256 = "8" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    with pytest.raises(TranscriptionPipelineFailed):
+        prepare_attempt(local_effect, _Extracted())
 
 
 def test_paid_sending_crash_becomes_unknown_and_is_not_resent(settings):
