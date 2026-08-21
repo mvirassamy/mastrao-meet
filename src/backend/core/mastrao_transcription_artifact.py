@@ -4,6 +4,8 @@ import hashlib
 import json
 import subprocess
 import tempfile
+import wave
+from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,21 +18,68 @@ from core.mastrao_recording_access import _open_verified_stream
 from core.mastrao_transcription_contract import TranscriptionContractRefused
 
 TRANSCRIPT_PREFIX = "mastrao-transcripts"
+RESULT_RECOVERY_PREFIX = "mastrao-transcript-results"
 FFMPEG_TIMEOUT_SECONDS = 900
 MAX_AUDIO_BYTES = 2_000_000_000
 ARTIFACT_SCHEMA_VERSION = 1
 
 
-def extract_verified_audio(object_ref, expected_size, expected_checksum):
-    """Extract mono 16 kHz WAV bytes from the checksum-verified MP4.
+@dataclass
+class ExtractedAudio:
+    """Temporary extracted audio plus content fingerprint. Caller must close()."""
 
-    The MP4 is re-verified byte-for-byte through the existing recording
-    access stream; no new storage path or credential is introduced.
-    """
+    path: Path
+    sha256: str
+    byte_size: int
+    duration_ms: int
+    codec: str
+    workdir: tempfile.TemporaryDirectory | None = None
 
-    with tempfile.TemporaryDirectory(prefix="mastrao_transcribe_") as workdir:
-        source_path = Path(workdir) / "verified-source.mp4"
-        audio_path = Path(workdir) / "audio-16k-mono.wav"
+    def close(self):
+        if self.workdir is not None:
+            self.workdir.cleanup()
+            self.workdir = None
+
+    def read_bounded(self):
+        if self.byte_size > MAX_AUDIO_BYTES:
+            raise TranscriptionContractRefused(status=503)
+        return self.path.read_bytes()
+
+
+def _hash_file(path):
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            size += len(chunk)
+            if size > MAX_AUDIO_BYTES:
+                raise TranscriptionContractRefused(status=503)
+            digest.update(chunk)
+    if size < 1:
+        raise TranscriptionContractRefused(status=503)
+    return digest.hexdigest(), size
+
+
+def _wav_duration_ms(path):
+    try:
+        with wave.open(str(path), "rb") as handle:
+            frames = handle.getnframes()
+            rate = handle.getframerate()
+    except (wave.Error, OSError) as error:
+        raise TranscriptionContractRefused(status=503) from error
+    if rate < 1:
+        raise TranscriptionContractRefused(status=503)
+    return int(frames * 1000 / rate)
+
+
+def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
+    """Extract mono 16 kHz WAV to a temp file without buffering the WAV in RAM."""
+
+    workdir = tempfile.TemporaryDirectory(prefix="mastrao_transcribe_")
+    created = False
+    try:
+        source_path = Path(workdir.name) / "verified-source.mp4"
+        audio_path = Path(workdir.name) / "audio-16k-mono.wav"
         stream = _open_verified_stream(object_ref, expected_size, expected_checksum)
         try:
             with source_path.open("wb") as destination:
@@ -64,13 +113,38 @@ def extract_verified_audio(object_ref, expected_size, expected_checksum):
             OSError,
         ) as error:
             raise TranscriptionContractRefused(status=503) from error
-        try:
-            audio_bytes = audio_path.read_bytes()
-        except OSError as error:
-            raise TranscriptionContractRefused(status=503) from error
-    if not 1 <= len(audio_bytes) <= MAX_AUDIO_BYTES:
-        raise TranscriptionContractRefused(status=503)
-    return audio_bytes
+        digest, byte_size = _hash_file(audio_path)
+        duration_ms = max(1, _wav_duration_ms(audio_path))
+        created = True
+        return ExtractedAudio(
+            path=audio_path,
+            sha256=digest,
+            byte_size=byte_size,
+            duration_ms=duration_ms,
+            codec="wav_pcm_s16le",
+            workdir=workdir,
+        )
+    finally:
+        if not created:
+            workdir.cleanup()
+
+
+def extract_verified_audio(object_ref, expected_size, expected_checksum):
+    """Extract mono 16 kHz WAV bytes from the checksum-verified MP4.
+
+    The MP4 is re-verified byte-for-byte through the existing recording
+    access stream; no new storage path or credential is introduced.
+    Qualification helpers may still load the bounded WAV; the Celery
+    pipeline uses extract_verified_audio_file instead.
+    """
+
+    extracted = extract_verified_audio_file(
+        object_ref, expected_size, expected_checksum
+    )
+    try:
+        return extracted.read_bounded()
+    finally:
+        extracted.close()
 
 
 def map_speakers(transcript):
@@ -104,7 +178,11 @@ def _canonical_artifact(transcription_ref, transcript):
                 "end_ms": segment["end_ms"],
                 "speaker": segment["speaker"],
                 "text": segment["text"],
-                "confidence": segment["confidence"],
+                **(
+                    {"confidence": segment["confidence"]}
+                    if segment.get("confidence") is not None
+                    else {}
+                ),
             }
             for segment in transcript["segments"]
         ],
@@ -114,7 +192,7 @@ def _canonical_artifact(transcription_ref, transcript):
     return artifact
 
 
-def persist_transcript(transcription_ref, transcript):
+def persist_transcript(transcription_ref, transcript, object_ref=None):
     """Store the canonical transcript JSON and return its exact artifact facts."""
 
     artifact = _canonical_artifact(transcription_ref, transcript)
@@ -126,7 +204,7 @@ def persist_transcript(transcription_ref, transcript):
         allow_nan=False,
     ).encode()
     checksum = hashlib.sha256(payload).hexdigest()
-    object_ref = canonical_transcript_object_ref(transcription_ref)
+    object_ref = object_ref or canonical_transcript_object_ref(transcription_ref)
     try:
         if not default_storage.exists(object_ref):
             default_storage.save(object_ref, ContentFile(payload))
@@ -144,6 +222,66 @@ def persist_transcript(transcription_ref, transcript):
         "segment_count": len(artifact["segments"]),
         "engine_ref": transcript["engine_ref"],
     }
+
+
+def persist_result_recovery(attempt_ref, transcript):
+    """Store a bounded normalized result so redelivery does not recall ASR."""
+
+    payload = json.dumps(
+        transcript,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode()
+    object_ref = f"{RESULT_RECOVERY_PREFIX}/{attempt_ref}.json"
+    try:
+        if not default_storage.exists(object_ref):
+            default_storage.save(object_ref, ContentFile(payload))
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise TranscriptionContractRefused(status=503) from error
+    return object_ref, hashlib.sha256(payload).hexdigest()
+
+
+def recover_persisted_transcript(object_ref, transcription_ref, engine_ref):
+    """Resume from a predeclared object without another ASR call."""
+
+    try:
+        if not default_storage.exists(object_ref):
+            return None
+        with default_storage.open(object_ref, "rb") as stream:
+            stored = stream.read(MAX_AUDIO_BYTES)
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise TranscriptionContractRefused(status=503) from error
+    try:
+        payload = json.loads(stored)
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
+        raise TranscriptionContractRefused(status=409) from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("transcription_ref") != transcription_ref
+        or payload.get("version") != ARTIFACT_SCHEMA_VERSION
+    ):
+        raise TranscriptionContractRefused(status=409)
+    return {
+        "transcript_artifact_ref": f"transcript_{uuid4().hex}",
+        "object_ref": object_ref,
+        "byte_size": len(stored),
+        "checksum_digest": hashlib.sha256(stored).hexdigest(),
+        "segment_count": len(payload.get("segments") or []),
+        "engine_ref": engine_ref,
+    }
+
+
+def load_result_recovery(object_ref):
+    try:
+        if not default_storage.exists(object_ref):
+            return None
+        with default_storage.open(object_ref, "rb") as stream:
+            stored = stream.read(MAX_AUDIO_BYTES)
+        return json.loads(stored)
+    except (BotoCoreError, ClientError, OSError, ValueError, json.JSONDecodeError):
+        return None
 
 
 def canonical_transcript_object_ref(transcription_ref):

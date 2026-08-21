@@ -9,7 +9,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import models
-from core.mastrao_transcription_artifact import delete_transcript_object
+from core.mastrao_transcription_artifact import (
+    delete_transcript_object,
+    recover_persisted_transcript,
+)
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
@@ -49,6 +52,9 @@ def publish_transcription_job(effect_pk):
         process_mastrao_transcription.apply_async(
             args=[str(effect_pk)],
             task_id=transcription_task_id(local_effect.effect_jti),
+            queue=getattr(
+                settings, "MASTRAO_TRANSCRIPTION_QUEUE", "mastrao-transcription"
+            ),
             ignore_result=True,
         )
     except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
@@ -164,20 +170,27 @@ def complete_transcription(effect_pk):
             local_effect.pk, transcription_binding.pk, artifact
         )
     else:
-        try:
-            artifact = _produce_transcript(transcription_binding)
-        except TranscriptionPipelineFailed as failure:
-            action = _persist_failure_pending(local_effect.pk, failure.failure_code)
-            local_effect.refresh_from_db()
-            transcription_binding.refresh_from_db()
-            effect = _effect_from_local(transcription_binding, local_effect)
-            _finish_completion(action, effect, transcription_binding, local_effect)
-            if action in {"notify_failure", "completed_failed"}:
-                raise
-            return
-        action = _persist_artifact_pending(
-            local_effect.pk, transcription_binding.pk, artifact
-        )
+        recovered = _recover_predeclared_artifact(transcription_binding, local_effect)
+        if recovered is not None:
+            artifact = recovered
+            action = _persist_artifact_pending(
+                local_effect.pk, transcription_binding.pk, artifact
+            )
+        else:
+            try:
+                artifact = _produce_transcript(transcription_binding)
+            except TranscriptionPipelineFailed as failure:
+                action = _persist_failure_pending(local_effect.pk, failure.failure_code)
+                local_effect.refresh_from_db()
+                transcription_binding.refresh_from_db()
+                effect = _effect_from_local(transcription_binding, local_effect)
+                _finish_completion(action, effect, transcription_binding, local_effect)
+                if action in {"notify_failure", "completed_failed"}:
+                    raise
+                return
+            action = _persist_artifact_pending(
+                local_effect.pk, transcription_binding.pk, artifact
+            )
     discarded_artifact = (
         artifact if action in {"notify_failure", "completed_failed"} else None
     )
@@ -237,6 +250,30 @@ def _acquire_completion_lease(effect_pk):
         local_effect.dispatch_state = DispatchState.RUNNING
         local_effect.save(update_fields=["dispatch_state", "updated_at"])
         return transcription_binding, local_effect, "produce"
+
+
+def _recover_predeclared_artifact(transcription_binding, local_effect):
+    object_ref = transcription_binding.object_ref
+    engine_ref = transcription_binding.engine_ref
+    if not object_ref:
+        attempt = (
+            models.MastraoTranscriptionProviderAttempt.objects.filter(
+                effect=local_effect, generation=1
+            )
+            .order_by("created_at")
+            .first()
+        )
+        if attempt is None or not attempt.transcript_object_ref:
+            return None
+        object_ref = attempt.transcript_object_ref
+        engine_ref = attempt.resolved_model_ref or attempt.requested_model_ref
+    if not engine_ref:
+        engine_ref = "fake-asr-deterministic-v1"
+    return recover_persisted_transcript(
+        object_ref,
+        transcription_binding.transcription_ref,
+        engine_ref,
+    )
 
 
 def _action_for_dispatch(locked_effect):

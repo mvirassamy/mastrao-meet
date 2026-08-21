@@ -791,6 +791,73 @@ celeryBackend:
   pdb:
     enabled: false
 
+## @section celeryMastraoTranscription
+
+celeryMastraoTranscription:
+  ## @param celeryMastraoTranscription.enabled Deploy the dedicated Mastrao transcription worker
+  enabled: false
+
+  ## @param celeryMastraoTranscription.dpAnnotations Annotations to add to the celeryMastraoTranscription Deployment
+  dpAnnotations: {}
+
+  ## @param celeryMastraoTranscription.command Override the celeryMastraoTranscription container command
+  command:
+    - "celery"
+    - "-A"
+    - "meet.celery_app"
+    - "worker"
+    - "--pool=solo"
+    - "--concurrency=1"
+    - "--loglevel=info"
+    - "-Q"
+    - "mastrao-transcription"
+
+  ## @param celeryMastraoTranscription.args Override the celeryMastraoTranscription container args
+  args: []
+
+  ## @param celeryMastraoTranscription.replicas Amount of celeryMastraoTranscription replicas
+  replicas: 1
+
+  ## @param celeryMastraoTranscription.shareProcessNamespace Enable share process namespace between containers
+  shareProcessNamespace: false
+
+  ## @param celeryMastraoTranscription.sidecars Add sidecars containers to celeryMastraoTranscription deployment
+  sidecars: []
+
+  ## @param celeryMastraoTranscription.securityContext Configure celeryMastraoTranscription Container security context
+  securityContext: null
+
+  ## @param celeryMastraoTranscription.podSecurityContext Configure celeryMastraoTranscription Pod security context
+  podSecurityContext: null
+
+  ## @param celeryMastraoTranscription.envVars Configure celeryMastraoTranscription container environment variables
+  envVars:
+    <<: *commonEnvVars
+
+  ## @param celeryMastraoTranscription.podAnnotations Annotations to add to the celeryMastraoTranscription Pod
+  podAnnotations: {}
+
+  ## @param celeryMastraoTranscription.service.type celeryMastraoTranscription Service type
+  ## @param celeryMastraoTranscription.service.port celeryMastraoTranscription Service listening port
+  ## @param celeryMastraoTranscription.service.targetPort celeryMastraoTranscription container listening port
+  ## @param celeryMastraoTranscription.service.annotations Annotations to add to the celeryMastraoTranscription Service
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+    annotations: {}
+
+  probes: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  persistence: {}
+  extraVolumeMounts: []
+  extraVolumes: []
+  pdb:
+    enabled: false
+
 ## @section celeryTranscribe
 
 celeryTranscribe:

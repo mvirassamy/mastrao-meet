@@ -185,6 +185,13 @@ Requires top level scope
 {{- end }}
 
 {{/*
+Full name for the dedicated Mastrao transcription Celery worker
+*/}}
+{{- define "meet.celeryMastraoTranscription.fullname" -}}
+{{ include "meet.fullname" . }}-celery-mastrao-transcription
+{{- end }}
+
+{{/*
 Full name for the Celery Transcribe
 
 Requires top level scope

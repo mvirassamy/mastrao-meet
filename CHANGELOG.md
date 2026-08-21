@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- 🔐(backend) add durable provider-attempt state, object-save recovery and a dedicated mastrao-transcription Celery worker
 - 🔐(backend) freeze the first pending transcript artifact and delete a losing object after Core failure
 - 🔐(backend) send only the durable transcription callback chosen under lock
 - 🔐(backend) converge a late Core failure callback to available when the artifact already won

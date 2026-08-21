@@ -277,6 +277,26 @@ class Base(Configuration):
         environ_name="MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
+    MASTRAO_TRANSCRIPTION_QUEUE = values.Value(
+        "mastrao-transcription",
+        environ_name="MASTRAO_TRANSCRIPTION_QUEUE",
+        environ_prefix=None,
+    )
+    MASTRAO_ASR_GATEWAY_AUTH_TOKEN = values.Value(
+        "",
+        environ_name="MASTRAO_ASR_GATEWAY_AUTH_TOKEN",
+        environ_prefix=None,
+    )
+    MASTRAO_TRANSCRIPTION_PROVIDER = values.Value(
+        "",
+        environ_name="MASTRAO_TRANSCRIPTION_PROVIDER",
+        environ_prefix=None,
+    )
+    MASTRAO_TRANSCRIPTION_MODEL = values.Value(
+        "",
+        environ_name="MASTRAO_TRANSCRIPTION_MODEL",
+        environ_prefix=None,
+    )
     MASTRAO_RECORDING_NOTICE_VERSION = values.Value(
         "", environ_name="MASTRAO_RECORDING_NOTICE_VERSION", environ_prefix=None
     )
@@ -815,6 +835,11 @@ class Base(Configuration):
     CELERY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     CELERY_TASK_ALWAYS_EAGER = values.BooleanValue(False, environ_prefix=None)
     CELERY_TASK_DEFAULT_QUEUE = values.Value("meet-backend", environ_prefix=None)
+    CELERY_TASK_ROUTES = {
+        "core.tasks.transcription.process_mastrao_transcription": {
+            "queue": "mastrao-transcription"
+        }
+    }
     CELERY_BROKER_URL = values.Value("redis://redis:6379/0", environ_prefix=None)
     CELERY_BROKER_TRANSPORT_OPTIONS = values.DictValue({}, environ_prefix=None)
 

@@ -1156,6 +1156,89 @@ class MastraoTranscriptionEffect(BaseModel):
         return f"Mastrao transcription effect {self.effect_key}"
 
 
+class MastraoTranscriptionProviderAttempt(BaseModel):
+    """Durable provider-call state for one transcription effect generation."""
+
+    class State(models.TextChoices):
+        PREPARED = "prepared", _("Prepared")
+        SENDING = "sending", _("Sending")
+        RESULT_RECEIVED = "result_received", _("Result received")
+        ARTIFACT_WRITE_PENDING = "artifact_write_pending", _("Artifact write pending")
+        SUCCEEDED = "succeeded", _("Succeeded")
+        FAILED_PRE_EGRESS = "failed_pre_egress", _("Failed before egress")
+        UNKNOWN = "unknown", _("Unknown")
+        CANCELLED = "cancelled", _("Cancelled")
+
+    class CleanupState(models.TextChoices):
+        NONE = "none", _("None")
+        PENDING = "pending", _("Pending")
+        COMPLETED = "completed", _("Completed")
+
+    effect = models.ForeignKey(
+        MastraoTranscriptionEffect,
+        on_delete=models.PROTECT,
+        related_name="provider_attempts",
+    )
+    generation = models.PositiveIntegerField(default=1)
+    attempt_ref = models.CharField(max_length=160, unique=True)
+    state = models.CharField(
+        max_length=32,
+        choices=State.choices,
+        default=State.PREPARED,
+    )
+    provider_ref = models.CharField(max_length=32)
+    requested_model_ref = models.CharField(max_length=160)
+    adapter_version = models.CharField(max_length=40)
+    request_config_digest = models.CharField(max_length=64)
+    audio_sha256 = models.CharField(max_length=64)
+    audio_duration_ms = models.PositiveIntegerField()
+    audio_codec = models.CharField(max_length=40)
+    input_bytes = models.PositiveBigIntegerField()
+    gateway_request_ref_digest = models.CharField(max_length=64, null=True, blank=True)
+    provider_request_ref_digest = models.CharField(max_length=64, null=True, blank=True)
+    resolved_model_ref = models.CharField(max_length=160, null=True, blank=True)
+    usage_audio_seconds = models.FloatField(null=True, blank=True)
+    estimated_cost_micros = models.BigIntegerField(null=True, blank=True)
+    currency = models.CharField(max_length=8, null=True, blank=True)
+    result_checksum = models.CharField(max_length=64, null=True, blank=True)
+    result_recovery_ref = models.CharField(max_length=1024, null=True, blank=True)
+    transcript_object_ref = models.CharField(max_length=1024, null=True, blank=True)
+    cleanup_state = models.CharField(
+        max_length=16,
+        choices=CleanupState.choices,
+        default=CleanupState.NONE,
+    )
+    last_safe_error_code = models.CharField(max_length=64, null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_transcription_provider_attempt"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["effect", "generation"],
+                name="unique_mastrao_tx_provider_attempt_generation",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(audio_sha256__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_tx_attempt_audio_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(request_config_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_tx_attempt_config_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    provider_ref__in=["fake", "mistral", "openai"]
+                ),
+                name="mastrao_tx_attempt_provider_closed",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao transcription attempt {self.attempt_ref}"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 
