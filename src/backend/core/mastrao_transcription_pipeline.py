@@ -155,35 +155,45 @@ def complete_transcription(effect_pk):
 
     transcription_binding, local_effect, action = _acquire_completion_lease(effect_pk)
     effect = _effect_from_local(transcription_binding, local_effect)
-    if action == "completed_available":
-        _deliver_artifact(effect, transcription_binding, local_effect)
-        return
-    if action == "completed_failed":
-        _deliver_failure(effect, local_effect, transcription_binding)
-        return
-    if action == "notify_artifact":
-        _deliver_artifact(effect, transcription_binding, local_effect)
-        return
-    if action == "notify_failure":
-        _deliver_failure(effect, local_effect, transcription_binding)
-        return
-    if action == "retry_later":
-        raise TranscriptionContractRefused(status=503)
-    if action == "incident":
+    if action != "produce":
+        _finish_completion(action, effect, transcription_binding, local_effect)
         return
     if transcription_binding.checksum_digest:
         artifact = _artifact_from_binding(transcription_binding)
+        action = _persist_artifact_pending(
+            local_effect.pk, transcription_binding.pk, artifact
+        )
     else:
         try:
             artifact = _produce_transcript(transcription_binding)
         except TranscriptionPipelineFailed as failure:
-            _persist_failure_pending(local_effect.pk, failure.failure_code)
+            action = _persist_failure_pending(local_effect.pk, failure.failure_code)
             local_effect.refresh_from_db()
-            _deliver_failure(effect, local_effect, transcription_binding)
-            raise
-    _persist_artifact_pending(local_effect.pk, transcription_binding.pk, artifact)
+            transcription_binding.refresh_from_db()
+            effect = _effect_from_local(transcription_binding, local_effect)
+            _finish_completion(action, effect, transcription_binding, local_effect)
+            if action in {"notify_failure", "completed_failed"}:
+                raise
+            return
+        action = _persist_artifact_pending(
+            local_effect.pk, transcription_binding.pk, artifact
+        )
+    local_effect.refresh_from_db()
     transcription_binding.refresh_from_db()
-    _deliver_artifact(effect, transcription_binding, local_effect)
+    effect = _effect_from_local(transcription_binding, local_effect)
+    _finish_completion(action, effect, transcription_binding, local_effect)
+
+
+def _finish_completion(action, effect, transcription_binding, local_effect):
+    if action == "retry_later":
+        raise TranscriptionContractRefused(status=503)
+    if action == "incident":
+        return
+    if action in {"completed_available", "notify_artifact"}:
+        _deliver_artifact(effect, transcription_binding, local_effect)
+        return
+    if action in {"completed_failed", "notify_failure"}:
+        _deliver_failure(effect, local_effect, transcription_binding)
 
 
 def _acquire_completion_lease(effect_pk):
@@ -200,18 +210,9 @@ def _acquire_completion_lease(effect_pk):
             .select_for_update(of=("self",))
             .get(pk=local_effect.transcription_binding_id)
         )
-        if local_effect.dispatch_state == DispatchState.COMPLETED:
-            if local_effect.state == EffectState.FAILED:
-                action = "completed_failed"
-            elif local_effect.state == EffectState.APPLIED:
-                action = "completed_available"
-            else:
-                action = "incident"
-            return transcription_binding, local_effect, action
-        if local_effect.dispatch_state == DispatchState.ARTIFACT_NOTIFICATION_PENDING:
-            return transcription_binding, local_effect, "notify_artifact"
-        if local_effect.dispatch_state == DispatchState.FAILURE_NOTIFICATION_PENDING:
-            return transcription_binding, local_effect, "notify_failure"
+        durable = _action_for_dispatch(local_effect)
+        if durable is not None:
+            return transcription_binding, local_effect, durable
         stale_lease = timezone.now() - local_effect.updated_at >= timezone.timedelta(
             seconds=_pipeline_timeout_seconds()
         )
@@ -222,6 +223,21 @@ def _acquire_completion_lease(effect_pk):
         return transcription_binding, local_effect, "produce"
 
 
+def _action_for_dispatch(locked_effect):
+    dispatch = locked_effect.dispatch_state
+    if dispatch == DispatchState.COMPLETED:
+        if locked_effect.state == EffectState.FAILED:
+            return "completed_failed"
+        if locked_effect.state == EffectState.APPLIED:
+            return "completed_available"
+        return "incident"
+    if dispatch == DispatchState.ARTIFACT_NOTIFICATION_PENDING:
+        return "notify_artifact"
+    if dispatch == DispatchState.FAILURE_NOTIFICATION_PENDING:
+        return "notify_failure"
+    return None
+
+
 def _persist_artifact_pending(effect_pk, binding_pk, artifact):
     with transaction.atomic():
         locked_effect = (
@@ -229,8 +245,14 @@ def _persist_artifact_pending(effect_pk, binding_pk, artifact):
                 pk=effect_pk
             )
         )
-        if locked_effect.dispatch_state == DispatchState.COMPLETED:
-            return
+        durable = _action_for_dispatch(locked_effect)
+        if durable in {
+            "completed_failed",
+            "completed_available",
+            "incident",
+            "notify_failure",
+        }:
+            return durable
         locked_binding = (
             models.MastraoTranscriptionBinding.objects.select_for_update().get(
                 pk=binding_pk
@@ -254,6 +276,7 @@ def _persist_artifact_pending(effect_pk, binding_pk, artifact):
         locked_binding.save()
         locked_effect.dispatch_state = DispatchState.ARTIFACT_NOTIFICATION_PENDING
         locked_effect.save(update_fields=["dispatch_state", "updated_at"])
+        return "notify_artifact"
 
 
 def _persist_failure_pending(effect_pk, failure_code):
@@ -263,16 +286,15 @@ def _persist_failure_pending(effect_pk, failure_code):
                 pk=effect_pk
             )
         )
-        if locked_effect.dispatch_state in {
-            DispatchState.COMPLETED,
-            DispatchState.ARTIFACT_NOTIFICATION_PENDING,
-        }:
-            return
+        durable = _action_for_dispatch(locked_effect)
+        if durable is not None:
+            return durable
         locked_effect.failure_code = failure_code
         locked_effect.dispatch_state = DispatchState.FAILURE_NOTIFICATION_PENDING
         locked_effect.save(
             update_fields=["failure_code", "dispatch_state", "updated_at"]
         )
+        return "notify_failure"
 
 
 def _commit_available(effect_pk, binding_pk):

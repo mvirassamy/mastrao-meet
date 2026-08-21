@@ -40,6 +40,7 @@ from core.mastrao_transcription_contract import (
     build_transcription_failure_receipt_claims,
 )
 from core.mastrao_transcription_pipeline import (
+    _persist_artifact_pending,
     complete_transcription,
     reconcile_transcription_dispatches,
 )
@@ -52,6 +53,7 @@ from core.models import RoomAccessLevel
 
 pytestmark = pytest.mark.django_db
 ENQUEUE = "core.tasks.transcription.process_mastrao_transcription.apply_async"
+CORE_FAILED_OUTCOME = {"state": "failed", "outcome": "failed"}
 
 
 @pytest.fixture(autouse=True)
@@ -529,13 +531,19 @@ def test_failure_notification_accepts_available_when_core_already_has_artifact(
     )
     binding = _finalized_recording_binding("failavail_01234567")
     effect = _effect(binding)
-    with mock.patch(
-        "core.mastrao_transcription_adapter.post_core_json",
-        return_value={
-            "transcriptionRef": effect["transcription_ref"],
-            "state": "available",
-            "outcome": "available",
-        },
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_transcription_failure_receipt",
+            return_value="failure.receipt.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.post_core_json",
+            return_value={
+                "transcriptionRef": effect["transcription_ref"],
+                "state": "available",
+                "outcome": "available",
+            },
+        ),
     ):
         result = _notify_core_failure(effect, "asr_failed")
     assert result["outcome"] == "available"
@@ -555,7 +563,10 @@ def test_pipeline_failure_marks_local_state_and_notifies_core():
             "core.mastrao_transcription_adapter._produce_transcript",
             side_effect=TranscriptionPipelineFailed("asr_failed"),
         ),
-        mock.patch("core.mastrao_transcription_adapter._notify_core_failure") as notify,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            return_value=CORE_FAILED_OUTCOME,
+        ) as notify,
     ):
         _apply_transcription(effect)
         with pytest.raises(TranscriptionPipelineFailed):
@@ -942,6 +953,62 @@ def test_late_failure_callback_converges_to_available_after_artifact():
 
 
 @pytest.mark.django_db(transaction=True)
+def test_concurrent_failure_does_not_notify_after_artifact_persisted():
+    binding = _finalized_recording_binding("racefail_012345678")
+    effect = _effect(binding)
+    produce_entered = threading.Event()
+    artifact_written = threading.Event()
+    notify_failure = mock.Mock(return_value=CORE_FAILED_OUTCOME)
+
+    def produce(*_args, **_kwargs):
+        produce_entered.set()
+        assert artifact_written.wait(timeout=5)
+        raise TranscriptionPipelineFailed("asr_failed")
+
+    def run():
+        try:
+            complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+        except TranscriptionPipelineFailed:
+            return
+
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            side_effect=produce,
+        ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            new=notify_failure,
+        ),
+    ):
+        _apply_transcription(effect)
+        thread = threading.Thread(target=run)
+        thread.start()
+        assert produce_entered.wait(timeout=5)
+        local_effect = models.MastraoTranscriptionEffect.objects.get()
+        transcription = models.MastraoTranscriptionBinding.objects.get()
+        _persist_artifact_pending(local_effect.pk, transcription.pk, _fake_artifact())
+        artifact_written.set()
+        thread.join(timeout=5)
+    assert thread.is_alive() is False
+    notify_failure.assert_not_called()
+    local_effect.refresh_from_db()
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.APPLIED
+    assert models.MastraoTranscriptionBinding.objects.get().state == (
+        models.MastraoTranscriptionBinding.State.AVAILABLE
+    )
+
+
+@pytest.mark.django_db(transaction=True)
 def test_failure_callback_before_submit_confirmation_is_retryable():
     binding = _finalized_recording_binding("earlyfail_01234567")
     effect = _effect(binding)
@@ -955,6 +1022,7 @@ def test_failure_callback_before_submit_confirmation_is_retryable():
         if not core_confirmed.is_set():
             first_503.set()
             raise TranscriptionContractRefused(status=503, outcome="retry")
+        return CORE_FAILED_OUTCOME
 
     def apply_async(args=None, **_kwargs):
         def run():
@@ -1216,6 +1284,7 @@ def test_failure_callback_503_then_success_marks_failed():
         notify_attempts.append(1)
         if len(notify_attempts) == 1:
             raise TranscriptionContractRefused(status=503)
+        return CORE_FAILED_OUTCOME
 
     with (
         mock.patch(ENQUEUE),

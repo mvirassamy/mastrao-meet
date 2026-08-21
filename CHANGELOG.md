@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- 🔐(backend) send only the durable transcription callback chosen under lock
 - 🔐(backend) converge a late Core failure callback to available when the artifact already won
 - 📝(backend) document that 0029/0030 never shipped on main so no APPLIED/FAILED backfill is required
 - 🔐(backend) converge refused transcription callbacks from Core outcomes without republishing
