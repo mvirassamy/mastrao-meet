@@ -13,6 +13,7 @@ import pytest
 
 from core import models
 from core.mastrao_transcription_adapter import (
+    _accepted_recovery_transcript,
     _apply_transcription,
     _resume_or_transcribe,
 )
@@ -395,6 +396,119 @@ def test_substituted_recovery_is_refused_before_mark_result(settings, tmp_path):
         )
     sending.refresh_from_db()
     assert sending.result_checksum is None
+
+
+def test_paid_recovery_requires_exact_provider_model_engine():
+    class _Attempt:
+        provider_ref = "mistral"
+        requested_model_ref = "voxtral-mini-2602"
+
+    class _Extracted:
+        sha256 = "a" * 64
+
+    transcript = transcribe_audio(b"engine binding")
+    transcript["audio_digest"] = _Extracted.sha256
+    transcript["engine_ref"] = "mistral:voxtral-mini-2602"
+    assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt())
+    transcript["engine_ref"] = "openai:voxtral-mini-2602"
+    assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt()) is None
+    transcript["engine_ref"] = "mistral:gpt-transcribe"
+    assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt()) is None
+    transcript["engine_ref"] = "mistral:voxtral-mini-2602:extra"
+    assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt()) is None
+    transcript["engine_ref"] = "voxtral-mini-2602"
+    assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt()) is None
+
+
+def test_fake_recovery_accepts_unprefixed_deterministic_engine():
+    class _Attempt:
+        provider_ref = "fake"
+        requested_model_ref = "fake-asr-deterministic-v1"
+
+    class _Extracted:
+        sha256 = "b" * 64
+
+    transcript = transcribe_audio(b"fake engine")
+    transcript["audio_digest"] = _Extracted.sha256
+    transcript["engine_ref"] = "fake-asr-deterministic-v1"
+    assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt())
+    transcript["engine_ref"] = "fake:fake-asr-deterministic-v1"
+    assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt()) is None
+
+
+def test_recovery_retries_ack_without_a_second_provider_call(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    transcript = transcribe_audio(b"ack replay")
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+    settings.MASTRAO_TRANSCRIPTION_PROVIDER = "mistral"
+    settings.MASTRAO_TRANSCRIPTION_MODEL = "voxtral-mini-2602"
+    settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
+    settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = (
+        "https://asr.example.test/v1/transcribe"
+    )
+    binding = _finalized_recording_binding("ackreplay012345678")
+    effect = _effect(binding, transcription_ref="transcription_ackreplay0123")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class _Extracted:
+        sha256 = "c" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, _Extracted())
+    transcript["audio_digest"] = _Extracted.sha256
+    transcript["engine_ref"] = "mistral:voxtral-mini-2602"
+    persist_result_recovery(attempt.attempt_ref, transcript)
+    sending = cas_sending(attempt)
+    acks = []
+
+    def ack(*_args, **_kwargs):
+        acks.append(1)
+        if len(acks) == 1:
+            raise TranscriptionContractRefused(status=503, outcome="retry")
+
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter.transcribe_extracted"
+        ) as provider,
+        mock.patch(
+            "core.mastrao_transcription_adapter.ack_gateway_attempt",
+            side_effect=ack,
+        ),
+    ):
+        with pytest.raises(TranscriptionContractRefused) as refused:
+            _resume_or_transcribe(
+                _Extracted(),
+                sending,
+                models.MastraoTranscriptionBinding.objects.get(),
+            )
+        assert refused.value.outcome == "retry"
+        resumed = _resume_or_transcribe(
+            _Extracted(),
+            sending,
+            models.MastraoTranscriptionBinding.objects.get(),
+        )
+    provider.assert_not_called()
+    assert len(acks) == 2
+    assert resumed["engine_ref"] == "mistral:voxtral-mini-2602"
 
 
 def test_pre_egress_failure_defers_without_notifying_core():

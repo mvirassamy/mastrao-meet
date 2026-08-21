@@ -252,6 +252,8 @@ def _gateway_transcribe(extracted, attempt):
             )
             if response.status_code in {401, 403}:
                 raise TranscriptionContractRefused(status=503)
+            if response.status_code == 429:
+                raise TranscriptionContractRefused(status=503, outcome="retry")
             payload = json.loads(_read_bounded_http_body(response))
     except TranscriptionContractRefused:
         raise
@@ -322,6 +324,8 @@ def _accepted_gateway_transcript(payload, extracted, attempt):
         "PROVIDER_OUTCOME_UNKNOWN"
     ):
         raise TranscriptionContractRefused(status=409, outcome="unknown")
+    if payload.get("error") == "PROVIDER_RATE_LIMITED":
+        raise TranscriptionContractRefused(status=503, outcome="retry")
     transcript = payload.get("transcript")
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     engine = transcript.get("engine_ref") if isinstance(transcript, dict) else None
@@ -330,7 +334,7 @@ def _accepted_gateway_transcript(payload, extracted, attempt):
         and isinstance(transcript, dict)
         and transcript.get("audio_digest") == extracted.sha256
         and isinstance(engine, str)
-        and engine.startswith(f"{attempt.provider_ref}:{attempt.requested_model_ref}")
+        and engine == f"{attempt.provider_ref}:{attempt.requested_model_ref}"
         and usage.get("provider") in {None, attempt.provider_ref}
         and usage.get("requested_model") in {None, attempt.requested_model_ref}
     )

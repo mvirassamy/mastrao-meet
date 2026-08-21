@@ -255,15 +255,15 @@ def _accepted_recovery_transcript(transcript, extracted, attempt):
         validated = _validated_transcript(transcript)
     except TranscriptionContractRefused:
         return None
-    engine = validated.get("engine_ref")
-    expected = f"{attempt.provider_ref}:{attempt.requested_model_ref}"
     if validated.get("audio_digest") != extracted.sha256:
         return None
-    if engine not in {
-        attempt.requested_model_ref,
-        expected,
-        attempt.resolved_model_ref,
-    } and not (isinstance(engine, str) and engine.startswith(f"{expected}")):
+    engine = validated.get("engine_ref")
+    expected = (
+        attempt.requested_model_ref
+        if attempt.provider_ref == "fake"
+        else f"{attempt.provider_ref}:{attempt.requested_model_ref}"
+    )
+    if engine != expected:
         return None
     return validated
 
@@ -281,6 +281,7 @@ def _resume_or_transcribe(extracted, sending, transcription_binding):
         )
         if not transcript:
             raise TranscriptionPipelineFailed("asr_failed", status=409)
+        ack_gateway_attempt(extracted, sending)
         return transcript
     discovered = load_result_recovery(recovery_object_ref(sending.attempt_ref))
     if discovered is not None:
@@ -292,6 +293,7 @@ def _resume_or_transcribe(extracted, sending, transcription_binding):
             transcript,
             recovery_ref=recovery_object_ref(sending.attempt_ref),
         )
+        ack_gateway_attempt(extracted, sending)
         return transcript
     if may_replay_gateway(sending):
         return _replay_gateway_result(extracted, sending)
@@ -306,6 +308,8 @@ def _resume_or_transcribe(extracted, sending, transcription_binding):
             mark_unknown(sending)
             raise TranscriptionPipelineFailed("asr_failed", status=409) from error
         mark_pre_egress_failure(sending)
+        if error.outcome in {"retry", "failed_pre_egress"}:
+            raise
         raise TranscriptionContractRefused(
             status=503, outcome="failed_pre_egress"
         ) from error

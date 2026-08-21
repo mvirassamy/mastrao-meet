@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) add dispatch cleanup_pending and replay ACK after recovery
+- 🐛(backend) require exact provider:model on paid recovery engines
+- 🐛(backend) treat provider 429 as a bounded retry, not unknown
 - 🐛(backend) catch pipeline failures before typed pre-egress retries
 - 🐛(backend) refuse substituted recovery before binding the result
 - 🐛(backend) stream-bound Gateway responses and retry a failed ACK
