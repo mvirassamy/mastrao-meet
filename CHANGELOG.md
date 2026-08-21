@@ -10,6 +10,15 @@ and this project adheres to
 
 ### Added
 
+- 🔐(backend) freeze the first pending transcript artifact and delete a losing object after Core failure
+- 🔐(backend) send only the durable transcription callback chosen under lock
+- 🔐(backend) converge a late Core failure callback to available when the artifact already won
+- 📝(backend) document that 0029/0030 never shipped on main so no APPLIED/FAILED backfill is required
+- 🔐(backend) converge refused transcription callbacks from Core outcomes without republishing
+- 📝(backend) back off due transcription dispatches with SKIP LOCKED reservation
+- 🔐(helm) route public /recordings to backend on every host
+- 📝(backend) produce canonical consent-bound transcript artifacts with strict ASR validation
+- ✨(frontend) collect a distinct recoverable transcription decision before media entry
 - 🚀(helm) add secret-safe staging and production LiveKit Egress overlays
 - 🔐(backend) consume short Mastrao host handoffs into session-bound media grants
 - 🔐(backend) redeem canonical guest invitations into anonymous room-bound lobby grants
@@ -20,6 +29,17 @@ and this project adheres to
 
 ### Changed
 
+- ✨(frontend) generate Panda styles before the consent test so CI can resolve styled-system
+- 📝(backend) force fake ASR when emitting the provider-free qualification artifact
+- 🚀(backend) persist ASR artifacts before Core notification and retry callbacks without re-running ASR
+- 🚀(backend) store transcription dispatch in the database instead of treating cache as delivery proof
+- 🔒️(backend) require Celery when transcription is enabled in deployable environments
+- 🔐(backend) treat artifact callbacks before Core submit confirmation as retryable
+- 🚀(backend) enqueue transcription completion on Celery so submit HTTP returns the signed receipt immediately
+- 🔐(backend) bind transcript objects to the authorized transcription and delete them when Core refuses a deleted-recording callback
+- ✨(frontend) show the dedicated transcription notice when recording is already accepted
+- 🔐(backend) preserve recording-only access after transcription refusal
+- 🔒️(backend) scrub transcription capabilities and receipts from error telemetry
 - 🔒️(backend) split new recording starts from emergency artifact-access shutdown
 - 🔒️(backend) revoke prepared downloads when emergency artifact access closes
 - 🩺(backend) isolate recording reconciliation failures during bounded drain batches
@@ -29,6 +49,12 @@ and this project adheres to
 - 🔒️(backend) distinguish pseudonymous Mastrao hosts from non-interactive room owners
 - 🔒️(backend) require Core-confirmed guest admission before minting participant media tokens
 - 🔒️(backend) stream recording artifacts through single-use session-bound access
+
+### Fixed
+
+- 🐛(backend) install the pinned ffmpeg runtime required for transcript audio extraction
+- 🐛(backend) seed the CSRF cookie during host handoff so the first consent mutation is accepted
+- 🐛(backend) isolate pytest-xdist cache and session keys so parallel workers cannot drop each other
 
 ## [1.26.0] - 2026-08-12
 

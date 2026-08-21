@@ -146,6 +146,7 @@ def test_feature_off_keeps_existing_recording_policy_fail_closed(settings):
         "retention_expires_at": int(time.time()) + 3600,
         "recording_state": "active",
         "decision": "absent",
+        "transcription_mode": "disabled",
     }
     with (
         mock.patch(
@@ -197,6 +198,7 @@ def test_recorded_projection_refuses_notice_manifest_drift(settings):
         "retention_expires_at": int(time.time()) + 3600,
         "recording_state": "collecting",
         "decision": "absent",
+        "transcription_mode": "disabled",
     }
     with (
         mock.patch(

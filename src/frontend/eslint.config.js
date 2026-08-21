@@ -15,6 +15,8 @@ export default tseslint.config(
       'node_modules/**',
       'coverage/**',
       'src/styled-system/**',
+      '**/*.test.tsx',
+      'vitest.config.ts',
     ],
   },
 

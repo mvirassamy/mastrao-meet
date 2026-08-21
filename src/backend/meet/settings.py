@@ -14,8 +14,9 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 
 import json
 import warnings
-from os import path
+from os import environ, path
 from socket import gethostbyname, gethostname
+from urllib.parse import urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.translation import gettext_lazy as _
@@ -58,6 +59,10 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "recording_artifact_receipt",
     "recording_failure_receipt",
     "recording_access_grant",
+    "transcription_submit_effect",
+    "transcription_submit_receipt",
+    "transcription_artifact_receipt",
+    "transcription_failure_receipt",
     "object_ref",
 )
 
@@ -68,6 +73,66 @@ def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creatio
     if close_enabled and not explicit_creation:
         raise ImproperlyConfigured(
             "MASTRAO_MEETING_CLOSE_ENABLED requires LIVEKIT_EXPLICIT_ROOM_CREATION=true"
+        )
+
+
+def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
+    transcription_enabled,
+    asr_mode,
+    asr_endpoint,
+    fake_asr_allowed,
+    celery_enabled=True,
+    celery_required=False,
+):
+    """Refuse a deployment that could transcribe with the deterministic fake.
+
+    The fake engine exists so provider-free qualification can prove the
+    transcription contract without any ASR provider. Its output is a fixture,
+    not speech, so it must never reach a real deployment. Only the
+    non-deployable settings classes opt into it through
+    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED; every other configuration that
+    enables transcription must use "real" with a private endpoint that is
+    explicitly configured and transport-qualified.
+
+    The permission is a dedicated, searchable flag rather than DEBUG: DEBUG is
+    False in the Test configuration too, and a qualification run must stay able
+    to select the deterministic engine.
+    Transcription-off deployments stay valid with no ASR configuration at all.
+    """
+
+    if asr_mode not in {"fake", "real"}:
+        raise ImproperlyConfigured(
+            f"MASTRAO_TRANSCRIPTION_ASR_MODE must be 'fake' or 'real', got {asr_mode!r}"
+        )
+    if not transcription_enabled:
+        return
+    if celery_required and not celery_enabled:
+        raise ImproperlyConfigured(
+            "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires CELERY_ENABLED=true "
+            "in a deployable configuration"
+        )
+    if fake_asr_allowed:
+        return
+    if asr_mode != "real":
+        raise ImproperlyConfigured(
+            "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires "
+            "MASTRAO_TRANSCRIPTION_ASR_MODE=real outside local development and "
+            "qualification; the fake engine is a fixture, not a transcription"
+        )
+    if not asr_endpoint:
+        raise ImproperlyConfigured(
+            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
+            "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT"
+        )
+    parsed = urlparse(asr_endpoint)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ImproperlyConfigured(
+            "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT must be an absolute http(s) URL"
+        )
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ImproperlyConfigured(
+            "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT must not embed credentials, "
+            "a query string or a fragment"
         )
 
 
@@ -184,6 +249,34 @@ class Base(Configuration):
         environ_name="MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED",
         environ_prefix=None,
     )
+    # Transcription is a distinct processing purpose; the worker enablement
+    # defaults closed so an unconfigured deployment shows zero change.
+    MASTRAO_MEETING_TRANSCRIPTION_ENABLED = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_MEETING_TRANSCRIPTION_ENABLED",
+        environ_prefix=None,
+    )
+    # "real" is the only mode a deployment may inherit. The deterministic
+    # "fake" engine is a provider-free qualification fixture and must be opted
+    # into explicitly in local development or provider-free qualification;
+    # post_setup refuses it whenever transcription is enabled outside DEBUG.
+    MASTRAO_TRANSCRIPTION_ASR_MODE = values.Value(
+        "real", environ_name="MASTRAO_TRANSCRIPTION_ASR_MODE", environ_prefix=None
+    )
+    # Only the non-deployable settings classes (Development, Test) turn this
+    # on. It is a deliberate, searchable permission so the deterministic fake
+    # engine can never be inherited by a deployed environment.
+    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = False
+    # Deployable configurations refuse transcription without a real Celery worker.
+    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = True
+    MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_TRANSCRIPTION_ASR_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS = values.FloatValue(
+        600.0,
+        environ_name="MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
     MASTRAO_RECORDING_NOTICE_VERSION = values.Value(
         "", environ_name="MASTRAO_RECORDING_NOTICE_VERSION", environ_prefix=None
     )
@@ -242,6 +335,21 @@ class Base(Configuration):
     MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT",
         environ_prefix=None,
     )
     MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS = values.FloatValue(
@@ -1424,6 +1532,15 @@ class Base(Configuration):
             cls.LIVEKIT_EXPLICIT_ROOM_CREATION,
         )
 
+        validate_mastrao_transcription_configuration(
+            cls.MASTRAO_MEETING_TRANSCRIPTION_ENABLED,
+            cls.MASTRAO_TRANSCRIPTION_ASR_MODE,
+            cls.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT,
+            cls.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
+            cls.CELERY_ENABLED,
+            cls.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
+        )
+
         if cls.FILE_UPLOAD_TMP_PATH == cls.FILE_UPLOAD_PATH:
             raise ValueError(
                 "FILE_UPLOAD_TMP_PATH cannot be the same as FILE_UPLOAD_PATH"
@@ -1491,6 +1608,9 @@ class Development(Base):
     CORS_ALLOW_ALL_ORIGINS = True
     CSRF_TRUSTED_ORIGINS = ["http://localhost:8072", "http://localhost:3000"]
     DEBUG = True
+    # Local development may select the deterministic fake ASR fixture.
+    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
+    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
 
     SESSION_COOKIE_NAME = "meet_sessionid"
 
@@ -1503,6 +1623,12 @@ class Development(Base):
 
 class Test(Base):
     """Test environment settings"""
+
+    # Provider-free qualification must stay able to prove the transcription
+    # contract without any ASR provider. DEBUG is False here, so the
+    # permission is explicit rather than derived.
+    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
+    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
 
     LOGGING = values.DictValue(
         {
@@ -1539,6 +1665,25 @@ class Test(Base):
 
     CELERY_TASK_ALWAYS_EAGER = True
     FILE_UPLOAD_ENABLED = True
+    # pytest-xdist workers share one Redis instance. Give each worker its own
+    # logical database so cache.clear() cannot drop another worker's session,
+    # while keeping the Redis client API (keys, ttl) that production tests use.
+    _xdist_worker = environ.get("PYTEST_XDIST_WORKER", "master")
+    _xdist_cache_db = (
+        10 + int(_xdist_worker[2:])
+        if _xdist_worker.startswith("gw") and _xdist_worker[2:].isdigit()
+        else 15
+    )
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": f"redis://redis:6379/{_xdist_cache_db}",
+            "KEY_PREFIX": f"meet-test-{_xdist_worker}",
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
+    }
 
     ADDONS_ENABLED = True
     ADDONS_CSRF_SECRET = "secret-key-padded-for-minimum-len!-addons"  # noqa:S105

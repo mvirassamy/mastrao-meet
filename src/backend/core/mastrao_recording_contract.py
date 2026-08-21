@@ -121,8 +121,9 @@ ACCESS_GRANT_FIELDS = {
 class RecordingContractRefused(Exception):
     """Opaque refusal for recording credentials and effects."""
 
-    def __init__(self, status=404):
+    def __init__(self, status=404, outcome=None):
         self.status = status
+        self.outcome = outcome
         super().__init__("recording_contract_refused")
 
 

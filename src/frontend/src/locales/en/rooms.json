@@ -123,7 +123,15 @@
     "activationError": "Recording could not start. Retrying…",
     "activationExhausted": "Recording could not start.",
     "activationRetry": "Retry",
-    "withdrawError": "Recording could not be stopped. Try again."
+    "withdrawError": "Recording could not be stopped. Try again.",
+    "transcription": {
+      "title": "Written transcript",
+      "pendingNotice": "Recording has already been accepted. Choose separately whether you agree to a written transcript.",
+      "accept": "Accept transcription",
+      "refuse": "Continue without transcription",
+      "checkbox": "I also agree to a written transcript of this meeting",
+      "notice": "Transcription: the recorded audio will be transcribed to text, stored in the matter with the same access and retention as the recording. Without your explicit agreement, no transcript is produced."
+    }
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",
   "shareDialog": {

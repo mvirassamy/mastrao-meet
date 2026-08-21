@@ -16,6 +16,7 @@ from core.mastrao_recording_failure import (
     FAILURE_STATES,
     report_mastrao_recording_failure,
 )
+from core.mastrao_transcription_pipeline import reconcile_transcription_dispatches
 
 COMPLETION_STATES = {
     livekit_api.EgressStatus.EGRESS_COMPLETE,
@@ -80,4 +81,4 @@ def reconcile_mastrao_recordings(limit=20):
             models.MastraoRecordingBinding.objects.filter(pk=binding.pk).update(
                 updated_at=timezone.now()
             )
-    return reconciled
+    return reconciled + reconcile_transcription_dispatches(limit=limit)

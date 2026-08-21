@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, H, Text } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { HStack, VStack } from '@/styled-system/jsx'
 import {
   decideRecording,
+  decideTranscription,
   type RecordingDecision,
 } from '../api/recordingConsent'
 
@@ -11,11 +13,17 @@ export const RecordingConsent = ({
   roomId,
   retentionExpiresAt,
   participantKind,
+  transcriptionOffered,
+  recordingDecision,
+  transcriptionDecision,
   onDecided,
 }: {
   roomId: string
   retentionExpiresAt: number
   participantKind?: 'host' | 'guest'
+  transcriptionOffered?: boolean
+  recordingDecision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
+  transcriptionDecision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
   onDecided: () => Promise<void>
 }) => {
   const { t, i18n } = useTranslation('rooms', {
@@ -26,14 +34,50 @@ export const RecordingConsent = ({
     refused: `refusal_${crypto.randomUUID().replaceAll('-', '')}`,
     withdrawn: `withdrawal_${crypto.randomUUID().replaceAll('-', '')}`,
   })
+  const transcriptionRequestIds = useRef<Record<RecordingDecision, string>>({
+    accepted: `consent_${crypto.randomUUID().replaceAll('-', '')}`,
+    refused: `refusal_${crypto.randomUUID().replaceAll('-', '')}`,
+    withdrawn: `withdrawal_${crypto.randomUUID().replaceAll('-', '')}`,
+  })
   const [pending, setPending] = useState<RecordingDecision | null>(null)
   const [failed, setFailed] = useState(false)
+  const [transcriptionAccepted, setTranscriptionAccepted] = useState(false)
+  const transcriptionOnly =
+    recordingDecision === 'accepted' &&
+    transcriptionOffered &&
+    transcriptionDecision === 'absent'
 
   const decide = async (decision: 'accepted' | 'refused') => {
     setPending(decision)
     setFailed(false)
     try {
-      await decideRecording(roomId, decision, requestIds.current[decision])
+      if (
+        transcriptionOffered &&
+        transcriptionDecision === 'absent' &&
+        decision === 'refused'
+      ) {
+        await decideTranscription(
+          roomId,
+          'refused',
+          transcriptionRequestIds.current.refused
+        )
+      }
+      if (recordingDecision === 'absent') {
+        await decideRecording(roomId, decision, requestIds.current[decision])
+      }
+      if (
+        transcriptionOffered &&
+        transcriptionDecision === 'absent' &&
+        decision === 'accepted'
+      ) {
+        const transcriptionDecision =
+          transcriptionOnly || transcriptionAccepted ? 'accepted' : 'refused'
+        await decideTranscription(
+          roomId,
+          transcriptionDecision,
+          transcriptionRequestIds.current[transcriptionDecision]
+        )
+      }
       await onDecided()
     } catch {
       setFailed(true)
@@ -45,11 +89,20 @@ export const RecordingConsent = ({
   return (
     <VStack gap="1rem" alignItems="center" textAlign="center">
       <H lvl={1} margin="sm" centered>
-        {t('title')}
+        {t(transcriptionOnly ? 'transcription.title' : 'title')}
       </H>
-      <Text as="p">{t('notice')}</Text>
-      <Text as="p">{t('purpose')}</Text>
-      <Text as="p">{t('recipients')}</Text>
+      {transcriptionOnly ? (
+        <>
+          <Text as="p">{t('transcription.pendingNotice')}</Text>
+          <Text as="p">{t('transcription.notice')}</Text>
+        </>
+      ) : (
+        <>
+          <Text as="p">{t('notice')}</Text>
+          <Text as="p">{t('purpose')}</Text>
+          <Text as="p">{t('recipients')}</Text>
+        </>
+      )}
       <Text as="p" variant="note">
         {t('retention', {
           date: new Intl.DateTimeFormat(i18n.language, {
@@ -65,6 +118,19 @@ export const RecordingConsent = ({
           {t('guestIdentity')}
         </Text>
       )}
+      {transcriptionOffered && !transcriptionOnly && (
+        <VStack gap="0.25rem" alignItems="flex-start" textAlign="left">
+          <Checkbox
+            isSelected={transcriptionAccepted}
+            onChange={setTranscriptionAccepted}
+          >
+            {t('transcription.checkbox')}
+          </Checkbox>
+          <Text as="p" variant="note">
+            {t('transcription.notice')}
+          </Text>
+        </VStack>
+      )}
       {failed && (
         <Text as="p" role="alert">
           {t('error')}
@@ -76,14 +142,14 @@ export const RecordingConsent = ({
           isDisabled={pending !== null}
           onPress={() => decide('refused')}
         >
-          {t('refuse')}
+          {t(transcriptionOnly ? 'transcription.refuse' : 'refuse')}
         </Button>
         <Button
           isDisabled={pending !== null}
           loading={pending === 'accepted'}
           onPress={() => decide('accepted')}
         >
-          {t('accept')}
+          {t(transcriptionOnly ? 'transcription.accept' : 'accept')}
         </Button>
       </HStack>
     </VStack>

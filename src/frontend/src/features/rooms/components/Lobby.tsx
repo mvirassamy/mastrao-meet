@@ -136,7 +136,9 @@ export const Lobby = ({
 
   if (
     recording?.mode === 'recorded' &&
-    recording.decision === 'absent' &&
+    (recording.decision === 'absent' ||
+      (recording.transcription_mode === 'transcribed' &&
+        recording.transcription_decision === 'absent')) &&
     ['collecting', 'authorized', 'starting', 'active'].includes(
       recording.recording_state ?? ''
     ) &&
@@ -147,6 +149,9 @@ export const Lobby = ({
         roomId={roomId}
         retentionExpiresAt={recording.retention_expires_at}
         participantKind={recording.participant_kind}
+        transcriptionOffered={recording.transcription_mode === 'transcribed'}
+        recordingDecision={recording.decision}
+        transcriptionDecision={recording.transcription_decision}
         onDecided={async () => {
           await refetchRoom()
         }}

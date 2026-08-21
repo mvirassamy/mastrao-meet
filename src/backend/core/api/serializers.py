@@ -250,6 +250,13 @@ class RecordingDecisionSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=("accepted", "refused", "withdrawn"))
 
 
+class TranscriptionDecisionSerializer(serializers.Serializer):
+    """Validate an idempotent participant transcription decision."""
+
+    decision_request_id = serializers.RegexField(r"^[A-Za-z0-9_-]{16,160}$")
+    decision = serializers.ChoiceField(choices=("accepted", "refused", "withdrawn"))
+
+
 class RecordingActivationSerializer(serializers.Serializer):
     """Validate an idempotent post-LiveKit-connection activation."""
 

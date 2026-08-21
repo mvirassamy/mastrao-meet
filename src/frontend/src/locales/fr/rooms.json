@@ -123,7 +123,15 @@
     "activationError": "L’enregistrement n’a pas pu démarrer. Nouvelle tentative…",
     "activationExhausted": "L’enregistrement n’a pas pu démarrer.",
     "activationRetry": "Réessayer",
-    "withdrawError": "L’enregistrement n’a pas pu être arrêté. Réessayez."
+    "withdrawError": "L’enregistrement n’a pas pu être arrêté. Réessayez.",
+    "transcription": {
+      "title": "Transcription écrite",
+      "pendingNotice": "L’enregistrement est déjà accepté. Choisissez séparément si vous acceptez sa transcription écrite.",
+      "accept": "Accepter la transcription",
+      "refuse": "Continuer sans transcription",
+      "checkbox": "J’accepte aussi la transcription écrite de cette réunion",
+      "notice": "Transcription : l’audio enregistré sera transcrit en texte, conservé dans le dossier avec les mêmes accès et la même durée que l’enregistrement. Sans votre accord explicite, aucune transcription n’est produite."
+    }
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",
   "shareDialog": {

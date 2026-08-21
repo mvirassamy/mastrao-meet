@@ -300,6 +300,35 @@ def test_sentry_scrubs_raw_guest_confirmation_credentials():
     assert scrubbed["request"]["data"] == "[Filtered]"
 
 
+def test_sentry_scrubs_transcription_effects_and_receipts():
+    event = {
+        "request": {
+            "data": {
+                "transcription_submit_effect": "effect.payload.signature",
+                "transcription_artifact_receipt": "receipt.payload.signature",
+                "safe": "kept",
+            }
+        }
+    }
+    scrubbed = scrub_mastrao_handoff_credentials(event, {})
+    assert scrubbed["request"]["data"] == {
+        "transcription_submit_effect": "[Filtered]",
+        "transcription_artifact_receipt": "[Filtered]",
+        "safe": "kept",
+    }
+
+    raw = {
+        "request": {
+            "data": json.dumps(
+                {"transcription_failure_receipt": "receipt.payload.signature"}
+            )
+        }
+    }
+    assert scrub_mastrao_handoff_credentials(raw, {})["request"]["data"] == (
+        "[Filtered]"
+    )
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_HOST_HANDOFF_ENABLED=True,
@@ -324,6 +353,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     assert response.status_code == 303
     assert response["Location"] == f"/{binding.room.slug}"
     assert response["Referrer-Policy"] == "no-referrer"
+    assert response.cookies["csrftoken"].value
     assert models.MastraoHostIdentity.objects.count() == 1
     assert models.MastraoHostGrant.objects.count() == 1
     assert models.ResourceAccess.objects.count() == 1
