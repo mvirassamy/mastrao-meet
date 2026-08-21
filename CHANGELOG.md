@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛(backend) keep the first-checksum overwrite proof from signing Core receipts
+
 ### Added
 
 - 🔐(backend) add durable provider-attempt state, object-save recovery and a dedicated mastrao-transcription Celery worker

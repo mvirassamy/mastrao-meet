@@ -190,9 +190,12 @@ def test_second_provider_result_cannot_overwrite_first_checksum(settings, tmp_pa
         first.object_ref,
         ContentFile(json.dumps({"version": 1, "overwrite": True}).encode()),
     )
-    with mock.patch(
-        "core.mastrao_transcription_adapter._produce_transcript"
-    ) as produce:
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript"
+        ) as produce,
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+    ):
         complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
     produce.assert_not_called()
     first.refresh_from_db()
