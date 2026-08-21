@@ -146,9 +146,7 @@ def test_crash_after_object_save_resumes_without_asr(settings, tmp_path):
     transcription.save(update_fields=["object_ref", "engine_ref", "updated_at"])
     local_effect = models.MastraoTranscriptionEffect.objects.get()
     with (
-        mock.patch(
-            "core.mastrao_transcription_adapter._produce_transcript"
-        ) as produce,
+        mock.patch("core.mastrao_transcription_adapter._produce_transcript") as produce,
         mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
     ):
         complete_transcription(local_effect.pk)
@@ -191,9 +189,7 @@ def test_second_provider_result_cannot_overwrite_first_checksum(settings, tmp_pa
         ContentFile(json.dumps({"version": 1, "overwrite": True}).encode()),
     )
     with (
-        mock.patch(
-            "core.mastrao_transcription_adapter._produce_transcript"
-        ) as produce,
+        mock.patch("core.mastrao_transcription_adapter._produce_transcript") as produce,
         mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
     ):
         complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)

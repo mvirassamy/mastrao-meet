@@ -11,6 +11,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(backend) keep the first-checksum overwrite proof from signing Core receipts
+- 🐛(backend) format provider-attempt modules for the recording-backend quality gate
 
 ### Added
 

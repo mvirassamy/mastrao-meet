@@ -41,9 +41,8 @@ def _provider_profile():
     provider = getattr(settings, "MASTRAO_TRANSCRIPTION_PROVIDER", "") or "mistral"
     if provider not in PAID_PROVIDERS:
         raise TranscriptionPipelineFailed("asr_failed")
-    model = (
-        getattr(settings, "MASTRAO_TRANSCRIPTION_MODEL", "")
-        or ("voxtral-mini-2602" if provider == "mistral" else "gpt-transcribe")
+    model = getattr(settings, "MASTRAO_TRANSCRIPTION_MODEL", "") or (
+        "voxtral-mini-2602" if provider == "mistral" else "gpt-transcribe"
     )
     return provider, model
 
@@ -52,9 +51,7 @@ def prepare_attempt(local_effect, extracted):
     """Create or reuse generation 1 with an immutable fingerprint."""
 
     provider, model = _provider_profile()
-    digest = _config_digest(
-        provider, model, extracted.codec, extracted.duration_ms
-    )
+    digest = _config_digest(provider, model, extracted.codec, extracted.duration_ms)
     attempt_ref = f"attempt_{uuid4().hex}"
     with transaction.atomic():
         existing = (
@@ -90,8 +87,10 @@ def cas_sending(attempt):
     """Move prepared -> sending. Paid sending crash becomes unknown."""
 
     with transaction.atomic():
-        locked = models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
-            pk=attempt.pk
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
         )
         if locked.state in {
             AttemptState.RESULT_RECEIVED,
@@ -126,8 +125,10 @@ def mark_result(attempt, transcript, usage=None):
     payload = json.dumps(transcript, sort_keys=True, separators=(",", ":")).encode()
     checksum = hashlib.sha256(payload).hexdigest()
     with transaction.atomic():
-        locked = models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
-            pk=attempt.pk
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
         )
         if locked.result_checksum:
             if locked.result_checksum != checksum:
@@ -160,8 +161,10 @@ def mark_result(attempt, transcript, usage=None):
 
 def mark_pre_egress_failure(attempt, error_code="PROVIDER_PRE_EGRESS_FAILED"):
     with transaction.atomic():
-        locked = models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
-            pk=attempt.pk
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
         )
         if locked.state in {AttemptState.UNKNOWN, AttemptState.SENDING} and (
             locked.provider_ref in PAID_PROVIDERS
@@ -178,8 +181,10 @@ def mark_pre_egress_failure(attempt, error_code="PROVIDER_PRE_EGRESS_FAILED"):
 
 def mark_unknown(attempt):
     with transaction.atomic():
-        locked = models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
-            pk=attempt.pk
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
         )
         if locked.result_checksum:
             return locked
@@ -192,24 +197,26 @@ def mark_unknown(attempt):
 def predeclare_object(attempt, transcription_ref):
     object_ref = canonical_transcript_object_ref(transcription_ref)
     with transaction.atomic():
-        locked = models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
-            pk=attempt.pk
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
         )
         if locked.transcript_object_ref and locked.transcript_object_ref != object_ref:
             raise TranscriptionPipelineFailed("asr_failed")
         locked.transcript_object_ref = object_ref
         if locked.state == AttemptState.RESULT_RECEIVED:
             locked.state = AttemptState.ARTIFACT_WRITE_PENDING
-        locked.save(
-            update_fields=["transcript_object_ref", "state", "updated_at"]
-        )
+        locked.save(update_fields=["transcript_object_ref", "state", "updated_at"])
         return object_ref
 
 
 def mark_succeeded(attempt):
     with transaction.atomic():
-        locked = models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
-            pk=attempt.pk
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
         )
         locked.state = AttemptState.SUCCEEDED
         locked.completed_at = timezone.now()

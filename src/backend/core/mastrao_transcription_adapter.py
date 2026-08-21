@@ -20,6 +20,15 @@ from core.mastrao_transcription_artifact import (
     persist_transcript,
     recover_persisted_transcript,
 )
+from core.mastrao_transcription_attempt import (
+    cas_sending,
+    mark_pre_egress_failure,
+    mark_result,
+    mark_unknown,
+    may_call_provider,
+    predeclare_object,
+    prepare_attempt,
+)
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
@@ -165,16 +174,6 @@ def _prepare_transcription(effect):
 def _produce_transcript(transcription_binding):
     """Extract, transcribe and persist outside any database transaction."""
 
-    from core.mastrao_transcription_attempt import (
-        cas_sending,
-        mark_pre_egress_failure,
-        mark_result,
-        mark_unknown,
-        may_call_provider,
-        predeclare_object,
-        prepare_attempt,
-    )
-
     recording_binding = transcription_binding.recording_binding
     local_effect = transcription_binding.effects.filter(operation="transcribe").get()
     try:
@@ -206,7 +205,9 @@ def _produce_transcript(transcription_binding):
             except TranscriptionContractRefused as error:
                 if error.outcome == "unknown" or error.status == 409:
                     mark_unknown(sending)
-                    raise TranscriptionPipelineFailed("asr_failed", status=409) from error
+                    raise TranscriptionPipelineFailed(
+                        "asr_failed", status=409
+                    ) from error
                 mark_pre_egress_failure(sending)
                 raise TranscriptionPipelineFailed("asr_failed") from error
             usage = transcript.pop("_usage", None)

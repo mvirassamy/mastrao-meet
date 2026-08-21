@@ -239,9 +239,7 @@ def _gateway_transcribe(extracted, attempt):
                 allow_redirects=False,
             )
     except requests.RequestException as error:
-        raise TranscriptionContractRefused(
-            status=503, outcome="unknown"
-        ) from error
+        raise TranscriptionContractRefused(status=503, outcome="unknown") from error
     if response.status_code in {401, 403}:
         raise TranscriptionContractRefused(status=503)
     try:
@@ -261,7 +259,9 @@ def _gateway_transcribe(extracted, attempt):
             raise TranscriptionContractRefused(status=503)
         raise TranscriptionContractRefused(status=503)
     transcript = payload["transcript"]
-    transcript["_usage"] = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    transcript["_usage"] = (
+        payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    )
     return transcript
 
 
