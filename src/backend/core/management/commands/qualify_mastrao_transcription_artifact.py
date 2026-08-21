@@ -39,7 +39,11 @@ class Command(BaseCommand):
             result_path = Path(vector["result_path"])
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise CommandError("Invalid transcription artifact vector") from error
-        transcript = map_speakers(transcribe_audio(audio_bytes))
+        with override_settings(
+            MASTRAO_TRANSCRIPTION_ASR_MODE="fake",
+            MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED=True,
+        ):
+            transcript = map_speakers(transcribe_audio(audio_bytes))
         with tempfile.TemporaryDirectory(prefix="mastrao_artifact_") as workdir:
             storages = {
                 "default": {

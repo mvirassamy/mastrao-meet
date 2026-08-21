@@ -24,6 +24,7 @@ and this project adheres to
 ### Changed
 
 - ✨(frontend) generate Panda styles before the consent test so CI can resolve styled-system
+- 📝(backend) force fake ASR when emitting the provider-free qualification artifact
 - 🚀(backend) persist ASR artifacts before Core notification and retry callbacks without re-running ASR
 - 🚀(backend) store transcription dispatch in the database instead of treating cache as delivery proof
 - 🔒️(backend) require Celery when transcription is enabled in deployable environments
