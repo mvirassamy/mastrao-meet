@@ -38,7 +38,10 @@ from core.mastrao_transcription_contract import (
     build_transcript_artifact_receipt_claims,
     build_transcription_failure_receipt_claims,
 )
-from core.mastrao_transcription_pipeline import complete_transcription
+from core.mastrao_transcription_pipeline import (
+    complete_transcription,
+    reconcile_transcription_dispatches,
+)
 from core.mastrao_transcription_worker import (
     FAKE_ENGINE_REF,
     _validated_transcript,
@@ -505,7 +508,7 @@ def test_artifact_notification_posts_signed_receipt_to_core(settings):
         ),
         mock.patch(
             "core.mastrao_transcription_adapter.post_core_json",
-            return_value={"artifactRef": "transcript_0123456789abcdef"},
+            return_value={"artifactRef": "transcript_0123456789abcdef", "outcome": "available"},
         ) as post,
     ):
         _notify_core_artifact(effect, _fake_artifact())
@@ -767,8 +770,7 @@ def test_deleted_recording_refusal_removes_the_written_object(settings, tmp_path
         ),
     ):
         _apply_transcription(effect)
-        with pytest.raises(TranscriptionContractRefused):
-            complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+        complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
     assert not object_path.exists()
     assert models.MastraoTranscriptionBinding.objects.get().state == (
         models.MastraoTranscriptionBinding.State.FAILED
@@ -776,6 +778,245 @@ def test_deleted_recording_refusal_removes_the_written_object(settings, tmp_path
     assert models.MastraoTranscriptionEffect.objects.get().state == (
         models.MastraoTranscriptionEffect.State.FAILED
     )
+    assert models.MastraoTranscriptionEffect.objects.get().dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+
+
+def test_already_failed_artifact_callback_cleans_and_completes(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("failedwin_01234567")
+    effect = _effect(binding, transcription_ref="transcription_failedwin_012")
+    transcript = map_speakers(transcribe_audio(b"already failed audio"))
+    artifact = persist_transcript(effect["transcription_ref"], transcript)
+    object_path = (
+        tmp_path / "mastrao-transcripts" / f"{effect['transcription_ref']}.json"
+    )
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=artifact,
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact",
+            side_effect=TranscriptionContractRefused(status=409, outcome="failed"),
+        ),
+    ):
+        _apply_transcription(effect)
+        complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+    assert not object_path.exists()
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
+
+
+def test_divergent_conflict_completes_without_deleting_the_object(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("conflictwin_012345")
+    effect = _effect(binding, transcription_ref="transcription_conflictwin01")
+    transcript = map_speakers(transcribe_audio(b"divergent conflict audio"))
+    artifact = persist_transcript(effect["transcription_ref"], transcript)
+    object_path = (
+        tmp_path / "mastrao-transcripts" / f"{effect['transcription_ref']}.json"
+    )
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=artifact,
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact",
+            side_effect=TranscriptionContractRefused(status=409, outcome="conflict"),
+        ),
+    ):
+        _apply_transcription(effect)
+        complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+    assert object_path.exists()
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_failure_callback_before_submit_confirmation_is_retryable():
+    binding = _finalized_recording_binding("earlyfail_01234567")
+    effect = _effect(binding)
+    core_confirmed = threading.Event()
+    first_503 = threading.Event()
+    notify_attempts = []
+    worker = {}
+
+    def notify(*_args, **_kwargs):
+        notify_attempts.append(1)
+        if not core_confirmed.is_set():
+            first_503.set()
+            raise TranscriptionContractRefused(status=503, outcome="retry")
+
+    def apply_async(args=None, **_kwargs):
+        def run():
+            try:
+                complete_transcription(args[0])
+            except TranscriptionContractRefused as error:
+                assert error.status == 503
+                first_503.set()
+                core_confirmed.wait(timeout=5)
+                complete_transcription(args[0])
+
+        thread = threading.Thread(target=run)
+        worker["thread"] = thread
+        thread.start()
+        assert first_503.wait(timeout=5)
+
+    with (
+        mock.patch(ENQUEUE, side_effect=apply_async),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            side_effect=TranscriptionPipelineFailed("asr_failed"),
+        ) as produce,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            side_effect=notify,
+        ),
+    ):
+        _apply_transcription(effect)
+        core_confirmed.set()
+        worker["thread"].join(timeout=5)
+    assert worker["thread"].is_alive() is False
+    produce.assert_called_once()
+    assert len(notify_attempts) >= 2
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
+
+
+def _dispatch_row(suffix, dispatch_state, next_attempt_at):
+    binding = _finalized_recording_binding(suffix)
+    transcription = models.MastraoTranscriptionBinding.objects.create(
+        recording_binding=binding,
+        organization_external_id=binding.organization_external_id,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        recording_ref=binding.recording_ref,
+        transcription_ref=f"transcription_{suffix}"[:32].ljust(32, "0"),
+        artifact_ref=binding.artifact_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        artifact_checksum_digest=binding.checksum_digest,
+        artifact_byte_size=binding.byte_size,
+    )
+    return models.MastraoTranscriptionEffect.objects.create(
+        transcription_binding=transcription,
+        effect_key=f"effect_transcribe_{suffix}",
+        arguments_digest="e" * 64,
+        effect_jti=f"request_transcribe_{suffix}",
+        dispatch_state=dispatch_state,
+        next_attempt_at=next_attempt_at,
+    )
+
+
+def test_reconcile_skips_rows_that_are_not_due():
+    now = timezone.now()
+    due = _dispatch_row(
+        "due000000000000001",
+        models.MastraoTranscriptionEffect.DispatchState.DISPATCH_PENDING,
+        now,
+    )
+    _dispatch_row(
+        "later0000000000001",
+        models.MastraoTranscriptionEffect.DispatchState.DISPATCH_PENDING,
+        now + timezone.timedelta(minutes=5),
+    )
+    published = []
+
+    def fake_publish(effect_pk):
+        published.append(effect_pk)
+        return True
+
+    with mock.patch(
+        "core.mastrao_transcription_pipeline.publish_transcription_job",
+        side_effect=fake_publish,
+    ):
+        assert reconcile_transcription_dispatches(limit=10) == 1
+    assert published == [due.pk]
+    due.refresh_from_db()
+    assert due.next_attempt_at > now
+    assert due.attempt_count == 1
+
+
+def test_reconcile_poison_rows_do_not_starve_healthy_rows():
+    now = timezone.now()
+    poison = [
+        _dispatch_row(
+            f"poison{index:012d}xx",
+            models.MastraoTranscriptionEffect.DispatchState.QUEUED,
+            now,
+        )
+        for index in range(3)
+    ]
+    healthy = [
+        _dispatch_row(
+            f"healthy{index:011d}x",
+            models.MastraoTranscriptionEffect.DispatchState.QUEUED,
+            now,
+        )
+        for index in range(3)
+    ]
+    published = []
+
+    def fake_publish(effect_pk):
+        local_effect = models.MastraoTranscriptionEffect.objects.get(pk=effect_pk)
+        if local_effect.effect_key.startswith("effect_transcribe_poison"):
+            return False
+        published.append(local_effect.pk)
+        return True
+
+    with mock.patch(
+        "core.mastrao_transcription_pipeline.publish_transcription_job",
+        side_effect=fake_publish,
+    ):
+        for _ in range(6):
+            models.MastraoTranscriptionEffect.objects.filter(
+                pk__in=[row.pk for row in poison + healthy],
+                next_attempt_at__gt=timezone.now(),
+            ).update(next_attempt_at=timezone.now())
+            reconcile_transcription_dispatches(limit=2)
+    assert set(published) == {row.pk for row in healthy}
 
 
 def test_broker_failure_keeps_the_effect_dispatchable():

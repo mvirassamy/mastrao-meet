@@ -14,6 +14,7 @@ The worker never receives storage credentials and never logs content.
 
 import hashlib
 import json
+import logging
 import math
 import re
 
@@ -24,6 +25,7 @@ import requests
 
 from core.mastrao_transcription_contract import TranscriptionContractRefused
 
+logger = logging.getLogger(__name__)
 FAKE_ENGINE_REF = "fake-asr-deterministic-v1"
 ASR_MODES = {"fake", "real"}
 TRANSCRIPT_SCHEMA_VERSION = 1
@@ -185,5 +187,7 @@ def transcribe_audio(audio_bytes):
             f"got {mode!r}"
         )
     if mode == "real":
+        logger.info("mastrao transcription asr invoked")
         return _validated_transcript(_real_transcribe(audio_bytes))
+    logger.info("mastrao transcription asr invoked")
     return _validated_transcript(_fake_transcribe(audio_bytes))

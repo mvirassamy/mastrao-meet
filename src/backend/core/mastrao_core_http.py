@@ -6,6 +6,13 @@ from urllib.parse import urlparse
 import requests
 
 MAX_CORE_RESPONSE_BYTES = 20_000
+TRANSCRIPTION_CALLBACK_OUTCOMES = {
+    "available",
+    "failed",
+    "deleted",
+    "conflict",
+    "retry",
+}
 ALLOWED_CORE_HOSTS = {
     "127.0.0.1",
     "localhost",
@@ -32,6 +39,24 @@ def validate_core_endpoint(value, expected_path, refusal):
     return value
 
 
+def _read_core_body(response, refusal):
+    chunks = []
+    size = 0
+    for chunk in response.iter_content(chunk_size=4_096):
+        size += len(chunk)
+        if size > MAX_CORE_RESPONSE_BYTES:
+            raise refusal(status=503)
+        chunks.append(chunk)
+    return json.loads(b"".join(chunks))
+
+
+def _raise_refusal(refusal, status, outcome=None):
+    try:
+        raise refusal(status=status, outcome=outcome)
+    except TypeError:
+        raise refusal(status=status) from None
+
+
 def read_bounded_core_json(
     response,
     refusal,
@@ -56,17 +81,18 @@ def read_bounded_core_json(
             if response.status_code >= 500 or client_error_status is None
             else client_error_status
         )
-        response.close()
-        raise refusal(status=status)
+        outcome = None
+        try:
+            body = _read_core_body(response, refusal)
+            if isinstance(body, dict) and body.get("outcome") in TRANSCRIPTION_CALLBACK_OUTCOMES:
+                outcome = body["outcome"]
+        except (UnicodeDecodeError, ValueError, json.JSONDecodeError, TypeError):
+            outcome = None
+        finally:
+            response.close()
+        _raise_refusal(refusal, status, outcome)
     try:
-        chunks = []
-        size = 0
-        for chunk in response.iter_content(chunk_size=4_096):
-            size += len(chunk)
-            if size > MAX_CORE_RESPONSE_BYTES:
-                raise refusal(status=503)
-            chunks.append(chunk)
-        body = json.loads(b"".join(chunks))
+        body = _read_core_body(response, refusal)
     except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
         raise refusal(status=503) from error
     finally:

@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- 🔐(backend) converge refused transcription callbacks from Core outcomes without republishing
+- 📝(backend) back off due transcription dispatches with SKIP LOCKED reservation
 - 🔐(helm) route public /recordings to backend on every host
 - 📝(backend) produce canonical consent-bound transcript artifacts with strict ASR validation
 - ✨(frontend) collect a distinct recoverable transcription decision before media entry

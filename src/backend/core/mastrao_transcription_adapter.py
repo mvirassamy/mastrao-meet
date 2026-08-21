@@ -223,18 +223,18 @@ def _notify_core_artifact(effect, artifact):
         },
         timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
         refusal=TranscriptionContractRefused,
-        expected_fields={"artifactRef"},
+        expected_fields={"artifactRef", "outcome"},
         passthrough_statuses=frozenset({404, 409, 503}),
     )
-    if result["artifactRef"] != claims["artifact_ref"]:
-        raise TranscriptionContractRefused(status=503)
+    if result["artifactRef"] != claims["artifact_ref"] or result["outcome"] != "available":
+        raise TranscriptionContractRefused(status=503, outcome="retry")
 
 
 def _notify_core_failure(effect, failure_code):
     """Report one pipeline failure to Core. A 503 must be retried."""
 
     claims = build_transcription_failure_receipt_claims(effect, failure_code)
-    post_core_json(
+    result = post_core_json(
         endpoint=settings.MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT,
         expected_path="/internal/v1/meetings/transcription/failures",
         body={
@@ -242,8 +242,11 @@ def _notify_core_failure(effect, failure_code):
         },
         timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
         refusal=TranscriptionContractRefused,
+        expected_fields={"transcriptionRef", "state", "outcome"},
         passthrough_statuses=frozenset({404, 409, 503}),
     )
+    if result["outcome"] != "failed" or result["state"] != "failed":
+        raise TranscriptionContractRefused(status=503, outcome="retry")
 
 
 def _persist_submit_receipt(local_effect, effect):

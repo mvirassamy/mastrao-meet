@@ -1118,6 +1118,8 @@ class MastraoTranscriptionEffect(BaseModel):
         default=DispatchState.DISPATCH_PENDING,
     )
     failure_code = models.CharField(max_length=64, null=True, blank=True)
+    attempt_count = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
     provider_observation = models.CharField(max_length=32, null=True, blank=True)
     receipt_claims = models.JSONField(default=dict, blank=True)
     receipt_digest = models.CharField(max_length=64, null=True, blank=True)
@@ -1143,6 +1145,10 @@ class MastraoTranscriptionEffect(BaseModel):
             models.Index(
                 fields=["dispatch_state", "updated_at"],
                 name="mastrao_tx_dispatch_idx",
+            ),
+            models.Index(
+                fields=["dispatch_state", "next_attempt_at"],
+                name="mastrao_tx_dispatch_due_idx",
             ),
         ]
 

@@ -18,8 +18,11 @@ from core.mastrao_transcription_contract import (
 DispatchState = models.MastraoTranscriptionEffect.DispatchState
 EffectState = models.MastraoTranscriptionEffect.State
 BindingState = models.MastraoTranscriptionBinding.State
-RETRYABLE_STATUSES = {503}
-TERMINAL_DELETION_STATUSES = {404}
+RETRYABLE_OUTCOMES = {"retry"}
+CLEANUP_OUTCOMES = {"failed", "deleted"}
+INCIDENT_OUTCOMES = {"conflict"}
+RECONCILE_BACKOFF_SECONDS = 5
+RECONCILE_BACKOFF_CAP_SECONDS = 300
 
 
 def transcription_task_id(effect_jti):
@@ -63,38 +66,71 @@ def publish_transcription_job(effect_pk):
 
 
 def reconcile_transcription_dispatches(limit=20):
-    """Republish pending, notifying or crash-expired transcription jobs."""
+    """Republish due pending, notifying or crash-expired transcription jobs."""
 
-    pending = list(
-        models.MastraoTranscriptionEffect.objects.filter(
-            dispatch_state__in=[
-                DispatchState.DISPATCH_PENDING,
-                DispatchState.QUEUED,
-                DispatchState.ARTIFACT_NOTIFICATION_PENDING,
-                DispatchState.FAILURE_NOTIFICATION_PENDING,
-            ]
-        ).order_by("updated_at")[:limit]
-    )
-    stale_before = timezone.now() - timezone.timedelta(
-        seconds=_pipeline_timeout_seconds()
-    )
-    stale_running = list(
-        models.MastraoTranscriptionEffect.objects.filter(
-            dispatch_state=DispatchState.RUNNING, updated_at__lte=stale_before
-        ).order_by("updated_at")[: max(0, limit - len(pending))]
-    )
-    republished = 0
-    for local_effect in [*pending, *stale_running]:
-        if local_effect.dispatch_state == DispatchState.RUNNING:
-            models.MastraoTranscriptionEffect.objects.filter(
-                pk=local_effect.pk, dispatch_state=DispatchState.RUNNING
-            ).update(
-                dispatch_state=DispatchState.DISPATCH_PENDING,
-                updated_at=timezone.now(),
+    now = timezone.now()
+    due_states = [
+        DispatchState.DISPATCH_PENDING,
+        DispatchState.QUEUED,
+        DispatchState.ARTIFACT_NOTIFICATION_PENDING,
+        DispatchState.FAILURE_NOTIFICATION_PENDING,
+    ]
+    with transaction.atomic():
+        due = list(
+            models.MastraoTranscriptionEffect.objects.select_for_update(
+                skip_locked=True
             )
-        if publish_transcription_job(local_effect.pk):
+            .filter(dispatch_state__in=due_states, next_attempt_at__lte=now)
+            .order_by("next_attempt_at", "updated_at")[:limit]
+        )
+        stale_before = now - timezone.timedelta(seconds=_pipeline_timeout_seconds())
+        stale_running = list(
+            models.MastraoTranscriptionEffect.objects.select_for_update(
+                skip_locked=True
+            )
+            .filter(
+                dispatch_state=DispatchState.RUNNING,
+                updated_at__lte=stale_before,
+                next_attempt_at__lte=now,
+            )
+            .order_by("next_attempt_at", "updated_at")[: max(0, limit - len(due))]
+        )
+        claimed_pks = []
+        for local_effect in [*due, *stale_running]:
+            if _reserve_dispatch_attempt(local_effect, now):
+                claimed_pks.append(local_effect.pk)
+    republished = 0
+    for effect_pk in claimed_pks:
+        if publish_transcription_job(effect_pk):
             republished += 1
     return republished
+
+
+def _backoff_seconds(attempt_count):
+    delay = RECONCILE_BACKOFF_SECONDS * (2 ** max(0, attempt_count))
+    return min(delay, RECONCILE_BACKOFF_CAP_SECONDS)
+
+
+def _reserve_dispatch_attempt(local_effect, now):
+    """CAS-reserve one due row and rotate next_attempt_at before publish."""
+
+    next_state = (
+        DispatchState.DISPATCH_PENDING
+        if local_effect.dispatch_state == DispatchState.RUNNING
+        else local_effect.dispatch_state
+    )
+    updated = models.MastraoTranscriptionEffect.objects.filter(
+        pk=local_effect.pk,
+        dispatch_state=local_effect.dispatch_state,
+        next_attempt_at=local_effect.next_attempt_at,
+    ).update(
+        dispatch_state=next_state,
+        attempt_count=local_effect.attempt_count + 1,
+        next_attempt_at=now
+        + timezone.timedelta(seconds=_backoff_seconds(local_effect.attempt_count)),
+        updated_at=now,
+    )
+    return updated == 1
 
 
 def _pipeline_timeout_seconds():
@@ -273,6 +309,19 @@ def _commit_failed(effect_pk, binding_pk):
         locked_binding.save(update_fields=["state", "updated_at"])
 
 
+def _callback_outcome(error):
+    outcome = getattr(error, "outcome", None)
+    if outcome in RETRYABLE_OUTCOMES | CLEANUP_OUTCOMES | INCIDENT_OUTCOMES:
+        return outcome
+    if error.status == 503:
+        return "retry"
+    if error.status == 404:
+        return "deleted"
+    if error.status == 409:
+        return "conflict"
+    return "retry"
+
+
 def _deliver_artifact(effect, transcription_binding, local_effect):
     # pylint: disable=import-outside-toplevel
     from core.mastrao_transcription_adapter import (
@@ -285,12 +334,13 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
     try:
         _notify_core_artifact(effect, artifact)
     except TranscriptionContractRefused as error:
-        if error.status in RETRYABLE_STATUSES:
+        outcome = _callback_outcome(error)
+        if outcome in RETRYABLE_OUTCOMES:
             raise
-        if error.status in TERMINAL_DELETION_STATUSES and artifact.get("object_ref"):
+        if outcome in CLEANUP_OUTCOMES and artifact.get("object_ref"):
             delete_transcript_object(artifact["object_ref"])
-            _commit_failed(local_effect.pk, transcription_binding.pk)
-        raise
+        _commit_failed(local_effect.pk, transcription_binding.pk)
+        return
     _commit_available(local_effect.pk, transcription_binding.pk)
 
 
@@ -301,7 +351,9 @@ def _deliver_failure(effect, local_effect, transcription_binding):
     try:
         _notify_core_failure(effect, local_effect.failure_code or "asr_failed")
     except TranscriptionContractRefused as error:
-        if error.status in RETRYABLE_STATUSES:
+        outcome = _callback_outcome(error)
+        if outcome in RETRYABLE_OUTCOMES:
             raise
-        raise
+        _commit_failed(local_effect.pk, transcription_binding.pk)
+        return
     _commit_failed(local_effect.pk, transcription_binding.pk)
