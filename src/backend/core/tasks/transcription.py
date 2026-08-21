@@ -17,6 +17,7 @@ class TranscriptionRetryable(TranscriptionContractRefused):
 @task(
     autoretry_for=(TranscriptionRetryable,),
     retry_kwargs={"max_retries": 8, "countdown": 15},
+    queue="mastrao-transcription",
 )
 def process_mastrao_transcription(effect_pk):
     """Run audio extraction and ASR outside the Core submit HTTP request.

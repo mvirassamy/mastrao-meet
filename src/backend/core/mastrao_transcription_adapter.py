@@ -13,9 +13,24 @@ from core import models
 from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_contract import compact_digest
 from core.mastrao_transcription_artifact import (
-    extract_verified_audio,
+    extract_verified_audio_file,
+    load_result_recovery,
     map_speakers,
+    persist_result_recovery,
     persist_transcript,
+    recover_persisted_transcript,
+    recovery_object_ref,
+)
+from core.mastrao_transcription_attempt import (
+    cas_sending,
+    cleanup_attempt_recovery,
+    mark_pre_egress_failure,
+    mark_result,
+    mark_unknown,
+    may_call_provider,
+    may_replay_gateway,
+    predeclare_object,
+    prepare_attempt,
 )
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
@@ -29,7 +44,11 @@ from core.mastrao_transcription_contract import (
     verify_transcription_submit_effect,
 )
 from core.mastrao_transcription_pipeline import publish_transcription_job
-from core.mastrao_transcription_worker import transcribe_audio
+from core.mastrao_transcription_worker import (
+    _validated_transcript,
+    ack_gateway_attempt,
+    transcribe_extracted,
+)
 
 MAX_BODY_BYTES = 32_768
 SUBMITTED_OBSERVATION = "submitted"
@@ -159,12 +178,41 @@ def _prepare_transcription(effect):
     return transcription_binding, created
 
 
+def _assert_transcription_authority(transcription_binding):
+    """Re-read recording and transcription authority before egress or commit."""
+
+    with transaction.atomic():
+        recording = models.MastraoRecordingBinding.objects.select_for_update().get(
+            pk=transcription_binding.recording_binding_id
+        )
+        locked = models.MastraoTranscriptionBinding.objects.select_for_update().get(
+            pk=transcription_binding.pk
+        )
+        if recording.state != models.MastraoRecordingBinding.State.FINALIZED:
+            raise TranscriptionContractRefused(status=404, outcome="deleted")
+        if locked.state == models.MastraoTranscriptionBinding.State.FAILED:
+            raise TranscriptionContractRefused(status=409, outcome="conflict")
+        if not (
+            settings.MASTRAO_MEETING_RECORDING_ENABLED
+            and settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED
+        ):
+            raise TranscriptionContractRefused(status=404, outcome="deleted")
+        return locked
+
+
+def _bind_gateway_result(sending, transcript, usage=None):
+    """Persist the recovery object and bind its checksum in one attempt write."""
+    recovery_ref, _checksum = persist_result_recovery(sending.attempt_ref, transcript)
+    return mark_result(sending, transcript, usage, recovery_ref=recovery_ref)
+
+
 def _produce_transcript(transcription_binding):
     """Extract, transcribe and persist outside any database transaction."""
 
     recording_binding = transcription_binding.recording_binding
+    local_effect = transcription_binding.effects.filter(operation="transcribe").get()
     try:
-        audio_bytes = extract_verified_audio(
+        extracted = extract_verified_audio_file(
             recording_binding.object_ref,
             recording_binding.byte_size,
             recording_binding.checksum_digest,
@@ -172,11 +220,143 @@ def _produce_transcript(transcription_binding):
     except TranscriptionContractRefused as error:
         raise TranscriptionPipelineFailed("audio_extraction_failed") from error
     try:
-        transcript = transcribe_audio(audio_bytes)
+        _assert_transcription_authority(transcription_binding)
+        attempt = prepare_attempt(local_effect, extracted)
+        recovered = _resume_produced_artifact(transcription_binding, attempt)
+        if recovered is not None:
+            return recovered
+        sending = cas_sending(attempt)
+        transcript = _resume_or_transcribe(extracted, sending, transcription_binding)
+        _assert_transcription_authority(transcription_binding)
+        transcript = map_speakers(transcript)
+        object_ref = predeclare_object(sending, transcription_binding.transcription_ref)
+        if not transcription_binding.object_ref:
+            transcription_binding.object_ref = object_ref
+            transcription_binding.save(update_fields=["object_ref", "updated_at"])
+        return persist_transcript(
+            transcription_binding.transcription_ref,
+            transcript,
+            object_ref=object_ref,
+        )
     except TranscriptionContractRefused as error:
-        raise TranscriptionPipelineFailed("asr_failed") from error
-    transcript = map_speakers(transcript)
-    return persist_transcript(transcription_binding.transcription_ref, transcript)
+        if error.outcome in {"deleted", "conflict"}:
+            _discard_late_result(local_effect)
+        raise
+    finally:
+        extracted.close()
+
+
+def _accepted_recovery_transcript(transcript, extracted, attempt):
+    """Accept a durable recovery only when it matches this attempt's audio and engine."""
+
+    if not transcript:
+        return None
+    try:
+        validated = _validated_transcript(transcript)
+    except TranscriptionContractRefused:
+        return None
+    if validated.get("audio_digest") != extracted.sha256:
+        return None
+    engine = validated.get("engine_ref")
+    expected = (
+        attempt.requested_model_ref
+        if attempt.provider_ref == "fake"
+        else f"{attempt.provider_ref}:{attempt.requested_model_ref}"
+    )
+    if engine != expected:
+        return None
+    return validated
+
+
+def _resume_or_transcribe(extracted, sending, transcription_binding):
+    """Resume a durable result or open one Gateway call for this attempt."""
+    if sending.result_checksum:
+        recovery_ref = sending.result_recovery_ref or recovery_object_ref(
+            sending.attempt_ref
+        )
+        transcript = _accepted_recovery_transcript(
+            load_result_recovery(recovery_ref, sending.result_checksum),
+            extracted,
+            sending,
+        )
+        if not transcript:
+            raise TranscriptionPipelineFailed("asr_failed", status=409)
+        ack_gateway_attempt(extracted, sending)
+        return transcript
+    discovered = load_result_recovery(recovery_object_ref(sending.attempt_ref))
+    if discovered is not None:
+        transcript = _accepted_recovery_transcript(discovered, extracted, sending)
+        if not transcript:
+            raise TranscriptionPipelineFailed("asr_failed", status=409)
+        mark_result(
+            sending,
+            transcript,
+            recovery_ref=recovery_object_ref(sending.attempt_ref),
+        )
+        ack_gateway_attempt(extracted, sending)
+        return transcript
+    if may_replay_gateway(sending):
+        return _replay_gateway_result(extracted, sending)
+    if not may_call_provider(sending):
+        mark_unknown(sending)
+        raise TranscriptionPipelineFailed("asr_failed", status=409)
+    _assert_transcription_authority(transcription_binding)
+    try:
+        transcript = transcribe_extracted(extracted, sending)
+    except TranscriptionContractRefused as error:
+        if error.outcome == "unknown" or error.status == 409:
+            mark_unknown(sending)
+            raise TranscriptionPipelineFailed("asr_failed", status=409) from error
+        mark_pre_egress_failure(sending)
+        if error.outcome in {"retry", "failed_pre_egress"}:
+            raise
+        raise TranscriptionContractRefused(
+            status=503, outcome="failed_pre_egress"
+        ) from error
+    usage = transcript.pop("_usage", None)
+    _bind_gateway_result(sending, transcript, usage)
+    ack_gateway_attempt(extracted, sending)
+    return transcript
+
+
+def _discard_late_result(local_effect):
+    """Drop a late recovery copy after authority is revoked or conflicts."""
+    attempt = (
+        models.MastraoTranscriptionProviderAttempt.objects.filter(
+            effect=local_effect, generation=1
+        )
+        .order_by("created_at")
+        .first()
+    )
+    if attempt is None:
+        return
+    cleanup_attempt_recovery(attempt)
+
+
+def _replay_gateway_result(extracted, sending):
+    """Replay one Gateway attempt after a paid sending crash, never a second send."""
+
+    try:
+        transcript = transcribe_extracted(extracted, sending)
+    except TranscriptionContractRefused as error:
+        mark_unknown(sending)
+        raise TranscriptionPipelineFailed("asr_failed", status=409) from error
+    usage = transcript.pop("_usage", None)
+    _bind_gateway_result(sending, transcript, usage)
+    ack_gateway_attempt(extracted, sending)
+    return transcript
+
+
+def _resume_produced_artifact(transcription_binding, attempt):
+    object_ref = transcription_binding.object_ref or attempt.transcript_object_ref
+    if not object_ref:
+        return None
+    engine_ref = attempt.resolved_model_ref or attempt.requested_model_ref
+    return recover_persisted_transcript(
+        object_ref,
+        transcription_binding.transcription_ref,
+        engine_ref,
+    )
 
 
 def _artifact_from_binding(binding):

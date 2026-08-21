@@ -94,8 +94,46 @@ def test_production_transcription_accepts_a_qualified_private_endpoint():
     """A separately qualified private sovereign endpoint remains allowed."""
 
     validate_mastrao_transcription_configuration(
-        True, "real", "https://asr.internal.mastrao/transcribe", fake_asr_allowed=False
+        True,
+        "real",
+        "https://asr.internal.mastrao/transcribe",
+        fake_asr_allowed=False,
+        asr_provider="mistral",
+        asr_model="voxtral-mini-2602",
+        asr_gateway_token="workload-token",
+        asr_qualification_mode=True,
     )
+
+
+def test_real_mode_refuses_implicit_provider_defaults():
+    """Paid ASR cannot start from an implicit Mistral model or missing token."""
+
+    with pytest.raises(ImproperlyConfigured, match="TRANSCRIPTION_PROVIDER"):
+        validate_mastrao_transcription_configuration(
+            True,
+            "real",
+            "https://asr.internal.mastrao/transcribe",
+            fake_asr_allowed=False,
+        )
+    with pytest.raises(ImproperlyConfigured, match="ASR_GATEWAY_AUTH_TOKEN"):
+        validate_mastrao_transcription_configuration(
+            True,
+            "real",
+            "https://asr.internal.mastrao/transcribe",
+            fake_asr_allowed=False,
+            asr_provider="mistral",
+            asr_model="voxtral-mini-2602",
+        )
+    with pytest.raises(ImproperlyConfigured, match="QUALIFICATION_MODE"):
+        validate_mastrao_transcription_configuration(
+            True,
+            "real",
+            "https://asr.internal.mastrao/transcribe",
+            fake_asr_allowed=False,
+            asr_provider="openai",
+            asr_model="gpt-transcribe",
+            asr_gateway_token="workload-token",
+        )
 
 
 def test_unknown_asr_mode_is_refused_even_when_transcription_is_disabled():
