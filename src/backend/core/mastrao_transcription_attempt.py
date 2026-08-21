@@ -11,7 +11,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import models
-from core.mastrao_transcription_artifact import canonical_transcript_object_ref
+from core.mastrao_transcription_artifact import (
+    canonical_transcript_object_ref,
+    delete_result_recovery,
+)
 from core.mastrao_transcription_contract import TranscriptionPipelineFailed
 
 ADAPTER_VERSION = "asr-gateway-v1"
@@ -38,12 +41,11 @@ def _provider_profile():
     mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
     if mode == "fake":
         return "fake", "fake-asr-deterministic-v1"
-    provider = getattr(settings, "MASTRAO_TRANSCRIPTION_PROVIDER", "") or "mistral"
-    if provider not in PAID_PROVIDERS:
+    provider = (getattr(settings, "MASTRAO_TRANSCRIPTION_PROVIDER", "") or "").strip()
+    model = (getattr(settings, "MASTRAO_TRANSCRIPTION_MODEL", "") or "").strip()
+    token = (getattr(settings, "MASTRAO_ASR_GATEWAY_AUTH_TOKEN", "") or "").strip()
+    if provider not in PAID_PROVIDERS or not model or not token:
         raise TranscriptionPipelineFailed("asr_failed")
-    model = getattr(settings, "MASTRAO_TRANSCRIPTION_MODEL", "") or (
-        "voxtral-mini-2602" if provider == "mistral" else "gpt-transcribe"
-    )
     return provider, model
 
 
@@ -231,6 +233,48 @@ def mark_succeeded(attempt):
         locked.state = AttemptState.SUCCEEDED
         locked.completed_at = timezone.now()
         locked.save(update_fields=["state", "completed_at", "updated_at"])
+        return locked
+
+
+def may_replay_gateway(attempt):
+    """Return whether Meet may POST the same attempt to recover a durable result."""
+
+    if attempt.state == AttemptState.UNKNOWN:
+        return True
+    if attempt.state == AttemptState.SENDING and attempt.provider_ref in PAID_PROVIDERS:
+        return True
+    return False
+
+
+def cleanup_attempt_recovery(attempt):
+    """Delete the recovery copy after Core commits success or failure."""
+
+    completed = models.MastraoTranscriptionProviderAttempt.CleanupState.COMPLETED
+    pending = models.MastraoTranscriptionProviderAttempt.CleanupState.PENDING
+    with transaction.atomic():
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
+        )
+        if locked.cleanup_state == completed:
+            return locked
+        object_ref = locked.result_recovery_ref
+        locked.cleanup_state = pending
+        locked.save(update_fields=["cleanup_state", "updated_at"])
+    if object_ref:
+        delete_result_recovery(object_ref)
+    with transaction.atomic():
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
+        )
+        locked.cleanup_state = completed
+        locked.result_recovery_ref = None
+        locked.save(
+            update_fields=["cleanup_state", "result_recovery_ref", "updated_at"]
+        )
         return locked
 
 

@@ -13,6 +13,7 @@ from core.mastrao_transcription_artifact import (
     delete_transcript_object,
     recover_persisted_transcript,
 )
+from core.mastrao_transcription_attempt import cleanup_attempt_recovery
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
@@ -381,6 +382,7 @@ def _commit_available(effect_pk, binding_pk):
         )
         locked_binding.state = BindingState.AVAILABLE
         locked_binding.save(update_fields=["state", "updated_at"])
+    _cleanup_effect_recovery(effect_pk)
 
 
 def _commit_failed(effect_pk, binding_pk):
@@ -402,6 +404,7 @@ def _commit_failed(effect_pk, binding_pk):
         )
         locked_binding.state = BindingState.FAILED
         locked_binding.save(update_fields=["state", "updated_at"])
+    _cleanup_effect_recovery(effect_pk)
 
 
 def _commit_incident(effect_pk):
@@ -470,6 +473,22 @@ def _cleanup_discarded_transcript(transcription_binding, discarded_artifact):
     object_ref = _discarded_object_ref(transcription_binding, discarded_artifact)
     if object_ref:
         delete_transcript_object(object_ref)
+    local_effect = transcription_binding.effects.filter(operation="transcribe").first()
+    if local_effect:
+        _cleanup_effect_recovery(local_effect.pk)
+
+
+def _cleanup_effect_recovery(effect_pk):
+    attempt = (
+        models.MastraoTranscriptionProviderAttempt.objects.filter(
+            effect_id=effect_pk, generation=1
+        )
+        .order_by("created_at")
+        .first()
+    )
+    if attempt is None:
+        return
+    cleanup_attempt_recovery(attempt)
 
 
 def _deliver_failure(

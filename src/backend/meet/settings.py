@@ -76,6 +76,9 @@ def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creatio
         )
 
 
+PAID_ASR_PROVIDERS = {"mistral", "openai"}
+
+
 def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
     transcription_enabled,
     asr_mode,
@@ -83,6 +86,10 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
     fake_asr_allowed,
     celery_enabled=True,
     celery_required=False,
+    asr_provider="",
+    asr_model="",
+    asr_gateway_token="",
+    asr_qualification_mode=False,
 ):
     """Refuse a deployment that could transcribe with the deterministic fake.
 
@@ -94,9 +101,8 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
     enables transcription must use "real" with a private endpoint that is
     explicitly configured and transport-qualified.
 
-    The permission is a dedicated, searchable flag rather than DEBUG: DEBUG is
-    False in the Test configuration too, and a qualification run must stay able
-    to select the deterministic engine.
+    Real mode also refuses implicit Mistral/OpenAI defaults: provider, model,
+    Gateway token and the qualification flag must be set before boot.
     Transcription-off deployments stay valid with no ASR configuration at all.
     """
 
@@ -111,14 +117,14 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
             "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires CELERY_ENABLED=true "
             "in a deployable configuration"
         )
-    if fake_asr_allowed:
+    if asr_mode == "fake":
+        if not fake_asr_allowed:
+            raise ImproperlyConfigured(
+                "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires "
+                "MASTRAO_TRANSCRIPTION_ASR_MODE=real outside local development and "
+                "qualification; the fake engine is a fixture, not a transcription"
+            )
         return
-    if asr_mode != "real":
-        raise ImproperlyConfigured(
-            "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires "
-            "MASTRAO_TRANSCRIPTION_ASR_MODE=real outside local development and "
-            "qualification; the fake engine is a fixture, not a transcription"
-        )
     if not asr_endpoint:
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
@@ -133,6 +139,25 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT must not embed credentials, "
             "a query string or a fragment"
+        )
+    if asr_provider not in PAID_ASR_PROVIDERS:
+        raise ImproperlyConfigured(
+            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
+            "MASTRAO_TRANSCRIPTION_PROVIDER=mistral or openai"
+        )
+    if not asr_model:
+        raise ImproperlyConfigured(
+            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires MASTRAO_TRANSCRIPTION_MODEL"
+        )
+    if not asr_gateway_token:
+        raise ImproperlyConfigured(
+            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
+            "MASTRAO_ASR_GATEWAY_AUTH_TOKEN"
+        )
+    if not asr_qualification_mode:
+        raise ImproperlyConfigured(
+            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
+            "MASTRAO_ASR_QUALIFICATION_MODE=true"
         )
 
 
@@ -295,6 +320,11 @@ class Base(Configuration):
     MASTRAO_TRANSCRIPTION_MODEL = values.Value(
         "",
         environ_name="MASTRAO_TRANSCRIPTION_MODEL",
+        environ_prefix=None,
+    )
+    MASTRAO_ASR_QUALIFICATION_MODE = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_ASR_QUALIFICATION_MODE",
         environ_prefix=None,
     )
     MASTRAO_RECORDING_NOTICE_VERSION = values.Value(
@@ -1564,6 +1594,10 @@ class Base(Configuration):
             cls.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
             cls.CELERY_ENABLED,
             cls.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
+            asr_provider=cls.MASTRAO_TRANSCRIPTION_PROVIDER,
+            asr_model=cls.MASTRAO_TRANSCRIPTION_MODEL,
+            asr_gateway_token=cls.MASTRAO_ASR_GATEWAY_AUTH_TOKEN,
+            asr_qualification_mode=cls.MASTRAO_ASR_QUALIFICATION_MODE,
         )
 
         if cls.FILE_UPLOAD_TMP_PATH == cls.FILE_UPLOAD_PATH:

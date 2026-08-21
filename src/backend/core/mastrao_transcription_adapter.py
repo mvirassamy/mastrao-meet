@@ -24,8 +24,10 @@ from core.mastrao_transcription_attempt import (
     cas_sending,
     mark_pre_egress_failure,
     mark_result,
+    mark_succeeded,
     mark_unknown,
     may_call_provider,
+    may_replay_gateway,
     predeclare_object,
     prepare_attempt,
 )
@@ -189,16 +191,19 @@ def _produce_transcript(transcription_binding):
         recovered = _resume_produced_artifact(transcription_binding, attempt)
         if recovered is not None:
             return recovered
-        if not may_call_provider(attempt):
-            mark_unknown(attempt)
-            raise TranscriptionPipelineFailed("asr_failed", status=409)
         sending = cas_sending(attempt)
-        if sending.state == models.MastraoTranscriptionProviderAttempt.State.UNKNOWN:
-            raise TranscriptionPipelineFailed("asr_failed", status=409)
+        transcript = None
         if sending.result_checksum and sending.result_recovery_ref:
-            transcript = load_result_recovery(sending.result_recovery_ref)
+            transcript = load_result_recovery(
+                sending.result_recovery_ref, sending.result_checksum
+            )
             if not transcript:
                 raise TranscriptionPipelineFailed("asr_failed", status=409)
+        elif may_replay_gateway(sending):
+            transcript = _replay_gateway_result(extracted, sending)
+        elif not may_call_provider(sending):
+            mark_unknown(sending)
+            raise TranscriptionPipelineFailed("asr_failed", status=409)
         else:
             try:
                 transcript = transcribe_extracted(extracted, sending)
@@ -222,13 +227,31 @@ def _produce_transcript(transcription_binding):
         if not transcription_binding.object_ref:
             transcription_binding.object_ref = object_ref
             transcription_binding.save(update_fields=["object_ref", "updated_at"])
-        return persist_transcript(
+        artifact = persist_transcript(
             transcription_binding.transcription_ref,
             transcript,
             object_ref=object_ref,
         )
+        mark_succeeded(sending)
+        return artifact
     finally:
         extracted.close()
+
+
+def _replay_gateway_result(extracted, sending):
+    """Replay one Gateway attempt after a paid sending crash, never a second send."""
+
+    try:
+        transcript = transcribe_extracted(extracted, sending)
+    except TranscriptionContractRefused as error:
+        mark_unknown(sending)
+        raise TranscriptionPipelineFailed("asr_failed", status=409) from error
+    usage = transcript.pop("_usage", None)
+    recovery_ref, _checksum = persist_result_recovery(sending.attempt_ref, transcript)
+    sending.result_recovery_ref = recovery_ref
+    sending.save(update_fields=["result_recovery_ref", "updated_at"])
+    mark_result(sending, transcript, usage)
+    return transcript
 
 
 def _resume_produced_artifact(transcription_binding, attempt):

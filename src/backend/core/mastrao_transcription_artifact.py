@@ -2,9 +2,9 @@
 
 import hashlib
 import json
+import math
 import subprocess
 import tempfile
-import wave
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -21,6 +21,8 @@ TRANSCRIPT_PREFIX = "mastrao-transcripts"
 RESULT_RECOVERY_PREFIX = "mastrao-transcript-results"
 FFMPEG_TIMEOUT_SECONDS = 900
 MAX_AUDIO_BYTES = 2_000_000_000
+PROVIDER_EGRESS_BYTES = 25_000_000
+MAX_RECOVERY_BYTES = 5_000_000
 ARTIFACT_SCHEMA_VERSION = 1
 
 
@@ -36,14 +38,14 @@ class ExtractedAudio:
     workdir: tempfile.TemporaryDirectory | None = None
 
     def close(self):
-        """Delete the temporary WAV directory if this extraction still owns it."""
+        """Delete the temporary FLAC directory if this extraction still owns it."""
 
         if self.workdir is not None:
             self.workdir.cleanup()
             self.workdir = None
 
     def read_bounded(self):
-        """Read the extracted WAV when it is small enough to load in memory."""
+        """Read the extracted FLAC when it is small enough to load in memory."""
 
         if self.byte_size > MAX_AUDIO_BYTES:
             raise TranscriptionContractRefused(status=503)
@@ -64,29 +66,51 @@ def _hash_file(path):
     return digest.hexdigest(), size
 
 
-def _wav_duration_ms(path):
+def _media_duration_ms(path):
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(path),
+    ]
     try:
-        with wave.open(str(path), "rb") as handle:
-            frames = handle.getnframes()
-            rate = handle.getframerate()
-    except (wave.Error, OSError) as error:
+        completed = subprocess.run(  # noqa: S603
+            command,
+            check=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+            capture_output=True,
+            text=True,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        OSError,
+    ) as error:
         raise TranscriptionContractRefused(status=503) from error
-    if rate < 1:
+    try:
+        seconds = float(completed.stdout.strip())
+    except ValueError as error:
+        raise TranscriptionContractRefused(status=503) from error
+    if not math.isfinite(seconds) or seconds <= 0:
         raise TranscriptionContractRefused(status=503)
-    return int(frames * 1000 / rate)
+    return max(1, int(seconds * 1000))
 
 
 def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
-    """Extract mono 16 kHz WAV to a temp file without buffering the WAV in RAM."""
+    """Extract mono 16 kHz FLAC to a temp file without buffering it in RAM."""
 
-    # The WAV must outlive this function; ExtractedAudio.close() owns cleanup.
+    # The FLAC must outlive this function; ExtractedAudio.close() owns cleanup.
     workdir = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
         prefix="mastrao_transcribe_"
     )
     created = False
     try:
         source_path = Path(workdir.name) / "verified-source.mp4"
-        audio_path = Path(workdir.name) / "audio-16k-mono.wav"
+        audio_path = Path(workdir.name) / "audio-16k-mono.flac"
         stream = _open_verified_stream(object_ref, expected_size, expected_checksum)
         try:
             with source_path.open("wb") as destination:
@@ -103,11 +127,13 @@ def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
             str(source_path),
             "-vn",
             "-acodec",
-            "pcm_s16le",
+            "flac",
             "-ar",
             "16000",
             "-ac",
             "1",
+            "-compression_level",
+            "8",
             str(audio_path),
         ]
         try:
@@ -121,14 +147,16 @@ def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
         ) as error:
             raise TranscriptionContractRefused(status=503) from error
         digest, byte_size = _hash_file(audio_path)
-        duration_ms = max(1, _wav_duration_ms(audio_path))
+        if byte_size > PROVIDER_EGRESS_BYTES:
+            raise TranscriptionContractRefused(status=503)
+        duration_ms = _media_duration_ms(audio_path)
         created = True
         return ExtractedAudio(
             path=audio_path,
             sha256=digest,
             byte_size=byte_size,
             duration_ms=duration_ms,
-            codec="wav_pcm_s16le",
+            codec="flac",
             workdir=workdir,
         )
     finally:
@@ -137,11 +165,11 @@ def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
 
 
 def extract_verified_audio(object_ref, expected_size, expected_checksum):
-    """Extract mono 16 kHz WAV bytes from the checksum-verified MP4.
+    """Extract mono 16 kHz FLAC bytes from the checksum-verified MP4.
 
     The MP4 is re-verified byte-for-byte through the existing recording
     access stream; no new storage path or credential is introduced.
-    Qualification helpers may still load the bounded WAV; the Celery
+    Qualification helpers may still load the bounded FLAC; the Celery
     pipeline uses extract_verified_audio_file instead.
     """
 
@@ -241,6 +269,8 @@ def persist_result_recovery(attempt_ref, transcript):
         ensure_ascii=False,
         allow_nan=False,
     ).encode()
+    if len(payload) > MAX_RECOVERY_BYTES:
+        raise TranscriptionContractRefused(status=503)
     object_ref = f"{RESULT_RECOVERY_PREFIX}/{attempt_ref}.json"
     try:
         if not default_storage.exists(object_ref):
@@ -280,17 +310,52 @@ def recover_persisted_transcript(object_ref, transcription_ref, engine_ref):
     }
 
 
-def load_result_recovery(object_ref):
-    """Load a previously persisted provider result, or None if it is missing."""
+def _parse_recovery_payload(stored, expected_checksum):
+    if len(stored) > MAX_RECOVERY_BYTES:
+        return None
+    checksum = hashlib.sha256(stored).hexdigest()
+    if expected_checksum and checksum != expected_checksum:
+        return None
+    try:
+        payload = json.loads(stored)
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    valid = (
+        isinstance(payload, dict)
+        and payload.get("version") == ARTIFACT_SCHEMA_VERSION
+        and isinstance(payload.get("engine_ref"), str)
+        and isinstance(payload.get("audio_digest"), str)
+        and isinstance(payload.get("segments"), list)
+    )
+    return payload if valid else None
 
+
+def load_result_recovery(object_ref, expected_checksum=None):
+    """Load a previously persisted provider result after size and schema checks."""
+
+    expected_prefix = f"{RESULT_RECOVERY_PREFIX}/"
+    if not isinstance(object_ref, str) or not object_ref.startswith(expected_prefix):
+        return None
     try:
         if not default_storage.exists(object_ref):
             return None
         with default_storage.open(object_ref, "rb") as stream:
-            stored = stream.read(MAX_AUDIO_BYTES)
-        return json.loads(stored)
-    except (BotoCoreError, ClientError, OSError, ValueError, json.JSONDecodeError):
+            stored = stream.read(MAX_RECOVERY_BYTES + 1)
+    except (BotoCoreError, ClientError, OSError, ValueError):
         return None
+    return _parse_recovery_payload(stored, expected_checksum)
+
+
+def delete_result_recovery(object_ref):
+    """Remove one Meet-written recovery copy after Core commits an outcome."""
+
+    expected_prefix = f"{RESULT_RECOVERY_PREFIX}/"
+    if not isinstance(object_ref, str) or not object_ref.startswith(expected_prefix):
+        return
+    try:
+        default_storage.delete(object_ref)
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise TranscriptionContractRefused(status=503) from error
 
 
 def canonical_transcript_object_ref(transcription_ref):

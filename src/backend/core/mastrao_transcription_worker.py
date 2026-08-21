@@ -180,7 +180,7 @@ def _validated_transcript(transcript):
     return transcript
 
 
-def _gateway_fingerprint(extracted, provider, model):
+def _gateway_fingerprint(extracted, provider, model, language="", context_bias=""):
     return hashlib.sha256(
         "|".join(
             [
@@ -191,7 +191,9 @@ def _gateway_fingerprint(extracted, provider, model):
                 model,
                 "asr-gateway-v1",
                 "1",
-                "",
+                language or "",
+                context_bias or "",
+                "0",
             ]
         ).encode()
     ).hexdigest()
@@ -203,11 +205,19 @@ def _gateway_transcribe(extracted, attempt):
     endpoint = settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT
     if not endpoint:
         raise TranscriptionContractRefused(status=503)
+    if extracted.byte_size > 25_000_000:
+        raise TranscriptionContractRefused(status=503)
     token = getattr(settings, "MASTRAO_ASR_GATEWAY_AUTH_TOKEN", "") or ""
+    if not token:
+        raise TranscriptionContractRefused(status=503)
+    language = "fr"
     metadata = {
         "attempt_ref": attempt.attempt_ref,
         "fingerprint": _gateway_fingerprint(
-            extracted, attempt.provider_ref, attempt.requested_model_ref
+            extracted,
+            attempt.provider_ref,
+            attempt.requested_model_ref,
+            language=language,
         ),
         "provider": attempt.provider_ref,
         "model": attempt.requested_model_ref,
@@ -216,7 +226,7 @@ def _gateway_transcribe(extracted, attempt):
         "audio_codec": extracted.codec,
         "adapter_version": "asr-gateway-v1",
         "normalization_schema_version": "1",
-        "language": "fr",
+        "language": language,
     }
     headers = {}
     if token:
@@ -232,7 +242,7 @@ def _gateway_transcribe(extracted, attempt):
                         json.dumps(metadata),
                         "application/json",
                     ),
-                    "audio": (extracted.path.name, audio, "audio/wav"),
+                    "audio": (extracted.path.name, audio, "audio/flac"),
                 },
                 headers=headers,
                 timeout=settings.MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS,
@@ -246,22 +256,31 @@ def _gateway_transcribe(extracted, attempt):
         payload = response.json()
     except ValueError as error:
         raise TranscriptionContractRefused(status=503) from error
+    return _accepted_gateway_transcript(payload, extracted, attempt)
+
+
+def _accepted_gateway_transcript(payload, extracted, attempt):
     if not isinstance(payload, dict):
         raise TranscriptionContractRefused(status=503)
     if payload.get("outcome") == "unknown" or payload.get("error") == (
         "PROVIDER_OUTCOME_UNKNOWN"
     ):
         raise TranscriptionContractRefused(status=409, outcome="unknown")
-    if payload.get("outcome") != "succeeded" or not isinstance(
-        payload.get("transcript"), dict
-    ):
-        if payload.get("outcome") == "failed_pre_egress":
-            raise TranscriptionContractRefused(status=503)
-        raise TranscriptionContractRefused(status=503)
-    transcript = payload["transcript"]
-    transcript["_usage"] = (
-        payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    transcript = payload.get("transcript")
+    usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    engine = transcript.get("engine_ref") if isinstance(transcript, dict) else None
+    matched = (
+        payload.get("outcome") == "succeeded"
+        and isinstance(transcript, dict)
+        and transcript.get("audio_digest") == extracted.sha256
+        and isinstance(engine, str)
+        and engine.startswith(f"{attempt.provider_ref}:{attempt.requested_model_ref}")
+        and usage.get("provider") in {None, attempt.provider_ref}
+        and usage.get("requested_model") in {None, attempt.requested_model_ref}
     )
+    if not matched:
+        raise TranscriptionContractRefused(status=503)
+    transcript["_usage"] = usage
     return transcript
 
 

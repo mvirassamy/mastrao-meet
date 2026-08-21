@@ -12,12 +12,17 @@ import pytest
 
 from core import models
 from core.mastrao_transcription_adapter import _apply_transcription
-from core.mastrao_transcription_artifact import persist_transcript
+from core.mastrao_transcription_artifact import (
+    persist_result_recovery,
+    persist_transcript,
+)
 from core.mastrao_transcription_attempt import (
     cas_sending,
+    cleanup_attempt_recovery,
     may_call_provider,
     prepare_attempt,
 )
+from core.mastrao_transcription_contract import TranscriptionPipelineFailed
 from core.mastrao_transcription_pipeline import complete_transcription
 from core.mastrao_transcription_worker import _validated_transcript, transcribe_audio
 from core.tests.test_mastrao_transcription import (
@@ -74,7 +79,7 @@ def test_concurrent_prepare_creates_one_attempt():
     class _Extracted:
         sha256 = "a" * 64
         duration_ms = 4_000
-        codec = "wav_pcm_s16le"
+        codec = "flac"
         byte_size = 128
 
     first = prepare_attempt(local_effect, _Extracted())
@@ -92,6 +97,7 @@ def test_paid_sending_crash_becomes_unknown_and_is_not_resent(settings):
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
     settings.MASTRAO_TRANSCRIPTION_PROVIDER = "mistral"
     settings.MASTRAO_TRANSCRIPTION_MODEL = "voxtral-mini-2602"
+    settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
     binding = _finalized_recording_binding("unknownsend0123456")
     effect = _effect(binding, transcription_ref="transcription_unknownsend01")
     with (
@@ -107,7 +113,7 @@ def test_paid_sending_crash_becomes_unknown_and_is_not_resent(settings):
     class _Extracted:
         sha256 = "b" * 64
         duration_ms = 4_000
-        codec = "wav_pcm_s16le"
+        codec = "flac"
         byte_size = 128
 
     attempt = prepare_attempt(local_effect, _Extracted())
@@ -196,3 +202,75 @@ def test_second_provider_result_cannot_overwrite_first_checksum(settings, tmp_pa
     produce.assert_not_called()
     first.refresh_from_db()
     assert first.checksum_digest == "9" * 64
+
+
+def test_real_prepare_refuses_implicit_mistral_defaults(settings):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+    settings.MASTRAO_TRANSCRIPTION_PROVIDER = ""
+    settings.MASTRAO_TRANSCRIPTION_MODEL = ""
+    settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = ""
+    binding = _finalized_recording_binding("noprovider01234567")
+    effect = _effect(binding, transcription_ref="transcription_noprovider012")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class _Extracted:
+        sha256 = "c" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    with pytest.raises(TranscriptionPipelineFailed):
+        prepare_attempt(local_effect, _Extracted())
+
+
+def test_recovery_copy_is_deleted_after_cleanup(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("recoverydel0123456")
+    effect = _effect(binding, transcription_ref="transcription_recoverydel01")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class _Extracted:
+        sha256 = "d" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, _Extracted())
+    transcript = transcribe_audio(b"cleanup audio")
+    recovery_ref, checksum = persist_result_recovery(attempt.attempt_ref, transcript)
+    attempt.result_recovery_ref = recovery_ref
+    attempt.result_checksum = checksum
+    attempt.save(update_fields=["result_recovery_ref", "result_checksum", "updated_at"])
+    assert default_storage.exists(recovery_ref)
+    cleanup_attempt_recovery(attempt)
+    attempt.refresh_from_db()
+    assert not default_storage.exists(recovery_ref)
+    assert (
+        attempt.cleanup_state
+        == models.MastraoTranscriptionProviderAttempt.CleanupState.COMPLETED
+    )
