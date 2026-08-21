@@ -27,6 +27,7 @@ from core.mastrao_recording_session import (
 from core.mastrao_transcription_adapter import (
     _apply_transcription,
     _notify_core_artifact,
+    _notify_core_failure,
     _prepare_transcription,
     transcribe_mastrao_recording,
 )
@@ -508,13 +509,37 @@ def test_artifact_notification_posts_signed_receipt_to_core(settings):
         ),
         mock.patch(
             "core.mastrao_transcription_adapter.post_core_json",
-            return_value={"artifactRef": "transcript_0123456789abcdef", "outcome": "available"},
+            return_value={
+                "artifactRef": "transcript_0123456789abcdef",
+                "outcome": "available",
+            },
         ) as post,
     ):
         _notify_core_artifact(effect, _fake_artifact())
     post.assert_called_once()
     body = post.call_args.kwargs["body"]
     assert body == {"transcription_artifact_receipt": "artifact.receipt.signature"}
+
+
+def test_failure_notification_accepts_available_when_core_already_has_artifact(
+    settings,
+):
+    settings.MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT = (
+        "http://cabinet-core:3911/internal/v1/meetings/transcription/failures"
+    )
+    binding = _finalized_recording_binding("failavail_01234567")
+    effect = _effect(binding)
+    with mock.patch(
+        "core.mastrao_transcription_adapter.post_core_json",
+        return_value={
+            "transcriptionRef": effect["transcription_ref"],
+            "state": "available",
+            "outcome": "available",
+        },
+    ):
+        result = _notify_core_failure(effect, "asr_failed")
+    assert result["outcome"] == "available"
+    assert result["state"] == "available"
 
 
 def test_pipeline_failure_marks_local_state_and_notifies_core():
@@ -865,6 +890,54 @@ def test_divergent_conflict_completes_without_deleting_the_object(settings, tmp_
     local_effect = models.MastraoTranscriptionEffect.objects.get()
     assert local_effect.dispatch_state == (
         models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+    assert local_effect.state != models.MastraoTranscriptionEffect.State.FAILED
+    assert models.MastraoTranscriptionBinding.objects.get().state != (
+        models.MastraoTranscriptionBinding.State.FAILED
+    )
+
+
+def test_late_failure_callback_converges_to_available_after_artifact():
+    binding = _finalized_recording_binding("latefail_012345678")
+    effect = _effect(binding)
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=_fake_artifact(),
+        ),
+        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            return_value={
+                "transcriptionRef": effect["transcription_ref"],
+                "state": "available",
+                "outcome": "available",
+            },
+        ),
+    ):
+        _apply_transcription(effect)
+        complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+        local_effect = models.MastraoTranscriptionEffect.objects.get()
+        local_effect.dispatch_state = (
+            models.MastraoTranscriptionEffect.DispatchState.FAILURE_NOTIFICATION_PENDING
+        )
+        local_effect.failure_code = "asr_failed"
+        local_effect.save(
+            update_fields=["dispatch_state", "failure_code", "updated_at"]
+        )
+        complete_transcription(local_effect.pk)
+    local_effect.refresh_from_db()
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.APPLIED
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+    assert models.MastraoTranscriptionBinding.objects.get().state == (
+        models.MastraoTranscriptionBinding.State.AVAILABLE
     )
 
 

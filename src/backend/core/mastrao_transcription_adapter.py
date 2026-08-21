@@ -226,7 +226,10 @@ def _notify_core_artifact(effect, artifact):
         expected_fields={"artifactRef", "outcome"},
         passthrough_statuses=frozenset({404, 409, 503}),
     )
-    if result["artifactRef"] != claims["artifact_ref"] or result["outcome"] != "available":
+    if (
+        result["artifactRef"] != claims["artifact_ref"]
+        or result["outcome"] != "available"
+    ):
         raise TranscriptionContractRefused(status=503, outcome="retry")
 
 
@@ -245,8 +248,11 @@ def _notify_core_failure(effect, failure_code):
         expected_fields={"transcriptionRef", "state", "outcome"},
         passthrough_statuses=frozenset({404, 409, 503}),
     )
+    if result["outcome"] == "available" and result["state"] == "available":
+        return result
     if result["outcome"] != "failed" or result["state"] != "failed":
         raise TranscriptionContractRefused(status=503, outcome="retry")
+    return result
 
 
 def _persist_submit_receipt(local_effect, effect):

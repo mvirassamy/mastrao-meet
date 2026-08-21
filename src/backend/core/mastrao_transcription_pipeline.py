@@ -169,6 +169,8 @@ def complete_transcription(effect_pk):
         return
     if action == "retry_later":
         raise TranscriptionContractRefused(status=503)
+    if action == "incident":
+        return
     if transcription_binding.checksum_digest:
         artifact = _artifact_from_binding(transcription_binding)
     else:
@@ -200,8 +202,12 @@ def _acquire_completion_lease(effect_pk):
         )
         if local_effect.dispatch_state == DispatchState.COMPLETED:
             if local_effect.state == EffectState.FAILED:
-                return transcription_binding, local_effect, "completed_failed"
-            return transcription_binding, local_effect, "completed_available"
+                action = "completed_failed"
+            elif local_effect.state == EffectState.APPLIED:
+                action = "completed_available"
+            else:
+                action = "incident"
+            return transcription_binding, local_effect, action
         if local_effect.dispatch_state == DispatchState.ARTIFACT_NOTIFICATION_PENDING:
             return transcription_binding, local_effect, "notify_artifact"
         if local_effect.dispatch_state == DispatchState.FAILURE_NOTIFICATION_PENDING:
@@ -257,7 +263,10 @@ def _persist_failure_pending(effect_pk, failure_code):
                 pk=effect_pk
             )
         )
-        if locked_effect.dispatch_state == DispatchState.COMPLETED:
+        if locked_effect.dispatch_state in {
+            DispatchState.COMPLETED,
+            DispatchState.ARTIFACT_NOTIFICATION_PENDING,
+        }:
             return
         locked_effect.failure_code = failure_code
         locked_effect.dispatch_state = DispatchState.FAILURE_NOTIFICATION_PENDING
@@ -309,6 +318,19 @@ def _commit_failed(effect_pk, binding_pk):
         locked_binding.save(update_fields=["state", "updated_at"])
 
 
+def _commit_incident(effect_pk):
+    with transaction.atomic():
+        locked_effect = (
+            models.MastraoTranscriptionEffect.objects.select_for_update().get(
+                pk=effect_pk
+            )
+        )
+        if locked_effect.dispatch_state == DispatchState.COMPLETED:
+            return
+        locked_effect.dispatch_state = DispatchState.COMPLETED
+        locked_effect.save(update_fields=["dispatch_state", "updated_at"])
+
+
 def _callback_outcome(error):
     outcome = getattr(error, "outcome", None)
     if outcome in RETRYABLE_OUTCOMES | CLEANUP_OUTCOMES | INCIDENT_OUTCOMES:
@@ -337,6 +359,12 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
         outcome = _callback_outcome(error)
         if outcome in RETRYABLE_OUTCOMES:
             raise
+        if outcome == "available":
+            _commit_available(local_effect.pk, transcription_binding.pk)
+            return
+        if outcome in INCIDENT_OUTCOMES:
+            _commit_incident(local_effect.pk)
+            return
         if outcome in CLEANUP_OUTCOMES and artifact.get("object_ref"):
             delete_transcript_object(artifact["object_ref"])
         _commit_failed(local_effect.pk, transcription_binding.pk)
@@ -349,11 +377,20 @@ def _deliver_failure(effect, local_effect, transcription_binding):
     from core.mastrao_transcription_adapter import _notify_core_failure
 
     try:
-        _notify_core_failure(effect, local_effect.failure_code or "asr_failed")
+        result = _notify_core_failure(effect, local_effect.failure_code or "asr_failed")
     except TranscriptionContractRefused as error:
         outcome = _callback_outcome(error)
         if outcome in RETRYABLE_OUTCOMES:
             raise
+        if outcome == "available":
+            _commit_available(local_effect.pk, transcription_binding.pk)
+            return
+        if outcome in INCIDENT_OUTCOMES:
+            _commit_incident(local_effect.pk)
+            return
         _commit_failed(local_effect.pk, transcription_binding.pk)
+        return
+    if result["outcome"] == "available":
+        _commit_available(local_effect.pk, transcription_binding.pk)
         return
     _commit_failed(local_effect.pk, transcription_binding.pk)

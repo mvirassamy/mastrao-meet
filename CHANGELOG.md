@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- 🔐(backend) converge a late Core failure callback to available when the artifact already won
+- 📝(backend) document that 0029/0030 never shipped on main so no APPLIED/FAILED backfill is required
 - 🔐(backend) converge refused transcription callbacks from Core outcomes without republishing
 - 📝(backend) back off due transcription dispatches with SKIP LOCKED reservation
 - 🔐(helm) route public /recordings to backend on every host
