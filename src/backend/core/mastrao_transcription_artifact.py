@@ -271,13 +271,19 @@ def persist_result_recovery(attempt_ref, transcript):
     ).encode()
     if len(payload) > MAX_RECOVERY_BYTES:
         raise TranscriptionContractRefused(status=503)
-    object_ref = f"{RESULT_RECOVERY_PREFIX}/{attempt_ref}.json"
+    object_ref = recovery_object_ref(attempt_ref)
     try:
         if not default_storage.exists(object_ref):
             default_storage.save(object_ref, ContentFile(payload))
     except (BotoCoreError, ClientError, OSError, ValueError) as error:
         raise TranscriptionContractRefused(status=503) from error
     return object_ref, hashlib.sha256(payload).hexdigest()
+
+
+def recovery_object_ref(attempt_ref):
+    """Return the deterministic recovery object key for one attempt."""
+
+    return f"{RESULT_RECOVERY_PREFIX}/{attempt_ref}.json"
 
 
 def recover_persisted_transcript(object_ref, transcription_ref, engine_ref):

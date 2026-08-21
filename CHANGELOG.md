@@ -10,13 +10,17 @@ and this project adheres to
 
 ### Fixed
 
-- 🐛(backend) extract 16 kHz FLAC instead of WAV so 30 and 60 minute meetings stay under the provider byte cap
-- 🐛(backend) refuse real ASR without an explicit provider, model, Gateway token and qualification flag
-- 🐛(backend) delete durable transcript recovery copies after Core success, failure or revoke
-- 🐛(backend) replay a persisted Gateway result after a paid sending crash instead of opening a second provider call
+- 🐛(backend) ack Gateway transcripts after Meet persists them
+- 🐛(backend) retry proven pre-egress failures before notifying Core
+- 🐛(backend) bind recovery by attempt key and succeed after Core accept
+- 🐛(backend) re-check recording authority before Gateway send and commit
+- 🐛(backend) extract 16 kHz FLAC so 30 and 60 minute meetings stay under 25MB
+- 🐛(backend) refuse real ASR without provider, model, token and qualification
+- 🐛(backend) delete durable transcript recovery after Core outcome or revoke
+- 🐛(backend) replay a persisted Gateway result after a paid sending crash
 - 🐛(backend) keep the first-checksum overwrite proof from signing Core receipts
-- 🐛(backend) format provider-attempt modules for the recording-backend quality gate
-- 🐛(backend) add provider-attempt docstrings required by the recording-backend quality gate
+- 🐛(backend) format provider-attempt modules for the recording quality gate
+- 🐛(backend) add provider-attempt docstrings for the recording quality gate
 
 ### Added
 

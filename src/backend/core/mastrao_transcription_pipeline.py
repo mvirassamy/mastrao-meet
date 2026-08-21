@@ -13,7 +13,7 @@ from core.mastrao_transcription_artifact import (
     delete_transcript_object,
     recover_persisted_transcript,
 )
-from core.mastrao_transcription_attempt import cleanup_attempt_recovery
+from core.mastrao_transcription_attempt import cleanup_attempt_recovery, mark_succeeded
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
@@ -23,10 +23,11 @@ DispatchState = models.MastraoTranscriptionEffect.DispatchState
 EffectState = models.MastraoTranscriptionEffect.State
 BindingState = models.MastraoTranscriptionBinding.State
 RETRYABLE_OUTCOMES = {"retry"}
-CLEANUP_OUTCOMES = {"failed", "deleted"}
+CLEANUP_OUTCOMES = {"failed", "deleted", "conflict"}
 INCIDENT_OUTCOMES = {"conflict"}
 RECONCILE_BACKOFF_SECONDS = 5
 RECONCILE_BACKOFF_CAP_SECONDS = 300
+PRE_EGRESS_RETRY_LIMIT = 8
 
 
 def transcription_task_id(effect_jti):
@@ -180,6 +181,23 @@ def complete_transcription(effect_pk):
         else:
             try:
                 artifact = _produce_transcript(transcription_binding)
+            except TranscriptionContractRefused as error:
+                if (
+                    error.outcome in {"unknown", "deleted", "conflict"}
+                    or error.status in {404, 409}
+                ):
+                    action = _persist_failure_pending(local_effect.pk, "asr_failed")
+                elif not _defer_pre_egress_retry(local_effect.pk):
+                    action = _persist_failure_pending(local_effect.pk, "asr_failed")
+                else:
+                    return
+                local_effect.refresh_from_db()
+                transcription_binding.refresh_from_db()
+                effect = _effect_from_local(transcription_binding, local_effect)
+                _finish_completion(action, effect, transcription_binding, local_effect)
+                if action in {"notify_failure", "completed_failed"}:
+                    raise
+                return
             except TranscriptionPipelineFailed as failure:
                 action = _persist_failure_pending(local_effect.pk, failure.failure_code)
                 local_effect.refresh_from_db()
@@ -382,6 +400,7 @@ def _commit_available(effect_pk, binding_pk):
         )
         locked_binding.state = BindingState.AVAILABLE
         locked_binding.save(update_fields=["state", "updated_at"])
+    _mark_effect_succeeded(effect_pk)
     _cleanup_effect_recovery(effect_pk)
 
 
@@ -418,6 +437,7 @@ def _commit_incident(effect_pk):
             return
         locked_effect.dispatch_state = DispatchState.COMPLETED
         locked_effect.save(update_fields=["dispatch_state", "updated_at"])
+    _cleanup_effect_recovery(effect_pk)
 
 
 def _callback_outcome(error):
@@ -476,6 +496,48 @@ def _cleanup_discarded_transcript(transcription_binding, discarded_artifact):
     local_effect = transcription_binding.effects.filter(operation="transcribe").first()
     if local_effect:
         _cleanup_effect_recovery(local_effect.pk)
+
+
+def _defer_pre_egress_retry(effect_pk):
+    """Keep a proven pre-egress failure local until retries are exhausted."""
+
+    now = timezone.now()
+    with transaction.atomic():
+        locked = models.MastraoTranscriptionEffect.objects.select_for_update().get(
+            pk=effect_pk
+        )
+        if locked.dispatch_state == DispatchState.COMPLETED:
+            return False
+        if locked.attempt_count >= PRE_EGRESS_RETRY_LIMIT:
+            return False
+        locked.dispatch_state = DispatchState.DISPATCH_PENDING
+        locked.attempt_count = locked.attempt_count + 1
+        locked.next_attempt_at = now + timezone.timedelta(
+            seconds=_backoff_seconds(locked.attempt_count)
+        )
+        locked.save(
+            update_fields=[
+                "dispatch_state",
+                "attempt_count",
+                "next_attempt_at",
+                "updated_at",
+            ]
+        )
+        return True
+
+
+def _mark_effect_succeeded(effect_pk):
+    """Mark the provider attempt succeeded only after Core accepts the artifact."""
+    attempt = (
+        models.MastraoTranscriptionProviderAttempt.objects.filter(
+            effect_id=effect_pk, generation=1
+        )
+        .order_by("created_at")
+        .first()
+    )
+    if attempt is None:
+        return
+    mark_succeeded(attempt)
 
 
 def _cleanup_effect_recovery(effect_pk):

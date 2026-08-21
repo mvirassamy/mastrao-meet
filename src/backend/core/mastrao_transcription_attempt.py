@@ -123,7 +123,7 @@ def cas_sending(attempt):
         return locked
 
 
-def mark_result(attempt, transcript, usage=None):
+def mark_result(attempt, transcript, usage=None, recovery_ref=None):
     """Persist the first normalized result checksum and refuse a conflicting payload."""
 
     payload = json.dumps(transcript, sort_keys=True, separators=(",", ":")).encode()
@@ -137,10 +137,15 @@ def mark_result(attempt, transcript, usage=None):
         if locked.result_checksum:
             if locked.result_checksum != checksum:
                 raise TranscriptionPipelineFailed("asr_failed")
+            if recovery_ref and not locked.result_recovery_ref:
+                locked.result_recovery_ref = recovery_ref
+                locked.save(update_fields=["result_recovery_ref", "updated_at"])
             return locked
         locked.state = AttemptState.RESULT_RECEIVED
         locked.result_checksum = checksum
         locked.resolved_model_ref = transcript.get("engine_ref")
+        if recovery_ref:
+            locked.result_recovery_ref = recovery_ref
         if usage:
             locked.provider_request_ref_digest = usage.get(
                 "provider_request_ref_digest"
@@ -153,6 +158,7 @@ def mark_result(attempt, transcript, usage=None):
                 "state",
                 "result_checksum",
                 "resolved_model_ref",
+                "result_recovery_ref",
                 "provider_request_ref_digest",
                 "usage_audio_seconds",
                 "estimated_cost_micros",
@@ -172,15 +178,10 @@ def mark_pre_egress_failure(attempt, error_code="PROVIDER_PRE_EGRESS_FAILED"):
                 pk=attempt.pk
             )
         )
-        if locked.state in {AttemptState.UNKNOWN, AttemptState.SENDING} and (
-            locked.provider_ref in PAID_PROVIDERS
-            and locked.state == AttemptState.SENDING
-        ):
-            locked.state = AttemptState.UNKNOWN
-            locked.last_safe_error_code = "PROVIDER_OUTCOME_UNKNOWN"
-        else:
-            locked.state = AttemptState.FAILED_PRE_EGRESS
-            locked.last_safe_error_code = error_code
+        if locked.state == AttemptState.UNKNOWN:
+            return locked
+        locked.state = AttemptState.FAILED_PRE_EGRESS
+        locked.last_safe_error_code = error_code
         locked.save(update_fields=["state", "last_safe_error_code", "updated_at"])
         return locked
 
@@ -222,7 +223,7 @@ def predeclare_object(attempt, transcription_ref):
 
 
 def mark_succeeded(attempt):
-    """Mark the attempt succeeded after the canonical artifact is bound."""
+    """Mark the attempt succeeded after Core accepts the artifact."""
 
     with transaction.atomic():
         locked = (

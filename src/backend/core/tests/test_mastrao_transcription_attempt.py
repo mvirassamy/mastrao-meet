@@ -7,11 +7,15 @@ from unittest import mock
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.utils import timezone
 
 import pytest
 
 from core import models
-from core.mastrao_transcription_adapter import _apply_transcription
+from core.mastrao_transcription_adapter import (
+    _apply_transcription,
+    _resume_or_transcribe,
+)
 from core.mastrao_transcription_artifact import (
     persist_result_recovery,
     persist_transcript,
@@ -19,10 +23,14 @@ from core.mastrao_transcription_artifact import (
 from core.mastrao_transcription_attempt import (
     cas_sending,
     cleanup_attempt_recovery,
+    mark_pre_egress_failure,
     may_call_provider,
     prepare_attempt,
 )
-from core.mastrao_transcription_contract import TranscriptionPipelineFailed
+from core.mastrao_transcription_contract import (
+    TranscriptionContractRefused,
+    TranscriptionPipelineFailed,
+)
 from core.mastrao_transcription_pipeline import complete_transcription
 from core.mastrao_transcription_worker import _validated_transcript, transcribe_audio
 from core.tests.test_mastrao_transcription import (
@@ -274,3 +282,101 @@ def test_recovery_copy_is_deleted_after_cleanup(settings, tmp_path):
         attempt.cleanup_state
         == models.MastraoTranscriptionProviderAttempt.CleanupState.COMPLETED
     )
+
+
+def test_proven_pre_egress_failure_stays_retryable_from_sending():
+    binding = _finalized_recording_binding("preeegress01234567")
+    effect = _effect(binding, transcription_ref="transcription_preeegress012")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class _Extracted:
+        sha256 = "e" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, _Extracted())
+    sending = cas_sending(attempt)
+    failed = mark_pre_egress_failure(sending)
+    assert failed.state == (
+        models.MastraoTranscriptionProviderAttempt.State.FAILED_PRE_EGRESS
+    )
+    assert may_call_provider(failed) is True
+
+
+def test_recovery_object_is_discovered_without_db_bind(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("discoverkey0123456")
+    effect = _effect(binding, transcription_ref="transcription_discoverkey01")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class _Extracted:
+        sha256 = "f" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, _Extracted())
+    transcript = transcribe_audio(b"unbound recovery")
+    persist_result_recovery(attempt.attempt_ref, transcript)
+    sending = cas_sending(attempt)
+    resumed = _resume_or_transcribe(_Extracted(), sending, models.MastraoTranscriptionBinding.objects.get())
+    sending.refresh_from_db()
+    assert sending.result_checksum
+    assert sending.result_recovery_ref.endswith(f"{attempt.attempt_ref}.json")
+    assert resumed["audio_digest"] == transcript["audio_digest"]
+
+
+def test_pre_egress_failure_defers_without_notifying_core():
+    binding = _finalized_recording_binding("defercore012345678")
+    effect = _effect(binding, transcription_ref="transcription_defercore0123")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            side_effect=TranscriptionContractRefused(status=503),
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure"
+        ) as notify,
+    ):
+        complete_transcription(local_effect.pk)
+    notify.assert_not_called()
+    local_effect.refresh_from_db()
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.DISPATCH_PENDING
+    )
+    assert local_effect.next_attempt_at > timezone.now()

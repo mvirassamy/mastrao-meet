@@ -252,11 +252,48 @@ def _gateway_transcribe(extracted, attempt):
         raise TranscriptionContractRefused(status=503, outcome="unknown") from error
     if response.status_code in {401, 403}:
         raise TranscriptionContractRefused(status=503)
+    raw = response.content
+    if len(raw) > MAX_WORKER_RESPONSE_BYTES:
+        raise TranscriptionContractRefused(status=503)
     try:
-        payload = response.json()
-    except ValueError as error:
+        payload = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise TranscriptionContractRefused(status=503) from error
     return _accepted_gateway_transcript(payload, extracted, attempt)
+
+
+def ack_gateway_attempt(extracted, attempt):
+    """Tell the Gateway Meet persisted the result so it can drop the transcript."""
+
+    endpoint = settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT
+    token = getattr(settings, "MASTRAO_ASR_GATEWAY_AUTH_TOKEN", "") or ""
+    if not endpoint or not token:
+        return
+    ack_url = (
+        endpoint[: -len("/v1/transcribe")] + "/v1/attempts/ack"
+        if endpoint.endswith("/v1/transcribe")
+        else f"{endpoint.rstrip('/')}/v1/attempts/ack"
+    )
+    try:
+        with requests.Session() as session:
+            session.trust_env = False
+            session.post(
+                ack_url,
+                json={
+                    "attempt_ref": attempt.attempt_ref,
+                    "fingerprint": _gateway_fingerprint(
+                        extracted,
+                        attempt.provider_ref,
+                        attempt.requested_model_ref,
+                        language="fr",
+                    ),
+                },
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5,
+                allow_redirects=False,
+            )
+    except requests.RequestException:
+        return
 
 
 def _accepted_gateway_transcript(payload, extracted, attempt):
