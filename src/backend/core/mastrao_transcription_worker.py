@@ -263,8 +263,6 @@ def _gateway_transcribe(extracted, attempt):
                     retry_after_seconds=_retry_after_seconds(response),
                 )
             payload = json.loads(_read_bounded_http_body(response))
-    except TranscriptionContractRefused:
-        raise
     except requests.RequestException as error:
         raise TranscriptionContractRefused(status=503, outcome="unknown") from error
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:

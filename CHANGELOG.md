@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) drop the redundant Gateway refusal re-raise
 - 🐛(backend) honor Retry-After and keep the absolute 429 deadline
 - 🐛(backend) add dispatch cleanup_pending and replay ACK after recovery
 - 🐛(backend) require exact provider:model on paid recovery engines
