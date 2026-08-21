@@ -5,8 +5,10 @@
 
 import hashlib
 import json
+import shutil
 from unittest import mock
 
+from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 
@@ -25,6 +27,7 @@ from core.mastrao_transcription_adapter import (
     _apply_transcription,
     _notify_core_artifact,
     _prepare_transcription,
+    complete_transcription,
     transcribe_mastrao_recording,
 )
 from core.mastrao_transcription_artifact import map_speakers, persist_transcript
@@ -43,6 +46,10 @@ from core.mastrao_transcription_worker import (
 from core.models import RoomAccessLevel
 
 pytestmark = pytest.mark.django_db
+ENQUEUE = (
+    "core.mastrao_transcription_adapter."
+    "process_mastrao_transcription.apply_async"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -52,6 +59,7 @@ def transcription_settings(settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED = True
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "fake"
+    cache.clear()
 
 
 def _finalized_recording_binding(suffix="0123456789abcdef"):
@@ -121,6 +129,10 @@ def test_fake_asr_is_deterministic_and_schema_valid():
         assert segment["speaker"]["kind"] == "acoustic"
         assert isinstance(segment["text"], str) and segment["text"]
         assert 0 < segment["confidence"] <= 1
+
+
+def test_transcription_runtime_contains_ffmpeg():
+    assert shutil.which("ffmpeg") is not None
 
 
 def test_transcribed_capture_waits_for_an_explicit_transcription_decision():
@@ -223,49 +235,54 @@ def _fake_artifact(**overrides):
     return artifact
 
 
-def test_apply_transcription_persists_effect_and_binding_states():
+def test_apply_transcription_returns_submitted_receipt_without_running_asr():
     binding = _finalized_recording_binding("apply_0123456789abc")
     effect = _effect(binding)
     with (
         mock.patch(
-            "core.mastrao_transcription_adapter._produce_transcript",
-            return_value=_fake_artifact(),
-        ),
+            ENQUEUE
+        ) as enqueue,
         mock.patch(
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
-        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript"
+        ) as produce,
     ):
         assert _apply_transcription(effect) == "receipt.payload.signature"
+    produce.assert_not_called()
+    enqueue.assert_called_once()
     transcription = models.MastraoTranscriptionBinding.objects.get(
         recording_binding=binding
     )
-    assert transcription.state == models.MastraoTranscriptionBinding.State.AVAILABLE
-    assert transcription.checksum_digest == "9" * 64
-    assert transcription.segment_count == 4
+    assert transcription.state == models.MastraoTranscriptionBinding.State.PROCESSING
+    assert transcription.checksum_digest is None
     local_effect = transcription.effects.get()
-    assert local_effect.state == models.MastraoTranscriptionEffect.State.APPLIED
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.APPLYING
     assert local_effect.receipt_claims["status"] == "confirmed"
+    assert local_effect.receipt_claims["provider_observation"] == "submitted"
 
 
-def test_exact_replay_returns_receipt_without_second_transcription():
+def test_exact_replay_returns_receipt_without_second_enqueue():
     binding = _finalized_recording_binding("replay_0123456789ab")
     effect = _effect(binding)
     with (
         mock.patch(
-            "core.mastrao_transcription_adapter._produce_transcript",
-            return_value=_fake_artifact(),
-        ) as produce,
+            ENQUEUE
+        ) as enqueue,
         mock.patch(
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
-        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript"
+        ) as produce,
     ):
         assert _apply_transcription(effect) == "receipt.payload.signature"
         assert _apply_transcription(effect) == "receipt.payload.signature"
-    produce.assert_called_once()
+    produce.assert_not_called()
+    enqueue.assert_called_once()
 
 
 def test_divergent_replay_is_refused_with_conflict():
@@ -395,16 +412,18 @@ def test_endpoint_returns_signed_receipt_for_verified_effect(rf):
             return_value=effect,
         ),
         mock.patch(
-            "core.mastrao_transcription_adapter._produce_transcript",
-            return_value=_fake_artifact(),
+            ENQUEUE
         ),
         mock.patch(
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
-        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript"
+        ) as produce,
     ):
         response = transcribe_mastrao_recording(request)
+    produce.assert_not_called()
     assert response.status_code == 200
     assert json.loads(response.content) == {
         "transcription_submit_receipt": "receipt.payload.signature"
@@ -417,47 +436,60 @@ def test_invalid_asr_mode_fails_explicitly(settings):
         transcribe_audio(b"audio")
 
 
-def test_concurrent_applying_effect_is_refused_without_second_pipeline():
+def test_concurrent_submit_enqueues_one_job():
     binding = _finalized_recording_binding("applying_0123456789")
     effect = _effect(binding)
     with (
         mock.patch(
-            "core.mastrao_transcription_adapter._produce_transcript",
-            return_value=_fake_artifact(),
-        ) as produce,
+            ENQUEUE
+        ) as enqueue,
         mock.patch(
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
         ),
-        mock.patch("core.mastrao_transcription_adapter._notify_core_artifact"),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript"
+        ) as produce,
     ):
-        _prepare_transcription(effect)
-        with pytest.raises(TranscriptionContractRefused) as refusal:
-            _apply_transcription(effect)
-    assert refusal.value.status == 503
+        first = _apply_transcription(effect)
+        second = _apply_transcription(effect)
+    assert first == second == "receipt.payload.signature"
     produce.assert_not_called()
+    enqueue.assert_called_once()
     local_effect = models.MastraoTranscriptionEffect.objects.get()
     assert local_effect.state == models.MastraoTranscriptionEffect.State.APPLYING
 
 
-def test_apply_transcription_notifies_core_of_the_persisted_artifact():
+def test_celery_completion_notifies_core_after_submit_receipt():
     binding = _finalized_recording_binding("notify_0123456789ab")
     effect = _effect(binding)
     with (
         mock.patch(
-            "core.mastrao_transcription_adapter._produce_transcript",
-            return_value=_fake_artifact(),
+            ENQUEUE
         ),
         mock.patch(
             "core.mastrao_transcription_adapter.sign_submit_receipt",
             return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=_fake_artifact(),
         ),
         mock.patch(
             "core.mastrao_transcription_adapter._notify_core_artifact"
         ) as notify,
     ):
         _apply_transcription(effect)
-    notify.assert_called_once_with(effect, _fake_artifact())
+        notify.assert_not_called()
+        complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+    notify.assert_called_once()
+    assert notify.call_args.args[0]["transcription_ref"] == effect["transcription_ref"]
+    assert notify.call_args.args[1] == _fake_artifact()
+    transcription = models.MastraoTranscriptionBinding.objects.get()
+    assert transcription.state == models.MastraoTranscriptionBinding.State.AVAILABLE
+    assert models.MastraoTranscriptionEffect.objects.get().state == (
+        models.MastraoTranscriptionEffect.State.APPLIED
+    )
 
 
 def test_artifact_notification_posts_signed_receipt_to_core(settings):
@@ -493,14 +525,23 @@ def test_pipeline_failure_marks_local_state_and_notifies_core():
     effect = _effect(binding)
     with (
         mock.patch(
+            ENQUEUE
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
             "core.mastrao_transcription_adapter._produce_transcript",
             side_effect=TranscriptionPipelineFailed("asr_failed"),
         ),
         mock.patch("core.mastrao_transcription_adapter._notify_core_failure") as notify,
     ):
+        _apply_transcription(effect)
         with pytest.raises(TranscriptionPipelineFailed):
-            _apply_transcription(effect)
-    notify.assert_called_once_with(effect, "asr_failed")
+            complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+    assert notify.call_args.args[0]["transcription_ref"] == effect["transcription_ref"]
+    assert notify.call_args.args[1] == "asr_failed"
     local_effect = models.MastraoTranscriptionEffect.objects.get()
     assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
     transcription = models.MastraoTranscriptionBinding.objects.get()
@@ -650,3 +691,102 @@ def test_validate_status_defaults_missing_transcription_mode_to_disabled(setting
     room.mastrao_binding.room_ref = status["room_ref"]
     _validate_status(status, participant, room)
     assert status["transcription_mode"] == "disabled"
+
+
+def test_long_running_asr_does_not_block_the_submit_receipt():
+    """Core's HTTP claim window must not wait for ffmpeg or ASR."""
+
+    binding = _finalized_recording_binding("slowasr_0123456789")
+    effect = _effect(binding)
+    with (
+        mock.patch(
+            ENQUEUE
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            side_effect=AssertionError("asr_ran_inside_http_submit"),
+        ),
+    ):
+        assert _apply_transcription(effect) == "receipt.payload.signature"
+    assert models.MastraoTranscriptionBinding.objects.get().state == (
+        models.MastraoTranscriptionBinding.State.PROCESSING
+    )
+
+
+def test_artifact_callback_never_runs_before_submit_receipt():
+    binding = _finalized_recording_binding("order_0123456789abc")
+    effect = _effect(binding)
+    events = []
+    with (
+        mock.patch(
+            ENQUEUE
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=_fake_artifact(),
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact",
+            side_effect=lambda *_args, **_kwargs: events.append("artifact"),
+        ),
+    ):
+        _apply_transcription(effect)
+        events.append("submitted")
+        complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+    assert events == ["submitted", "artifact"]
+
+
+def test_deleted_recording_refusal_removes_the_written_object(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("orphan_0123456789a")
+    effect = _effect(binding, transcription_ref="transcription_persist_01234")
+    transcript = map_speakers(transcribe_audio(b"deleted recording audio"))
+    artifact = persist_transcript(effect["transcription_ref"], transcript)
+    object_path = (
+        tmp_path / "mastrao-transcripts" / f"{effect['transcription_ref']}.json"
+    )
+    assert object_path.exists()
+    with (
+        mock.patch(
+            ENQUEUE
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=artifact,
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact",
+            side_effect=TranscriptionContractRefused(status=404),
+        ),
+    ):
+        _apply_transcription(effect)
+        with pytest.raises(TranscriptionContractRefused):
+            complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
+    assert not object_path.exists()
+    assert models.MastraoTranscriptionBinding.objects.get().state == (
+        models.MastraoTranscriptionBinding.State.FAILED
+    )
+    assert models.MastraoTranscriptionEffect.objects.get().state == (
+        models.MastraoTranscriptionEffect.State.FAILED
+    )

@@ -126,7 +126,7 @@ def persist_transcript(transcription_ref, transcript):
         allow_nan=False,
     ).encode()
     checksum = hashlib.sha256(payload).hexdigest()
-    object_ref = f"{TRANSCRIPT_PREFIX}/{transcription_ref}.json"
+    object_ref = canonical_transcript_object_ref(transcription_ref)
     try:
         if not default_storage.exists(object_ref):
             default_storage.save(object_ref, ContentFile(payload))
@@ -144,3 +144,21 @@ def persist_transcript(transcription_ref, transcript):
         "segment_count": len(artifact["segments"]),
         "engine_ref": transcript["engine_ref"],
     }
+
+
+def canonical_transcript_object_ref(transcription_ref):
+    """Return the exact object key derived from one authorized transcription."""
+
+    return f"{TRANSCRIPT_PREFIX}/{transcription_ref}.json"
+
+
+def delete_transcript_object(object_ref):
+    """Remove one Meet-written transcript object after a definitive Core refusal."""
+
+    expected_prefix = f"{TRANSCRIPT_PREFIX}/"
+    if not isinstance(object_ref, str) or not object_ref.startswith(expected_prefix):
+        return
+    try:
+        default_storage.delete(object_ref)
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise TranscriptionContractRefused(status=503) from error

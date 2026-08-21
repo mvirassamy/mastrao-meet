@@ -3,6 +3,7 @@
 import json
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
@@ -15,6 +16,7 @@ from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_contract import compact_digest
 from core.mastrao_transcription_artifact import (
     FFMPEG_TIMEOUT_SECONDS,
+    delete_transcript_object,
     extract_verified_audio,
     map_speakers,
     persist_transcript,
@@ -31,12 +33,15 @@ from core.mastrao_transcription_contract import (
     verify_transcription_submit_effect,
 )
 from core.mastrao_transcription_worker import transcribe_audio
+from core.tasks.transcription import process_mastrao_transcription
 
 MAX_BODY_BYTES = 32_768
+RUNNING_OBSERVATION = "running"
+SUBMITTED_OBSERVATION = "submitted"
 
 
 def _pipeline_timeout_seconds():
-    """Upper bound of one extraction + ASR run, mirroring worker timeouts."""
+    """Upper bound of one extraction + ASR run, used as a crash lease."""
 
     return FFMPEG_TIMEOUT_SECONDS + settings.MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS
 
@@ -150,13 +155,7 @@ def _prepare_transcription(effect):
         .first()
     )
     if existing:
-        exact = _exact_effect(existing, effect)
-        if exact.state == models.MastraoTranscriptionEffect.State.APPLYING and (
-            timezone.now() - exact.updated_at
-            < timezone.timedelta(seconds=_pipeline_timeout_seconds())
-        ):
-            raise TranscriptionContractRefused(status=503)
-        return transcription_binding, exact
+        return transcription_binding, _exact_effect(existing, effect)
     if effect["resolve_only"]:
         raise TranscriptionContractRefused()
     created = models.MastraoTranscriptionEffect.objects.create(
@@ -200,7 +199,40 @@ def _artifact_from_binding(binding):
         "byte_size": binding.byte_size,
         "checksum_digest": binding.checksum_digest,
         "segment_count": binding.segment_count,
+        "engine_ref": binding.engine_ref,
     }
+
+
+def _effect_from_local(transcription_binding, local_effect):
+    recording_binding = transcription_binding.recording_binding
+    return {
+        "organization_external_id": transcription_binding.organization_external_id,
+        "meeting_ref": transcription_binding.meeting_ref,
+        "room_ref": transcription_binding.room_ref,
+        "recording_ref": transcription_binding.recording_ref,
+        "transcription_ref": transcription_binding.transcription_ref,
+        "recording_artifact_ref": transcription_binding.artifact_ref,
+        "provider_binding_digest": transcription_binding.provider_binding_digest,
+        "recording_checksum_digest": transcription_binding.artifact_checksum_digest,
+        "retention_expires_at": int(recording_binding.retention_expires_at.timestamp()),
+        "effect_key": local_effect.effect_key,
+        "arguments_digest": local_effect.arguments_digest,
+        "resolve_only": False,
+        "jti": local_effect.effect_jti,
+    }
+
+
+def enqueue_transcription_job(effect_pk, effect_jti):
+    """Enqueue at most one Celery job for the exact effect JTI."""
+
+    enqueue_key = f"mastrao-transcribe-enqueue:{effect_jti}"
+    if not cache.add(enqueue_key, "1", timeout=_pipeline_timeout_seconds()):
+        return
+    process_mastrao_transcription.apply_async(
+        args=[str(effect_pk)],
+        task_id=f"mastrao-transcribe-{effect_jti}",
+        ignore_result=True,
+    )
 
 
 def _notify_core_artifact(effect, artifact):
@@ -259,30 +291,81 @@ def _mark_pipeline_failed(local_effect_pk, binding_pk):
         binding_row.save(update_fields=["state", "updated_at"])
 
 
-def _apply_transcription(effect):
-    transcription_binding, local_effect = _prepare_transcription(effect)
-    if local_effect.state == models.MastraoTranscriptionEffect.State.APPLIED:
-        _notify_core_artifact(effect, _artifact_from_binding(transcription_binding))
-        return sign_submit_receipt(local_effect.receipt_claims)
+def _persist_submit_receipt(local_effect, effect):
+    if local_effect.receipt_claims:
+        return local_effect.receipt_claims
+    claims = build_submit_receipt_claims(effect, SUBMITTED_OBSERVATION)
+    local_effect.receipt_claims = claims
+    local_effect.receipt_digest = compact_digest(sign_submit_receipt(claims))
+    local_effect.provider_observation = SUBMITTED_OBSERVATION
+    local_effect.save(
+        update_fields=[
+            "receipt_claims",
+            "receipt_digest",
+            "provider_observation",
+            "updated_at",
+        ]
+    )
+    return claims
 
-    try:
-        artifact = _produce_transcript(transcription_binding)
-    except TranscriptionPipelineFailed as failure:
-        _mark_pipeline_failed(local_effect.pk, transcription_binding.pk)
-        _notify_core_failure(effect, failure.failure_code)
-        raise
-    claims = build_submit_receipt_claims(effect, "submitted")
+
+def _apply_transcription(effect):
+    """Reserve the effect, return the submitted receipt, enqueue Celery."""
+
+    transcription_binding, local_effect = _prepare_transcription(effect)
+    if local_effect.state == models.MastraoTranscriptionEffect.State.FAILED:
+        raise TranscriptionContractRefused(status=409)
+    claims = _persist_submit_receipt(local_effect, effect)
+    if local_effect.state != models.MastraoTranscriptionEffect.State.APPLIED:
+        enqueue_transcription_job(local_effect.pk, local_effect.effect_jti)
+    return sign_submit_receipt(claims)
+
+
+def _acquire_completion_lease(effect_pk):
+    """Return (binding, effect, skip) under a crash-expiring exclusive lease."""
+
+    with transaction.atomic():
+        local_effect = (
+            models.MastraoTranscriptionEffect.objects.select_for_update().get(
+                pk=effect_pk
+            )
+        )
+        transcription_binding = (
+            models.MastraoTranscriptionBinding.objects.select_related(
+                "recording_binding"
+            )
+            .select_for_update(of=("self",))
+            .get(pk=local_effect.transcription_binding_id)
+        )
+        if local_effect.state == models.MastraoTranscriptionEffect.State.APPLIED:
+            return transcription_binding, local_effect, "applied"
+        if local_effect.state == models.MastraoTranscriptionEffect.State.FAILED:
+            return transcription_binding, local_effect, "failed"
+        stale_lease = timezone.now() - local_effect.updated_at >= timezone.timedelta(
+            seconds=_pipeline_timeout_seconds()
+        )
+        if (
+            local_effect.provider_observation == RUNNING_OBSERVATION
+            and not stale_lease
+        ):
+            return transcription_binding, local_effect, "running"
+        local_effect.provider_observation = RUNNING_OBSERVATION
+        local_effect.save(update_fields=["provider_observation", "updated_at"])
+        return transcription_binding, local_effect, "produce"
+
+
+def _commit_available_artifact(local_effect_pk, binding_pk, artifact):
     with transaction.atomic():
         locked_effect = (
             models.MastraoTranscriptionEffect.objects.select_for_update().get(
-                pk=local_effect.pk
+                pk=local_effect_pk
             )
         )
         if locked_effect.state == models.MastraoTranscriptionEffect.State.APPLIED:
-            return sign_submit_receipt(locked_effect.receipt_claims)
+            return
         locked_binding = (
             models.MastraoTranscriptionBinding.objects.select_for_update().get(
-                pk=transcription_binding.pk
+                pk=binding_pk
             )
         )
         if locked_binding.checksum_digest is not None and (
@@ -291,11 +374,11 @@ def _apply_transcription(effect):
         ):
             raise TranscriptionContractRefused(status=409)
         locked_effect.state = models.MastraoTranscriptionEffect.State.APPLIED
-        locked_effect.provider_observation = "submitted"
-        locked_effect.receipt_claims = claims
-        locked_effect.receipt_digest = compact_digest(sign_submit_receipt(claims))
+        locked_effect.provider_observation = SUBMITTED_OBSERVATION
         locked_effect.applied_at = timezone.now()
-        locked_effect.save()
+        locked_effect.save(
+            update_fields=["state", "provider_observation", "applied_at", "updated_at"]
+        )
         locked_binding.transcript_artifact_ref = artifact["transcript_artifact_ref"]
         locked_binding.object_ref = artifact["object_ref"]
         locked_binding.content_type = "application/json"
@@ -307,8 +390,35 @@ def _apply_transcription(effect):
         locked_binding.transcript_verified_at = timezone.now()
         locked_binding.state = models.MastraoTranscriptionBinding.State.AVAILABLE
         locked_binding.save()
-    _notify_core_artifact(effect, artifact)
-    return sign_submit_receipt(claims)
+
+
+def complete_transcription(effect_pk):
+    """Finish one reserved effect: extract, ASR, persist, notify Core."""
+
+    transcription_binding, local_effect, action = _acquire_completion_lease(effect_pk)
+    effect = _effect_from_local(transcription_binding, local_effect)
+    if action == "applied":
+        _notify_core_artifact(effect, _artifact_from_binding(transcription_binding))
+        return
+    if action in {"failed", "running"}:
+        return
+    if transcription_binding.checksum_digest:
+        artifact = _artifact_from_binding(transcription_binding)
+    else:
+        try:
+            artifact = _produce_transcript(transcription_binding)
+        except TranscriptionPipelineFailed as failure:
+            _mark_pipeline_failed(local_effect.pk, transcription_binding.pk)
+            _notify_core_failure(effect, failure.failure_code)
+            raise
+    try:
+        _notify_core_artifact(effect, artifact)
+    except TranscriptionContractRefused as error:
+        if error.status in {404, 409} and artifact.get("object_ref"):
+            delete_transcript_object(artifact["object_ref"])
+            _mark_pipeline_failed(local_effect.pk, transcription_binding.pk)
+        raise
+    _commit_available_artifact(local_effect.pk, transcription_binding.pk, artifact)
 
 
 @csrf_exempt
