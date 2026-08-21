@@ -36,11 +36,15 @@ class ExtractedAudio:
     workdir: tempfile.TemporaryDirectory | None = None
 
     def close(self):
+        """Delete the temporary WAV directory if this extraction still owns it."""
+
         if self.workdir is not None:
             self.workdir.cleanup()
             self.workdir = None
 
     def read_bounded(self):
+        """Read the extracted WAV when it is small enough to load in memory."""
+
         if self.byte_size > MAX_AUDIO_BYTES:
             raise TranscriptionContractRefused(status=503)
         return self.path.read_bytes()
@@ -75,7 +79,10 @@ def _wav_duration_ms(path):
 def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
     """Extract mono 16 kHz WAV to a temp file without buffering the WAV in RAM."""
 
-    workdir = tempfile.TemporaryDirectory(prefix="mastrao_transcribe_")
+    # The WAV must outlive this function; ExtractedAudio.close() owns cleanup.
+    workdir = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
+        prefix="mastrao_transcribe_"
+    )
     created = False
     try:
         source_path = Path(workdir.name) / "verified-source.mp4"
@@ -274,6 +281,8 @@ def recover_persisted_transcript(object_ref, transcription_ref, engine_ref):
 
 
 def load_result_recovery(object_ref):
+    """Load a previously persisted provider result, or None if it is missing."""
+
     try:
         if not default_storage.exists(object_ref):
             return None

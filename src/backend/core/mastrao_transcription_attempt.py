@@ -122,6 +122,8 @@ def cas_sending(attempt):
 
 
 def mark_result(attempt, transcript, usage=None):
+    """Persist the first normalized result checksum and refuse a conflicting payload."""
+
     payload = json.dumps(transcript, sort_keys=True, separators=(",", ":")).encode()
     checksum = hashlib.sha256(payload).hexdigest()
     with transaction.atomic():
@@ -160,6 +162,8 @@ def mark_result(attempt, transcript, usage=None):
 
 
 def mark_pre_egress_failure(attempt, error_code="PROVIDER_PRE_EGRESS_FAILED"):
+    """Record a proven pre-egress failure, or unknown if bytes may have been sent."""
+
     with transaction.atomic():
         locked = (
             models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
@@ -180,6 +184,8 @@ def mark_pre_egress_failure(attempt, error_code="PROVIDER_PRE_EGRESS_FAILED"):
 
 
 def mark_unknown(attempt):
+    """Mark an ambiguous paid send so Celery must not open a second provider call."""
+
     with transaction.atomic():
         locked = (
             models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
@@ -195,6 +201,8 @@ def mark_unknown(attempt):
 
 
 def predeclare_object(attempt, transcription_ref):
+    """Persist the canonical transcript object key before writing transcript bytes."""
+
     object_ref = canonical_transcript_object_ref(transcription_ref)
     with transaction.atomic():
         locked = (
@@ -212,6 +220,8 @@ def predeclare_object(attempt, transcription_ref):
 
 
 def mark_succeeded(attempt):
+    """Mark the attempt succeeded after the canonical artifact is bound."""
+
     with transaction.atomic():
         locked = (
             models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
@@ -225,6 +235,8 @@ def mark_succeeded(attempt):
 
 
 def may_call_provider(attempt):
+    """Return whether this attempt may still open a provider request."""
+
     if attempt.state == AttemptState.UNKNOWN:
         return False
     if attempt.state in {

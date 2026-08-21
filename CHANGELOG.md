@@ -12,6 +12,7 @@ and this project adheres to
 
 - 🐛(backend) keep the first-checksum overwrite proof from signing Core receipts
 - 🐛(backend) format provider-attempt modules for the recording-backend quality gate
+- 🐛(backend) add provider-attempt docstrings required by the recording-backend quality gate
 
 ### Added
 
