@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { RecordingConsent } from './RecordingConsent'
 
@@ -32,8 +33,8 @@ vi.mock('@/primitives/Checkbox', () => ({
 }))
 
 vi.mock('@/styled-system/jsx', () => ({
-  HStack: ({ children }: { children: unknown }) => <div>{children}</div>,
-  VStack: ({ children }: { children: unknown }) => <div>{children}</div>,
+  HStack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  VStack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 
 vi.mock('../api/recordingConsent', () => ({

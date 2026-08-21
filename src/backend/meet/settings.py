@@ -76,8 +76,13 @@ def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creatio
         )
 
 
-def validate_mastrao_transcription_configuration(
-    transcription_enabled, asr_mode, asr_endpoint, fake_asr_allowed
+def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
+    transcription_enabled,
+    asr_mode,
+    asr_endpoint,
+    fake_asr_allowed,
+    celery_enabled=True,
+    celery_required=False,
 ):
     """Refuse a deployment that could transcribe with the deterministic fake.
 
@@ -101,6 +106,11 @@ def validate_mastrao_transcription_configuration(
         )
     if not transcription_enabled:
         return
+    if celery_required and not celery_enabled:
+        raise ImproperlyConfigured(
+            "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires CELERY_ENABLED=true "
+            "in a deployable configuration"
+        )
     if fake_asr_allowed:
         return
     if asr_mode != "real":
@@ -257,6 +267,8 @@ class Base(Configuration):
     # on. It is a deliberate, searchable permission so the deterministic fake
     # engine can never be inherited by a deployed environment.
     MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = False
+    # Deployable configurations refuse transcription without a real Celery worker.
+    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = True
     MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_TRANSCRIPTION_ASR_ENDPOINT", environ_prefix=None
     )
@@ -1525,6 +1537,8 @@ class Base(Configuration):
             cls.MASTRAO_TRANSCRIPTION_ASR_MODE,
             cls.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT,
             cls.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
+            cls.CELERY_ENABLED,
+            cls.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
         )
 
         if cls.FILE_UPLOAD_TMP_PATH == cls.FILE_UPLOAD_PATH:
@@ -1596,6 +1610,7 @@ class Development(Base):
     DEBUG = True
     # Local development may select the deterministic fake ASR fixture.
     MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
+    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
 
     SESSION_COOKIE_NAME = "meet_sessionid"
 
@@ -1613,6 +1628,7 @@ class Test(Base):
     # contract without any ASR provider. DEBUG is False here, so the
     # permission is explicit rather than derived.
     MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
+    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
 
     LOGGING = values.DictValue(
         {
@@ -1649,12 +1665,23 @@ class Test(Base):
 
     CELERY_TASK_ALWAYS_EAGER = True
     FILE_UPLOAD_ENABLED = True
-    # pytest-xdist workers share one Redis. Isolate cache/session keys so a
-    # test calling cache.clear() cannot drop another worker's session.
+    # pytest-xdist workers share one Redis instance. Give each worker its own
+    # logical database so cache.clear() cannot drop another worker's session,
+    # while keeping the Redis client API (keys, ttl) that production tests use.
+    _xdist_worker = environ.get("PYTEST_XDIST_WORKER", "master")
+    _xdist_cache_db = (
+        10 + int(_xdist_worker[2:])
+        if _xdist_worker.startswith("gw") and _xdist_worker[2:].isdigit()
+        else 15
+    )
     CACHES = {
         "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": f"meet-test-{environ.get('PYTEST_XDIST_WORKER', 'master')}",
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": f"redis://redis:6379/{_xdist_cache_db}",
+            "KEY_PREFIX": f"meet-test-{_xdist_worker}",
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
         }
     }
 

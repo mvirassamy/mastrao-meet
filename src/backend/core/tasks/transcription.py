@@ -1,5 +1,8 @@
 """Celery task for one exact Mastrao transcription effect."""
 
+# ruff: noqa: PLC0415
+# pylint: disable=cyclic-import
+
 from core.mastrao_transcription_contract import TranscriptionContractRefused
 from core.tasks._task import task
 
@@ -25,7 +28,9 @@ def process_mastrao_transcription(effect_pk):
 
     # Imported lazily so task registration does not load the HTTP adapter.
     # pylint: disable=import-outside-toplevel
-    from core.mastrao_transcription_adapter import complete_transcription
+    from core.mastrao_transcription_pipeline import (
+        complete_transcription,
+    )
 
     try:
         complete_transcription(effect_pk)

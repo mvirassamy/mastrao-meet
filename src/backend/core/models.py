@@ -1086,6 +1086,20 @@ class MastraoTranscriptionEffect(BaseModel):
         APPLIED = "applied", _("Applied")
         FAILED = "failed", _("Failed")
 
+    class DispatchState(models.TextChoices):
+        DISPATCH_PENDING = "dispatch_pending", _("Dispatch pending")
+        QUEUED = "queued", _("Queued")
+        RUNNING = "running", _("Running")
+        ARTIFACT_NOTIFICATION_PENDING = (
+            "artifact_notification_pending",
+            _("Artifact notification pending"),
+        )
+        FAILURE_NOTIFICATION_PENDING = (
+            "failure_notification_pending",
+            _("Failure notification pending"),
+        )
+        COMPLETED = "completed", _("Completed")
+
     transcription_binding = models.ForeignKey(
         MastraoTranscriptionBinding,
         on_delete=models.PROTECT,
@@ -1098,6 +1112,12 @@ class MastraoTranscriptionEffect(BaseModel):
     state = models.CharField(
         max_length=12, choices=State.choices, default=State.PENDING
     )
+    dispatch_state = models.CharField(
+        max_length=40,
+        choices=DispatchState.choices,
+        default=DispatchState.DISPATCH_PENDING,
+    )
+    failure_code = models.CharField(max_length=64, null=True, blank=True)
     provider_observation = models.CharField(max_length=32, null=True, blank=True)
     receipt_claims = models.JSONField(default=dict, blank=True)
     receipt_digest = models.CharField(max_length=64, null=True, blank=True)
@@ -1117,6 +1137,12 @@ class MastraoTranscriptionEffect(BaseModel):
             models.CheckConstraint(
                 condition=models.Q(operation="transcribe"),
                 name="mastrao_transcription_operation_fixed",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["dispatch_state", "updated_at"],
+                name="mastrao_tx_dispatch_idx",
             ),
         ]
 

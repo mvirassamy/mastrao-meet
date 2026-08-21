@@ -125,9 +125,33 @@ def test_deployable_configurations_never_allow_the_fake_engine(configuration_nam
     assert configuration.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED is False
 
 
+@pytest.mark.parametrize("configuration_name", ["Production", "Staging", "Demo"])
+def test_deployable_transcription_requires_celery(configuration_name):
+    """A deployed transcription runtime cannot fall back to synchronous ASR."""
+
+    configuration = getattr(meet_settings, configuration_name)
+    assert configuration.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED is True
+    with pytest.raises(ImproperlyConfigured, match="CELERY_ENABLED"):
+        validate_mastrao_transcription_configuration(
+            True,
+            "real",
+            "https://asr.internal.mastrao/transcribe",
+            fake_asr_allowed=False,
+            celery_enabled=False,
+            celery_required=True,
+        )
+
+
+@pytest.mark.parametrize("configuration_name", ["Development", "Test"])
+def test_local_transcription_may_start_without_celery(configuration_name):
+    configuration = getattr(meet_settings, configuration_name)
+    assert configuration.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED is False
+
+
 def test_parallel_test_cache_is_isolated_per_xdist_worker():
     """pytest -n 2 workers must not share a Redis session cache."""
 
     caches = meet_settings.Test.CACHES["default"]
-    assert caches["BACKEND"] == "django.core.cache.backends.locmem.LocMemCache"
-    assert caches["LOCATION"].startswith("meet-test-")
+    assert caches["BACKEND"] == "django_redis.cache.RedisCache"
+    assert caches["KEY_PREFIX"].startswith("meet-test-")
+    assert caches["LOCATION"].startswith("redis://")

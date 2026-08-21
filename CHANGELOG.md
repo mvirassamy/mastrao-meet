@@ -23,7 +23,10 @@ and this project adheres to
 
 ### Changed
 
-- 🔒️(backend) refuse enabled transcription with the deterministic fake ASR in any deployable configuration
+- 🚀(backend) persist ASR artifacts before Core notification and retry callbacks without re-running ASR
+- 🚀(backend) store transcription dispatch in the database instead of treating cache as delivery proof
+- 🔒️(backend) require Celery when transcription is enabled in deployable environments
+- 🔐(backend) treat artifact callbacks before Core submit confirmation as retryable
 - 🚀(backend) enqueue transcription completion on Celery so submit HTTP returns the signed receipt immediately
 - 🔐(backend) bind transcript objects to the authorized transcription and delete them when Core refuses a deleted-recording callback
 - ✨(frontend) show the dedicated transcription notice when recording is already accepted

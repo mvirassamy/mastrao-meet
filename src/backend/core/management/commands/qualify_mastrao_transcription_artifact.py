@@ -6,6 +6,8 @@ so Core can validate them against the shared artifact schema v1 instead of
 fabricating a lookalike artifact on its own side.
 """
 
+# pylint: disable=cyclic-import
+
 import base64
 import json
 import tempfile
