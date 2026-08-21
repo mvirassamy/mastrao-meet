@@ -44,7 +44,11 @@ from core.mastrao_transcription_contract import (
     verify_transcription_submit_effect,
 )
 from core.mastrao_transcription_pipeline import publish_transcription_job
-from core.mastrao_transcription_worker import ack_gateway_attempt, transcribe_extracted
+from core.mastrao_transcription_worker import (
+    _validated_transcript,
+    ack_gateway_attempt,
+    transcribe_extracted,
+)
 
 MAX_BODY_BYTES = 32_768
 SUBMITTED_OBSERVATION = "submitted"
@@ -242,24 +246,53 @@ def _produce_transcript(transcription_binding):
         extracted.close()
 
 
+def _accepted_recovery_transcript(transcript, extracted, attempt):
+    """Accept a durable recovery only when it matches this attempt's audio and engine."""
+
+    if not transcript:
+        return None
+    try:
+        validated = _validated_transcript(transcript)
+    except TranscriptionContractRefused:
+        return None
+    engine = validated.get("engine_ref")
+    expected = f"{attempt.provider_ref}:{attempt.requested_model_ref}"
+    if validated.get("audio_digest") != extracted.sha256:
+        return None
+    if engine not in {
+        attempt.requested_model_ref,
+        expected,
+        attempt.resolved_model_ref,
+    } and not (isinstance(engine, str) and engine.startswith(f"{expected}")):
+        return None
+    return validated
+
+
 def _resume_or_transcribe(extracted, sending, transcription_binding):
     """Resume a durable result or open one Gateway call for this attempt."""
     if sending.result_checksum:
         recovery_ref = sending.result_recovery_ref or recovery_object_ref(
             sending.attempt_ref
         )
-        transcript = load_result_recovery(recovery_ref, sending.result_checksum)
+        transcript = _accepted_recovery_transcript(
+            load_result_recovery(recovery_ref, sending.result_checksum),
+            extracted,
+            sending,
+        )
         if not transcript:
             raise TranscriptionPipelineFailed("asr_failed", status=409)
         return transcript
     discovered = load_result_recovery(recovery_object_ref(sending.attempt_ref))
-    if discovered:
+    if discovered is not None:
+        transcript = _accepted_recovery_transcript(discovered, extracted, sending)
+        if not transcript:
+            raise TranscriptionPipelineFailed("asr_failed", status=409)
         mark_result(
             sending,
-            discovered,
+            transcript,
             recovery_ref=recovery_object_ref(sending.attempt_ref),
         )
-        return discovered
+        return transcript
     if may_replay_gateway(sending):
         return _replay_gateway_result(extracted, sending)
     if not may_call_provider(sending):
@@ -273,7 +306,9 @@ def _resume_or_transcribe(extracted, sending, transcription_binding):
             mark_unknown(sending)
             raise TranscriptionPipelineFailed("asr_failed", status=409) from error
         mark_pre_egress_failure(sending)
-        raise TranscriptionContractRefused(status=503) from error
+        raise TranscriptionContractRefused(
+            status=503, outcome="failed_pre_egress"
+        ) from error
     usage = transcript.pop("_usage", None)
     _bind_gateway_result(sending, transcript, usage)
     ack_gateway_attempt(extracted, sending)

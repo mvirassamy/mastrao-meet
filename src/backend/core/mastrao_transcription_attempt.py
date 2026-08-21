@@ -14,6 +14,7 @@ from core import models
 from core.mastrao_transcription_artifact import (
     canonical_transcript_object_ref,
     delete_result_recovery,
+    recovery_object_ref,
 )
 from core.mastrao_transcription_contract import TranscriptionPipelineFailed
 
@@ -260,11 +261,12 @@ def cleanup_attempt_recovery(attempt):
         )
         if locked.cleanup_state == completed:
             return locked
-        object_ref = locked.result_recovery_ref
+        object_ref = locked.result_recovery_ref or recovery_object_ref(
+            locked.attempt_ref
+        )
         locked.cleanup_state = pending
         locked.save(update_fields=["cleanup_state", "updated_at"])
-    if object_ref:
-        delete_result_recovery(object_ref)
+    delete_result_recovery(object_ref)
     with transaction.atomic():
         locked = (
             models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(

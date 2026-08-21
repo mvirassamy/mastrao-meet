@@ -231,6 +231,7 @@ def _gateway_transcribe(extracted, attempt):
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    response = None
     try:
         with extracted.path.open("rb") as audio, requests.Session() as session:
             session.trust_env = False
@@ -247,19 +248,35 @@ def _gateway_transcribe(extracted, attempt):
                 headers=headers,
                 timeout=settings.MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS,
                 allow_redirects=False,
+                stream=True,
             )
+            if response.status_code in {401, 403}:
+                raise TranscriptionContractRefused(status=503)
+            payload = json.loads(_read_bounded_http_body(response))
+    except TranscriptionContractRefused:
+        raise
     except requests.RequestException as error:
         raise TranscriptionContractRefused(status=503, outcome="unknown") from error
-    if response.status_code in {401, 403}:
-        raise TranscriptionContractRefused(status=503)
-    raw = response.content
-    if len(raw) > MAX_WORKER_RESPONSE_BYTES:
-        raise TranscriptionContractRefused(status=503)
-    try:
-        payload = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise TranscriptionContractRefused(status=503) from error
+    finally:
+        if response is not None:
+            response.close()
     return _accepted_gateway_transcript(payload, extracted, attempt)
+
+
+def _read_bounded_http_body(response):
+    length = response.headers.get("Content-Length")
+    if length is not None and int(length) > MAX_WORKER_RESPONSE_BYTES:
+        raise TranscriptionContractRefused(status=503)
+    chunks = []
+    size = 0
+    for chunk in response.iter_content(chunk_size=65_536):
+        size += len(chunk)
+        if size > MAX_WORKER_RESPONSE_BYTES:
+            raise TranscriptionContractRefused(status=503)
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def ack_gateway_attempt(extracted, attempt):
@@ -277,7 +294,7 @@ def ack_gateway_attempt(extracted, attempt):
     try:
         with requests.Session() as session:
             session.trust_env = False
-            session.post(
+            response = session.post(
                 ack_url,
                 json={
                     "attempt_ref": attempt.attempt_ref,
@@ -292,8 +309,10 @@ def ack_gateway_attempt(extracted, attempt):
                 timeout=5,
                 allow_redirects=False,
             )
-    except requests.RequestException:
-        return
+    except requests.RequestException as error:
+        raise TranscriptionContractRefused(status=503, outcome="retry") from error
+    if response.status_code != 200:
+        raise TranscriptionContractRefused(status=503, outcome="retry")
 
 
 def _accepted_gateway_transcript(payload, extracted, attempt):

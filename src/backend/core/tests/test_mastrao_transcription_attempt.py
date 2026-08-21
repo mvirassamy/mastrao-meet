@@ -343,13 +343,58 @@ def test_recovery_object_is_discovered_without_db_bind(settings, tmp_path):
 
     attempt = prepare_attempt(local_effect, _Extracted())
     transcript = transcribe_audio(b"unbound recovery")
+    transcript["audio_digest"] = _Extracted.sha256
     persist_result_recovery(attempt.attempt_ref, transcript)
     sending = cas_sending(attempt)
-    resumed = _resume_or_transcribe(_Extracted(), sending, models.MastraoTranscriptionBinding.objects.get())
+    resumed = _resume_or_transcribe(
+        _Extracted(), sending, models.MastraoTranscriptionBinding.objects.get()
+    )
     sending.refresh_from_db()
     assert sending.result_checksum
     assert sending.result_recovery_ref.endswith(f"{attempt.attempt_ref}.json")
-    assert resumed["audio_digest"] == transcript["audio_digest"]
+    assert resumed["audio_digest"] == _Extracted.sha256
+
+
+def test_substituted_recovery_is_refused_before_mark_result(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    binding = _finalized_recording_binding("substrecovery012345")
+    effect = _effect(binding, transcription_ref="transcription_substrecovery")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class _Extracted:
+        sha256 = "1" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, _Extracted())
+    persist_result_recovery(attempt.attempt_ref, transcribe_audio(b"other audio"))
+    sending = cas_sending(attempt)
+    with pytest.raises(TranscriptionPipelineFailed):
+        _resume_or_transcribe(
+            _Extracted(),
+            sending,
+            models.MastraoTranscriptionBinding.objects.get(),
+        )
+    sending.refresh_from_db()
+    assert sending.result_checksum is None
 
 
 def test_pre_egress_failure_defers_without_notifying_core():
@@ -367,7 +412,9 @@ def test_pre_egress_failure_defers_without_notifying_core():
     with (
         mock.patch(
             "core.mastrao_transcription_adapter._produce_transcript",
-            side_effect=TranscriptionContractRefused(status=503),
+            side_effect=TranscriptionContractRefused(
+                status=503, outcome="failed_pre_egress"
+            ),
         ),
         mock.patch(
             "core.mastrao_transcription_adapter._notify_core_failure"

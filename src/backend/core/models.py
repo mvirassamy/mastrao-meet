@@ -1098,6 +1098,7 @@ class MastraoTranscriptionEffect(BaseModel):
             "failure_notification_pending",
             _("Failure notification pending"),
         )
+        CLEANUP_PENDING = "cleanup_pending", _("Cleanup pending")
         COMPLETED = "completed", _("Completed")
 
     transcription_binding = models.ForeignKey(

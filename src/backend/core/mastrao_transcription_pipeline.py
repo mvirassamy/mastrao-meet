@@ -80,6 +80,7 @@ def reconcile_transcription_dispatches(limit=20):
     due_states = [
         DispatchState.DISPATCH_PENDING,
         DispatchState.QUEUED,
+        DispatchState.CLEANUP_PENDING,
         DispatchState.ARTIFACT_NOTIFICATION_PENDING,
         DispatchState.FAILURE_NOTIFICATION_PENDING,
     ]
@@ -181,25 +182,10 @@ def complete_transcription(effect_pk):
         else:
             try:
                 artifact = _produce_transcript(transcription_binding)
-            except TranscriptionContractRefused as error:
-                if (
-                    error.outcome in {"unknown", "deleted", "conflict"}
-                    or error.status in {404, 409}
-                ):
-                    action = _persist_failure_pending(local_effect.pk, "asr_failed")
-                elif not _defer_pre_egress_retry(local_effect.pk):
-                    action = _persist_failure_pending(local_effect.pk, "asr_failed")
-                else:
+            except (TranscriptionPipelineFailed, TranscriptionContractRefused) as error:
+                action = _action_after_produce_error(local_effect.pk, error)
+                if action is None:
                     return
-                local_effect.refresh_from_db()
-                transcription_binding.refresh_from_db()
-                effect = _effect_from_local(transcription_binding, local_effect)
-                _finish_completion(action, effect, transcription_binding, local_effect)
-                if action in {"notify_failure", "completed_failed"}:
-                    raise
-                return
-            except TranscriptionPipelineFailed as failure:
-                action = _persist_failure_pending(local_effect.pk, failure.failure_code)
                 local_effect.refresh_from_db()
                 transcription_binding.refresh_from_db()
                 effect = _effect_from_local(transcription_binding, local_effect)
@@ -230,6 +216,9 @@ def _finish_completion(
 ):
     if action == "retry_later":
         raise TranscriptionContractRefused(status=503)
+    if action == "cleanup":
+        _finish_cleanup(local_effect.pk)
+        return
     if action == "incident":
         return
     if action in {"completed_available", "notify_artifact"}:
@@ -295,6 +284,23 @@ def _recover_predeclared_artifact(transcription_binding, local_effect):
     )
 
 
+def _action_after_produce_error(effect_pk, error):
+    """Notify Core for terminal failures; defer only typed retryable outcomes."""
+
+    if isinstance(error, TranscriptionPipelineFailed):
+        return _persist_failure_pending(effect_pk, error.failure_code)
+    terminal = error.outcome in {"unknown", "deleted", "conflict"} or error.status in {
+        404,
+        409,
+    }
+    retryable = error.outcome in {"failed_pre_egress", "retry"} or (
+        error.status == 503 and error.outcome is None
+    )
+    if not terminal and retryable and _defer_pre_egress_retry(effect_pk):
+        return None
+    return _persist_failure_pending(effect_pk, "asr_failed")
+
+
 def _action_for_dispatch(locked_effect):
     dispatch = locked_effect.dispatch_state
     if dispatch == DispatchState.COMPLETED:
@@ -303,11 +309,11 @@ def _action_for_dispatch(locked_effect):
         if locked_effect.state == EffectState.APPLIED:
             return "completed_available"
         return "incident"
-    if dispatch == DispatchState.ARTIFACT_NOTIFICATION_PENDING:
-        return "notify_artifact"
-    if dispatch == DispatchState.FAILURE_NOTIFICATION_PENDING:
-        return "notify_failure"
-    return None
+    return {
+        DispatchState.ARTIFACT_NOTIFICATION_PENDING: "notify_artifact",
+        DispatchState.FAILURE_NOTIFICATION_PENDING: "notify_failure",
+        DispatchState.CLEANUP_PENDING: "cleanup",
+    }.get(dispatch)
 
 
 def _remember_discarded_object(locked_binding, artifact):
@@ -393,7 +399,7 @@ def _commit_available(effect_pk, binding_pk):
             )
         )
         locked_effect.state = EffectState.APPLIED
-        locked_effect.dispatch_state = DispatchState.COMPLETED
+        locked_effect.dispatch_state = DispatchState.CLEANUP_PENDING
         locked_effect.applied_at = timezone.now()
         locked_effect.save(
             update_fields=["state", "dispatch_state", "applied_at", "updated_at"]
@@ -401,7 +407,7 @@ def _commit_available(effect_pk, binding_pk):
         locked_binding.state = BindingState.AVAILABLE
         locked_binding.save(update_fields=["state", "updated_at"])
     _mark_effect_succeeded(effect_pk)
-    _cleanup_effect_recovery(effect_pk)
+    _finish_cleanup(effect_pk)
 
 
 def _commit_failed(effect_pk, binding_pk):
@@ -414,7 +420,7 @@ def _commit_failed(effect_pk, binding_pk):
         if locked_effect.state == EffectState.APPLIED:
             return
         locked_effect.state = EffectState.FAILED
-        locked_effect.dispatch_state = DispatchState.COMPLETED
+        locked_effect.dispatch_state = DispatchState.CLEANUP_PENDING
         locked_effect.save(update_fields=["state", "dispatch_state", "updated_at"])
         locked_binding = (
             models.MastraoTranscriptionBinding.objects.select_for_update().get(
@@ -423,7 +429,7 @@ def _commit_failed(effect_pk, binding_pk):
         )
         locked_binding.state = BindingState.FAILED
         locked_binding.save(update_fields=["state", "updated_at"])
-    _cleanup_effect_recovery(effect_pk)
+    _finish_cleanup(effect_pk)
 
 
 def _commit_incident(effect_pk):
@@ -435,9 +441,23 @@ def _commit_incident(effect_pk):
         )
         if locked_effect.dispatch_state == DispatchState.COMPLETED:
             return
+        locked_effect.dispatch_state = DispatchState.CLEANUP_PENDING
+        locked_effect.save(update_fields=["dispatch_state", "updated_at"])
+    _finish_cleanup(effect_pk)
+
+
+def _finish_cleanup(effect_pk):
+    _cleanup_effect_recovery(effect_pk)
+    with transaction.atomic():
+        locked_effect = (
+            models.MastraoTranscriptionEffect.objects.select_for_update().get(
+                pk=effect_pk
+            )
+        )
+        if locked_effect.dispatch_state == DispatchState.COMPLETED:
+            return
         locked_effect.dispatch_state = DispatchState.COMPLETED
         locked_effect.save(update_fields=["dispatch_state", "updated_at"])
-    _cleanup_effect_recovery(effect_pk)
 
 
 def _callback_outcome(error):

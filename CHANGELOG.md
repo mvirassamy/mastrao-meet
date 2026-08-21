@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) catch pipeline failures before typed pre-egress retries
+- 🐛(backend) refuse substituted recovery before binding the result
+- 🐛(backend) stream-bound Gateway responses and retry a failed ACK
+- 🐛(backend) finish recovery cleanup before completing dispatch
 - 🐛(backend) ack Gateway transcripts after Meet persists them
 - 🐛(backend) retry proven pre-egress failures before notifying Core
 - 🐛(backend) bind recovery by attempt key and succeed after Core accept
