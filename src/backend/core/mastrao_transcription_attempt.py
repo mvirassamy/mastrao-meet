@@ -38,7 +38,17 @@ def _config_digest(provider, model, codec, duration_ms):
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def _provider_profile():
+def _provider_profile(local_effect=None):
+    if (
+        local_effect is not None
+        and local_effect.transcription_binding.contract_operation_version == 2
+    ):
+        binding = local_effect.transcription_binding
+        mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
+        signed_provider = binding.asr_provider_ref
+        if (mode == "fake") != (signed_provider == "fake"):
+            raise TranscriptionPipelineFailed("asr_failed")
+        return binding.asr_provider_ref, binding.requested_model_ref
     mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
     if mode == "fake":
         return "fake", "fake-asr-deterministic-v1"
@@ -53,8 +63,13 @@ def _provider_profile():
 def prepare_attempt(local_effect, extracted):
     """Create or reuse generation 1 with an immutable fingerprint."""
 
-    provider, model = _provider_profile()
-    digest = _config_digest(provider, model, extracted.codec, extracted.duration_ms)
+    provider, model = _provider_profile(local_effect)
+    binding = local_effect.transcription_binding
+    digest = (
+        binding.request_config_digest
+        if binding.contract_operation_version == 2
+        else _config_digest(provider, model, extracted.codec, extracted.duration_ms)
+    )
     attempt_ref = f"attempt_{uuid4().hex}"
     with transaction.atomic():
         existing = (

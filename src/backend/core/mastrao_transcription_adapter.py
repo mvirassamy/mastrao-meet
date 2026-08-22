@@ -89,7 +89,8 @@ def _recording_binding(effect):
     """Bind the effect to one exact finalized, verified recording artifact."""
 
     binding = (
-        models.MastraoRecordingBinding.objects.select_related("room_binding")
+        models.MastraoRecordingBinding.objects.select_for_update(of=("self",))
+        .select_related("room_binding")
         .filter(
             organization_external_id=effect["organization_external_id"],
             meeting_ref=effect["meeting_ref"],
@@ -127,16 +128,40 @@ def _prepare_transcription(effect):
     recording_binding = _recording_binding(effect)
     transcription_binding = (
         models.MastraoTranscriptionBinding.objects.select_for_update(of=("self",))
-        .filter(recording_binding=recording_binding)
+        .filter(transcription_ref=effect["transcription_ref"])
         .first()
     )
     if transcription_binding:
-        if (
-            transcription_binding.transcription_ref != effect["transcription_ref"]
-            or transcription_binding.artifact_ref != effect["recording_artifact_ref"]
-            or transcription_binding.artifact_checksum_digest
-            != effect["recording_checksum_digest"]
-            or transcription_binding.artifact_byte_size != recording_binding.byte_size
+        stored_identity = (
+            transcription_binding.transcription_ref,
+            transcription_binding.artifact_ref,
+            transcription_binding.artifact_checksum_digest,
+            transcription_binding.artifact_byte_size,
+            transcription_binding.recording_binding_id,
+            transcription_binding.contract_operation_version,
+        )
+        expected_identity = (
+            effect["transcription_ref"],
+            effect["recording_artifact_ref"],
+            effect["recording_checksum_digest"],
+            recording_binding.byte_size,
+            recording_binding.pk,
+            effect.get("operation_version", 1),
+        )
+        if stored_identity != expected_identity:
+            raise TranscriptionContractRefused(status=409)
+        if effect.get("operation_version", 1) == 2 and any(
+            getattr(transcription_binding, name) != effect[name]
+            for name in (
+                "asr_profile_ref",
+                "asr_profile_digest",
+                "asr_provider_ref",
+                "requested_model_ref",
+                "request_config_digest",
+                "normalization_version",
+                "processing_region_ref",
+                "data_control_ref",
+            )
         ):
             raise TranscriptionContractRefused(status=409)
     else:
@@ -154,6 +179,15 @@ def _prepare_transcription(effect):
             transcription_ref=effect["transcription_ref"],
             artifact_ref=effect["recording_artifact_ref"],
             provider_binding_digest=effect["provider_binding_digest"],
+            contract_operation_version=effect.get("operation_version", 1),
+            asr_profile_ref=effect.get("asr_profile_ref"),
+            asr_profile_digest=effect.get("asr_profile_digest"),
+            asr_provider_ref=effect.get("asr_provider_ref"),
+            requested_model_ref=effect.get("requested_model_ref"),
+            request_config_digest=effect.get("request_config_digest"),
+            normalization_version=effect.get("normalization_version"),
+            processing_region_ref=effect.get("processing_region_ref"),
+            data_control_ref=effect.get("data_control_ref"),
             artifact_checksum_digest=effect["recording_checksum_digest"],
             artifact_byte_size=recording_binding.byte_size,
         )

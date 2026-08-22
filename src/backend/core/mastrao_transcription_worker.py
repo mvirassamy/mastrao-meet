@@ -184,19 +184,20 @@ def _validated_transcript(transcript):
     return transcript
 
 
-def _gateway_fingerprint(extracted, provider, model, language="", context_bias=""):
+def _gateway_fingerprint(extracted, attempt, language=""):
     return hashlib.sha256(
         "|".join(
             [
                 extracted.sha256,
                 str(extracted.duration_ms),
                 extracted.codec,
-                provider,
-                model,
+                attempt.provider_ref,
+                attempt.requested_model_ref,
                 "asr-gateway-v1",
                 "1",
+                attempt.request_config_digest,
                 language or "",
-                context_bias or "",
+                "",
                 "0",
             ]
         ).encode()
@@ -219,8 +220,7 @@ def _gateway_transcribe(extracted, attempt):
         "attempt_ref": attempt.attempt_ref,
         "fingerprint": _gateway_fingerprint(
             extracted,
-            attempt.provider_ref,
-            attempt.requested_model_ref,
+            attempt,
             language=language,
         ),
         "provider": attempt.provider_ref,
@@ -230,6 +230,7 @@ def _gateway_transcribe(extracted, attempt):
         "audio_codec": extracted.codec,
         "adapter_version": "asr-gateway-v1",
         "normalization_schema_version": "1",
+        "request_config_digest": attempt.request_config_digest,
         "language": language,
     }
     headers = {}
@@ -329,8 +330,7 @@ def ack_gateway_attempt(extracted, attempt):
                     "attempt_ref": attempt.attempt_ref,
                     "fingerprint": _gateway_fingerprint(
                         extracted,
-                        attempt.provider_ref,
-                        attempt.requested_model_ref,
+                        attempt,
                         language="fr",
                     ),
                 },

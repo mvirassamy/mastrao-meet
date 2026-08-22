@@ -9,6 +9,7 @@ recording capability can never be replayed as a transcription capability.
 # pylint: disable=too-many-boolean-expressions
 
 import hashlib
+import re
 import time
 from uuid import uuid4
 
@@ -71,6 +72,66 @@ SUBMIT_EFFECT_FIELDS = {
     "expires_at",
     "jti",
 }
+SUBMIT_EFFECT_V2_FIELDS = SUBMIT_EFFECT_FIELDS | {
+    "asr_profile_ref",
+    "asr_profile_digest",
+    "asr_provider_ref",
+    "requested_model_ref",
+    "request_config_digest",
+    "normalization_version",
+    "processing_region_ref",
+    "data_control_ref",
+}
+ASR_REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,160}$")
+V2_NORMALIZATION_VERSION = "meeting-transcript-v1"
+
+
+def _provider_free_profile(profile_ref, provider_ref, requested_model_ref):
+    request_config_digest = _sha256_canonical(
+        {
+            "version": 1,
+            "provider_ref": provider_ref,
+            "requested_model_ref": requested_model_ref,
+            "normalization_version": V2_NORMALIZATION_VERSION,
+            "language": "fr",
+            "diarize": False,
+        }
+    )
+    profile = {
+        "asr_profile_ref": profile_ref,
+        "asr_provider_ref": provider_ref,
+        "requested_model_ref": requested_model_ref,
+        "request_config_digest": request_config_digest,
+        "normalization_version": V2_NORMALIZATION_VERSION,
+        "processing_region_ref": "qualification-local",
+        "data_control_ref": "provider-free-no-egress-v1",
+    }
+    return {
+        **profile,
+        "asr_profile_digest": _sha256_canonical(
+            {
+                "version": 1,
+                "profile_ref": profile_ref,
+                "provider_ref": provider_ref,
+                "requested_model_ref": requested_model_ref,
+                "request_config_digest": request_config_digest,
+                "normalization_version": V2_NORMALIZATION_VERSION,
+                "processing_region_ref": "qualification-local",
+                "data_control_ref": "provider-free-no-egress-v1",
+            }
+        ),
+    }
+
+
+V2_PROFILE_MANIFEST = {
+    profile["asr_profile_ref"]: profile
+    for profile in (
+        _provider_free_profile(
+            "mistral-voxtral-mini-2602-v1", "mistral", "voxtral-mini-2602"
+        ),
+        _provider_free_profile("openai-gpt-transcribe-v1", "openai", "gpt-transcribe"),
+    )
+}
 
 
 class TranscriptionContractRefused(RecordingContractRefused):
@@ -90,7 +151,7 @@ class TranscriptionPipelineFailed(TranscriptionContractRefused):
 
 
 def _submit_arguments(effect):
-    return {
+    arguments = {
         "version": CONTRACT_VERSION,
         "operation": "submit",
         "transcription_ref": effect["transcription_ref"],
@@ -99,12 +160,68 @@ def _submit_arguments(effect):
         "room_ref": effect["room_ref"],
         "provider_binding_digest": effect["provider_binding_digest"],
     }
+    if effect["operation_version"] == 2:
+        arguments.update(
+            {
+                name: effect[name]
+                for name in (
+                    "asr_profile_ref",
+                    "asr_profile_digest",
+                    "asr_provider_ref",
+                    "requested_model_ref",
+                    "request_config_digest",
+                    "normalization_version",
+                    "processing_region_ref",
+                    "data_control_ref",
+                )
+            }
+        )
+    return arguments
+
+
+def _verified_submit_payload(compact_jws):
+    """Verify either exact submit schema without trusting an unverified version."""
+
+    try:
+        return (
+            _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V2_FIELDS),
+            2,
+        )
+    except RecordingContractRefused:
+        return (
+            _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_FIELDS),
+            1,
+        )
+
+
+def _validate_asr_reference(effect, name):
+    if not ASR_REFERENCE.fullmatch(effect.get(name, "")):
+        raise TranscriptionContractRefused()
+
+
+def _validate_v2_profile(effect):
+    for name in (
+        "asr_profile_ref",
+        "requested_model_ref",
+        "normalization_version",
+        "processing_region_ref",
+        "data_control_ref",
+    ):
+        _validate_asr_reference(effect, name)
+    expected_profile = V2_PROFILE_MANIFEST.get(effect.get("asr_profile_ref"))
+    if expected_profile is None or any(
+        effect.get(name) != expected for name, expected in expected_profile.items()
+    ):
+        raise TranscriptionContractRefused()
+    for name in ("asr_profile_digest", "request_config_digest"):
+        if not DIGEST.fullmatch(effect.get(name, "")):
+            raise TranscriptionContractRefused()
 
 
 def verify_transcription_submit_effect(compact_jws):
     """Verify the exact Core transcription submit effect contract."""
 
-    effect = _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_FIELDS)
+    effect, schema_version = _verified_submit_payload(compact_jws)
     _validate_time(effect)
     if (
         effect.get("version") != CONTRACT_VERSION
@@ -112,7 +229,7 @@ def verify_transcription_submit_effect(compact_jws):
         or effect.get("issuer") != settings.MASTRAO_RECORDING_EFFECT_ISSUER
         or effect.get("audience") != settings.MASTRAO_RECORDING_EFFECT_AUDIENCE
         or effect.get("operation") != "submit_meeting_transcription"
-        or effect.get("operation_version") != 1
+        or effect.get("operation_version") != schema_version
         or effect.get("purpose") != PURPOSE
         or effect.get("scope") != SCOPE
         or not isinstance(effect.get("resolve_only"), bool)
@@ -149,6 +266,8 @@ def verify_transcription_submit_effect(compact_jws):
     ):
         if not DIGEST.fullmatch(effect.get(name, "")):
             raise TranscriptionContractRefused()
+    if effect["operation_version"] == 2:
+        _validate_v2_profile(effect)
     retention = effect.get("retention_expires_at")
     if (
         not isinstance(retention, int)

@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) keep the v2 ASR catalog to the two paid profiles
 - 🐛(backend) drop the redundant Gateway refusal re-raise
 - 🐛(backend) honor Retry-After and keep the absolute 429 deadline
 - 🐛(backend) add dispatch cleanup_pending and replay ACK after recovery
@@ -33,6 +34,8 @@ and this project adheres to
 
 ### Added
 
+- ✨(backend) accept consent-bound v2 ASR profiles beside draining v1 jobs
+- ✨(backend) allow immutable transcript runs to share one recording
 - 🔐(backend) add durable provider-attempt state, object-save recovery and a dedicated mastrao-transcription Celery worker
 - 🔐(backend) freeze the first pending transcript artifact and delete a losing object after Core failure
 - 🔐(backend) send only the durable transcription callback chosen under lock
