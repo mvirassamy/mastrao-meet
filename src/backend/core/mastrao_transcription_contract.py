@@ -82,13 +82,56 @@ SUBMIT_EFFECT_V2_FIELDS = SUBMIT_EFFECT_FIELDS | {
     "processing_region_ref",
     "data_control_ref",
 }
-V2_PROFILE_BINDINGS = {
-    "fake-asr-qualification-v1": ("fake", "fake-asr-deterministic-v1"),
-    "mistral-voxtral-mini-2602-v1": ("mistral", "voxtral-mini-2602"),
-    "openai-gpt-transcribe-v1": ("openai", "gpt-transcribe"),
-}
 ASR_REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,160}$")
 V2_NORMALIZATION_VERSION = "meeting-transcript-v1"
+
+
+def _provider_free_profile(profile_ref, provider_ref, requested_model_ref):
+    request_config_digest = _sha256_canonical(
+        {
+            "version": 1,
+            "provider_ref": provider_ref,
+            "requested_model_ref": requested_model_ref,
+            "normalization_version": V2_NORMALIZATION_VERSION,
+            "language": "fr",
+            "diarize": False,
+        }
+    )
+    profile = {
+        "asr_profile_ref": profile_ref,
+        "asr_provider_ref": provider_ref,
+        "requested_model_ref": requested_model_ref,
+        "request_config_digest": request_config_digest,
+        "normalization_version": V2_NORMALIZATION_VERSION,
+        "processing_region_ref": "qualification-local",
+        "data_control_ref": "provider-free-no-egress-v1",
+    }
+    return {
+        **profile,
+        "asr_profile_digest": _sha256_canonical(
+            {
+                "version": 1,
+                "profile_ref": profile_ref,
+                "provider_ref": provider_ref,
+                "requested_model_ref": requested_model_ref,
+                "request_config_digest": request_config_digest,
+                "normalization_version": V2_NORMALIZATION_VERSION,
+                "processing_region_ref": "qualification-local",
+                "data_control_ref": "provider-free-no-egress-v1",
+            }
+        ),
+    }
+
+
+V2_PROFILE_MANIFEST = {
+    profile["asr_profile_ref"]: profile
+    for profile in (
+        _provider_free_profile(
+            "mistral-voxtral-mini-2602-v1", "mistral", "voxtral-mini-2602"
+        ),
+        _provider_free_profile("openai-gpt-transcribe-v1", "openai", "gpt-transcribe"),
+    )
+}
 
 
 class TranscriptionContractRefused(RecordingContractRefused):
@@ -165,14 +208,9 @@ def _validate_v2_profile(effect):
         "data_control_ref",
     ):
         _validate_asr_reference(effect, name)
-    expected_binding = V2_PROFILE_BINDINGS.get(effect.get("asr_profile_ref"))
-    if (
-        expected_binding
-        != (
-            effect.get("asr_provider_ref"),
-            effect.get("requested_model_ref"),
-        )
-        or effect.get("normalization_version") != V2_NORMALIZATION_VERSION
+    expected_profile = V2_PROFILE_MANIFEST.get(effect.get("asr_profile_ref"))
+    if expected_profile is None or any(
+        effect.get(name) != expected for name, expected in expected_profile.items()
     ):
         raise TranscriptionContractRefused()
     for name in ("asr_profile_digest", "request_config_digest"):

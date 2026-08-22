@@ -44,6 +44,7 @@ from core.mastrao_transcription_contract import (
     SUBMIT_EFFECT_JOSE_TYPE,
     SUBMIT_EFFECT_TYPE,
     SUBMIT_EFFECT_V2_FIELDS,
+    V2_PROFILE_MANIFEST,
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
     _submit_arguments,
@@ -138,14 +139,7 @@ def _v2_effect(binding, **overrides):
     effect = _effect(
         binding,
         operation_version=2,
-        asr_profile_ref="openai-gpt-transcribe-v1",
-        asr_profile_digest="1" * 64,
-        asr_provider_ref="openai",
-        requested_model_ref="gpt-transcribe",
-        request_config_digest="2" * 64,
-        normalization_version="meeting-transcript-v1",
-        processing_region_ref="provider-default",
-        data_control_ref="dpa-standard",
+        **V2_PROFILE_MANIFEST["openai-gpt-transcribe-v1"],
     )
     effect.update(overrides)
     return effect
@@ -244,32 +238,47 @@ def test_submit_contract_refuses_schema_operation_version_mismatch(
 
 
 @pytest.mark.parametrize(
-    ("profile_ref", "provider_ref", "model_ref", "region_ref"),
+    ("profile_ref", "provider_ref", "model_ref"),
     [
-        ("openai-gpt-transcribe-v1", "openai", "gpt-transcribe", "eu-west"),
+        ("openai-gpt-transcribe-v1", "openai", "gpt-transcribe"),
         (
             "mistral-voxtral-mini-2602-v1",
             "mistral",
             "voxtral-mini-2602",
-            "eu-west",
         ),
     ],
 )
 def test_submit_contract_accepts_closed_v2_asr_references(
-    settings, profile_ref, provider_ref, model_ref, region_ref
+    settings, profile_ref, provider_ref, model_ref
 ):
     binding = _finalized_recording_binding(f"closedprofile_{provider_ref}")
     effect = _contract_effect(binding, settings)
-    effect.update(
-        asr_profile_ref=profile_ref,
-        asr_provider_ref=provider_ref,
-        requested_model_ref=model_ref,
-        processing_region_ref=region_ref,
-    )
+    effect.update(V2_PROFILE_MANIFEST[profile_ref])
     effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
     with mock.patch("core.mastrao_transcription_contract._verify", return_value=effect):
         verified = verify_transcription_submit_effect("header.payload.signature")
     assert verified == effect
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("processing_region_ref", "eu-west"),
+        ("data_control_ref", "dpa-standard"),
+        ("request_config_digest", "1" * 64),
+        ("asr_profile_digest", "2" * 64),
+    ],
+)
+def test_submit_contract_refuses_divergent_v2_profile_manifest(settings, field, value):
+    binding = _finalized_recording_binding(f"profiledrift_{field}")
+    effect = _contract_effect(binding, settings)
+    effect[field] = value
+    effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
+    with (
+        mock.patch("core.mastrao_transcription_contract._verify", return_value=effect),
+        pytest.raises(TranscriptionContractRefused),
+    ):
+        verify_transcription_submit_effect("header.payload.signature")
 
 
 def test_transcription_runtime_contains_ffmpeg():
