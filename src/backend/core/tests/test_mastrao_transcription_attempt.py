@@ -16,11 +16,13 @@ from core import models
 from core.mastrao_transcription_adapter import (
     _accepted_recovery_transcript,
     _apply_transcription,
+    _produce_transcript,
     _resume_or_transcribe,
 )
 from core.mastrao_transcription_artifact import (
     persist_result_recovery,
     persist_transcript,
+    recovery_object_ref,
 )
 from core.mastrao_transcription_attempt import (
     cas_sending,
@@ -655,6 +657,91 @@ def test_recovery_retries_ack_without_a_second_provider_call(settings, tmp_path)
     provider.assert_not_called()
     assert len(acks) == 2
     assert resumed["engine_ref"] == "mistral:voxtral-mini-2602"
+
+
+def test_revocation_discards_an_inflight_second_run_recovery(settings, tmp_path):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    recording = _finalized_recording_binding("tworunrevoke012345")
+    first_effect = _effect(
+        recording, transcription_ref="transcription_revoke_primary01"
+    )
+    second_effect = _effect(
+        recording,
+        transcription_ref="transcription_revoke_alternate",
+        effect_key="effect_transcribe_alternate01",
+        jti="request_transcribe_alternate01",
+    )
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(first_effect)
+        _apply_transcription(second_effect)
+
+    first = models.MastraoTranscriptionBinding.objects.get(
+        transcription_ref=first_effect["transcription_ref"]
+    )
+    alternate = models.MastraoTranscriptionBinding.objects.get(
+        transcription_ref=second_effect["transcription_ref"]
+    )
+
+    class _Extracted:
+        sha256 = "9" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+        @staticmethod
+        def close():
+            return None
+
+    transcript = transcribe_audio(b"late alternate transcript")
+    transcript["audio_digest"] = _Extracted.sha256
+    authority_revoked = TranscriptionContractRefused(status=404, outcome="deleted")
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter.extract_verified_audio_file",
+            return_value=_Extracted(),
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._assert_transcription_authority",
+            side_effect=[alternate, alternate, authority_revoked],
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.transcribe_extracted",
+            return_value=transcript,
+        ) as provider,
+        mock.patch("core.mastrao_transcription_adapter.ack_gateway_attempt"),
+    ):
+        with pytest.raises(TranscriptionContractRefused) as refused:
+            _produce_transcript(alternate)
+
+    assert refused.value.outcome == "deleted"
+    provider.assert_called_once()
+    attempt = models.MastraoTranscriptionProviderAttempt.objects.get(
+        effect__transcription_binding=alternate
+    )
+    assert attempt.cleanup_state == (
+        models.MastraoTranscriptionProviderAttempt.CleanupState.COMPLETED
+    )
+    assert attempt.result_recovery_ref is None
+    assert not default_storage.exists(recovery_object_ref(attempt.attempt_ref))
+    alternate.refresh_from_db()
+    assert alternate.object_ref is None
+    first.refresh_from_db()
+    assert first.state == models.MastraoTranscriptionBinding.State.PROCESSING
 
 
 def test_pre_egress_failure_defers_without_notifying_core():
