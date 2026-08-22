@@ -482,7 +482,10 @@ def test_v2_replay_requires_the_exact_signed_profile_binding():
     transcription, _local_effect = _prepare_transcription(effect)
     assert transcription.asr_provider_ref == "openai"
     assert transcription.requested_model_ref == "gpt-transcribe"
-    assert transcription.request_config_digest == "2" * 64
+    assert (
+        transcription.request_config_digest
+        == (V2_PROFILE_MANIFEST["openai-gpt-transcribe-v1"]["request_config_digest"])
+    )
     with pytest.raises(TranscriptionContractRefused) as refusal:
         _prepare_transcription(
             _v2_effect(recording, requested_model_ref="gpt-4o-transcribe")
