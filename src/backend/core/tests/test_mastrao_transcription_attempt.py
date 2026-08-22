@@ -208,7 +208,6 @@ def test_v2_attempt_uses_signed_provider_binding_not_runtime_default(settings):
     ("mode", "profile_ref", "provider_ref", "model_ref"),
     [
         ("fake", "openai-gpt-transcribe-v1", "openai", "gpt-transcribe"),
-        ("real", "fake-asr-qualification-v1", "fake", "fake-asr-deterministic-v1"),
     ],
 )
 def test_v2_attempt_refuses_execution_mode_profile_mismatch(

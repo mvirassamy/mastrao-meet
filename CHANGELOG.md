@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) keep the v2 ASR catalog to the two paid profiles
 - 🐛(backend) drop the redundant Gateway refusal re-raise
 - 🐛(backend) honor Retry-After and keep the absolute 429 deadline
 - 🐛(backend) add dispatch cleanup_pending and replay ACK after recovery
