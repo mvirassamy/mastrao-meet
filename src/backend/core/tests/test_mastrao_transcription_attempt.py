@@ -557,6 +557,7 @@ def test_unreadable_post_response_is_unknown(settings, tmp_path, body, content_l
         provider_ref = "openai"
         requested_model_ref = "gpt-transcribe"
         request_config_digest = "d" * 64
+        grant_semantic_digest = None
 
     response = mock.MagicMock()
     response.status_code = 200
