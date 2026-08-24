@@ -413,6 +413,112 @@ def test_local_rate_limit_retries_with_send_grant(settings, tmp_path):
     assert resumed["engine_ref"] == "openai:gpt-transcribe"
 
 
+def test_lost_gateway_response_replays_recover_only_without_second_send(
+    settings, tmp_path
+):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    recording = _finalized_recording_binding("lostresponse012345")
+    effect = _v3_effect(recording, transcription_ref="transcription_lostresponse")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class Extracted:
+        sha256 = "d" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, Extracted())
+    now = int(timezone.now().timestamp())
+    transcript = {
+        "schema_version": 1,
+        "engine_ref": "openai:gpt-transcribe",
+        "language": "fr",
+        "audio_digest": Extracted.sha256,
+        "segments": [],
+        "_usage": {
+            "attempt_ref": attempt.attempt_ref,
+            "grant_semantic_digest": "b" * 64,
+            "authority_version": 7,
+            "provider_ref": "openai",
+            "requested_model_ref": "gpt-transcribe",
+            "processing_region_ref": "openai-eu",
+            "data_control_ref": "openai-zdr-approved-v1",
+            "usage_audio_seconds": 4,
+            "estimated_cost_micros": 300,
+            "currency": "USD",
+            "tariff_catalog_version": "asr-tariff-v2",
+            "provider_egress_opened_at": now,
+            "provider_completed_at": now,
+        },
+    }
+    modes = []
+
+    def authorize(_binding, current, execution_mode):
+        modes.append(execution_mode)
+        bind_egress_grant(
+            current,
+            {
+                "grant_semantic_digest": "b" * 64,
+                "authority_version": 7,
+                "campaign_ref": "managed-canary-2026-08",
+                "authorized_cost_ceiling_micros": 10_000,
+                "tariff_catalog_version": "asr-tariff-v2",
+                "execution_mode": execution_mode,
+            },
+        )
+        current.refresh_from_db()
+        return f"grant-{execution_mode}"
+
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter._authorize_egress",
+            side_effect=authorize,
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter._assert_transcription_authority"
+        ),
+        mock.patch(
+            "core.mastrao_transcription_adapter.transcribe_extracted",
+            side_effect=[
+                TranscriptionContractRefused(status=503, outcome="unknown"),
+                transcript,
+            ],
+        ) as gateway,
+    ):
+        with pytest.raises(TranscriptionContractRefused) as refused:
+            _resume_or_transcribe(
+                Extracted(), attempt, local_effect.transcription_binding
+            )
+        assert refused.value.outcome == "retry"
+        attempt.refresh_from_db()
+        assert attempt.state == attempt.State.UNKNOWN
+        assert attempt.terminal_outcome is None
+        resumed = _resume_or_transcribe(
+            Extracted(), attempt, local_effect.transcription_binding
+        )
+    assert modes == ["send_allowed", "recover_only"]
+    assert gateway.call_count == 2
+    assert resumed["engine_ref"] == "openai:gpt-transcribe"
+
+
 def test_gateway_429_ingests_bounded_provenance_and_retry_after(settings, tmp_path):
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
     settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = (

@@ -323,7 +323,9 @@ def _accepted_recovery_transcript(transcript, extracted, attempt):
     return validated
 
 
-def _resume_or_transcribe(extracted, sending, transcription_binding):
+def _resume_or_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
+    extracted, sending, transcription_binding
+):
     """Resume a durable result or open one Gateway call for this attempt."""
     if sending.result_checksum:
         recovery_ref = sending.result_recovery_ref or recovery_object_ref(
@@ -369,6 +371,11 @@ def _resume_or_transcribe(extracted, sending, transcription_binding):
             raise
         if error.outcome == "unknown" or error.status == 409:
             sending = bind_terminal_provenance(sending, error.provenance)
+            if error.outcome == "unknown" and not error.provenance:
+                mark_unknown(sending)
+                raise TranscriptionContractRefused(
+                    status=503, outcome="retry"
+                ) from error
             mark_terminal(sending, "unknown")
             raise TranscriptionContractRefused(status=409, outcome="unknown") from error
         if error.outcome == "retry" and error.provenance:
