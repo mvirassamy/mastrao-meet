@@ -1092,6 +1092,17 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
         _apply_transcription(effect)
     local_effect = models.MastraoTranscriptionEffect.objects.get()
     attempt = _paid_attempt_with_recovery(local_effect)
+    attempt = bind_egress_grant(
+        attempt,
+        {
+            "grant_semantic_digest": "d" * 64,
+            "authority_version": 7,
+            "campaign_ref": "managed-canary-2026-08",
+            "authorized_cost_ceiling_micros": 10_000,
+            "tariff_catalog_version": "asr-tariff-v2",
+            "execution_mode": "send_allowed",
+        },
+    )
     acknowledgements = []
 
     def ack(*_args, **_kwargs):
