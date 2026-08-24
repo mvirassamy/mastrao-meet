@@ -63,8 +63,15 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "transcription_submit_receipt",
     "transcription_artifact_receipt",
     "transcription_failure_receipt",
+    "transcription_egress_request",
+    "transcription_egress_grant",
+    "transcription_terminal_receipt",
     "object_ref",
 )
+
+MASTRAO_HANDOFF_CREDENTIAL_HEADERS = {
+    "x-mastrao-transcription-egress-grant",
+}
 
 
 def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creation):
@@ -195,6 +202,11 @@ def scrub_mastrao_handoff_credentials(event, _hint):
         marker in data for marker in MASTRAO_HANDOFF_CREDENTIAL_FIELDS
     ):
         request["data"] = "[Filtered]"
+    headers = request.get("headers")
+    if isinstance(headers, dict):
+        for name in list(headers):
+            if str(name).lower() in MASTRAO_HANDOFF_CREDENTIAL_HEADERS:
+                headers[name] = "[Filtered]"
     return event
 
 
@@ -325,6 +337,21 @@ class Base(Configuration):
     MASTRAO_ASR_QUALIFICATION_MODE = values.BooleanValue(
         False,
         environ_name="MASTRAO_ASR_QUALIFICATION_MODE",
+        environ_prefix=None,
+    )
+    MASTRAO_TRANSCRIPTION_EGRESS_GRANT_AUDIENCE = values.Value(
+        "",
+        environ_name="MASTRAO_TRANSCRIPTION_EGRESS_GRANT_AUDIENCE",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_TRANSCRIPTION_EGRESS_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_EGRESS_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_TRANSCRIPTION_TERMINAL_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_TRANSCRIPTION_TERMINAL_ENDPOINT",
         environ_prefix=None,
     )
     MASTRAO_RECORDING_NOTICE_VERSION = values.Value(

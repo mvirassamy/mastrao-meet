@@ -38,12 +38,14 @@ from core.mastrao_transcription_artifact import (
     persist_transcript,
 )
 from core.mastrao_transcription_contract import (
+    MANAGED_PROFILE_BINDINGS,
     PURPOSE,
     SCOPE,
     SUBMIT_EFFECT_FIELDS,
     SUBMIT_EFFECT_JOSE_TYPE,
     SUBMIT_EFFECT_TYPE,
     SUBMIT_EFFECT_V2_FIELDS,
+    SUBMIT_EFFECT_V3_FIELDS,
     V2_PROFILE_MANIFEST,
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
@@ -51,7 +53,9 @@ from core.mastrao_transcription_contract import (
     _verified_submit_payload,
     build_submit_receipt_claims,
     build_transcript_artifact_receipt_claims,
+    build_transcription_egress_request_claims,
     build_transcription_failure_receipt_claims,
+    verify_transcription_egress_grant,
     verify_transcription_submit_effect,
 )
 from core.mastrao_transcription_pipeline import (
@@ -145,8 +149,29 @@ def _v2_effect(binding, **overrides):
     return effect
 
 
+def _v3_effect(binding, **overrides):
+    profile_ref = "openai-eu-zdr-gpt-transcribe-canary-v1"
+    effect = _effect(
+        binding,
+        operation_version=3,
+        asr_profile_ref=profile_ref,
+        normalization_version="meeting-transcript-v1",
+        campaign_ref="managed-canary-2026-08",
+        authorized_cost_ceiling_micros=10_000,
+        currency="USD",
+        **MANAGED_PROFILE_BINDINGS[profile_ref],
+    )
+    effect.update(overrides)
+    return effect
+
+
 def _contract_effect(binding, settings, operation_version=2):
-    effect = _v2_effect(binding) if operation_version == 2 else _effect(binding)
+    if operation_version == 3:
+        effect = _v3_effect(binding)
+    elif operation_version == 2:
+        effect = _v2_effect(binding)
+    else:
+        effect = _effect(binding)
     now = int(timezone.now().timestamp())
     effect.update(
         version=CONTRACT_VERSION,
@@ -165,6 +190,103 @@ def _contract_effect(binding, settings, operation_version=2):
     )
     effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
     return effect
+
+
+def test_managed_v3_builds_exact_audio_bound_egress_request(settings):
+    binding = _finalized_recording_binding("managed_egress_0123")
+    effect = _contract_effect(binding, settings, operation_version=3)
+
+    class Attempt:
+        attempt_ref = "attempt_managed_012345678"
+        audio_sha256 = "a" * 64
+        input_bytes = 1234
+        audio_duration_ms = 4000
+
+    claims = build_transcription_egress_request_claims(
+        effect, Attempt(), "recover_only"
+    )
+    assert claims["attempt_ref"] == Attempt.attempt_ref
+    assert claims["audio_sha256"] == Attempt.audio_sha256
+    assert claims["audio_bytes"] == Attempt.input_bytes
+    assert claims["execution_mode"] == "recover_only"
+    assert claims["campaign_ref"] == effect["campaign_ref"]
+
+
+def test_managed_v3_accepts_core_grant_semantic_binding(settings):
+    binding = _finalized_recording_binding("managed_grant_01234")
+    effect = _contract_effect(binding, settings, operation_version=3)
+
+    class Attempt:
+        attempt_ref = "attempt_managed_012345678"
+        audio_sha256 = "a" * 64
+        input_bytes = 1234
+        audio_duration_ms = 4000
+
+    request = build_transcription_egress_request_claims(
+        effect, Attempt(), "send_allowed"
+    )
+    grant_binding = {
+        "cabinet_id": "cabinet_managed_012345678",
+        **{
+            name: value
+            for name, value in request.items()
+            if name
+            not in {
+                "audience",
+                "execution_mode",
+                "expires_at",
+                "issued_at",
+                "issuer",
+                "jti",
+                "operation",
+                "operation_version",
+                "type",
+                "version",
+            }
+        },
+        "notice_digest": binding.notice_digest,
+        "consent_epoch": 1,
+        "authority_version": 7,
+    }
+    grant = {
+        "version": CONTRACT_VERSION,
+        "type": "mastrao.core-meeting-transcription-egress-grant",
+        "issuer": settings.MASTRAO_RECORDING_EFFECT_ISSUER,
+        "audience": settings.MASTRAO_TRANSCRIPTION_EGRESS_GRANT_AUDIENCE,
+        "operation": "authorize_meeting_transcription_egress",
+        "operation_version": 1,
+        **grant_binding,
+        "execution_mode": request["execution_mode"],
+        "grant_semantic_digest": _sha256_canonical(grant_binding),
+        "issued_at": request["issued_at"],
+        "expires_at": request["expires_at"],
+        "jti": "egressgrant_0123456789abcdef",
+    }
+    with mock.patch("core.mastrao_transcription_contract._verify", return_value=grant):
+        assert (
+            verify_transcription_egress_grant("header.payload.signature", request)
+            == grant
+        )
+
+
+def test_managed_profile_requires_v3_reservation(settings):
+    binding = _finalized_recording_binding("managed_profile_012")
+    effect = _contract_effect(binding, settings, operation_version=3)
+    with mock.patch(
+        "core.mastrao_transcription_contract._verify",
+        side_effect=[RecordingContractRefused(), effect],
+    ):
+        assert verify_transcription_submit_effect("header.payload.signature") == effect
+    effect["tariff_catalog_version"] = "substituted-tariff"
+    effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
+    with (
+        mock.patch(
+            "core.mastrao_transcription_contract._verify",
+            side_effect=[RecordingContractRefused(), effect],
+        ),
+        pytest.raises(TranscriptionContractRefused),
+    ):
+        verify_transcription_submit_effect("header.payload.signature")
 
 
 def test_fake_asr_is_deterministic_and_schema_valid():
@@ -186,7 +308,8 @@ def test_fake_asr_is_deterministic_and_schema_valid():
 def test_submit_contract_accepts_only_the_exact_v2_field_set():
     verified = {"operation_version": 2}
     with mock.patch(
-        "core.mastrao_transcription_contract._verify", return_value=verified
+        "core.mastrao_transcription_contract._verify",
+        return_value=verified,
     ) as verify:
         assert _verified_submit_payload("header.payload.signature") == (verified, 2)
     verify.assert_called_once_with(
@@ -198,7 +321,11 @@ def test_submit_contract_falls_back_to_the_exact_v1_field_set():
     verified = {"operation_version": 1}
     with mock.patch(
         "core.mastrao_transcription_contract._verify",
-        side_effect=[RecordingContractRefused(), verified],
+        side_effect=[
+            RecordingContractRefused(),
+            RecordingContractRefused(),
+            verified,
+        ],
     ) as verify:
         assert _verified_submit_payload("header.payload.signature") == (verified, 1)
     assert verify.call_args_list == [
@@ -206,6 +333,11 @@ def test_submit_contract_falls_back_to_the_exact_v1_field_set():
             "header.payload.signature",
             SUBMIT_EFFECT_JOSE_TYPE,
             SUBMIT_EFFECT_V2_FIELDS,
+        ),
+        mock.call(
+            "header.payload.signature",
+            SUBMIT_EFFECT_JOSE_TYPE,
+            SUBMIT_EFFECT_V3_FIELDS,
         ),
         mock.call(
             "header.payload.signature", SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_FIELDS

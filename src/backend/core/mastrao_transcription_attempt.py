@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
+from datetime import timezone as datetime_timezone
 from uuid import uuid4
 
 from django.conf import settings
@@ -22,6 +24,7 @@ ADAPTER_VERSION = "asr-gateway-v1"
 NORMALIZATION_SCHEMA_VERSION = "1"
 PAID_PROVIDERS = {"mistral", "openai"}
 AttemptState = models.MastraoTranscriptionProviderAttempt.State
+ExecutionMode = models.MastraoTranscriptionProviderAttempt.ExecutionMode
 
 
 def _config_digest(provider, model, codec, duration_ms):
@@ -41,7 +44,7 @@ def _config_digest(provider, model, codec, duration_ms):
 def _provider_profile(local_effect=None):
     if (
         local_effect is not None
-        and local_effect.transcription_binding.contract_operation_version == 2
+        and local_effect.transcription_binding.contract_operation_version in {2, 3}
     ):
         binding = local_effect.transcription_binding
         mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
@@ -67,7 +70,7 @@ def prepare_attempt(local_effect, extracted):
     binding = local_effect.transcription_binding
     digest = (
         binding.request_config_digest
-        if binding.contract_operation_version == 2
+        if binding.contract_operation_version in {2, 3}
         else _config_digest(provider, model, extracted.codec, extracted.duration_ms)
     )
     attempt_ref = f"attempt_{uuid4().hex}"
@@ -126,7 +129,10 @@ def cas_sending(attempt):
                     update_fields=["state", "last_safe_error_code", "updated_at"]
                 )
             return locked
-        if locked.state == AttemptState.FAILED_PRE_EGRESS:
+        if locked.state in {
+            AttemptState.FAILED_PRE_EGRESS,
+            AttemptState.RATE_LIMITED,
+        }:
             locked.state = AttemptState.SENDING
             locked.started_at = timezone.now()
             locked.save(update_fields=["state", "started_at", "updated_at"])
@@ -136,6 +142,93 @@ def cas_sending(attempt):
         locked.state = AttemptState.SENDING
         locked.started_at = timezone.now()
         locked.save(update_fields=["state", "started_at", "updated_at"])
+        return locked
+
+
+def bind_egress_grant(attempt, grant):
+    """Persist one exact Core authorization, allowing only a mode refresh.
+
+    Grant identity excludes freshness and execution mode, so a crash recovery can
+    replace ``send_allowed`` with ``recover_only`` without changing the attempt.
+    """
+
+    fields = {
+        "grant_semantic_digest": grant["grant_semantic_digest"],
+        "authority_version": grant["authority_version"],
+        "campaign_ref": grant["campaign_ref"],
+        "authorized_cost_ceiling_micros": grant["authorized_cost_ceiling_micros"],
+        "tariff_catalog_version": grant["tariff_catalog_version"],
+    }
+    mode = grant["execution_mode"]
+    if mode not in ExecutionMode.values:
+        raise TranscriptionPipelineFailed("asr_failed")
+    with transaction.atomic():
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
+        )
+        for name, value in fields.items():
+            current = getattr(locked, name)
+            if current is not None and current != value:
+                raise TranscriptionPipelineFailed("asr_failed")
+            setattr(locked, name, value)
+        if (
+            locked.execution_mode == ExecutionMode.RECOVER_ONLY
+            and mode != locked.execution_mode
+        ):
+            raise TranscriptionPipelineFailed("asr_failed")
+        locked.execution_mode = mode
+        locked.save(update_fields=[*fields, "execution_mode", "updated_at"])
+        return locked
+
+
+def mark_egress_opened(attempt, opened_at=None):
+    """Record the irreversible disclosure boundary before accepting completion."""
+
+    with transaction.atomic():
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
+        )
+        if locked.provider_egress_opened_at is None:
+            locked.provider_egress_opened_at = opened_at or timezone.now()
+            locked.save(update_fields=["provider_egress_opened_at", "updated_at"])
+        return locked
+
+
+def mark_terminal(attempt, outcome, *, completed_at=None):
+    """Persist truthful terminal evidence without rewriting unknown as failed."""
+
+    terminal = models.MastraoTranscriptionProviderAttempt.TerminalOutcome
+    if outcome not in terminal.values:
+        raise TranscriptionPipelineFailed("asr_failed")
+    with transaction.atomic():
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
+        )
+        if locked.terminal_outcome and locked.terminal_outcome != outcome:
+            raise TranscriptionPipelineFailed("asr_failed")
+        locked.terminal_outcome = outcome
+        if completed_at is not None:
+            locked.provider_completed_at = completed_at
+        if outcome == terminal.UNKNOWN:
+            locked.state = AttemptState.UNKNOWN
+            locked.last_safe_error_code = "PROVIDER_OUTCOME_UNKNOWN"
+        elif outcome == terminal.FAILED_PRE_EGRESS:
+            locked.state = AttemptState.FAILED_PRE_EGRESS
+        locked.save(
+            update_fields=[
+                "terminal_outcome",
+                "provider_completed_at",
+                "state",
+                "last_safe_error_code",
+                "updated_at",
+            ]
+        )
         return locked
 
 
@@ -166,9 +259,18 @@ def mark_result(attempt, transcript, usage=None, recovery_ref=None):
             locked.provider_request_ref_digest = usage.get(
                 "provider_request_ref_digest"
             )
+            locked.provider_observed_model_ref = usage.get("observed_model_ref")
             locked.usage_audio_seconds = usage.get("usage_audio_seconds")
             locked.estimated_cost_micros = usage.get("estimated_cost_micros")
             locked.currency = usage.get("currency")
+            locked.tariff_catalog_version = usage.get("tariff_catalog_version")
+            locked.provider_egress_opened_at = (
+                _evidence_time(usage.get("provider_egress_opened_at"))
+                or locked.provider_egress_opened_at
+            )
+            locked.provider_completed_at = _evidence_time(
+                usage.get("provider_completed_at")
+            )
         locked.save(
             update_fields=[
                 "state",
@@ -176,9 +278,60 @@ def mark_result(attempt, transcript, usage=None, recovery_ref=None):
                 "resolved_model_ref",
                 "result_recovery_ref",
                 "provider_request_ref_digest",
+                "provider_observed_model_ref",
                 "usage_audio_seconds",
                 "estimated_cost_micros",
                 "currency",
+                "tariff_catalog_version",
+                "provider_egress_opened_at",
+                "provider_completed_at",
+                "updated_at",
+            ]
+        )
+        return locked
+
+
+def _evidence_time(value):
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return datetime.fromtimestamp(value, tz=datetime_timezone.utc)
+    return value
+
+
+def bind_terminal_provenance(attempt, provenance):
+    """Persist Gateway terminal evidence before notifying Core."""
+
+    if not provenance:
+        return attempt
+    with transaction.atomic():
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
+        )
+        locked.provider_request_ref_digest = provenance.get(
+            "provider_request_ref_digest"
+        )
+        locked.provider_observed_model_ref = provenance.get("observed_model_ref")
+        locked.usage_audio_seconds = provenance["usage_audio_seconds"]
+        locked.estimated_cost_micros = provenance["estimated_cost_micros"]
+        locked.currency = provenance["currency"]
+        locked.tariff_catalog_version = provenance["tariff_catalog_version"]
+        locked.provider_egress_opened_at = _evidence_time(
+            provenance.get("provider_egress_opened_at")
+        )
+        locked.provider_completed_at = _evidence_time(
+            provenance.get("provider_completed_at")
+        )
+        locked.save(
+            update_fields=[
+                "provider_request_ref_digest",
+                "provider_observed_model_ref",
+                "usage_audio_seconds",
+                "estimated_cost_micros",
+                "currency",
+                "tariff_catalog_version",
+                "provider_egress_opened_at",
+                "provider_completed_at",
                 "updated_at",
             ]
         )
@@ -198,6 +351,23 @@ def mark_pre_egress_failure(attempt, error_code="PROVIDER_PRE_EGRESS_FAILED"):
             return locked
         locked.state = AttemptState.FAILED_PRE_EGRESS
         locked.last_safe_error_code = error_code
+        locked.save(update_fields=["state", "last_safe_error_code", "updated_at"])
+        return locked
+
+
+def mark_rate_limited(attempt):
+    """Keep a known provider 429 retryable without claiming zero egress."""
+
+    with transaction.atomic():
+        locked = (
+            models.MastraoTranscriptionProviderAttempt.objects.select_for_update().get(
+                pk=attempt.pk
+            )
+        )
+        if locked.state in {AttemptState.UNKNOWN, AttemptState.RESULT_RECEIVED}:
+            return locked
+        locked.state = AttemptState.RATE_LIMITED
+        locked.last_safe_error_code = "PROVIDER_RATE_LIMITED"
         locked.save(update_fields=["state", "last_safe_error_code", "updated_at"])
         return locked
 

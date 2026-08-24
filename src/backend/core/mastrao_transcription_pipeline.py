@@ -1,9 +1,10 @@
 """Durable transcription dispatch, ASR completion and Core notification."""
 
+import logging
+
 # Lazy imports keep Celery task registration from loading the HTTP adapter.
 # ruff: noqa: PLC0415
 # pylint: disable=cyclic-import
-
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -28,6 +29,7 @@ INCIDENT_OUTCOMES = {"conflict"}
 RECONCILE_BACKOFF_SECONDS = 5
 RECONCILE_BACKOFF_CAP_SECONDS = 300
 PRE_EGRESS_RETRY_LIMIT = 8
+logger = logging.getLogger(__name__)
 
 
 def transcription_task_id(effect_jti):
@@ -59,7 +61,13 @@ def publish_transcription_job(effect_pk):
             ),
             ignore_result=True,
         )
-    except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+    except Exception as error:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+        # The exception text can contain broker coordinates. Keep diagnostics
+        # useful without leaking connection material into centralized logs.
+        logger.warning(
+            "Mastrao transcription dispatch failed (%s)",
+            type(error).__name__,
+        )
         models.MastraoTranscriptionEffect.objects.filter(pk=effect_pk).exclude(
             dispatch_state=DispatchState.COMPLETED
         ).update(
@@ -454,6 +462,7 @@ def _commit_incident(effect_pk):
 
 
 def _finish_cleanup(effect_pk):
+    _ack_accepted_gateway_result(effect_pk)
     _cleanup_effect_recovery(effect_pk)
     with transaction.atomic():
         locked_effect = (
@@ -465,6 +474,29 @@ def _finish_cleanup(effect_pk):
             return
         locked_effect.dispatch_state = DispatchState.COMPLETED
         locked_effect.save(update_fields=["dispatch_state", "updated_at"])
+
+
+def _ack_accepted_gateway_result(effect_pk):
+    """ACK only after Core acceptance; failure leaves cleanup replayable."""
+
+    effect = models.MastraoTranscriptionEffect.objects.filter(pk=effect_pk).first()
+    if effect is None or effect.state not in {EffectState.APPLIED, EffectState.FAILED}:
+        return
+    attempt = (
+        models.MastraoTranscriptionProviderAttempt.objects.filter(
+            effect_id=effect_pk,
+            generation=1,
+            provider_ref__in=("mistral", "openai"),
+        )
+        .order_by("created_at")
+        .first()
+    )
+    if attempt is None or not attempt.result_checksum:
+        return
+    # pylint: disable=import-outside-toplevel
+    from core.mastrao_transcription_worker import ack_gateway_attempt
+
+    ack_gateway_attempt(attempt)
 
 
 def _callback_outcome(error):
@@ -520,9 +552,6 @@ def _cleanup_discarded_transcript(transcription_binding, discarded_artifact):
     object_ref = _discarded_object_ref(transcription_binding, discarded_artifact)
     if object_ref:
         delete_transcript_object(object_ref)
-    local_effect = transcription_binding.effects.filter(operation="transcribe").first()
-    if local_effect:
-        _cleanup_effect_recovery(local_effect.pk)
 
 
 def _defer_pre_egress_retry(effect_pk, error=None):
