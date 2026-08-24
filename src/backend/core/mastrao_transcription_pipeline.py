@@ -545,14 +545,25 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
                 .first()
             )
             if attempt is not None and attempt.grant_semantic_digest:
-                terminal_outcome = "conflict" if outcome == "conflict" else "deleted"
+                terminal_outcome = "deleted" if outcome == "deleted" else "conflict"
                 mark_terminal(attempt, terminal_outcome)
                 from core.mastrao_transcription_adapter import _notify_core_failure
 
-                result = _notify_core_failure(effect, "asr_failed")
-                if result["state"] == "available" and result["outcome"] == "available":
-                    _commit_available(local_effect.pk, transcription_binding.pk)
-                    return
+                try:
+                    result = _notify_core_failure(effect, "asr_failed")
+                except TranscriptionContractRefused as terminal_error:
+                    terminal_callback_outcome = _callback_outcome(terminal_error)
+                    if terminal_callback_outcome in RETRYABLE_OUTCOMES:
+                        raise
+                    if terminal_callback_outcome not in CLEANUP_OUTCOMES:
+                        raise
+                else:
+                    if (
+                        result["state"] == "available"
+                        and result["outcome"] == "available"
+                    ):
+                        _commit_available(local_effect.pk, transcription_binding.pk)
+                        return
         if outcome in CLEANUP_OUTCOMES and artifact.get("object_ref"):
             delete_transcript_object(artifact["object_ref"])
         _commit_failed(local_effect.pk, transcription_binding.pk)

@@ -1051,12 +1051,18 @@ def test_ack_failure_after_core_acceptance_replays_only_ack(settings, tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("status", "outcome"),
-    [(409, "failed"), (404, "deleted")],
+    "terminal_case",
+    [
+        (409, "conflict", "conflict", False),
+        (404, "deleted", "deleted", False),
+        (409, "conflict", "conflict", True),
+        (404, "deleted", "deleted", True),
+    ],
 )
 def test_terminal_core_acceptance_replays_only_failed_ack(
-    settings, tmp_path, status, outcome
+    settings, tmp_path, terminal_case
 ):
+    status, outcome, expected_terminal, terminal_refusal = terminal_case
     settings.STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -1068,14 +1074,14 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
         },
     }
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
-    settings.MASTRAO_TRANSCRIPTION_PROVIDER = "mistral"
-    settings.MASTRAO_TRANSCRIPTION_MODEL = "voxtral-mini-2602"
+    settings.MASTRAO_TRANSCRIPTION_PROVIDER = "openai"
+    settings.MASTRAO_TRANSCRIPTION_MODEL = "gpt-transcribe"
     settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
     settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = (
         "https://asr.example.test/v1/transcribe"
     )
     binding = _finalized_recording_binding(f"terminalack{status}012345")
-    effect = _effect(binding, transcription_ref=f"transcription_terminalack{status}")
+    effect = _v3_effect(binding, transcription_ref=f"transcription_terminalack{status}")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1105,6 +1111,11 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
         mock.patch(
             "core.mastrao_transcription_adapter._notify_core_failure",
             return_value={"state": "failed", "outcome": "failed"},
+            side_effect=(
+                TranscriptionContractRefused(status=status, outcome=outcome)
+                if terminal_refusal
+                else None
+            ),
         ) as terminal_core,
         mock.patch(
             "core.mastrao_transcription_worker.ack_gateway_attempt",
@@ -1126,9 +1137,7 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
     terminal_core.assert_called_once()
     assert len(acknowledgements) == 2
     attempt.refresh_from_db()
-    assert attempt.terminal_outcome == (
-        models.MastraoTranscriptionProviderAttempt.TerminalOutcome.DELETED
-    )
+    assert attempt.terminal_outcome == expected_terminal
     local_effect.refresh_from_db()
     assert local_effect.dispatch_state == (
         models.MastraoTranscriptionEffect.DispatchState.COMPLETED
