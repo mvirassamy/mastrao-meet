@@ -1103,6 +1103,7 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
             "execution_mode": "send_allowed",
         },
     )
+    recovery_ref = attempt.result_recovery_ref
     acknowledgements = []
 
     def ack(*_args, **_kwargs):
@@ -1141,7 +1142,7 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
         assert local_effect.dispatch_state == (
             models.MastraoTranscriptionEffect.DispatchState.CLEANUP_PENDING
         )
-        assert default_storage.exists(attempt.result_recovery_ref)
+        assert default_storage.exists(recovery_ref)
         complete_transcription(local_effect.pk)
     provider.assert_called_once()
     core.assert_called_once()
@@ -1153,7 +1154,7 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
     assert local_effect.dispatch_state == (
         models.MastraoTranscriptionEffect.DispatchState.COMPLETED
     )
-    assert not default_storage.exists(attempt.result_recovery_ref)
+    assert not default_storage.exists(recovery_ref)
 
 
 def test_core_retry_precedes_ack_and_does_not_rerun_asr(settings, tmp_path):
