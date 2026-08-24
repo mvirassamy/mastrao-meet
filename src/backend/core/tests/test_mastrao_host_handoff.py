@@ -4,6 +4,7 @@ import base64
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from threading import Barrier
 from unittest import mock
 
@@ -34,6 +35,7 @@ from core.mastrao_host_grant import (
     SESSION_PLATFORM_REF_KEY,
     active_host_close_grant,
     active_host_grant,
+    host_platform_return_projection,
 )
 from core.mastrao_host_handoff import _admit_public_attempt, _safe_json_response
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
@@ -348,6 +350,63 @@ def test_sentry_scrubs_transcription_effects_and_receipts():
     }
 
 
+def _assert_host_platform_return(client, binding, grant):
+    with mock.patch("core.mastrao_host_grant.verify_host_grant", return_value=grant):
+        response = client.get(f"/api/v1.0/rooms/{binding.room.id}/")
+    assert response.status_code == 200
+    assert response.json()["platform_return"] == {
+        "url": (
+            "https://platform.mastrao.test/api/meeting-return"
+            "?organization_ref=organization_0123456789"
+            "&meeting_ref=meeting_0123456789abcdef"
+        ),
+        "expires_at": grant["expires_at"],
+    }
+
+
+@override_settings(MASTRAO_PLATFORM_ORIGIN="https://attacker.test/path")
+def test_host_platform_return_rejects_non_origin_configuration():
+    grant = mock.Mock()
+    with mock.patch(
+        "core.mastrao_host_grant.active_host_close_grant", return_value=grant
+    ):
+        assert host_platform_return_projection(mock.Mock(), mock.Mock()) is None
+
+
+@override_settings(MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test")
+def test_host_platform_return_rejects_a_grant_binding_mismatch():
+    expires_at = timezone.now() + timedelta(minutes=5)
+    stored = mock.Mock(
+        grant_ref="grant_0123456789abcdef",
+        meeting_ref="meeting_0123456789abcdef",
+        room_ref="room_0123456789abcdef",
+        platform_session_ref="platformsession_0123456789abcdef",
+        provider_binding_digest="b" * 64,
+        expires_at=expires_at,
+    )
+    claims = {
+        "grant_ref": stored.grant_ref,
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": "meeting_different_01234567",
+        "room_ref": stored.room_ref,
+        "platform_session_ref": stored.platform_session_ref,
+        "provider_binding_digest": stored.provider_binding_digest,
+        "expires_at": int(expires_at.timestamp()),
+    }
+    with (
+        mock.patch(
+            "core.mastrao_host_grant.active_host_close_grant",
+            return_value=stored,
+        ),
+        mock.patch(
+            "core.mastrao_host_grant.active_host_compact_grant",
+            return_value="grant.payload.signature",
+        ),
+        mock.patch("core.mastrao_host_grant.verify_host_grant", return_value=claims),
+    ):
+        assert host_platform_return_projection(mock.Mock(), mock.Mock()) is None
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_HOST_HANDOFF_ENABLED=True,
@@ -385,6 +444,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     host = models.MastraoHostIdentity.objects.get().user
     request = mock.Mock(user=host, session=client.session)
     assert client.get("/api/v1.0/users/me/").status_code == 200
+    _assert_host_platform_return(client, binding, grant)
     assert HasMediaHostPrivilegesOnRoom().has_permission(request, None)
     assert HasMediaHostPrivilegesOnRoom().has_object_permission(
         request, None, binding.room
@@ -402,6 +462,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     trusted_response = client.get(f"/api/v1.0/rooms/{trusted.id}/")
     assert trusted_response.status_code == 200
     assert "livekit" not in trusted_response.json()
+    assert "platform_return" not in trusted_response.json()
 
     forbidden = [
         ("patch", f"/api/v1.0/rooms/{binding.room.id}/", {"name": "Escaped"}),

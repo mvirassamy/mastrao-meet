@@ -20,7 +20,10 @@ from rest_framework.exceptions import PermissionDenied
 from timezone_field.rest_framework import TimeZoneSerializerField
 
 from core import models, utils
-from core.mastrao_host_grant import host_media_projection
+from core.mastrao_host_grant import (
+    host_media_projection,
+    host_platform_return_projection,
+)
 from core.mastrao_identity import is_mastrao_host_subject
 from core.mastrao_recording_session import (
     media_allowed,
@@ -180,6 +183,10 @@ class RoomSerializer(serializers.ModelSerializer):
 
         if not request:
             return output
+
+        platform_return = host_platform_return_projection(request, instance)
+        if platform_return is not None:
+            output["platform_return"] = platform_return
 
         persistent_role = instance.get_role(request.user)
         temporary_host_role, temporary_host_expires_at = host_media_projection(

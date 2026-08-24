@@ -1,5 +1,10 @@
 """Fail-closed configuration proofs for canonical meeting closure and ASR."""
 
+import json
+import os
+import subprocess
+import sys
+
 from django.core.exceptions import ImproperlyConfigured
 
 import pytest
@@ -9,6 +14,37 @@ from meet.settings import (
     validate_mastrao_meeting_close_configuration,
     validate_mastrao_transcription_configuration,
 )
+
+
+def test_development_csrf_origins_follow_the_configured_public_proxy():
+    """A non-default local public port must remain able to persist consent."""
+
+    environment = {
+        **os.environ,
+        "DJANGO_CONFIGURATION": "Development",
+        "DJANGO_SETTINGS_MODULE": "meet.settings",
+        "CSRF_TRUSTED_ORIGINS": "http://localhost:3020",
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; "
+                "importer.install(); "
+                "from django.conf import settings; "
+                "import json; "
+                "print(json.dumps(settings.CSRF_TRUSTED_ORIGINS))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env=environment,
+        text=True,
+    )
+
+    assert json.loads(result.stdout.strip()) == ["http://localhost:3020"]
 
 
 def test_close_rollout_requires_explicit_room_creation():

@@ -4,9 +4,24 @@ import { Screen } from '@/layout/Screen'
 import { Center, HStack, styled, VStack } from '@/styled-system/jsx'
 import { Rating } from '@/features/rooms/components/Rating.tsx'
 import { useLocation } from 'wouter'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { DisconnectReason } from 'livekit-client'
 import type { CandidateInfo } from '@/stores/connectionObserver'
+import {
+  clearCachedPlatformReturn,
+  readCachedPlatformReturn,
+  validatePlatformReturn,
+} from '../platformReturn'
+
+const readPlatformReturn = () => {
+  const state = window.history.state
+  const descriptor =
+    validatePlatformReturn(state?.platform_return) ??
+    (typeof state?.room_id === 'string'
+      ? readCachedPlatformReturn(state.room_id)
+      : null)
+  return descriptor?.url
+}
 
 // fixme - duplicated with home, refactor in a proper style
 const Heading = styled('h1', {
@@ -32,6 +47,10 @@ enum DisconnectReasonKey {
 const FeedbackRoute = () => {
   const { t } = useTranslation('rooms')
   const [, setLocation] = useLocation()
+  const platformReturn = useMemo(() => readPlatformReturn(), [])
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => headingRef.current?.focus(), [])
 
   const reasonKey = useMemo(() => {
     const state = window.history.state
@@ -68,14 +87,32 @@ const FeedbackRoute = () => {
     <Screen layout="centered" footer={false}>
       <Center>
         <VStack>
-          <Heading>{t(`feedback.heading.${reasonKey || 'normal'}`)}</Heading>
+          <Heading ref={headingRef} tabIndex={-1}>
+            {t(`feedback.heading.${reasonKey || 'normal'}`)}
+          </Heading>
           <HStack>
+            {platformReturn && (
+              <Button
+                variant="primary"
+                onPress={() => {
+                  const roomId = window.history.state?.room_id
+                  if (typeof roomId === 'string')
+                    clearCachedPlatformReturn(roomId)
+                  window.location.assign(platformReturn)
+                }}
+              >
+                {t('feedback.returnToMatter')}
+              </Button>
+            )}
             {showBackButton && (
               <Button variant="secondary" onPress={() => window.history.back()}>
                 {t('feedback.back')}
               </Button>
             )}
-            <Button variant="primary" onPress={() => setLocation('/')}>
+            <Button
+              variant={platformReturn ? 'secondary' : 'primary'}
+              onPress={() => setLocation('/')}
+            >
               {t('feedback.home')}
             </Button>
           </HStack>

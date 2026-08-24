@@ -36,6 +36,10 @@ export type ApiRoom = {
   livekit?: ApiLiveKit
   configuration?: RoomConfiguration
   can_end?: boolean
+  platform_return?: {
+    url: string
+    expires_at: number
+  }
   recording?: {
     mode: 'unset' | 'disabled' | 'recorded'
     recording_ref?: string

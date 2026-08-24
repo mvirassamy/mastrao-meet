@@ -12,6 +12,6 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['src/features/rooms/components/RecordingConsent.test.tsx'],
+    include: ['src/features/rooms/**/*.test.{ts,tsx}'],
   },
 })
