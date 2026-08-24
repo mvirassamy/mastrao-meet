@@ -247,6 +247,7 @@ def test_managed_v3_accepts_core_grant_semantic_binding(settings):
         "notice_digest": binding.notice_digest,
         "consent_epoch": 1,
         "authority_version": 7,
+        "maximum_audio_seconds": 120,
     }
     grant = {
         "version": CONTRACT_VERSION,

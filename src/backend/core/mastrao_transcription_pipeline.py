@@ -315,8 +315,21 @@ def _action_after_produce_error(effect_pk, error):
     retryable = error.outcome in {"failed_pre_egress", "retry"} or (
         error.status == 503 and error.outcome is None
     )
-    if not terminal and retryable and _defer_pre_egress_retry(effect_pk, error):
-        return None
+    if not terminal and retryable:
+        if _defer_pre_egress_retry(effect_pk, error):
+            return None
+        unknown_attempt = (
+            models.MastraoTranscriptionProviderAttempt.objects.filter(
+                effect_id=effect_pk,
+                generation=1,
+                state=models.MastraoTranscriptionProviderAttempt.State.UNKNOWN,
+                terminal_outcome__isnull=True,
+            )
+            .order_by("created_at")
+            .first()
+        )
+        if unknown_attempt is not None:
+            mark_terminal(unknown_attempt, "unknown")
     return _persist_failure_pending(effect_pk, "asr_failed")
 
 
@@ -545,7 +558,9 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
                 .first()
             )
             if attempt is not None and attempt.grant_semantic_digest:
-                terminal_outcome = "deleted" if outcome == "deleted" else "conflict"
+                terminal_outcome = attempt.terminal_outcome or (
+                    "deleted" if outcome == "deleted" else "conflict"
+                )
                 mark_terminal(attempt, terminal_outcome)
                 from core.mastrao_transcription_adapter import _notify_core_failure
 

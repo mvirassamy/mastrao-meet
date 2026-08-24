@@ -425,6 +425,11 @@ def _replay_gateway_result(extracted, sending, egress_grant):
             raise
         if error.outcome == "unknown" or error.status == 409:
             sending = bind_terminal_provenance(sending, error.provenance)
+            if error.outcome == "unknown" and not error.provenance:
+                mark_unknown(sending)
+                raise TranscriptionContractRefused(
+                    status=503, outcome="retry"
+                ) from error
             mark_terminal(sending, "unknown")
             raise TranscriptionContractRefused(status=409, outcome="unknown") from error
         if error.outcome == "retry" and error.provenance:

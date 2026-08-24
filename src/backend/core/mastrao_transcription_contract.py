@@ -450,6 +450,7 @@ EGRESS_GRANT_FIELDS = {
     "notice_digest",
     "consent_epoch",
     "authority_version",
+    "maximum_audio_seconds",
     "grant_semantic_digest",
 }
 
@@ -477,6 +478,9 @@ def verify_transcription_egress_grant(compact_jws, request_claims):
         or not isinstance(grant.get("authority_version"), int)
         or isinstance(grant.get("authority_version"), bool)
         or grant["authority_version"] <= 0
+        or not isinstance(grant.get("maximum_audio_seconds"), int)
+        or isinstance(grant.get("maximum_audio_seconds"), bool)
+        or not 1 <= grant["maximum_audio_seconds"] <= 3_600
     ):
         raise TranscriptionContractRefused()
     common = set(request_claims) - {

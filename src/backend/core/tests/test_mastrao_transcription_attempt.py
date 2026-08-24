@@ -499,6 +499,7 @@ def test_lost_gateway_response_replays_recover_only_without_second_send(
             "core.mastrao_transcription_adapter.transcribe_extracted",
             side_effect=[
                 TranscriptionContractRefused(status=503, outcome="unknown"),
+                TranscriptionContractRefused(status=503, outcome="unknown"),
                 transcript,
             ],
         ) as gateway,
@@ -511,12 +512,66 @@ def test_lost_gateway_response_replays_recover_only_without_second_send(
         attempt.refresh_from_db()
         assert attempt.state == attempt.State.UNKNOWN
         assert attempt.terminal_outcome is None
+        with pytest.raises(TranscriptionContractRefused) as refused:
+            _resume_or_transcribe(
+                Extracted(), attempt, local_effect.transcription_binding
+            )
+        assert refused.value.outcome == "retry"
+        attempt.refresh_from_db()
+        assert attempt.state == attempt.State.UNKNOWN
+        assert attempt.terminal_outcome is None
         resumed = _resume_or_transcribe(
             Extracted(), attempt, local_effect.transcription_binding
         )
-    assert modes == ["send_allowed", "recover_only"]
-    assert gateway.call_count == 2
+    assert modes == ["send_allowed", "recover_only", "recover_only"]
+    assert gateway.call_count == 3
     assert resumed["engine_ref"] == "openai:gpt-transcribe"
+
+
+@pytest.mark.parametrize(
+    ("body", "content_length"),
+    [
+        (b"{", 1),
+        (b"{}", 2),
+        (b"{}", 5_000_001),
+    ],
+)
+def test_unreadable_post_response_is_unknown(settings, tmp_path, body, content_length):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+    settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = (
+        "https://asr.example.test/v1/transcribe"
+    )
+    settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
+    audio_path = tmp_path / "clip.flac"
+    audio_path.write_bytes(b"flac fixture")
+
+    class Extracted:
+        path = audio_path
+        sha256 = hashlib.sha256(b"flac fixture").hexdigest()
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = len(b"flac fixture")
+
+    class Attempt:
+        attempt_ref = "attempt_unreadable_012345"
+        provider_ref = "openai"
+        requested_model_ref = "gpt-transcribe"
+        request_config_digest = "d" * 64
+
+    response = mock.MagicMock()
+    response.status_code = 200
+    response.headers = {"Content-Length": str(content_length)}
+    response.iter_content.return_value = [body]
+    session = mock.MagicMock()
+    session.__enter__.return_value.post.return_value = response
+    with mock.patch(
+        "core.mastrao_transcription_worker.requests.Session", return_value=session
+    ):
+        with pytest.raises(TranscriptionContractRefused) as refused:
+            _gateway_transcribe(
+                Extracted(), Attempt(), egress_grant="grant.payload.signature"
+            )
+    assert refused.value.outcome == "unknown"
 
 
 def test_gateway_429_ingests_bounded_provenance_and_retry_after(settings, tmp_path):
@@ -1256,6 +1311,82 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
     assert len(acknowledgements) == 2
     attempt.refresh_from_db()
     assert attempt.terminal_outcome == expected_terminal
+    local_effect.refresh_from_db()
+    assert local_effect.dispatch_state == (
+        models.MastraoTranscriptionEffect.DispatchState.COMPLETED
+    )
+    assert not default_storage.exists(recovery_ref)
+
+
+def test_terminal_outcome_remains_immutable_when_artifact_refusal_changes(
+    settings, tmp_path
+):
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path / "static")},
+        },
+    }
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+    binding = _finalized_recording_binding("terminalimmutable01")
+    effect = _v3_effect(binding, transcription_ref="transcription_terminalimmutable")
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+    attempt = bind_egress_grant(
+        _paid_attempt_with_recovery(local_effect),
+        {
+            "grant_semantic_digest": "d" * 64,
+            "authority_version": 7,
+            "campaign_ref": "managed-canary-2026-08",
+            "authorized_cost_ceiling_micros": 10_000,
+            "tariff_catalog_version": "asr-tariff-v2",
+            "execution_mode": "send_allowed",
+        },
+    )
+    recovery_ref = attempt.result_recovery_ref
+    with (
+        mock.patch(
+            "core.mastrao_transcription_adapter._produce_transcript",
+            return_value=_fake_artifact(),
+        ) as provider,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact",
+            side_effect=[
+                TranscriptionContractRefused(status=409, outcome="conflict"),
+                TranscriptionContractRefused(status=404, outcome="deleted"),
+            ],
+        ) as artifact_core,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            side_effect=[
+                TranscriptionContractRefused(status=503, outcome="retry"),
+                {"state": "failed", "outcome": "failed"},
+            ],
+        ) as terminal_core,
+        mock.patch("core.mastrao_transcription_worker.ack_gateway_attempt"),
+    ):
+        with pytest.raises(TranscriptionContractRefused) as refused:
+            complete_transcription(local_effect.pk)
+        assert refused.value.outcome == "retry"
+        attempt.refresh_from_db()
+        assert attempt.terminal_outcome == "conflict"
+        complete_transcription(local_effect.pk)
+    provider.assert_called_once()
+    assert artifact_core.call_count == 2
+    assert terminal_core.call_count == 2
+    attempt.refresh_from_db()
+    assert attempt.terminal_outcome == "conflict"
     local_effect.refresh_from_db()
     assert local_effect.dispatch_state == (
         models.MastraoTranscriptionEffect.DispatchState.COMPLETED

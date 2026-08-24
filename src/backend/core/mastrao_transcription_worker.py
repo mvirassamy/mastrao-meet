@@ -224,7 +224,9 @@ def _fingerprint(attempt, *, audio_sha256, audio_duration_ms, audio_codec, langu
     ).hexdigest()
 
 
-def _gateway_transcribe(extracted, attempt, egress_grant=None):
+def _gateway_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
+    extracted, attempt, egress_grant=None
+):
     """Call the private ASR Gateway. Never inherit proxy env or follow redirects."""
 
     endpoint = settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT
@@ -298,14 +300,27 @@ def _gateway_transcribe(extracted, attempt, egress_grant=None):
                     retry_after_seconds=_retry_after_seconds(response),
                     provenance=provenance,
                 )
+    except TranscriptionContractRefused as error:
+        if (
+            response is not None
+            and response.status_code not in {401, 403}
+            and error.outcome is None
+        ):
+            raise TranscriptionContractRefused(status=503, outcome="unknown") from error
+        raise
     except requests.RequestException as error:
         raise TranscriptionContractRefused(status=503, outcome="unknown") from error
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
-        raise TranscriptionContractRefused(status=503) from error
+        raise TranscriptionContractRefused(status=503, outcome="unknown") from error
     finally:
         if response is not None:
             response.close()
-    return _accepted_gateway_transcript(payload, extracted, attempt)
+    try:
+        return _accepted_gateway_transcript(payload, extracted, attempt)
+    except TranscriptionContractRefused as error:
+        if error.outcome is None:
+            raise TranscriptionContractRefused(status=503, outcome="unknown") from error
+        raise
 
 
 def _read_bounded_http_body(response):

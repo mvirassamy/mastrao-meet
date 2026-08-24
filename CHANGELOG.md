@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) keep Gateway recovery and terminal cleanup monotonic
 - 🐛(backend) recover a durable Gateway result after a lost response
 - 🐛(docker) keep the non-root frontend dependency stage writable without BuildKit
 - 🐛(backend) persist the managed-provider rate-limited attempt state in migration 0036
