@@ -290,8 +290,6 @@ def _gateway_transcribe(extracted, attempt, egress_grant=None):
                     or payload.get("error") != "PROVIDER_RATE_LIMITED"
                     or payload.get("outcome") != "rejected"
                     or not provenance
-                    or "provider_egress_opened_at" not in provenance
-                    or "provider_completed_at" not in provenance
                 ):
                     raise TranscriptionContractRefused(status=503)
                 raise TranscriptionContractRefused(

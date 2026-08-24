@@ -14,7 +14,11 @@ from core.mastrao_transcription_artifact import (
     delete_transcript_object,
     recover_persisted_transcript,
 )
-from core.mastrao_transcription_attempt import cleanup_attempt_recovery, mark_succeeded
+from core.mastrao_transcription_attempt import (
+    cleanup_attempt_recovery,
+    mark_succeeded,
+    mark_terminal,
+)
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
@@ -530,9 +534,25 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
         if outcome == "available":
             _commit_available(local_effect.pk, transcription_binding.pk)
             return
-        if outcome in INCIDENT_OUTCOMES:
-            _commit_incident(local_effect.pk)
-            return
+        if effect.get("operation_version") == 3:
+            attempt = (
+                models.MastraoTranscriptionProviderAttempt.objects.filter(
+                    effect_id=local_effect.pk,
+                    generation=1,
+                    provider_ref__in=("mistral", "openai"),
+                )
+                .order_by("created_at")
+                .first()
+            )
+            if attempt is not None and attempt.grant_semantic_digest:
+                terminal_outcome = "conflict" if outcome == "conflict" else "deleted"
+                mark_terminal(attempt, terminal_outcome)
+                from core.mastrao_transcription_adapter import _notify_core_failure
+
+                result = _notify_core_failure(effect, "asr_failed")
+                if result["state"] == "available" and result["outcome"] == "available":
+                    _commit_available(local_effect.pk, transcription_binding.pk)
+                    return
         if outcome in CLEANUP_OUTCOMES and artifact.get("object_ref"):
             delete_transcript_object(artifact["object_ref"])
         _commit_failed(local_effect.pk, transcription_binding.pk)

@@ -1174,7 +1174,7 @@ def test_already_failed_artifact_callback_cleans_and_completes(settings, tmp_pat
     assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
 
 
-def test_divergent_conflict_completes_without_deleting_the_object(settings, tmp_path):
+def test_divergent_conflict_deletes_the_object_and_fails(settings, tmp_path):
     settings.STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -1209,14 +1209,15 @@ def test_divergent_conflict_completes_without_deleting_the_object(settings, tmp_
     ):
         _apply_transcription(effect)
         complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
-    assert object_path.exists()
+    assert not object_path.exists()
     local_effect = models.MastraoTranscriptionEffect.objects.get()
     assert local_effect.dispatch_state == (
         models.MastraoTranscriptionEffect.DispatchState.COMPLETED
     )
-    assert local_effect.state != models.MastraoTranscriptionEffect.State.FAILED
-    assert models.MastraoTranscriptionBinding.objects.get().state != (
-        models.MastraoTranscriptionBinding.State.FAILED
+    assert local_effect.state == models.MastraoTranscriptionEffect.State.FAILED
+    assert (
+        models.MastraoTranscriptionBinding.objects.get().state
+        == models.MastraoTranscriptionBinding.State.FAILED
     )
 
 

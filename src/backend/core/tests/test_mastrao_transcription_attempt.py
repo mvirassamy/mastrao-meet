@@ -1103,6 +1103,10 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
             side_effect=TranscriptionContractRefused(status=status, outcome=outcome),
         ) as core,
         mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            return_value={"state": "failed", "outcome": "failed"},
+        ) as terminal_core,
+        mock.patch(
             "core.mastrao_transcription_worker.ack_gateway_attempt",
             side_effect=ack,
         ),
@@ -1119,7 +1123,12 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
         complete_transcription(local_effect.pk)
     provider.assert_called_once()
     core.assert_called_once()
+    terminal_core.assert_called_once()
     assert len(acknowledgements) == 2
+    attempt.refresh_from_db()
+    assert attempt.terminal_outcome == (
+        models.MastraoTranscriptionProviderAttempt.TerminalOutcome.DELETED
+    )
     local_effect.refresh_from_db()
     assert local_effect.dispatch_state == (
         models.MastraoTranscriptionEffect.DispatchState.COMPLETED
