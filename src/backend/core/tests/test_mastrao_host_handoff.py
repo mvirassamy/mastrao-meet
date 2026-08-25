@@ -22,6 +22,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from core import models
 from core.api.permissions import HasMediaHostPrivilegesOnRoom, HasPrivilegesOnRoom
 from core.mastrao_host_contract import (
+    HOST_GRANT_JOSE_TYPE,
     HOST_HANDOFF_JOSE_TYPE,
     HOST_HANDOFF_TYPE,
     HostHandoffRefused,
@@ -72,6 +73,38 @@ def _host_handoff(private_key, suffix):
         "alg": "EdDSA",
         "kid": "core-room-key",
         "typ": HOST_HANDOFF_JOSE_TYPE,
+    }
+    protected = _b64(_canonical_json(header))
+    encoded_payload = _b64(_canonical_json(payload))
+    signature = private_key.sign(f"{protected}.{encoded_payload}".encode("ascii"))
+    return f"{protected}.{encoded_payload}.{_b64(signature)}"
+
+
+def _signed_host_grant(private_key, organization_external_id):
+    now = int(time.time())
+    payload = {
+        "version": 1,
+        "type": "mastrao.core-meeting-host-grant",
+        "issuer": "cabinet-core-local",
+        "audience": "mastrao-meet-local",
+        "purpose": "media_host",
+        "grant_ref": "grant_0123456789abcdef",
+        "handoff_ref": "handoff_0123456789abcdef",
+        "organization_external_id": organization_external_id,
+        "meeting_ref": "meeting_0123456789abcdef",
+        "room_ref": "room_0123456789abcdef",
+        "host_ref": "host_0123456789abcdef",
+        "platform_session_ref": "platformsession_0123456789abcdef",
+        "provider_binding_digest": "b" * 64,
+        "redemption_id": "redemption_0123456789abcdef",
+        "credential_digest": "c" * 64,
+        "issued_at": now,
+        "expires_at": now + 3_600,
+    }
+    header = {
+        "alg": "EdDSA",
+        "kid": "core-room-key",
+        "typ": HOST_GRANT_JOSE_TYPE,
     }
     protected = _b64(_canonical_json(header))
     encoded_payload = _b64(_canonical_json(payload))
@@ -181,6 +214,19 @@ def test_malformed_host_grant_maps_shared_jose_errors_to_host_refusal():
 
     with pytest.raises(HostHandoffRefused):
         verify_host_grant("not-base64!.payload.signature")
+
+
+@pytest.mark.parametrize(
+    "organization_external_id",
+    ["organization with spaces", "o" * 201],
+)
+def test_host_grant_rejects_unbounded_organization_external_id(
+    handoff_signing, organization_external_id
+):
+    """The return descriptor source must keep organization references bounded."""
+
+    with pytest.raises(HostHandoffRefused):
+        verify_host_grant(_signed_host_grant(handoff_signing, organization_external_id))
 
 
 @override_settings(
