@@ -41,6 +41,10 @@ import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 import { activateRecording } from '../api/recordingConsent'
 import { Button } from '@/primitives'
+import {
+  cachePlatformReturn,
+  readCachedPlatformReturn,
+} from '../platformReturn'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -125,6 +129,16 @@ export const Conference = ({
     },
     refetchIntervalInBackground: true,
   })
+
+  useEffect(() => {
+    if (data?.platform_return) {
+      cachePlatformReturn(
+        roomId,
+        data.platform_return,
+        apiConfig?.mastrao_platform_origin
+      )
+    }
+  }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
 
   const roomOptions = useMemo((): RoomOptions => {
     return {
@@ -368,7 +382,18 @@ export const Conference = ({
                 navigateTo(
                   'feedback',
                   {},
-                  { state: { reason: e, ...metadata } }
+                  {
+                    state: {
+                      reason: e,
+                      platform_return:
+                        data?.platform_return ??
+                        readCachedPlatformReturn(
+                          roomId,
+                          apiConfig?.mastrao_platform_origin
+                        ),
+                      ...metadata,
+                    },
+                  }
                 )
                 return
               case DisconnectReason.CLIENT_INITIATED:
@@ -376,7 +401,15 @@ export const Conference = ({
                   'feedback',
                   {},
                   {
-                    state: { ...metadata },
+                    state: {
+                      platform_return:
+                        data?.platform_return ??
+                        readCachedPlatformReturn(
+                          roomId,
+                          apiConfig?.mastrao_platform_origin
+                        ),
+                      ...metadata,
+                    },
                   }
                 )
                 return

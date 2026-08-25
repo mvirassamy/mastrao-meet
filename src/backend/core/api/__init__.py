@@ -77,4 +77,8 @@ def get_frontend_configuration(request):
         ),
     }
     frontend_configuration.update(settings.FRONTEND_CONFIGURATION)
+    if settings.MASTRAO_PLATFORM_ORIGIN:
+        frontend_configuration["mastrao_platform_origin"] = (
+            settings.MASTRAO_PLATFORM_ORIGIN
+        )
     return Response(frontend_configuration)

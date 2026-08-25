@@ -7,6 +7,7 @@
       "meetingEnded": "The host has ended the meeting"
     },
     "home": "Return to home",
+    "returnToMatter": "Return to the case file",
     "back": "Rejoin the meeting"
   },
   "selectDevice": {

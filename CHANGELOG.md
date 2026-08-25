@@ -38,6 +38,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(frontend) return verified Mastrao hosts to the freshly authorized Platform meeting
 - 🔐(backend) authorize each managed-provider audio egress through Core, bind recover-only replay and preserve v2 provider provenance
 - ✨(backend) accept consent-bound v2 ASR profiles beside draining v1 jobs
 - ✨(backend) allow immutable transcript runs to share one recording
