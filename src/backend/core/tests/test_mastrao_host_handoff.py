@@ -306,6 +306,9 @@ def test_sentry_scrubs_transcription_effects_and_receipts():
             "data": {
                 "transcription_submit_effect": "effect.payload.signature",
                 "transcription_artifact_receipt": "receipt.payload.signature",
+                "transcription_egress_request": "request.payload.signature",
+                "transcription_egress_grant": "grant.payload.signature",
+                "transcription_terminal_receipt": "terminal.payload.signature",
                 "safe": "kept",
             }
         }
@@ -314,6 +317,9 @@ def test_sentry_scrubs_transcription_effects_and_receipts():
     assert scrubbed["request"]["data"] == {
         "transcription_submit_effect": "[Filtered]",
         "transcription_artifact_receipt": "[Filtered]",
+        "transcription_egress_request": "[Filtered]",
+        "transcription_egress_grant": "[Filtered]",
+        "transcription_terminal_receipt": "[Filtered]",
         "safe": "kept",
     }
 
@@ -327,6 +333,19 @@ def test_sentry_scrubs_transcription_effects_and_receipts():
     assert scrub_mastrao_handoff_credentials(raw, {})["request"]["data"] == (
         "[Filtered]"
     )
+
+    headers = {
+        "request": {
+            "headers": {
+                "X-Mastrao-Transcription-Egress-Grant": "grant.payload.signature",
+                "Accept": "application/json",
+            }
+        }
+    }
+    assert scrub_mastrao_handoff_credentials(headers, {})["request"]["headers"] == {
+        "X-Mastrao-Transcription-Egress-Grant": "[Filtered]",
+        "Accept": "application/json",
+    }
 
 
 @pytest.mark.django_db(transaction=True)

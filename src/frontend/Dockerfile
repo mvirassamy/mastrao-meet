@@ -1,8 +1,8 @@
 FROM node:22-alpine AS frontend-deps
 
-USER node
-
 WORKDIR /home/frontend/
+RUN chown node:node /home/frontend
+USER node
 
 COPY ./src/frontend/package.json ./package.json
 COPY ./src/frontend/package-lock.json ./package-lock.json

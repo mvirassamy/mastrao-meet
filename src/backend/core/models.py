@@ -1038,6 +1038,12 @@ class MastraoTranscriptionBinding(BaseModel):
     normalization_version = models.CharField(max_length=40, null=True, blank=True)
     processing_region_ref = models.CharField(max_length=160, null=True, blank=True)
     data_control_ref = models.CharField(max_length=160, null=True, blank=True)
+    campaign_ref = models.CharField(max_length=160, null=True, blank=True)
+    authorized_cost_ceiling_micros = models.PositiveBigIntegerField(
+        null=True, blank=True
+    )
+    currency = models.CharField(max_length=8, null=True, blank=True)
+    tariff_catalog_version = models.CharField(max_length=160, null=True, blank=True)
     artifact_checksum_digest = models.CharField(max_length=64)
     artifact_byte_size = models.PositiveBigIntegerField()
     purpose = models.CharField(max_length=64, default="meeting_transcription")
@@ -1081,7 +1087,7 @@ class MastraoTranscriptionBinding(BaseModel):
                 name="mastrao_transcription_scope_fixed",
             ),
             models.CheckConstraint(
-                condition=models.Q(contract_operation_version__in=[1, 2]),
+                condition=models.Q(contract_operation_version__in=[1, 2, 3]),
                 name="mastrao_tx_contract_version_closed",
             ),
             models.CheckConstraint(
@@ -1096,6 +1102,10 @@ class MastraoTranscriptionBinding(BaseModel):
                         normalization_version__isnull=True,
                         processing_region_ref__isnull=True,
                         data_control_ref__isnull=True,
+                        campaign_ref__isnull=True,
+                        authorized_cost_ceiling_micros__isnull=True,
+                        currency__isnull=True,
+                        tariff_catalog_version__isnull=True,
                     )
                     | models.Q(
                         contract_operation_version=2,
@@ -1107,6 +1117,25 @@ class MastraoTranscriptionBinding(BaseModel):
                         normalization_version__isnull=False,
                         processing_region_ref__isnull=False,
                         data_control_ref__isnull=False,
+                        campaign_ref__isnull=True,
+                        authorized_cost_ceiling_micros__isnull=True,
+                        currency__isnull=True,
+                        tariff_catalog_version__isnull=True,
+                    )
+                    | models.Q(
+                        contract_operation_version=3,
+                        asr_profile_ref__isnull=False,
+                        asr_profile_digest__isnull=False,
+                        asr_provider_ref__isnull=False,
+                        requested_model_ref__isnull=False,
+                        request_config_digest__isnull=False,
+                        normalization_version__isnull=False,
+                        processing_region_ref__isnull=False,
+                        data_control_ref__isnull=False,
+                        campaign_ref__isnull=False,
+                        authorized_cost_ceiling_micros__isnull=False,
+                        currency="USD",
+                        tariff_catalog_version__isnull=False,
                     )
                 ),
                 name="mastrao_tx_profile_complete_by_version",
@@ -1228,6 +1257,7 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
         ARTIFACT_WRITE_PENDING = "artifact_write_pending", _("Artifact write pending")
         SUCCEEDED = "succeeded", _("Succeeded")
         FAILED_PRE_EGRESS = "failed_pre_egress", _("Failed before egress")
+        RATE_LIMITED = "rate_limited", _("Rate limited")
         UNKNOWN = "unknown", _("Unknown")
         CANCELLED = "cancelled", _("Cancelled")
 
@@ -1235,6 +1265,17 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
         NONE = "none", _("None")
         PENDING = "pending", _("Pending")
         COMPLETED = "completed", _("Completed")
+
+    class ExecutionMode(models.TextChoices):
+        SEND_ALLOWED = "send_allowed", _("Send allowed")
+        RECOVER_ONLY = "recover_only", _("Recover only")
+
+    class TerminalOutcome(models.TextChoices):
+        FAILED_PRE_EGRESS = "failed_pre_egress", _("Failed before egress")
+        REJECTED = "rejected", _("Rejected")
+        UNKNOWN = "unknown", _("Unknown")
+        DELETED = "deleted", _("Deleted")
+        CONFLICT = "conflict", _("Conflict")
 
     effect = models.ForeignKey(
         MastraoTranscriptionEffect,
@@ -1256,9 +1297,27 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
     audio_duration_ms = models.PositiveIntegerField()
     audio_codec = models.CharField(max_length=40)
     input_bytes = models.PositiveBigIntegerField()
+    grant_semantic_digest = models.CharField(max_length=64, null=True, blank=True)
+    authority_version = models.PositiveBigIntegerField(null=True, blank=True)
+    execution_mode = models.CharField(
+        max_length=16, choices=ExecutionMode.choices, null=True, blank=True
+    )
+    campaign_ref = models.CharField(max_length=160, null=True, blank=True)
+    authorized_cost_ceiling_micros = models.PositiveBigIntegerField(
+        null=True, blank=True
+    )
+    tariff_catalog_version = models.CharField(max_length=160, null=True, blank=True)
+    provider_egress_opened_at = models.DateTimeField(null=True, blank=True)
+    provider_completed_at = models.DateTimeField(null=True, blank=True)
+    terminal_outcome = models.CharField(
+        max_length=24, choices=TerminalOutcome.choices, null=True, blank=True
+    )
     gateway_request_ref_digest = models.CharField(max_length=64, null=True, blank=True)
     provider_request_ref_digest = models.CharField(max_length=64, null=True, blank=True)
     resolved_model_ref = models.CharField(max_length=160, null=True, blank=True)
+    provider_observed_model_ref = models.CharField(
+        max_length=160, null=True, blank=True
+    )
     usage_audio_seconds = models.FloatField(null=True, blank=True)
     estimated_cost_micros = models.BigIntegerField(null=True, blank=True)
     currency = models.CharField(max_length=8, null=True, blank=True)
@@ -1292,6 +1351,20 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
             models.CheckConstraint(
                 condition=models.Q(provider_ref__in=["fake", "mistral", "openai"]),
                 name="mastrao_tx_attempt_provider_closed",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(grant_semantic_digest__isnull=True)
+                    | models.Q(grant_semantic_digest__regex=r"^[a-f0-9]{64}$")
+                ),
+                name="mastrao_tx_attempt_grant_digest_format",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(provider_egress_opened_at__isnull=True)
+                    | models.Q(execution_mode__isnull=False)
+                ),
+                name="mastrao_tx_attempt_egress_has_mode",
             ),
         ]
 

@@ -43,6 +43,12 @@ ARTIFACT_RECEIPT_TYPE = "mastrao.meeting-transcription-artifact-receipt"
 ARTIFACT_RECEIPT_JOSE_TYPE = "mastrao-meeting-transcription-artifact-receipt+jws"
 FAILURE_RECEIPT_TYPE = "mastrao.meeting-transcription-failure-receipt"
 FAILURE_RECEIPT_JOSE_TYPE = "mastrao-meeting-transcription-failure-receipt+jws"
+EGRESS_REQUEST_TYPE = "mastrao.meet-transcription-egress-request"
+EGRESS_REQUEST_JOSE_TYPE = "mastrao-meeting-transcription-egress-request+jws"
+EGRESS_GRANT_TYPE = "mastrao.core-meeting-transcription-egress-grant"
+EGRESS_GRANT_JOSE_TYPE = "mastrao-meeting-transcription-egress-grant+jws"
+TERMINAL_RECEIPT_TYPE = "mastrao.meeting-transcription-terminal-receipt"
+TERMINAL_RECEIPT_JOSE_TYPE = "mastrao-meeting-transcription-terminal-receipt+jws"
 
 SUBMIT_EFFECT_FIELDS = {
     "version",
@@ -82,8 +88,15 @@ SUBMIT_EFFECT_V2_FIELDS = SUBMIT_EFFECT_FIELDS | {
     "processing_region_ref",
     "data_control_ref",
 }
+SUBMIT_EFFECT_V3_FIELDS = SUBMIT_EFFECT_V2_FIELDS | {
+    "campaign_ref",
+    "authorized_cost_ceiling_micros",
+    "currency",
+    "tariff_catalog_version",
+}
 ASR_REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,160}$")
 V2_NORMALIZATION_VERSION = "meeting-transcript-v1"
+MAX_EGRESS_GRANT_SECONDS = 30
 
 
 def _provider_free_profile(profile_ref, provider_ref, requested_model_ref):
@@ -132,14 +145,44 @@ V2_PROFILE_MANIFEST = {
         _provider_free_profile("openai-gpt-transcribe-v1", "openai", "gpt-transcribe"),
     )
 }
+MANAGED_PROFILE_BINDINGS = {
+    "mistral-eu-zdr-voxtral-mini-2602-canary-v1": {
+        "asr_provider_ref": "mistral",
+        "requested_model_ref": "voxtral-mini-2602",
+        "processing_region_ref": "mistral-eu",
+        "data_control_ref": "mistral-zdr-approved-v1",
+        "request_config_digest": "5e835721dbe255ce5624926927b0363f6529f41d8197750e5950942b5accca65",
+        "asr_profile_digest": "bad19aa64434075c911fd078a1835aa4cc49bd3a85d5e4bc4526197a35ec9875",
+        "tariff_catalog_version": "asr-tariff-v2",
+    },
+    "openai-eu-zdr-gpt-transcribe-canary-v1": {
+        "asr_provider_ref": "openai",
+        "requested_model_ref": "gpt-transcribe",
+        "processing_region_ref": "openai-eu",
+        "data_control_ref": "openai-zdr-approved-v1",
+        "request_config_digest": "aa0458c2b16b5b6718a7981e0ddd9d3ea0b9e6710912951aed47a363df98339f",
+        "asr_profile_digest": "f796f44fee980262691cbab1c363348a3fc647855df46f0559dd29c088f9239e",
+        "tariff_catalog_version": "asr-tariff-v2",
+    },
+}
 
 
 class TranscriptionContractRefused(RecordingContractRefused):
     """Opaque refusal for transcription effects and receipts."""
 
-    def __init__(self, status=404, outcome=None, retry_after_seconds=None):
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        *,
+        status=404,
+        outcome=None,
+        retry_after_seconds=None,
+        provenance=None,
+        error_code=None,
+    ):
         super().__init__(status=status, outcome=outcome)
         self.retry_after_seconds = retry_after_seconds
+        self.provenance = provenance
+        self.error_code = error_code
 
 
 class TranscriptionPipelineFailed(TranscriptionContractRefused):
@@ -160,7 +203,7 @@ def _submit_arguments(effect):
         "room_ref": effect["room_ref"],
         "provider_binding_digest": effect["provider_binding_digest"],
     }
-    if effect["operation_version"] == 2:
+    if effect["operation_version"] in {2, 3}:
         arguments.update(
             {
                 name: effect[name]
@@ -176,6 +219,18 @@ def _submit_arguments(effect):
                 )
             }
         )
+    if effect["operation_version"] == 3:
+        arguments.update(
+            {
+                name: effect[name]
+                for name in (
+                    "campaign_ref",
+                    "authorized_cost_ceiling_micros",
+                    "currency",
+                    "tariff_catalog_version",
+                )
+            }
+        )
     return arguments
 
 
@@ -186,6 +241,13 @@ def _verified_submit_payload(compact_jws):
         return (
             _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V2_FIELDS),
             2,
+        )
+    except RecordingContractRefused:
+        pass
+    try:
+        return (
+            _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V3_FIELDS),
+            3,
         )
     except RecordingContractRefused:
         return (
@@ -211,6 +273,25 @@ def _validate_v2_profile(effect):
     expected_profile = V2_PROFILE_MANIFEST.get(effect.get("asr_profile_ref"))
     if expected_profile is None or any(
         effect.get(name) != expected for name, expected in expected_profile.items()
+    ):
+        raise TranscriptionContractRefused()
+
+
+def _validate_v3_reservation(effect):
+    expected = MANAGED_PROFILE_BINDINGS.get(effect.get("asr_profile_ref"))
+    if expected is None or any(
+        effect.get(name) != value for name, value in expected.items()
+    ):
+        raise TranscriptionContractRefused()
+    for name in ("campaign_ref", "tariff_catalog_version"):
+        _validate_asr_reference(effect, name)
+    ceiling = effect.get("authorized_cost_ceiling_micros")
+    if (
+        not isinstance(ceiling, int)
+        or isinstance(ceiling, bool)
+        or ceiling < 0
+        or effect.get("currency") != "USD"
+        or effect.get("normalization_version") != V2_NORMALIZATION_VERSION
     ):
         raise TranscriptionContractRefused()
     for name in ("asr_profile_digest", "request_config_digest"):
@@ -268,6 +349,19 @@ def verify_transcription_submit_effect(compact_jws):
             raise TranscriptionContractRefused()
     if effect["operation_version"] == 2:
         _validate_v2_profile(effect)
+    if effect["operation_version"] == 3:
+        for name in ("asr_profile_digest", "request_config_digest"):
+            if not DIGEST.fullmatch(effect.get(name, "")):
+                raise TranscriptionContractRefused()
+        for name in (
+            "asr_profile_ref",
+            "requested_model_ref",
+            "normalization_version",
+            "processing_region_ref",
+            "data_control_ref",
+        ):
+            _validate_asr_reference(effect, name)
+        _validate_v3_reservation(effect)
     retention = effect.get("retention_expires_at")
     if (
         not isinstance(retention, int)
@@ -278,6 +372,149 @@ def verify_transcription_submit_effect(compact_jws):
     if effect["arguments_digest"] != _sha256_canonical(_submit_arguments(effect)):
         raise TranscriptionContractRefused()
     return effect
+
+
+def build_transcription_egress_request_claims(effect, attempt, execution_mode):
+    """Build the exact, short-lived disclosure request for one prepared audio."""
+
+    if effect.get("operation_version") != 3 or execution_mode not in {
+        "send_allowed",
+        "recover_only",
+    }:
+        raise TranscriptionContractRefused()
+    now = int(time.time())
+    claims = {
+        "version": CONTRACT_VERSION,
+        "type": EGRESS_REQUEST_TYPE,
+        "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
+        "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
+        "operation": "request_meeting_transcription_egress",
+        "operation_version": 1,
+        "organization_external_id": effect["organization_external_id"],
+        "meeting_ref": effect["meeting_ref"],
+        "room_ref": effect["room_ref"],
+        "recording_ref": effect["recording_ref"],
+        "transcription_ref": effect["transcription_ref"],
+        "provider_binding_digest": effect["provider_binding_digest"],
+        "effect_key": effect["effect_key"],
+        "arguments_digest": effect["arguments_digest"],
+        "attempt_ref": attempt.attempt_ref,
+        "audio_sha256": attempt.audio_sha256,
+        "audio_bytes": attempt.input_bytes,
+        "audio_duration_ms": attempt.audio_duration_ms,
+        "asr_profile_ref": effect["asr_profile_ref"],
+        "asr_profile_digest": effect["asr_profile_digest"],
+        "asr_provider_ref": effect["asr_provider_ref"],
+        "requested_model_ref": effect["requested_model_ref"],
+        "request_config_digest": effect["request_config_digest"],
+        "normalization_version": effect["normalization_version"],
+        "processing_region_ref": effect["processing_region_ref"],
+        "data_control_ref": effect["data_control_ref"],
+        "campaign_ref": effect["campaign_ref"],
+        "authorized_cost_ceiling_micros": effect["authorized_cost_ceiling_micros"],
+        "currency": effect["currency"],
+        "tariff_catalog_version": effect["tariff_catalog_version"],
+        "execution_mode": execution_mode,
+        "issued_at": now,
+        "expires_at": now + MAX_EGRESS_GRANT_SECONDS,
+        "jti": f"transcript_egress_{uuid4().hex}",
+    }
+    return claims
+
+
+def sign_transcription_egress_request(claims):
+    """Sign one exact managed-provider egress request."""
+    return _sign(claims, EGRESS_REQUEST_JOSE_TYPE)
+
+
+EGRESS_GRANT_FIELDS = {
+    *(
+        SUBMIT_EFFECT_V3_FIELDS
+        - {
+            "policy_ref",
+            "notice_version",
+            "purpose",
+            "scope",
+            "retention_expires_at",
+            "recording_artifact_ref",
+            "recording_checksum_digest",
+            "resolve_only",
+        }
+    ),
+    "cabinet_id",
+    "attempt_ref",
+    "audio_sha256",
+    "audio_bytes",
+    "audio_duration_ms",
+    "execution_mode",
+    "notice_digest",
+    "consent_epoch",
+    "authority_version",
+    "maximum_audio_seconds",
+    "grant_semantic_digest",
+}
+
+
+def verify_transcription_egress_grant(compact_jws, request_claims):
+    """Verify Core's exact grant and its semantic binding before disclosure."""
+
+    grant = _verify(compact_jws, EGRESS_GRANT_JOSE_TYPE, EGRESS_GRANT_FIELDS)
+    _validate_time(grant, maximum=MAX_EGRESS_GRANT_SECONDS)
+    if (
+        grant.get("version") != CONTRACT_VERSION
+        or grant.get("type") != EGRESS_GRANT_TYPE
+        or grant.get("issuer") != settings.MASTRAO_RECORDING_EFFECT_ISSUER
+        or grant.get("audience") != settings.MASTRAO_TRANSCRIPTION_EGRESS_GRANT_AUDIENCE
+        or grant.get("operation") != "authorize_meeting_transcription_egress"
+        or grant.get("operation_version") != 1
+        or not DIGEST.fullmatch(grant.get("notice_digest", ""))
+        or not DIGEST.fullmatch(grant.get("grant_semantic_digest", ""))
+        or not REQUEST_ID.fullmatch(grant.get("jti", ""))
+        or not isinstance(grant.get("cabinet_id"), str)
+        or not 1 <= len(grant["cabinet_id"]) <= 160
+        or not isinstance(grant.get("consent_epoch"), int)
+        or isinstance(grant.get("consent_epoch"), bool)
+        or grant["consent_epoch"] <= 0
+        or not isinstance(grant.get("authority_version"), int)
+        or isinstance(grant.get("authority_version"), bool)
+        or grant["authority_version"] <= 0
+        or not isinstance(grant.get("maximum_audio_seconds"), int)
+        or isinstance(grant.get("maximum_audio_seconds"), bool)
+        or not 1 <= grant["maximum_audio_seconds"] <= 3_600
+    ):
+        raise TranscriptionContractRefused()
+    common = set(request_claims) - {
+        "type",
+        "issuer",
+        "audience",
+        "operation",
+        "jti",
+        "issued_at",
+        "expires_at",
+    }
+    if any(grant.get(name) != request_claims[name] for name in common):
+        raise TranscriptionContractRefused()
+    semantic = {
+        name: value
+        for name, value in grant.items()
+        if name
+        not in {
+            "audience",
+            "execution_mode",
+            "expires_at",
+            "grant_semantic_digest",
+            "issued_at",
+            "issuer",
+            "jti",
+            "operation",
+            "operation_version",
+            "type",
+            "version",
+        }
+    }
+    if grant.get("grant_semantic_digest") != _sha256_canonical(semantic):
+        raise TranscriptionContractRefused()
+    return grant
 
 
 def submit_provider_job_ref(effect):
@@ -317,11 +554,47 @@ def build_submit_receipt_claims(effect, observation):
     }
 
 
-def build_transcript_artifact_receipt_claims(effect, artifact):
+def _execution_provenance(effect, attempt):
+    if not attempt.grant_semantic_digest or not attempt.authority_version:
+        raise TranscriptionContractRefused()
+    provenance = {
+        "attempt_ref": attempt.attempt_ref,
+        "grant_semantic_digest": attempt.grant_semantic_digest,
+        "authority_version": attempt.authority_version,
+        "provider_ref": attempt.provider_ref,
+        "requested_model_ref": attempt.requested_model_ref,
+        "processing_region_ref": effect["processing_region_ref"],
+        "data_control_ref": effect["data_control_ref"],
+        # The database column predates signed v2 receipts and is a FloatField.
+        # Emit the contract's integer billing seconds so Python does not sign
+        # ``44.0`` while the cross-language canonicalizer reconstructs ``44``.
+        "usage_audio_seconds": int(attempt.usage_audio_seconds or 0),
+        "estimated_cost_micros": attempt.estimated_cost_micros or 0,
+        "currency": attempt.currency or effect["currency"],
+        "tariff_catalog_version": attempt.tariff_catalog_version
+        or effect["tariff_catalog_version"],
+    }
+    optional = {
+        "observed_model_ref": attempt.provider_observed_model_ref,
+        "provider_request_ref_digest": attempt.provider_request_ref_digest,
+        "provider_egress_opened_at": attempt.provider_egress_opened_at,
+        "provider_completed_at": attempt.provider_completed_at,
+    }
+    provenance.update(
+        {
+            name: int(value.timestamp()) if hasattr(value, "timestamp") else value
+            for name, value in optional.items()
+            if value is not None
+        }
+    )
+    return provenance
+
+
+def build_transcript_artifact_receipt_claims(effect, artifact, attempt=None):
     """Build strict persisted transcript artifact receipt claims."""
 
     now = int(time.time())
-    return {
+    claims = {
         "version": CONTRACT_VERSION,
         "type": ARTIFACT_RECEIPT_TYPE,
         "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
@@ -351,6 +624,62 @@ def build_transcript_artifact_receipt_claims(effect, artifact):
         "issued_at": now,
         "expires_at": now + MAX_ASSERTION_SECONDS,
         "jti": f"transcript_artifact_{uuid4().hex}",
+    }
+    if effect.get("operation_version") == 3:
+        if attempt is None:
+            raise TranscriptionContractRefused()
+        claims.update(
+            {
+                "operation_version": 2,
+                "effect_key": effect["effect_key"],
+                "asr_profile_ref": effect["asr_profile_ref"],
+                "asr_profile_digest": effect["asr_profile_digest"],
+                "audio_sha256": attempt.audio_sha256,
+                "request_config_digest": effect["request_config_digest"],
+                "normalization_version": effect["normalization_version"],
+                **_execution_provenance(effect, attempt),
+            }
+        )
+    return claims
+
+
+def build_transcription_terminal_receipt_claims(effect, attempt, outcome):
+    """Build truthful v2 terminal evidence for a managed attempt."""
+
+    if outcome not in {
+        "failed_pre_egress",
+        "rejected",
+        "unknown",
+        "deleted",
+        "conflict",
+    }:
+        raise TranscriptionContractRefused()
+    now = int(time.time())
+    return {
+        "version": CONTRACT_VERSION,
+        "type": TERMINAL_RECEIPT_TYPE,
+        "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
+        "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
+        "operation": "confirm_meeting_transcription_terminal",
+        "operation_version": 2,
+        "organization_external_id": effect["organization_external_id"],
+        "meeting_ref": effect["meeting_ref"],
+        "room_ref": effect["room_ref"],
+        "recording_ref": effect["recording_ref"],
+        "transcription_ref": effect["transcription_ref"],
+        "provider_binding_digest": effect["provider_binding_digest"],
+        "effect_key": effect["effect_key"],
+        "asr_profile_ref": effect["asr_profile_ref"],
+        "asr_profile_digest": effect["asr_profile_digest"],
+        "audio_sha256": attempt.audio_sha256,
+        "request_config_digest": effect["request_config_digest"],
+        "normalization_version": effect["normalization_version"],
+        "outcome": outcome,
+        "provider_egress_opened": attempt.provider_egress_opened_at is not None,
+        **_execution_provenance(effect, attempt),
+        "issued_at": now,
+        "expires_at": now + MAX_ASSERTION_SECONDS,
+        "jti": f"transcript_terminal_{uuid4().hex}",
     }
 
 
@@ -399,3 +728,8 @@ def sign_transcription_decision_assertion(payload):
 def sign_transcription_failure_receipt(claims):
     """Sign one exact transcription pipeline-failure receipt."""
     return _sign(claims, FAILURE_RECEIPT_JOSE_TYPE)
+
+
+def sign_transcription_terminal_receipt(claims):
+    """Sign truthful terminal evidence for one managed attempt."""
+    return _sign(claims, TERMINAL_RECEIPT_JOSE_TYPE)

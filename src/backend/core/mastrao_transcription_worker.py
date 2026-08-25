@@ -185,12 +185,32 @@ def _validated_transcript(transcript):
 
 
 def _gateway_fingerprint(extracted, attempt, language=""):
+    return _fingerprint(
+        attempt,
+        audio_sha256=extracted.sha256,
+        audio_duration_ms=extracted.duration_ms,
+        audio_codec=extracted.codec,
+        language=language,
+    )
+
+
+def _attempt_fingerprint(attempt, language=""):
+    return _fingerprint(
+        attempt,
+        audio_sha256=attempt.audio_sha256,
+        audio_duration_ms=attempt.audio_duration_ms,
+        audio_codec=attempt.audio_codec,
+        language=language,
+    )
+
+
+def _fingerprint(attempt, *, audio_sha256, audio_duration_ms, audio_codec, language=""):
     return hashlib.sha256(
         "|".join(
             [
-                extracted.sha256,
-                str(extracted.duration_ms),
-                extracted.codec,
+                audio_sha256,
+                str(audio_duration_ms),
+                audio_codec,
                 attempt.provider_ref,
                 attempt.requested_model_ref,
                 "asr-gateway-v1",
@@ -204,7 +224,9 @@ def _gateway_fingerprint(extracted, attempt, language=""):
     ).hexdigest()
 
 
-def _gateway_transcribe(extracted, attempt):
+def _gateway_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
+    extracted, attempt, egress_grant=None
+):
     """Call the private ASR Gateway. Never inherit proxy env or follow redirects."""
 
     endpoint = settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT
@@ -236,6 +258,8 @@ def _gateway_transcribe(extracted, attempt):
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if egress_grant:
+        headers["X-Mastrao-Transcription-Egress-Grant"] = egress_grant
     response = None
     try:
         with extracted.path.open("rb") as audio, requests.Session() as session:
@@ -257,21 +281,46 @@ def _gateway_transcribe(extracted, attempt):
             )
             if response.status_code in {401, 403}:
                 raise TranscriptionContractRefused(status=503)
+            payload = json.loads(_read_bounded_http_body(response))
             if response.status_code == 429:
+                provenance = _accepted_gateway_provenance(
+                    payload.get("provenance") if isinstance(payload, dict) else None,
+                    attempt,
+                )
+                if (
+                    not isinstance(payload, dict)
+                    or payload.get("error") != "PROVIDER_RATE_LIMITED"
+                    or payload.get("outcome") != "rejected"
+                    or not provenance
+                ):
+                    raise TranscriptionContractRefused(status=503)
                 raise TranscriptionContractRefused(
                     status=503,
                     outcome="retry",
                     retry_after_seconds=_retry_after_seconds(response),
+                    provenance=provenance,
                 )
-            payload = json.loads(_read_bounded_http_body(response))
+    except TranscriptionContractRefused as error:
+        if (
+            response is not None
+            and response.status_code not in {401, 403}
+            and error.outcome is None
+        ):
+            raise TranscriptionContractRefused(status=503, outcome="unknown") from error
+        raise
     except requests.RequestException as error:
         raise TranscriptionContractRefused(status=503, outcome="unknown") from error
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
-        raise TranscriptionContractRefused(status=503) from error
+        raise TranscriptionContractRefused(status=503, outcome="unknown") from error
     finally:
         if response is not None:
             response.close()
-    return _accepted_gateway_transcript(payload, extracted, attempt)
+    try:
+        return _accepted_gateway_transcript(payload, extracted, attempt)
+    except TranscriptionContractRefused as error:
+        if error.outcome is None:
+            raise TranscriptionContractRefused(status=503, outcome="unknown") from error
+        raise
 
 
 def _read_bounded_http_body(response):
@@ -309,13 +358,13 @@ def _retry_after_seconds(response):
         return 1
 
 
-def ack_gateway_attempt(extracted, attempt):
-    """Tell the Gateway Meet persisted the result so it can drop the transcript."""
+def ack_gateway_attempt(attempt):
+    """Tell the Gateway Core accepted the result so it can drop the transcript."""
 
     endpoint = settings.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT
     token = getattr(settings, "MASTRAO_ASR_GATEWAY_AUTH_TOKEN", "") or ""
     if not endpoint or not token:
-        return
+        raise TranscriptionContractRefused(status=503, outcome="retry")
     ack_url = (
         endpoint[: -len("/v1/transcribe")] + "/v1/attempts/ack"
         if endpoint.endswith("/v1/transcribe")
@@ -328,11 +377,7 @@ def ack_gateway_attempt(extracted, attempt):
                 ack_url,
                 json={
                     "attempt_ref": attempt.attempt_ref,
-                    "fingerprint": _gateway_fingerprint(
-                        extracted,
-                        attempt,
-                        language="fr",
-                    ),
+                    "fingerprint": _attempt_fingerprint(attempt, language="fr"),
                 },
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=5,
@@ -347,12 +392,25 @@ def ack_gateway_attempt(extracted, attempt):
 def _accepted_gateway_transcript(payload, extracted, attempt):
     if not isinstance(payload, dict):
         raise TranscriptionContractRefused(status=503)
+    if payload.get("error") == "ATTEMPT_IN_PROGRESS":
+        raise TranscriptionContractRefused(
+            status=503, outcome="retry", error_code="ATTEMPT_IN_PROGRESS"
+        )
+    provenance = _accepted_gateway_provenance(payload.get("provenance"), attempt)
     if payload.get("outcome") == "unknown" or payload.get("error") == (
         "PROVIDER_OUTCOME_UNKNOWN"
     ):
-        raise TranscriptionContractRefused(status=409, outcome="unknown")
+        raise TranscriptionContractRefused(
+            status=409, outcome="unknown", provenance=provenance
+        )
     if payload.get("error") == "PROVIDER_RATE_LIMITED":
-        raise TranscriptionContractRefused(status=503, outcome="retry")
+        raise TranscriptionContractRefused(
+            status=503, outcome="retry", provenance=provenance
+        )
+    if payload.get("outcome") in {"failed_pre_egress", "rejected"}:
+        raise TranscriptionContractRefused(
+            status=503, outcome=payload["outcome"], provenance=provenance
+        )
     transcript = payload.get("transcript")
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     engine = transcript.get("engine_ref") if isinstance(transcript, dict) else None
@@ -367,11 +425,63 @@ def _accepted_gateway_transcript(payload, extracted, attempt):
     )
     if not matched:
         raise TranscriptionContractRefused(status=503)
-    transcript["_usage"] = usage
+    transcript["_usage"] = provenance or {
+        **usage,
+        "tariff_catalog_version": usage.get("tariff_version"),
+    }
     return transcript
 
 
-def transcribe_extracted(extracted, attempt):
+def _accepted_gateway_provenance(provenance, attempt):
+    """Accept only evidence bound to the grant Meet durably stored."""
+
+    if not attempt.grant_semantic_digest:
+        return None
+    binding = attempt.effect.transcription_binding
+    required = {
+        "attempt_ref": attempt.attempt_ref,
+        "grant_semantic_digest": attempt.grant_semantic_digest,
+        "authority_version": attempt.authority_version,
+        "provider_ref": attempt.provider_ref,
+        "requested_model_ref": attempt.requested_model_ref,
+        "processing_region_ref": binding.processing_region_ref,
+        "data_control_ref": binding.data_control_ref,
+        "currency": binding.currency,
+        "tariff_catalog_version": binding.tariff_catalog_version,
+    }
+    optional = {
+        "observed_model_ref",
+        "provider_request_ref_digest",
+        "provider_egress_opened_at",
+        "provider_completed_at",
+    }
+    if not isinstance(provenance, dict) or any(
+        provenance.get(name) != expected for name, expected in required.items()
+    ):
+        raise TranscriptionContractRefused(status=503)
+    if (
+        not set(provenance).issubset(
+            set(required) | optional | {"usage_audio_seconds", "estimated_cost_micros"}
+        )
+        or not isinstance(provenance.get("usage_audio_seconds"), int)
+        or isinstance(provenance.get("usage_audio_seconds"), bool)
+        or provenance["usage_audio_seconds"] < 0
+        or not isinstance(provenance.get("estimated_cost_micros"), int)
+        or isinstance(provenance.get("estimated_cost_micros"), bool)
+        or provenance["estimated_cost_micros"] < 0
+        or any(
+            not isinstance(provenance[name], int)
+            or isinstance(provenance[name], bool)
+            or provenance[name] <= 0
+            for name in ("provider_egress_opened_at", "provider_completed_at")
+            if name in provenance
+        )
+    ):
+        raise TranscriptionContractRefused(status=503)
+    return provenance
+
+
+def transcribe_extracted(extracted, attempt, egress_grant=None):
     """Transcribe one extracted audio file through fake ASR or the Gateway."""
 
     mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
@@ -382,7 +492,9 @@ def transcribe_extracted(extracted, attempt):
         )
     logger.info("mastrao transcription asr invoked")
     if mode == "real":
-        return _validated_transcript(_gateway_transcribe(extracted, attempt))
+        return _validated_transcript(
+            _gateway_transcribe(extracted, attempt, egress_grant=egress_grant)
+        )
     return _validated_transcript(_fake_transcribe(extracted.read_bounded()))
 
 

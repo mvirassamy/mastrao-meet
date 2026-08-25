@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) keep Gateway recovery and terminal cleanup monotonic
+- 🐛(backend) recover a durable Gateway result after a lost response
+- 🐛(docker) keep the non-root frontend dependency stage writable without BuildKit
+- 🐛(backend) persist the managed-provider rate-limited attempt state in migration 0036
 - 🐛(backend) keep the v2 ASR catalog to the two paid profiles
 - 🐛(backend) drop the redundant Gateway refusal re-raise
 - 🐛(backend) honor Retry-After and keep the absolute 429 deadline
@@ -34,6 +38,7 @@ and this project adheres to
 
 ### Added
 
+- 🔐(backend) authorize each managed-provider audio egress through Core, bind recover-only replay and preserve v2 provider provenance
 - ✨(backend) accept consent-bound v2 ASR profiles beside draining v1 jobs
 - ✨(backend) allow immutable transcript runs to share one recording
 - 🔐(backend) add durable provider-attempt state, object-save recovery and a dedicated mastrao-transcription Celery worker
