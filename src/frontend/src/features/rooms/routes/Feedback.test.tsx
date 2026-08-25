@@ -13,6 +13,12 @@ vi.mock('wouter', () => ({
   useLocation: () => ['/', setLocation],
 }))
 
+vi.mock('@/api/useConfig', () => ({
+  useConfig: () => ({
+    data: { mastrao_platform_origin: 'https://platform.mastrao.test' },
+  }),
+}))
+
 vi.mock('@/layout/Screen', () => ({
   Screen: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }))

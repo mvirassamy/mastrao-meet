@@ -6,6 +6,7 @@ import { Rating } from '@/features/rooms/components/Rating.tsx'
 import { useLocation } from 'wouter'
 import { useEffect, useMemo, useRef } from 'react'
 import { DisconnectReason } from 'livekit-client'
+import { useConfig } from '@/api/useConfig'
 import type { CandidateInfo } from '@/stores/connectionObserver'
 import {
   clearCachedPlatformReturn,
@@ -13,12 +14,12 @@ import {
   validatePlatformReturn,
 } from '../platformReturn'
 
-const readPlatformReturn = () => {
+const readPlatformReturn = (expectedOrigin: unknown) => {
   const state = window.history.state
   const descriptor =
-    validatePlatformReturn(state?.platform_return) ??
+    validatePlatformReturn(state?.platform_return, expectedOrigin) ??
     (typeof state?.room_id === 'string'
-      ? readCachedPlatformReturn(state.room_id)
+      ? readCachedPlatformReturn(state.room_id, expectedOrigin)
       : null)
   return descriptor?.url
 }
@@ -46,8 +47,12 @@ enum DisconnectReasonKey {
 
 const FeedbackRoute = () => {
   const { t } = useTranslation('rooms')
+  const { data: apiConfig } = useConfig()
   const [, setLocation] = useLocation()
-  const platformReturn = useMemo(() => readPlatformReturn(), [])
+  const platformReturn = useMemo(
+    () => readPlatformReturn(apiConfig?.mastrao_platform_origin),
+    [apiConfig?.mastrao_platform_origin]
+  )
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => headingRef.current?.focus(), [])

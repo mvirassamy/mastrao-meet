@@ -16,6 +16,41 @@ from meet.settings import (
 )
 
 
+def test_frontend_configuration_projects_the_fixed_platform_origin():
+    """Browser cache validation must bind returns to the server configuration."""
+
+    environment = {
+        **os.environ,
+        "DJANGO_CONFIGURATION": "Development",
+        "DJANGO_SETTINGS_MODULE": "meet.settings",
+        "MASTRAO_PLATFORM_ORIGIN": "https://platform.mastrao.test",
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; "
+                "importer.install(); "
+                "import django; "
+                "django.setup(); "
+                "from core.api import get_frontend_configuration; "
+                "from rest_framework.test import APIRequestFactory; "
+                "response = get_frontend_configuration("
+                "APIRequestFactory().get('/api/v1.0/config/')); "
+                "print(response.data['mastrao_platform_origin'])"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env=environment,
+        text=True,
+    )
+
+    assert result.stdout.strip() == "https://platform.mastrao.test"
+
+
 def test_development_csrf_origins_follow_the_configured_public_proxy():
     """A non-default local public port must remain able to persist consent."""
 
@@ -218,6 +253,8 @@ def test_deployable_transcription_requires_celery(configuration_name):
 
 @pytest.mark.parametrize("configuration_name", ["Development", "Test"])
 def test_local_transcription_may_start_without_celery(configuration_name):
+    """Local qualification may retain its synchronous development fallback."""
+
     configuration = getattr(meet_settings, configuration_name)
     assert configuration.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED is False
 

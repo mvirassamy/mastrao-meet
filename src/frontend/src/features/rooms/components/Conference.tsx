@@ -132,9 +132,13 @@ export const Conference = ({
 
   useEffect(() => {
     if (data?.platform_return) {
-      cachePlatformReturn(roomId, data.platform_return)
+      cachePlatformReturn(
+        roomId,
+        data.platform_return,
+        apiConfig?.mastrao_platform_origin
+      )
     }
-  }, [data?.platform_return, roomId])
+  }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
 
   const roomOptions = useMemo((): RoomOptions => {
     return {
@@ -383,7 +387,10 @@ export const Conference = ({
                       reason: e,
                       platform_return:
                         data?.platform_return ??
-                        readCachedPlatformReturn(roomId),
+                        readCachedPlatformReturn(
+                          roomId,
+                          apiConfig?.mastrao_platform_origin
+                        ),
                       ...metadata,
                     },
                   }
@@ -397,7 +404,10 @@ export const Conference = ({
                     state: {
                       platform_return:
                         data?.platform_return ??
-                        readCachedPlatformReturn(roomId),
+                        readCachedPlatformReturn(
+                          roomId,
+                          apiConfig?.mastrao_platform_origin
+                        ),
                       ...metadata,
                     },
                   }

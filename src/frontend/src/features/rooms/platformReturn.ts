@@ -8,7 +8,8 @@ const roomSlug = /^[A-Za-z0-9_-]{1,160}$/
 const cachePrefix = 'mastrao-platform-return-v1:'
 
 export const validatePlatformReturn = (
-  value: unknown
+  value: unknown,
+  expectedOrigin: unknown
 ): PlatformReturn | null => {
   if (!value || typeof value !== 'object') return null
   const descriptor = value as { url?: unknown; expires_at?: unknown }
@@ -21,12 +22,29 @@ export const validatePlatformReturn = (
     return null
   }
   try {
+    if (typeof expectedOrigin !== 'string') return null
+    const configured = new URL(expectedOrigin)
+    const configuredLocal = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(
+      configured.hostname
+    )
+    if (
+      (configured.protocol !== 'https:' &&
+        !(configuredLocal && configured.protocol === 'http:')) ||
+      configured.username ||
+      configured.password ||
+      configured.pathname !== '/' ||
+      configured.search ||
+      configured.hash
+    ) {
+      return null
+    }
     const url = new URL(descriptor.url)
     const local = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(
       url.hostname
     )
     if (
       (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) ||
+      url.origin !== configured.origin ||
       url.username ||
       url.password ||
       url.pathname !== '/api/meeting-return' ||
@@ -48,9 +66,13 @@ export const validatePlatformReturn = (
 const keyFor = (slug: string) =>
   roomSlug.test(slug) ? `${cachePrefix}${slug}` : null
 
-export const cachePlatformReturn = (slug: string, value: unknown) => {
+export const cachePlatformReturn = (
+  slug: string,
+  value: unknown,
+  expectedOrigin: unknown
+) => {
   const key = keyFor(slug)
-  const descriptor = validatePlatformReturn(value)
+  const descriptor = validatePlatformReturn(value, expectedOrigin)
   if (!key || !descriptor) return
   try {
     window.sessionStorage.setItem(key, JSON.stringify(descriptor))
@@ -59,12 +81,16 @@ export const cachePlatformReturn = (slug: string, value: unknown) => {
   }
 }
 
-export const readCachedPlatformReturn = (slug: string) => {
+export const readCachedPlatformReturn = (
+  slug: string,
+  expectedOrigin: unknown
+) => {
   const key = keyFor(slug)
   if (!key) return null
   try {
     const descriptor = validatePlatformReturn(
-      JSON.parse(window.sessionStorage.getItem(key) ?? 'null')
+      JSON.parse(window.sessionStorage.getItem(key) ?? 'null'),
+      expectedOrigin
     )
     if (!descriptor) window.sessionStorage.removeItem(key)
     return descriptor
