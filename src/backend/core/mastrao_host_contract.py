@@ -320,7 +320,9 @@ def verify_host_grant(  # noqa: PLR0912  # pylint: disable=too-many-branches
             payload[name]
         ):
             raise HostHandoffRefused()
-    if not isinstance(payload.get("organization_external_id"), str):
+    if not isinstance(payload.get("organization_external_id"), str) or not (
+        EXTERNAL_ID.fullmatch(payload["organization_external_id"])
+    ):
         raise HostHandoffRefused()
     for name in ("provider_binding_digest", "credential_digest"):
         if not DIGEST.fullmatch(payload.get(name, "")):

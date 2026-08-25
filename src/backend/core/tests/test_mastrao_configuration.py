@@ -1,5 +1,10 @@
 """Fail-closed configuration proofs for canonical meeting closure and ASR."""
 
+import json
+import os
+import subprocess
+import sys
+
 from django.core.exceptions import ImproperlyConfigured
 
 import pytest
@@ -9,6 +14,72 @@ from meet.settings import (
     validate_mastrao_meeting_close_configuration,
     validate_mastrao_transcription_configuration,
 )
+
+
+def test_frontend_configuration_projects_the_fixed_platform_origin():
+    """Browser cache validation must bind returns to the server configuration."""
+
+    environment = {
+        **os.environ,
+        "DJANGO_CONFIGURATION": "Development",
+        "DJANGO_SETTINGS_MODULE": "meet.settings",
+        "MASTRAO_PLATFORM_ORIGIN": "https://platform.mastrao.test",
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; "
+                "importer.install(); "
+                "import django; "
+                "django.setup(); "
+                "from core.api import get_frontend_configuration; "
+                "from rest_framework.test import APIRequestFactory; "
+                "response = get_frontend_configuration("
+                "APIRequestFactory().get('/api/v1.0/config/')); "
+                "print(response.data['mastrao_platform_origin'])"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env=environment,
+        text=True,
+    )
+
+    assert result.stdout.strip() == "https://platform.mastrao.test"
+
+
+def test_development_csrf_origins_follow_the_configured_public_proxy():
+    """A non-default local public port must remain able to persist consent."""
+
+    environment = {
+        **os.environ,
+        "DJANGO_CONFIGURATION": "Development",
+        "DJANGO_SETTINGS_MODULE": "meet.settings",
+        "CSRF_TRUSTED_ORIGINS": "http://localhost:3020",
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; "
+                "importer.install(); "
+                "from django.conf import settings; "
+                "import json; "
+                "print(json.dumps(settings.CSRF_TRUSTED_ORIGINS))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env=environment,
+        text=True,
+    )
+
+    assert json.loads(result.stdout.strip()) == ["http://localhost:3020"]
 
 
 def test_close_rollout_requires_explicit_room_creation():
@@ -182,6 +253,8 @@ def test_deployable_transcription_requires_celery(configuration_name):
 
 @pytest.mark.parametrize("configuration_name", ["Development", "Test"])
 def test_local_transcription_may_start_without_celery(configuration_name):
+    """Local qualification may retain its synchronous development fallback."""
+
     configuration = getattr(meet_settings, configuration_name)
     assert configuration.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED is False
 

@@ -3,10 +3,13 @@
 # pylint: disable=no-member
 
 import hashlib
+from urllib.parse import urlencode, urlparse
 
+from django.conf import settings
 from django.utils import timezone
 
 from core import models
+from core.mastrao_host_contract import HostHandoffRefused, verify_host_grant
 from core.mastrao_identity import is_mastrao_host_subject
 
 SESSION_NONCE_KEY = "mastrao_host_session_nonce"
@@ -86,3 +89,58 @@ def active_host_compact_grant(request, grant):
         return None
     compact = compact_grants.get(grant.grant_ref)
     return compact if isinstance(compact, str) else None
+
+
+def _platform_return_origin():
+    """Return one configured trusted Platform origin, never a request value."""
+
+    configured = settings.MASTRAO_PLATFORM_ORIGIN
+    parsed = urlparse(configured if isinstance(configured, str) else "")
+    local = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+    if (
+        not parsed.hostname
+        or parsed.scheme not in ({"http", "https"} if local else {"https"})
+        or parsed.username
+        or parsed.password
+        or parsed.path not in {"", "/"}
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def host_platform_return_projection(request, room):
+    """Project a fixed Platform resolver for this verified temporary host only."""
+
+    grant = active_host_close_grant(request, room)
+    origin = _platform_return_origin()
+    if not grant or not origin:
+        return None
+    compact = active_host_compact_grant(request, grant)
+    if compact is None:
+        return None
+    try:
+        claims = verify_host_grant(compact)
+    except HostHandoffRefused:
+        return None
+    if (
+        claims["grant_ref"] != grant.grant_ref
+        or claims["meeting_ref"] != grant.meeting_ref
+        or claims["room_ref"] != grant.room_ref
+        or claims["platform_session_ref"] != grant.platform_session_ref
+        or claims["provider_binding_digest"] != grant.provider_binding_digest
+        or claims["expires_at"] != int(grant.expires_at.timestamp())
+    ):
+        return None
+    query = urlencode(
+        (
+            ("organization_ref", claims["organization_external_id"]),
+            ("meeting_ref", claims["meeting_ref"]),
+        )
+    )
+    return {
+        "url": f"{origin}/api/meeting-return?{query}",
+        "expires_at": claims["expires_at"],
+    }
