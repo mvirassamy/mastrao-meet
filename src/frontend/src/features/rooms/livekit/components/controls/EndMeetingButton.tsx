@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiStopCircleLine } from '@remixicon/react'
 
@@ -20,25 +20,33 @@ export const EndMeetingButton = ({
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasFailed, setHasFailed] = useState(false)
-  const { phase, beginEnding, markEndingUncertain, markEnded } =
+  const { phase, beginEnding, markEnding, markEndingUncertain, markEnded } =
     useMeetingLifecycle()
-  const closeRequestId = useRef(
-    `close_${crypto.randomUUID().replaceAll('-', '')}`
-  )
 
   const confirm = async () => {
-    beginEnding()
+    const closeRequestId = beginEnding()
     setIsSubmitting(true)
     setHasFailed(false)
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15_000)
     try {
-      await endMeeting(roomId, closeRequestId.current)
-      markEnded()
+      const response = await endMeeting(
+        roomId,
+        closeRequestId,
+        controller.signal
+      )
       setIsOpen(false)
-      onEnded?.()
+      if (response.state === 'ended') {
+        markEnded()
+        onEnded?.()
+      } else {
+        markEnding()
+      }
     } catch {
       markEndingUncertain()
       setHasFailed(true)
     } finally {
+      window.clearTimeout(timeout)
       setIsSubmitting(false)
     }
   }

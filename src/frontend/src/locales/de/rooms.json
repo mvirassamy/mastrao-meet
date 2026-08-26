@@ -8,6 +8,7 @@
     },
     "home": "Zur Startseite zurückkehren",
     "returnToMatter": "Zur Akte zurückkehren",
+    "meetingEndedBody": "Das Meeting ist beendet. Aufnahme und Transkript werden möglicherweise noch verarbeitet. Sie können diesen Tab schließen.",
     "back": "Dem Meeting erneut beitreten"
   },
   "selectDevice": {

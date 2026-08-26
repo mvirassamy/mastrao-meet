@@ -791,6 +791,30 @@ class RoomViewSet(
         return drf_response.Response(result)
 
     @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="lifecycle",
+        permission_classes=[permissions.HasMeetingLifecycleAccess],
+    )
+    def mastrao_meeting_lifecycle(self, request, pk=None):  # pylint: disable=unused-argument
+        """Return the minimal authoritative lifecycle for this browser session."""
+
+        room = self.get_object()
+        if not hasattr(room, "mastrao_binding"):
+            raise Http404
+        binding = room.mastrao_binding
+        closure = getattr(binding, "closure", None)
+        if closure and closure.state == models.MastraoRoomClosure.State.APPLIED:
+            state = "ended"
+        elif binding.closing_at is not None or closure is not None:
+            state = "ending"
+        else:
+            state = "open"
+        response = drf_response.Response({"state": state})
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @decorators.action(
         detail=False,
         methods=["post"],
         url_path="webhooks-livekit",

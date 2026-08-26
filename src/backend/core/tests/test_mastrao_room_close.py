@@ -7,10 +7,12 @@ import time
 from unittest import mock
 
 from django.test import RequestFactory, override_settings
+from django.utils import timezone
 
 import pytest
 
 from core import models
+from core.api.viewsets import RoomViewSet
 from core.mastrao_meeting_close import request_meeting_close
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_room_lifecycle import MastraoRoomClosed
@@ -70,6 +72,53 @@ def _request():
         data=json.dumps({"room_close_effect": "header.payload.signature"}),
         content_type="application/json",
     )
+
+
+@pytest.mark.django_db
+def test_authorized_lifecycle_projection_distinguishes_ending_and_ended():
+    """The browser gets only the authoritative minimal terminal state."""
+
+    binding = _binding("lifecycle")
+    binding.closing_at = timezone.now()
+    binding.save(update_fields=["closing_at", "updated_at"])
+    view = RoomViewSet.as_view({"get": "mastrao_meeting_lifecycle"})
+    factory = RequestFactory()
+
+    with mock.patch(
+        "core.api.permissions.active_host_close_grant", return_value=mock.Mock()
+    ):
+        response = view(
+            factory.get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/"),
+            pk=binding.room.slug,
+        )
+    assert response.status_code == 200
+    assert response.data == {"state": "ending"}
+    assert response["Cache-Control"] == "no-store"
+
+    models.MastraoRoomClosure.objects.create(
+        room_binding=binding,
+        organization_external_id="organization_lifecycle_0123456789",
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        close_ref="close_lifecycle_0123456789",
+        effect_key="close_effect_lifecycle_0123456789",
+        arguments_digest="c" * 64,
+        state=models.MastraoRoomClosure.State.APPLIED,
+        requested_at=timezone.now(),
+        applied_at=timezone.now(),
+        provider_observation=models.MastraoRoomClosure.ProviderObservation.DELETED,
+        receipt_claims={"state": "ended"},
+        receipt_digest="d" * 64,
+    )
+    with mock.patch(
+        "core.api.permissions.active_host_close_grant", return_value=mock.Mock()
+    ):
+        response = view(
+            factory.get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/"),
+            pk=binding.room.slug,
+        )
+    assert response.data == {"state": "ended"}
 
 
 @pytest.mark.django_db(transaction=True)

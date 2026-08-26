@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/primitives'
+import { Button, Text } from '@/primitives'
 import { Screen } from '@/layout/Screen'
 import { Center, HStack, styled, VStack } from '@/styled-system/jsx'
 import { Rating } from '@/features/rooms/components/Rating.tsx'
@@ -112,6 +112,9 @@ const FeedbackRoute = () => {
           <Heading ref={headingRef} tabIndex={-1}>
             {t(`feedback.heading.${reasonKey || 'normal'}`)}
           </Heading>
+          {reasonKey === DisconnectReasonKey.MeetingEnded && (
+            <Text as="p">{t('feedback.meetingEndedBody')}</Text>
+          )}
           <HStack>
             {platformReturn && (
               <Button

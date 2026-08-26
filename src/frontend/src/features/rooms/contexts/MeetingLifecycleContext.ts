@@ -1,10 +1,13 @@
 import { createContext, useContext } from 'react'
 
 export type MeetingLifecycleContextValue = {
-  phase: 'active' | 'requesting' | 'uncertain' | 'ended'
+  phase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended'
   isEnding: boolean
-  beginEnding: () => void
+  closeRequestId?: string
+  beginEnding: () => string
+  markEnding: () => void
   markEndingUncertain: () => void
+  markActive: () => void
   markEnded: () => void
 }
 
@@ -12,8 +15,10 @@ export const MeetingLifecycleContext =
   createContext<MeetingLifecycleContextValue>({
     phase: 'active',
     isEnding: false,
-    beginEnding: () => undefined,
+    beginEnding: () => '',
+    markEnding: () => undefined,
     markEndingUncertain: () => undefined,
+    markActive: () => undefined,
     markEnded: () => undefined,
   })
 

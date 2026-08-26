@@ -84,7 +84,7 @@ const Room = () => {
 
   return (
     <BaseRoom>
-      <MeetingLifecycleProvider key={roomId}>
+      <MeetingLifecycleProvider key={roomId} roomId={roomId}>
         <Conference
           initialRoomData={initialRoomData}
           roomId={roomId}

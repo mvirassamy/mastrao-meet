@@ -4,24 +4,63 @@ import { MeetingLifecycleContext } from './MeetingLifecycleContext'
 
 export const MeetingLifecycleProvider = ({
   children,
+  roomId,
 }: {
   children: ReactNode
+  roomId: string
 }) => {
+  const storageKey = `mastrao-meeting-close-v1:${roomId}`
+  const [closeRequestId, setCloseRequestId] = useState<string | undefined>(
+    () => {
+      const stored = window.sessionStorage.getItem(storageKey)
+      return stored || undefined
+    }
+  )
   const [phase, setPhase] = useState<
-    'active' | 'requesting' | 'uncertain' | 'ended'
-  >('active')
-  const beginEnding = useCallback(() => setPhase('requesting'), [])
+    'active' | 'requesting' | 'ending' | 'uncertain' | 'ended'
+  >(() => (window.sessionStorage.getItem(storageKey) ? 'uncertain' : 'active'))
+  const beginEnding = useCallback(() => {
+    const requestId =
+      closeRequestId ?? `close_${crypto.randomUUID().replaceAll('-', '')}`
+    window.sessionStorage.setItem(storageKey, requestId)
+    setCloseRequestId(requestId)
+    setPhase('requesting')
+    return requestId
+  }, [closeRequestId, storageKey])
+  const markEnding = useCallback(() => setPhase('ending'), [])
   const markEndingUncertain = useCallback(() => setPhase('uncertain'), [])
-  const markEnded = useCallback(() => setPhase('ended'), [])
+  const clear = useCallback(() => {
+    window.sessionStorage.removeItem(storageKey)
+    setCloseRequestId(undefined)
+  }, [storageKey])
+  const markActive = useCallback(() => {
+    clear()
+    setPhase('active')
+  }, [clear])
+  const markEnded = useCallback(() => {
+    clear()
+    setPhase('ended')
+  }, [clear])
   const value = useMemo(
     () => ({
       phase,
       isEnding: phase !== 'active',
+      closeRequestId,
       beginEnding,
+      markEnding,
       markEndingUncertain,
+      markActive,
       markEnded,
     }),
-    [beginEnding, markEnded, markEndingUncertain, phase]
+    [
+      beginEnding,
+      closeRequestId,
+      markActive,
+      markEnded,
+      markEnding,
+      markEndingUncertain,
+      phase,
+    ]
   )
 
   return (

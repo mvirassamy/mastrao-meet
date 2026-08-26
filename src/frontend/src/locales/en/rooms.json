@@ -8,6 +8,7 @@
     },
     "home": "Return to home",
     "returnToMatter": "Return to the case file",
+    "meetingEndedBody": "The meeting has ended. The recording and transcript may still be processing. You can close this tab.",
     "back": "Rejoin the meeting"
   },
   "selectDevice": {

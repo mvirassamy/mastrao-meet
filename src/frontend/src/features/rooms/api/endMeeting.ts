@@ -12,9 +12,11 @@ export type EndMeetingResponse = {
 
 export const endMeeting = (
   roomId: string,
-  closeRequestId: string
+  closeRequestId: string,
+  signal?: AbortSignal
 ): Promise<EndMeetingResponse> =>
   fetchApi(`/rooms/${roomId}/end/`, {
     method: 'POST',
     body: JSON.stringify({ close_request_id: closeRequestId }),
+    signal,
   })

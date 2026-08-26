@@ -10,9 +10,10 @@ and this project adheres to
 
 ### Fixed
 
-- 🐛(frontend) keep historical room slugs joinable while canonical rooms wait for authority
-- 🐛(frontend) wait for canonical room data before exposing the join action
-- 🐛(frontend) fence canonical room closure before egress and keep the post-meeting screen stable across reloads
+- 🐛(frontend) keep historical room slugs joinable
+- 🐛(frontend) wait for canonical room authority without creating the room
+- 🐛(frontend) fence canonical room closure before egress
+- 🐛(frontend) keep the post-meeting screen stable across reloads
 - 🐛(backend) keep Gateway recovery and terminal cleanup monotonic
 - 🐛(backend) recover a durable Gateway result after a lost response
 - 🐛(docker) keep the non-root frontend dependency stage writable without BuildKit

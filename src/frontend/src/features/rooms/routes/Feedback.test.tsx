@@ -24,6 +24,7 @@ vi.mock('@/layout/Screen', () => ({
 }))
 
 vi.mock('@/primitives', () => ({
+  Text: ({ children }: { children: ReactNode }) => <p>{children}</p>,
   Button: ({
     children,
     onPress,
@@ -116,6 +117,7 @@ describe('Feedback Mastrao return', () => {
     expect(
       screen.getByRole('heading', { name: 'feedback.heading.meetingEnded' })
     ).toBeTruthy()
+    expect(screen.getByText('feedback.meetingEndedBody')).toBeTruthy()
     expect(
       screen.getByRole('button', { name: 'feedback.returnToMatter' })
     ).toBeTruthy()

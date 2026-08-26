@@ -93,6 +93,7 @@ export function VideoConference({
   const withdrawalIds = useRef(crypto.randomUUID().replaceAll('-', ''))
 
   const withdraw = async () => {
+    if (isEnding || isWithdrawing) return
     setIsWithdrawing(true)
     setWithdrawFailed(false)
     try {
@@ -174,7 +175,7 @@ export function VideoConference({
                 <Button
                   size="sm"
                   variant="danger"
-                  isDisabled={isWithdrawing}
+                  isDisabled={isEnding || isWithdrawing}
                   onPress={withdraw}
                 >
                   {tRecording(canEnd ? 'stop' : 'withdraw')}

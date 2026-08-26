@@ -8,6 +8,7 @@
     },
     "home": "Retourner à l'accueil",
     "returnToMatter": "Retourner au dossier",
+    "meetingEndedBody": "La réunion est terminée. L’enregistrement et la transcription peuvent encore être en préparation. Vous pouvez fermer cet onglet.",
     "back": "Réintégrer la réunion"
   },
   "selectDevice": {

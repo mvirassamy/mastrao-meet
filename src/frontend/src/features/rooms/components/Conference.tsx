@@ -45,6 +45,7 @@ import {
   readCachedPlatformReturn,
 } from '../platformReturn'
 import { isMastraoRoomId } from '../utils/isRoomValid'
+import { fetchRoomLifecycle } from '../api/fetchRoomLifecycle'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -60,7 +61,8 @@ export const Conference = ({
   mode?: 'join' | 'create'
   initialRoomData?: ApiRoom
 }) => {
-  const { isEnding } = useMeetingLifecycle()
+  const { phase, isEnding, markActive, markEnding, markEnded } =
+    useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
 
   const { userChoices: userConfig } = usePersistentUserChoices() as {
@@ -139,6 +141,14 @@ export const Conference = ({
   })
 
   useEffect(() => {
+    const refetchAfterReconnect = () => {
+      if (!isEnding) void refetchRoom()
+    }
+    window.addEventListener('online', refetchAfterReconnect)
+    return () => window.removeEventListener('online', refetchAfterReconnect)
+  }, [isEnding, refetchRoom])
+
+  useEffect(() => {
     if (data?.platform_return) {
       cachePlatformReturn(
         roomId,
@@ -147,6 +157,58 @@ export const Conference = ({
       )
     }
   }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
+
+  const navigateToEndedMeeting = () => {
+    markEnded()
+    queryClient.removeQueries({ queryKey: fetchKey, exact: true })
+    navigateTo(
+      'feedback',
+      { outcome: 'ended', roomId },
+      {
+        replace: true,
+        state: {
+          reason: DisconnectReason.ROOM_DELETED,
+          room_id: roomId,
+          platform_return:
+            data?.platform_return ??
+            readCachedPlatformReturn(
+              roomId,
+              apiConfig?.mastrao_platform_origin
+            ),
+        },
+      }
+    )
+  }
+
+  useEffect(() => {
+    if (!isMastraoRoomId(roomId) || !['ending', 'uncertain'].includes(phase)) {
+      return
+    }
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const reconcile = async () => {
+      try {
+        const lifecycle = await fetchRoomLifecycle(roomId)
+        if (cancelled) return
+        if (lifecycle.state === 'ended') {
+          navigateToEndedMeeting()
+          return
+        }
+        if (lifecycle.state === 'open') markActive()
+        else markEnding()
+      } catch {
+        // Keep the durable uncertain state and retry without creating the room.
+      }
+      if (!cancelled) timer = setTimeout(reconcile, 1000)
+    }
+    void reconcile()
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+    // Navigation inputs are deliberately read at reconciliation time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markActive, markEnding, phase, roomId])
 
   const roomOptions = useMemo((): RoomOptions => {
     return {
@@ -388,24 +450,13 @@ export const Conference = ({
 
             switch (e) {
               case DisconnectReason.ROOM_DELETED:
-                queryClient.removeQueries({ queryKey: fetchKey, exact: true })
-                navigateTo(
-                  'feedback',
-                  { outcome: 'ended', roomId },
-                  {
-                    replace: true,
-                    state: {
-                      reason: e,
-                      platform_return:
-                        data?.platform_return ??
-                        readCachedPlatformReturn(
-                          roomId,
-                          apiConfig?.mastrao_platform_origin
-                        ),
-                      ...metadata,
-                    },
-                  }
-                )
+                void fetchRoomLifecycle(roomId)
+                  .then((lifecycle) => {
+                    if (lifecycle.state === 'ended') navigateToEndedMeeting()
+                    else if (lifecycle.state === 'ending') markEnding()
+                    else markActive()
+                  })
+                  .catch(() => undefined)
                 return
               case DisconnectReason.CLIENT_INITIATED:
                 navigateTo(
@@ -495,24 +546,7 @@ export const Conference = ({
             recording={data?.recording}
             onRecordingChanged={refetchRoom}
             onMeetingEnded={() => {
-              queryClient.removeQueries({ queryKey: fetchKey, exact: true })
-              navigateTo(
-                'feedback',
-                { outcome: 'ended', roomId },
-                {
-                  replace: true,
-                  state: {
-                    reason: DisconnectReason.ROOM_DELETED,
-                    room_id: roomId,
-                    platform_return:
-                      data?.platform_return ??
-                      readCachedPlatformReturn(
-                        roomId,
-                        apiConfig?.mastrao_platform_origin
-                      ),
-                  },
-                }
-              )
+              navigateToEndedMeeting()
             }}
           />
           {!isMobile && <ActiveInviteDialog mode={mode} />}

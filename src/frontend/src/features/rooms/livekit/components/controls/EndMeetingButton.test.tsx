@@ -6,6 +6,7 @@ import { EndMeetingButton } from './EndMeetingButton'
 
 const endMeeting = vi.fn()
 const beginEnding = vi.fn()
+const markEnding = vi.fn()
 const markEndingUncertain = vi.fn()
 const markEnded = vi.fn()
 
@@ -22,6 +23,7 @@ vi.mock('@/features/rooms/contexts/MeetingLifecycleContext', () => ({
     phase: 'active',
     isEnding: false,
     beginEnding,
+    markEnding,
     markEndingUncertain,
     markEnded,
   }),
@@ -67,6 +69,7 @@ vi.mock('@/styled-system/jsx', () => ({
 describe('EndMeetingButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    beginEnding.mockReturnValue('close_0123456789abcdef')
   })
 
   afterEach(cleanup)
@@ -85,7 +88,7 @@ describe('EndMeetingButton', () => {
 
   it('retries an uncertain close with the same request id', async () => {
     endMeeting.mockRejectedValueOnce(new Error('response lost'))
-    endMeeting.mockResolvedValueOnce(undefined)
+    endMeeting.mockResolvedValueOnce({ state: 'ended' })
 
     render(<EndMeetingButton roomId="room_0123456789abcdef0123456789abcdef" />)
 
@@ -97,5 +100,41 @@ describe('EndMeetingButton', () => {
     expect(endMeeting).toHaveBeenCalledTimes(2)
     expect(endMeeting.mock.calls[1][1]).toBe(endMeeting.mock.calls[0][1])
     expect(markEndingUncertain).toHaveBeenCalledOnce()
+  })
+
+  it('waits for authoritative completion when Core returns ending', async () => {
+    endMeeting.mockResolvedValueOnce({ state: 'ending' })
+    const onEnded = vi.fn()
+    render(
+      <EndMeetingButton
+        roomId="room_0123456789abcdef0123456789abcdef"
+        onEnded={onEnded}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'dialog.confirm' }))
+
+    await vi.waitFor(() => expect(markEnding).toHaveBeenCalledOnce())
+    expect(markEnded).not.toHaveBeenCalled()
+    expect(onEnded).not.toHaveBeenCalled()
+  })
+
+  it('turns a bounded network timeout into an uncertain retry', async () => {
+    vi.useFakeTimers()
+    endMeeting.mockImplementation(
+      (_roomId: string, _requestId: string, signal: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('timeout')))
+        })
+    )
+    render(<EndMeetingButton roomId="room_0123456789abcdef0123456789abcdef" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'dialog.confirm' }))
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    expect(markEndingUncertain).toHaveBeenCalledOnce()
+    vi.useRealTimers()
   })
 })
