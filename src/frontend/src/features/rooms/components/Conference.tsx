@@ -38,13 +38,13 @@ import { userPreferencesStore } from '@/stores/userPreferences'
 import { userStore } from '@/stores/user'
 import { WatchMediaDeviceErrors } from './WatchMediaDeviceErrors'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
-import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 import { activateRecording } from '../api/recordingConsent'
 import { Button } from '@/primitives'
 import {
   cachePlatformReturn,
   readCachedPlatformReturn,
 } from '../platformReturn'
+import { isMastraoRoomId } from '../utils/isRoomValid'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -60,6 +60,7 @@ export const Conference = ({
   mode?: 'join' | 'create'
   initialRoomData?: ApiRoom
 }) => {
+  const { isEnding } = useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
 
   const { userChoices: userConfig } = usePersistentUserChoices() as {
@@ -106,11 +107,18 @@ export const Conference = ({
         username: username,
       }).catch((error) => {
         if (error.statusCode == '404') {
-          createRoom({ slug: roomId, username })
+          if (isMastraoRoomId(roomId)) {
+            const currentRoom = queryClient.getQueryData<ApiRoom>(fetchKey)
+            if (isEnding && currentRoom) return currentRoom
+            throw error
+          }
+          return createRoom({ slug: roomId, username })
         }
+        throw error
       }),
     retry: false,
     refetchInterval: (query) => {
+      if (isEnding) return false
       const state = (query.state.data as ApiRoom | undefined)?.recording
         ?.recording_state
       return state &&
@@ -225,6 +233,7 @@ export const Conference = ({
   const activationAttempts = useRef(0)
 
   useEffect(() => {
+    if (isEnding) return
     const recording = data?.recording
     const shouldActivate =
       isLiveKitConnected &&
@@ -278,6 +287,7 @@ export const Conference = ({
     activationRetry,
     data?.can_end,
     data?.recording,
+    isEnding,
     isLiveKitConnected,
     refetchRoom,
     roomId,
@@ -381,8 +391,9 @@ export const Conference = ({
                 queryClient.removeQueries({ queryKey: fetchKey, exact: true })
                 navigateTo(
                   'feedback',
-                  {},
+                  { outcome: 'ended', roomId },
                   {
+                    replace: true,
                     state: {
                       reason: e,
                       platform_return:
@@ -399,7 +410,7 @@ export const Conference = ({
               case DisconnectReason.CLIENT_INITIATED:
                 navigateTo(
                   'feedback',
-                  {},
+                  { outcome: 'left', roomId },
                   {
                     state: {
                       platform_return:
@@ -414,11 +425,24 @@ export const Conference = ({
                 )
                 return
               case DisconnectReason.DUPLICATE_IDENTITY:
+                navigateTo(
+                  'feedback',
+                  { outcome: 'duplicate', roomId },
+                  {
+                    replace: true,
+                    state: {
+                      reason: e,
+                      ...metadata,
+                    },
+                  }
+                )
+                return
               case DisconnectReason.PARTICIPANT_REMOVED:
                 navigateTo(
                   'feedback',
-                  {},
+                  { outcome: 'removed', roomId },
                   {
+                    replace: true,
                     state: {
                       reason: e,
                       ...metadata,
@@ -429,52 +453,70 @@ export const Conference = ({
             }
           }}
         >
-          <MeetingLifecycleProvider key={roomId}>
-            <WatchMediaDeviceErrors />
-            {activationFailed && (
-              <div
-                role="alert"
-                className={css({
-                  position: 'absolute',
-                  top: '1rem',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 1002,
-                  padding: '0.75rem 1rem',
-                  borderRadius: 'md',
-                  backgroundColor: 'danger.100',
-                  color: 'danger.800',
-                })}
-              >
-                {t(
-                  activationExhausted
-                    ? 'recordingConsent.activationExhausted'
-                    : 'recordingConsent.activationError'
-                )}
-                {activationExhausted && (
-                  <Button
-                    variant="secondary"
-                    onPress={() => {
-                      activationAttempts.current = 0
-                      setActivationFailed(false)
-                      setActivationExhausted(false)
-                      setActivationRetry((value) => value + 1)
-                    }}
-                  >
-                    {t('recordingConsent.activationRetry')}
-                  </Button>
-                )}
-              </div>
-            )}
-            <VideoConference
-              roomId={roomId}
-              canEnd={data?.can_end}
-              recording={data?.recording}
-              onRecordingChanged={refetchRoom}
-            />
-            {!isMobile && <ActiveInviteDialog mode={mode} />}
-            <PictureInPictureConference />
-          </MeetingLifecycleProvider>
+          <WatchMediaDeviceErrors />
+          {activationFailed && (
+            <div
+              role="alert"
+              className={css({
+                position: 'absolute',
+                top: '1rem',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1002,
+                padding: '0.75rem 1rem',
+                borderRadius: 'md',
+                backgroundColor: 'danger.100',
+                color: 'danger.800',
+              })}
+            >
+              {t(
+                activationExhausted
+                  ? 'recordingConsent.activationExhausted'
+                  : 'recordingConsent.activationError'
+              )}
+              {activationExhausted && (
+                <Button
+                  variant="secondary"
+                  onPress={() => {
+                    activationAttempts.current = 0
+                    setActivationFailed(false)
+                    setActivationExhausted(false)
+                    setActivationRetry((value) => value + 1)
+                  }}
+                >
+                  {t('recordingConsent.activationRetry')}
+                </Button>
+              )}
+            </div>
+          )}
+          <VideoConference
+            roomId={roomId}
+            canEnd={data?.can_end}
+            recording={data?.recording}
+            onRecordingChanged={refetchRoom}
+            onMeetingEnded={() => {
+              queryClient.removeQueries({ queryKey: fetchKey, exact: true })
+              navigateTo(
+                'feedback',
+                { outcome: 'ended', roomId },
+                {
+                  replace: true,
+                  state: {
+                    reason: DisconnectReason.ROOM_DELETED,
+                    room_id: roomId,
+                    platform_return:
+                      data?.platform_return ??
+                      readCachedPlatformReturn(
+                        roomId,
+                        apiConfig?.mastrao_platform_origin
+                      ),
+                  },
+                }
+              )
+            }}
+          />
+          {!isMobile && <ActiveInviteDialog mode={mode} />}
+          <PictureInPictureConference />
         </LiveKitRoom>
       </Screen>
     </QueryAware>

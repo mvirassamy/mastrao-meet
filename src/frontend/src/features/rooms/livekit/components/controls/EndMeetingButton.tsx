@@ -20,20 +20,23 @@ export const EndMeetingButton = ({
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasFailed, setHasFailed] = useState(false)
-  const { isEnding, markEnding } = useMeetingLifecycle()
+  const { phase, beginEnding, markEndingUncertain, markEnded } =
+    useMeetingLifecycle()
   const closeRequestId = useRef(
     `close_${crypto.randomUUID().replaceAll('-', '')}`
   )
 
   const confirm = async () => {
+    beginEnding()
     setIsSubmitting(true)
     setHasFailed(false)
     try {
       await endMeeting(roomId, closeRequestId.current)
-      markEnding()
+      markEnded()
       setIsOpen(false)
       onEnded?.()
     } catch {
+      markEndingUncertain()
       setHasFailed(true)
     } finally {
       setIsSubmitting(false)
@@ -47,7 +50,7 @@ export const EndMeetingButton = ({
         tooltip={t('label')}
         aria-label={t('label')}
         description={description}
-        isDisabled={isEnding}
+        isDisabled={phase === 'requesting' || phase === 'ended'}
         onPress={() => setIsOpen(true)}
         data-attr="controls-end-meeting"
       >

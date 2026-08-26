@@ -94,4 +94,31 @@ describe('Feedback Mastrao return', () => {
     ).toBeNull()
     expect(screen.getByRole('button', { name: 'feedback.home' })).toBeTruthy()
   })
+
+  it('restores the ended screen and verified return after a reload', () => {
+    const roomId = 'room_0123456789abcdef0123456789abcdef'
+    const descriptor = {
+      url: 'https://platform.mastrao.test/api/meeting-return?organization_ref=organization_0123456789&meeting_ref=meeting_0123456789abcdef',
+      expires_at: Math.floor(Date.now() / 1000) + 60,
+    }
+    window.sessionStorage.setItem(
+      `mastrao-platform-return-v1:${roomId}`,
+      JSON.stringify(descriptor)
+    )
+    window.history.replaceState(
+      {},
+      '',
+      `/feedback?outcome=ended&room_id=${roomId}`
+    )
+
+    render(<FeedbackRoute />)
+
+    expect(
+      screen.getByRole('heading', { name: 'feedback.heading.meetingEnded' })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'feedback.returnToMatter' })
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'feedback.back' })).toBeNull()
+  })
 })

@@ -8,9 +8,10 @@ const roomRegex = new RegExp(`^(?:${roomIdPattern}|${mastraoRoomIdPattern})$`)
 const mastraoRoomRegex = new RegExp(`^${mastraoRoomIdPattern}$`)
 
 export const isMastraoRoomId = (roomId: string) => mastraoRoomRegex.test(roomId)
+export const isRoomId = (roomId: string) => roomRegex.test(roomId)
 
 export const isRoomValid = (roomIdOrUrl: string) =>
-  roomRegex.test(roomIdOrUrl) ||
+  isRoomId(roomIdOrUrl) ||
   new RegExp(
     `^${window.location.origin}/(?:${roomIdPattern}|${mastraoRoomIdPattern})$`
   ).test(roomIdOrUrl)

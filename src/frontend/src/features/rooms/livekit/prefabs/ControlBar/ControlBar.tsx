@@ -11,13 +11,19 @@ export interface ControlBarProps extends React.HTMLAttributes<HTMLDivElement> {
   onDeviceError?: (error: { source: Track.Source; error: Error }) => void
   roomId: string
   canEnd?: boolean
+  onMeetingEnded?: () => void
 }
 
 /**
  * The `ControlBar` prefab gives the user the basic user interface to control their
  * media devices (camera, microphone and screen share), open the `Chat` and leave the room.
  */
-export function ControlBar({ onDeviceError, roomId, canEnd }: ControlBarProps) {
+export function ControlBar({
+  onDeviceError,
+  roomId,
+  canEnd,
+  onMeetingEnded,
+}: ControlBarProps) {
   const isMobile = useIsMobile()
 
   return (
@@ -44,12 +50,14 @@ export function ControlBar({ onDeviceError, roomId, canEnd }: ControlBarProps) {
             onDeviceError={onDeviceError}
             roomId={roomId}
             canEnd={canEnd}
+            onMeetingEnded={onMeetingEnded}
           />
         ) : (
           <DesktopControlBar
             onDeviceError={onDeviceError}
             roomId={roomId}
             canEnd={canEnd}
+            onMeetingEnded={onMeetingEnded}
           />
         )}
       </div>
@@ -58,5 +66,5 @@ export function ControlBar({ onDeviceError, roomId, canEnd }: ControlBarProps) {
 }
 export type ControlBarAuxProps = Pick<
   ControlBarProps,
-  'onDeviceError' | 'roomId' | 'canEnd'
+  'onDeviceError' | 'roomId' | 'canEnd' | 'onMeetingEnded'
 >

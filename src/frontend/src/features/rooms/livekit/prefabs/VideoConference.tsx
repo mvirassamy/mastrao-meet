@@ -47,6 +47,7 @@ export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElemen
   canEnd?: boolean
   recording?: ApiRoom['recording']
   onRecordingChanged?: () => Promise<unknown>
+  onMeetingEnded?: () => void
 }
 
 /**
@@ -72,6 +73,7 @@ export function VideoConference({
   canEnd,
   recording,
   onRecordingChanged,
+  onMeetingEnded,
   ...props
 }: VideoConferenceProps) {
   useNoiseReduction()
@@ -208,6 +210,7 @@ export function VideoConference({
             <ControlBar
               roomId={roomId}
               canEnd={canEnd}
+              onMeetingEnded={onMeetingEnded}
               onDeviceError={(e) => {
                 reportError('device_switch_failure', e.error, {
                   at: 'ControlBar.onDeviceError',

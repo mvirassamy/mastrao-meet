@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(frontend) fence canonical room closure before egress and keep the post-meeting screen stable across reloads
 - 🐛(backend) keep Gateway recovery and terminal cleanup monotonic
 - 🐛(backend) recover a durable Gateway result after a lost response
 - 🐛(docker) keep the non-root frontend dependency stage writable without BuildKit

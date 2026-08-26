@@ -4,7 +4,7 @@
       "normal": "You have left the meeting",
       "duplicateIdentity": "You have joined the meeting from another device",
       "participantRemoved": "You have been removed from the meeting by a host",
-      "meetingEnded": "The host has ended the meeting"
+      "meetingEnded": "Meeting ended"
     },
     "home": "Return to home",
     "returnToMatter": "Return to the case file",

@@ -7,11 +7,21 @@ export const MeetingLifecycleProvider = ({
 }: {
   children: ReactNode
 }) => {
-  const [isEnding, setIsEnding] = useState(false)
-  const markEnding = useCallback(() => setIsEnding(true), [])
+  const [phase, setPhase] = useState<
+    'active' | 'requesting' | 'uncertain' | 'ended'
+  >('active')
+  const beginEnding = useCallback(() => setPhase('requesting'), [])
+  const markEndingUncertain = useCallback(() => setPhase('uncertain'), [])
+  const markEnded = useCallback(() => setPhase('ended'), [])
   const value = useMemo(
-    () => ({ isEnding, markEnding }),
-    [isEnding, markEnding]
+    () => ({
+      phase,
+      isEnding: phase !== 'active',
+      beginEnding,
+      markEndingUncertain,
+      markEnded,
+    }),
+    [beginEnding, markEnded, markEndingUncertain, phase]
   )
 
   return (

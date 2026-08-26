@@ -22,6 +22,7 @@ export function DesktopControlBar({
   onDeviceError,
   roomId,
   canEnd,
+  onMeetingEnded,
 }: Readonly<ControlBarAuxProps>) {
   const browserSupportsScreenSharing = supportsScreenSharing()
   const desktopControlBarEl = useRef<HTMLDivElement>(null)
@@ -87,7 +88,9 @@ export function DesktopControlBar({
         <SubtitlesToggle />
         <HandToggle />
         <OptionsButton />
-        {canEnd && <EndMeetingButton roomId={roomId} />}
+        {canEnd && (
+          <EndMeetingButton roomId={roomId} onEnded={onMeetingEnded} />
+        )}
         <LeaveButton />
         <StartMediaButton />
       </ControlBarRegion>

@@ -4,7 +4,7 @@
       "normal": "Vous avez quitté la réunion",
       "duplicateIdentity": "Vous avez rejoint la réunion depuis un autre appareil",
       "participantRemoved": "Vous avez été exclu de l'appel par un administrateur",
-      "meetingEnded": "L’hôte a terminé la réunion"
+      "meetingEnded": "Réunion terminée"
     },
     "home": "Retourner à l'accueil",
     "returnToMatter": "Retourner au dossier",

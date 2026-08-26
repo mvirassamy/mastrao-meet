@@ -17,6 +17,7 @@ import { useConfig } from '@/api/useConfig.ts'
 import { LogLevel, setLogLevel } from 'livekit-client'
 import { useWatchDeviceAvailability } from '@/features/rooms/hooks/useWatchDeviceAvailability'
 import { useRoomPageTitle } from '@/features/rooms/livekit/hooks/useRoomPageTitle'
+import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 
 const BaseRoom = ({ children }: { children: ReactNode }) => {
   return (
@@ -83,11 +84,13 @@ const Room = () => {
 
   return (
     <BaseRoom>
-      <Conference
-        initialRoomData={initialRoomData}
-        roomId={roomId}
-        mode={mode}
-      />
+      <MeetingLifecycleProvider key={roomId}>
+        <Conference
+          initialRoomData={initialRoomData}
+          roomId={roomId}
+          mode={mode}
+        />
+      </MeetingLifecycleProvider>
     </BaseRoom>
   )
 }
