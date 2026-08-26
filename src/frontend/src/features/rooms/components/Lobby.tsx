@@ -43,6 +43,7 @@ export const Lobby = ({
     data: roomData,
     error,
     isError,
+    isPending,
     refetch: refetchRoom,
   } = useQuery({
     queryKey: [keys.room, roomId],
@@ -114,6 +115,10 @@ export const Lobby = ({
     }
 
     enterRoom()
+  }
+
+  if (isPending) {
+    return <Spinner />
   }
 
   const recording = roomData?.recording
