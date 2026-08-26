@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { forwardRef, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import FeedbackRoute from './Feedback'
@@ -66,14 +66,21 @@ describe('Feedback Mastrao return', () => {
   afterEach(cleanup)
 
   it('offers the fixed Platform resolver after a host meeting ends', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const roomId = 'room_0123456789abcdef'
+    const descriptor = {
+      url: 'https://platform.mastrao.test/api/meeting-return?organization_ref=organization_0123456789&meeting_ref=meeting_0123456789abcdef',
+      expires_at: Math.floor(Date.now() / 1000) + 60,
+    }
+    window.sessionStorage.setItem(
+      `mastrao-platform-return-v1:${roomId}`,
+      JSON.stringify(descriptor)
+    )
     window.history.replaceState(
       {
         reason: 4,
-        room_id: 'room_0123456789abcdef',
-        platform_return: {
-          url: 'https://platform.mastrao.test/api/meeting-return?organization_ref=organization_0123456789&meeting_ref=meeting_0123456789abcdef',
-          expires_at: Math.floor(Date.now() / 1000) + 60,
-        },
+        room_id: roomId,
+        platform_return: descriptor,
       },
       ''
     )
@@ -83,6 +90,17 @@ describe('Feedback Mastrao return', () => {
     expect(
       screen.getByRole('button', { name: 'feedback.returnToMatter' })
     ).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'feedback.returnToMatter' })
+    )
+    expect(open).toHaveBeenCalledWith(
+      descriptor.url,
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(
+      window.sessionStorage.getItem(`mastrao-platform-return-v1:${roomId}`)
+    ).not.toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('heading'))
   })
 

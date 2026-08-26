@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
 import { MeetingLifecycleContext } from './MeetingLifecycleContext'
 
@@ -19,18 +19,22 @@ export const MeetingLifecycleProvider = ({
   const [phase, setPhase] = useState<
     'active' | 'requesting' | 'ending' | 'uncertain' | 'ended'
   >(() => (window.sessionStorage.getItem(storageKey) ? 'uncertain' : 'active'))
+  const closeRequestIdRef = useRef(closeRequestId)
   const beginEnding = useCallback(() => {
     const requestId =
-      closeRequestId ?? `close_${crypto.randomUUID().replaceAll('-', '')}`
+      closeRequestIdRef.current ??
+      `close_${crypto.randomUUID().replaceAll('-', '')}`
+    closeRequestIdRef.current = requestId
     window.sessionStorage.setItem(storageKey, requestId)
     setCloseRequestId(requestId)
     setPhase('requesting')
     return requestId
-  }, [closeRequestId, storageKey])
+  }, [storageKey])
   const markEnding = useCallback(() => setPhase('ending'), [])
   const markEndingUncertain = useCallback(() => setPhase('uncertain'), [])
   const clear = useCallback(() => {
     window.sessionStorage.removeItem(storageKey)
+    closeRequestIdRef.current = undefined
     setCloseRequestId(undefined)
   }, [storageKey])
   const markActive = useCallback(() => {

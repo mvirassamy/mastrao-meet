@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -61,8 +61,14 @@ export const Conference = ({
   mode?: 'join' | 'create'
   initialRoomData?: ApiRoom
 }) => {
-  const { phase, isEnding, markActive, markEnding, markEnded } =
-    useMeetingLifecycle()
+  const {
+    phase,
+    isEnding,
+    markActive,
+    markEnding,
+    markEndingUncertain,
+    markEnded,
+  } = useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
 
   const { userChoices: userConfig } = usePersistentUserChoices() as {
@@ -103,21 +109,28 @@ export const Conference = ({
     queryKey: fetchKey,
     staleTime: 6 * 60 * 60 * 1000, // By default, LiveKit access tokens expire 6 hours after generation
     initialData: initialRoomData,
-    queryFn: () =>
-      fetchRoom({
-        roomId: roomId as string,
-        username: username,
-      }).catch((error) => {
-        if (error.statusCode == '404') {
-          if (isMastraoRoomId(roomId)) {
-            const currentRoom = queryClient.getQueryData<ApiRoom>(fetchKey)
-            if (isEnding && currentRoom) return currentRoom
-            throw error
-          }
+    queryFn: async () => {
+      try {
+        return await fetchRoom({
+          roomId: roomId as string,
+          username: username,
+        })
+      } catch (error) {
+        const statusCode = String(
+          (error as { statusCode?: string | number }).statusCode
+        )
+        if (isMastraoRoomId(roomId) && ['404', '410'].includes(statusCode)) {
+          markEndingUncertain()
+          const currentRoom = queryClient.getQueryData<ApiRoom>(fetchKey)
+          if (currentRoom) return currentRoom
+          throw error
+        }
+        if (statusCode === '404') {
           return createRoom({ slug: roomId, username })
         }
         throw error
-      }),
+      }
+    },
     retry: false,
     refetchInterval: (query) => {
       if (isEnding) return false
@@ -158,9 +171,10 @@ export const Conference = ({
     }
   }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
 
-  const navigateToEndedMeeting = () => {
+  const navigateToEndedMeeting = useCallback(() => {
     markEnded()
-    queryClient.removeQueries({ queryKey: fetchKey, exact: true })
+    queryClient.removeQueries({ queryKey: [keys.room, roomId], exact: true })
+    const platformOrigin = apiConfig?.mastrao_platform_origin
     navigateTo(
       'feedback',
       { outcome: 'ended', roomId },
@@ -171,14 +185,18 @@ export const Conference = ({
           room_id: roomId,
           platform_return:
             data?.platform_return ??
-            readCachedPlatformReturn(
-              roomId,
-              apiConfig?.mastrao_platform_origin
-            ),
+            (platformOrigin
+              ? readCachedPlatformReturn(roomId, platformOrigin)
+              : undefined),
         },
       }
     )
-  }
+  }, [
+    apiConfig?.mastrao_platform_origin,
+    data?.platform_return,
+    markEnded,
+    roomId,
+  ])
 
   useEffect(() => {
     if (!isMastraoRoomId(roomId) || !['ending', 'uncertain'].includes(phase)) {
@@ -186,9 +204,10 @@ export const Conference = ({
     }
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
+    const controller = new AbortController()
     const reconcile = async () => {
       try {
-        const lifecycle = await fetchRoomLifecycle(roomId)
+        const lifecycle = await fetchRoomLifecycle(roomId, controller.signal)
         if (cancelled) return
         if (lifecycle.state === 'ended') {
           navigateToEndedMeeting()
@@ -204,11 +223,10 @@ export const Conference = ({
     void reconcile()
     return () => {
       cancelled = true
+      controller.abort()
       if (timer) clearTimeout(timer)
     }
-    // Navigation inputs are deliberately read at reconciliation time.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markActive, markEnding, phase, roomId])
+  }, [markActive, markEnding, navigateToEndedMeeting, phase, roomId])
 
   const roomOptions = useMemo((): RoomOptions => {
     return {
@@ -450,11 +468,11 @@ export const Conference = ({
 
             switch (e) {
               case DisconnectReason.ROOM_DELETED:
+                markEndingUncertain()
                 void fetchRoomLifecycle(roomId)
                   .then((lifecycle) => {
                     if (lifecycle.state === 'ended') navigateToEndedMeeting()
                     else if (lifecycle.state === 'ending') markEnding()
-                    else markActive()
                   })
                   .catch(() => undefined)
                 return

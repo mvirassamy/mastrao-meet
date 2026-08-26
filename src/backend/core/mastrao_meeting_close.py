@@ -81,6 +81,9 @@ def request_meeting_close(request, room, close_request_id):
     assertion, _claims = sign_meeting_close_request(
         grant, compact_host, close_request_id
     )
+    # Fence media admission before the fallible Core round trip. A lost response
+    # must remain locally monotone and retry with the same close request id.
+    _persist_closing_fence(grant)
     body = post_core_json(
         endpoint=settings.MASTRAO_CORE_MEETING_CLOSE_ENDPOINT,
         expected_path="/internal/v1/meetings/close",
@@ -91,5 +94,4 @@ def request_meeting_close(request, room, close_request_id):
         client_error_status=None,
     )
     response = _validate_response(body, grant)
-    _persist_closing_fence(grant)
     return response

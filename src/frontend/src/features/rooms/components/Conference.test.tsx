@@ -111,13 +111,16 @@ vi.mock('@/styled-system/css', () => ({ css: () => '' }))
 describe('Conference room lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    fetchRoom.mockRejectedValue({ statusCode: '404' })
   })
 
-  it('never tries to create a canonical room after a 404', async () => {
-    render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
+  it.each(['404', '410'])(
+    'never tries to create a canonical room after a %s',
+    async (statusCode) => {
+      fetchRoom.mockRejectedValue({ statusCode })
+      render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
 
-    await waitFor(() => expect(fetchRoom).toHaveBeenCalledOnce())
-    expect(createRoom).not.toHaveBeenCalled()
-  })
+      await waitFor(() => expect(fetchRoom).toHaveBeenCalledOnce())
+      expect(createRoom).not.toHaveBeenCalled()
+    }
+  )
 })

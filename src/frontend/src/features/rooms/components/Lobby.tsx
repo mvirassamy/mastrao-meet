@@ -98,9 +98,13 @@ export const Lobby = ({
         setCanonicalLifecycle('checking')
         let cancelled = false
         let timer: ReturnType<typeof setTimeout> | undefined
+        const controller = new AbortController()
         const reconcile = async () => {
           try {
-            const lifecycle = await fetchRoomLifecycle(roomId)
+            const lifecycle = await fetchRoomLifecycle(
+              roomId,
+              controller.signal
+            )
             if (cancelled) return
             setCanonicalLifecycle(lifecycle.state)
             if (lifecycle.state === 'ended') {
@@ -122,6 +126,7 @@ export const Lobby = ({
         void reconcile()
         return () => {
           cancelled = true
+          controller.abort()
           if (timer) clearTimeout(timer)
         }
       }

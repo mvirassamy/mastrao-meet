@@ -9,7 +9,6 @@ import { DisconnectReason } from 'livekit-client'
 import { useConfig } from '@/api/useConfig'
 import type { CandidateInfo } from '@/stores/connectionObserver'
 import {
-  clearCachedPlatformReturn,
   readCachedPlatformReturn,
   validatePlatformReturn,
 } from '../platformReturn'
@@ -120,11 +119,7 @@ const FeedbackRoute = () => {
               <Button
                 variant="primary"
                 onPress={() => {
-                  const roomId =
-                    window.history.state?.room_id ?? routeState.roomId
-                  if (typeof roomId === 'string')
-                    clearCachedPlatformReturn(roomId)
-                  window.location.assign(platformReturn)
+                  window.open(platformReturn, '_blank', 'noopener,noreferrer')
                 }}
               >
                 {t('feedback.returnToMatter')}

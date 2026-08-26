@@ -15,6 +15,7 @@ from core import models
 from core.api.viewsets import RoomViewSet
 from core.mastrao_meeting_close import request_meeting_close
 from core.mastrao_room_close_adapter import close_mastrao_room
+from core.mastrao_room_close_contract import RoomCloseRefused
 from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.services.room_management import (
     RoomManagementException,
@@ -172,6 +173,49 @@ def test_core_close_acceptance_fences_room_before_effect_delivery():
     binding.refresh_from_db()
     assert binding.closing_at is not None
     assert not models.MastraoRoomClosure.objects.filter(room_binding=binding).exists()
+    with pytest.raises(MastraoRoomClosed):
+        ensure_livekit_room(str(binding.room_id))
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_MEETING_CLOSE_ENABLED=True,
+    LIVEKIT_EXPLICIT_ROOM_CREATION=True,
+)
+def test_lost_core_response_keeps_monotone_local_closing_fence():
+    """A committed close with a lost response never projects locally as open."""
+
+    binding = _binding("lost_response")
+    grant = mock.Mock(
+        room_binding_id=binding.pk,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+    )
+    with (
+        mock.patch(
+            "core.mastrao_meeting_close.active_host_close_grant",
+            return_value=grant,
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.active_host_compact_grant",
+            return_value="host.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.sign_meeting_close_request",
+            return_value=("close.payload.signature", {}),
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.post_core_json",
+            side_effect=RoomCloseRefused(status=503),
+        ),
+        pytest.raises(RoomCloseRefused),
+    ):
+        request_meeting_close(
+            mock.Mock(), binding.room, "close_request_lost_0123456789"
+        )
+
+    binding.refresh_from_db()
+    assert binding.closing_at is not None
     with pytest.raises(MastraoRoomClosed):
         ensure_livekit_room(str(binding.room_id))
 
