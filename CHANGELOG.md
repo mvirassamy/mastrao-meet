@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(frontend) keep historical room slugs joinable while canonical rooms wait for authority
 - 🐛(frontend) wait for canonical room data before exposing the join action
 - 🐛(frontend) fence canonical room closure before egress and keep the post-meeting screen stable across reloads
 - 🐛(backend) keep Gateway recovery and terminal cleanup monotonic

@@ -18,7 +18,10 @@ import { fetchRoom } from '../api/fetchRoom'
 import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
 import { ApiLobbyStatus, type ApiRequestEntry } from '../api/requestEntry'
 import { useLobby } from '../hooks/useLobby'
-import { isMastraoRoomId } from '../utils/isRoomValid'
+import {
+  isMastraoRoomId,
+  shouldWaitForCanonicalRoom,
+} from '../utils/isRoomValid'
 import { RecordingConsent } from './RecordingConsent'
 
 export const Lobby = ({
@@ -117,7 +120,7 @@ export const Lobby = ({
     enterRoom()
   }
 
-  if (isPending) {
+  if (shouldWaitForCanonicalRoom(roomId, isPending)) {
     return <Spinner />
   }
 
