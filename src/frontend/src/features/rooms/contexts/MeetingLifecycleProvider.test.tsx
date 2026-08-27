@@ -144,9 +144,7 @@ describe('MeetingLifecycleProvider', () => {
       expect.any(AbortSignal)
     )
     await vi.waitFor(() =>
-      expect(screen.getByRole('button').textContent).toBe(
-        `ending:${requestId}`
-      )
+      expect(screen.getByRole('button').textContent).toBe(`ending:${requestId}`)
     )
   })
 

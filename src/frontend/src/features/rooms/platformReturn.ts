@@ -109,3 +109,8 @@ export const clearCachedPlatformReturn = (slug: string) => {
     // Nothing durable or authoritative depends on this cleanup.
   }
 }
+
+export const clearPlatformReturnForRoomUrl = (roomUrl: string) => {
+  const slug = roomUrl.split('?')[0]?.split('/').filter(Boolean).at(-1)
+  if (slug) clearCachedPlatformReturn(slug)
+}

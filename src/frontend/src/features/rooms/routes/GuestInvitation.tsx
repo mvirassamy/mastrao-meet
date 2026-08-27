@@ -6,6 +6,7 @@ import { ApiError } from '@/api/ApiError'
 import { Screen } from '@/layout/Screen'
 import { Button, H, Text } from '@/primitives'
 import { redeemGuestInvitation } from '../api/redeemGuestInvitation'
+import { clearPlatformReturnForRoomUrl } from '../platformReturn'
 import { consumeGuestInvitationFragment } from '../utils/guestInvitationFragment'
 
 const GuestInvitation = () => {
@@ -26,6 +27,7 @@ const GuestInvitation = () => {
         invitation,
         redemptionId.current
       )
+      clearPlatformReturnForRoomUrl(result.room_url)
       window.location.assign(`${result.room_url}?silentLogin=false`)
     } catch (error) {
       setStatus(

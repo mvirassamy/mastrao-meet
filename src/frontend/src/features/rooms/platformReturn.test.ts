@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   cachePlatformReturn,
   clearCachedPlatformReturn,
+  clearPlatformReturnForRoomUrl,
   readCachedPlatformReturn,
   validatePlatformReturn,
 } from './platformReturn'
@@ -67,6 +68,24 @@ describe('Platform return descriptor', () => {
       readCachedPlatformReturn('room_first_01234567', platformOrigin)
     ).toEqual(descriptor())
     clearCachedPlatformReturn('room_first_01234567')
+    expect(
+      readCachedPlatformReturn('room_first_01234567', platformOrigin)
+    ).toBeNull()
+    expect(
+      readCachedPlatformReturn('room_second_01234567', platformOrigin)?.url
+    ).toContain('meeting_second_01234567')
+  })
+
+  it('clears the host return cache before entering a guest room', () => {
+    cachePlatformReturn('room_first_01234567', descriptor(), platformOrigin)
+    cachePlatformReturn(
+      'room_second_01234567',
+      descriptor('meeting_second_01234567'),
+      platformOrigin
+    )
+
+    clearPlatformReturnForRoomUrl('/room_first_01234567?silentLogin=false')
+
     expect(
       readCachedPlatformReturn('room_first_01234567', platformOrigin)
     ).toBeNull()
