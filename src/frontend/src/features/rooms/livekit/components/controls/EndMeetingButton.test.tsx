@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/api/ApiError'
 import { EndMeetingButton } from './EndMeetingButton'
 
 const endMeeting = vi.fn()
@@ -9,6 +10,7 @@ const beginEnding = vi.fn()
 const markEnding = vi.fn()
 const markEndingUncertain = vi.fn()
 const markEnded = vi.fn()
+const markActive = vi.fn()
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -16,6 +18,11 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/features/rooms/api/endMeeting', () => ({
   endMeeting: (...args: unknown[]) => endMeeting(...args),
+  isRetryableEndMeetingError: (error: { statusCode?: unknown }) =>
+    typeof error.statusCode !== 'number' ||
+    error.statusCode === 408 ||
+    error.statusCode === 429 ||
+    error.statusCode >= 500,
 }))
 
 vi.mock('@/features/rooms/contexts/MeetingLifecycleContext', () => ({
@@ -23,6 +30,7 @@ vi.mock('@/features/rooms/contexts/MeetingLifecycleContext', () => ({
     phase: 'active',
     isEnding: false,
     beginEnding,
+    markActive,
     markEnding,
     markEndingUncertain,
     markEnded,
@@ -140,5 +148,20 @@ describe('EndMeetingButton', () => {
 
     expect(markEndingUncertain).toHaveBeenCalledOnce()
     vi.useRealTimers()
+  })
+
+  it('does not retry an authoritative close refusal as an uncertain response', async () => {
+    endMeeting.mockRejectedValueOnce(
+      new ApiError(404, { message: 'not found' })
+    )
+
+    render(<EndMeetingButton roomId="room_0123456789abcdef0123456789abcdef" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'dialog.confirm' }))
+    await screen.findByText('dialog.error')
+
+    expect(markActive).toHaveBeenCalledOnce()
+    expect(markEndingUncertain).not.toHaveBeenCalled()
   })
 })

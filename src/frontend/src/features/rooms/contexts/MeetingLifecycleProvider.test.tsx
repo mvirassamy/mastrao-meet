@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/api/ApiError'
 import { useMeetingLifecycle } from './MeetingLifecycleContext'
 import { MeetingLifecycleProvider } from './MeetingLifecycleProvider'
 
@@ -8,6 +9,11 @@ const endMeeting = vi.hoisted(() => vi.fn())
 
 vi.mock('../api/endMeeting', () => ({
   endMeeting: (...args: unknown[]) => endMeeting(...args),
+  isRetryableEndMeetingError: (error: { statusCode?: unknown }) =>
+    typeof error.statusCode !== 'number' ||
+    error.statusCode === 408 ||
+    error.statusCode === 429 ||
+    error.statusCode >= 500,
 }))
 
 const Probe = () => {
@@ -146,6 +152,27 @@ describe('MeetingLifecycleProvider', () => {
     await vi.waitFor(() =>
       expect(screen.getByRole('button').textContent).toBe(`ending:${requestId}`)
     )
+  })
+
+  it('stops retrying an authoritative close refusal', async () => {
+    vi.useFakeTimers()
+    const roomId = 'room_0123456789abcdef0123456789abcdef'
+    const key = `mastrao-meeting-close-v1:${roomId}`
+    window.sessionStorage.setItem(key, 'close_existing')
+    endMeeting.mockRejectedValueOnce(new ApiError(409, { message: 'conflict' }))
+
+    render(
+      <MeetingLifecycleProvider roomId={roomId}>
+        <Probe />
+      </MeetingLifecycleProvider>
+    )
+
+    await vi.waitFor(() => expect(endMeeting).toHaveBeenCalledOnce())
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    expect(endMeeting).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button').textContent).toBe('active:none')
+    expect(window.sessionStorage.getItem(key)).toBeNull()
   })
 
   it('keeps the current-tab close intent when storage is unavailable', () => {

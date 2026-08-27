@@ -103,6 +103,8 @@ const FeedbackRoute = () => {
     DisconnectReasonKey.MeetingEnded,
   ].includes(reasonKey as DisconnectReasonKey)
   const showRating = reasonKey !== DisconnectReasonKey.MeetingEnded
+  const showPlatformReturn =
+    reasonKey === DisconnectReasonKey.MeetingEnded && Boolean(platformReturn)
 
   return (
     <Screen layout="centered" footer={false}>
@@ -115,11 +117,15 @@ const FeedbackRoute = () => {
             <Text as="p">{t('feedback.meetingEndedBody')}</Text>
           )}
           <HStack>
-            {platformReturn && (
+            {showPlatformReturn && (
               <Button
                 variant="primary"
                 onPress={() => {
-                  window.open(platformReturn, '_blank', 'noopener,noreferrer')
+                  window.open(
+                    platformReturn as string,
+                    '_blank',
+                    'noopener,noreferrer'
+                  )
                 }}
               >
                 {t('feedback.returnToMatter')}
@@ -131,7 +137,7 @@ const FeedbackRoute = () => {
               </Button>
             )}
             <Button
-              variant={platformReturn ? 'secondary' : 'primary'}
+              variant={showPlatformReturn ? 'secondary' : 'primary'}
               onPress={() => setLocation('/')}
             >
               {t('feedback.home')}

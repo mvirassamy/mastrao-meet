@@ -8,7 +8,7 @@ import {
 } from 'react'
 
 import { MeetingLifecycleContext } from './MeetingLifecycleContext'
-import { endMeeting } from '../api/endMeeting'
+import { endMeeting, isRetryableEndMeetingError } from '../api/endMeeting'
 
 const RESUME_RETRY_MS = 5_000
 const RESUME_TIMEOUT_MS = 15_000
@@ -54,6 +54,16 @@ export const MeetingLifecycleProvider = ({
   >(() => (readStoredCloseRequestId(storageKey) ? 'uncertain' : 'active'))
   const closeRequestIdRef = useRef(closeRequestId)
 
+  const clear = useCallback(() => {
+    clearStoredCloseRequestId(storageKey)
+    closeRequestIdRef.current = undefined
+    setCloseRequestId(undefined)
+  }, [storageKey])
+  const markActive = useCallback(() => {
+    clear()
+    setPhase('active')
+  }, [clear])
+
   useEffect(() => {
     const requestId = closeRequestId
     if (phase !== 'uncertain' || !requestId) return
@@ -70,7 +80,11 @@ export const MeetingLifecycleProvider = ({
       try {
         await endMeeting(roomId, requestId, controller.signal)
         if (!cancelled) setPhase('ending')
-      } catch {
+      } catch (error) {
+        if (!isRetryableEndMeetingError(error)) {
+          if (!cancelled) markActive()
+          return
+        }
         if (!cancelled) {
           setPhase('uncertain')
           retryTimer = setTimeout(resume, RESUME_RETRY_MS)
@@ -85,7 +99,7 @@ export const MeetingLifecycleProvider = ({
       controller?.abort()
       if (retryTimer) clearTimeout(retryTimer)
     }
-  }, [closeRequestId, phase, roomId])
+  }, [closeRequestId, markActive, phase, roomId])
 
   const beginEnding = useCallback(() => {
     const requestId =
@@ -99,15 +113,6 @@ export const MeetingLifecycleProvider = ({
   }, [storageKey])
   const markEnding = useCallback(() => setPhase('ending'), [])
   const markEndingUncertain = useCallback(() => setPhase('uncertain'), [])
-  const clear = useCallback(() => {
-    clearStoredCloseRequestId(storageKey)
-    closeRequestIdRef.current = undefined
-    setCloseRequestId(undefined)
-  }, [storageKey])
-  const markActive = useCallback(() => {
-    clear()
-    setPhase('active')
-  }, [clear])
   const markEnded = useCallback(() => {
     clear()
     setPhase('ended')

@@ -1,4 +1,5 @@
 import { fetchApi } from '@/api/fetchApi'
+import { ApiError } from '@/api/ApiError'
 
 export type EndMeetingResponse = {
   version: 1
@@ -20,3 +21,9 @@ export const endMeeting = (
     body: JSON.stringify({ close_request_id: closeRequestId }),
     signal,
   })
+
+export const isRetryableEndMeetingError = (error: unknown) =>
+  !(error instanceof ApiError) ||
+  error.statusCode === 408 ||
+  error.statusCode === 429 ||
+  error.statusCode >= 500

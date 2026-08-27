@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   cachePlatformReturn,
   clearCachedPlatformReturn,
@@ -16,6 +16,7 @@ const platformOrigin = 'https://platform.mastrao.test'
 
 describe('Platform return descriptor', () => {
   beforeEach(() => window.sessionStorage.clear())
+  afterEach(() => vi.restoreAllMocks())
 
   it('accepts only the fixed resolver contract', () => {
     expect(validatePlatformReturn(descriptor(), platformOrigin)).toEqual(
@@ -92,5 +93,18 @@ describe('Platform return descriptor', () => {
     expect(
       readCachedPlatformReturn('room_second_01234567', platformOrigin)?.url
     ).toContain('meeting_second_01234567')
+  })
+
+  it('returns null when storage read and cleanup are unavailable', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('storage unavailable')
+    })
+
+    expect(
+      readCachedPlatformReturn('room_first_01234567', platformOrigin)
+    ).toBeNull()
   })
 })

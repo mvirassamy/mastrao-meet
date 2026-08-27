@@ -4,7 +4,10 @@ import { RiStopCircleLine } from '@remixicon/react'
 
 import { Button, Dialog, P } from '@/primitives'
 import { HStack } from '@/styled-system/jsx'
-import { endMeeting } from '@/features/rooms/api/endMeeting'
+import {
+  endMeeting,
+  isRetryableEndMeetingError,
+} from '@/features/rooms/api/endMeeting'
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
 
 export const EndMeetingButton = ({
@@ -20,8 +23,14 @@ export const EndMeetingButton = ({
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasFailed, setHasFailed] = useState(false)
-  const { phase, beginEnding, markEnding, markEndingUncertain, markEnded } =
-    useMeetingLifecycle()
+  const {
+    phase,
+    beginEnding,
+    markActive,
+    markEnding,
+    markEndingUncertain,
+    markEnded,
+  } = useMeetingLifecycle()
 
   const confirm = async () => {
     const closeRequestId = beginEnding()
@@ -42,8 +51,12 @@ export const EndMeetingButton = ({
       } else {
         markEnding()
       }
-    } catch {
-      markEndingUncertain()
+    } catch (error) {
+      if (isRetryableEndMeetingError(error)) {
+        markEndingUncertain()
+      } else {
+        markActive()
+      }
       setHasFailed(true)
     } finally {
       window.clearTimeout(timeout)

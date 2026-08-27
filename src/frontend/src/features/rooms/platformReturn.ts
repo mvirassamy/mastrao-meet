@@ -92,10 +92,10 @@ export const readCachedPlatformReturn = (
       JSON.parse(window.sessionStorage.getItem(key) ?? 'null'),
       expectedOrigin
     )
-    if (!descriptor) window.sessionStorage.removeItem(key)
+    if (!descriptor) clearCachedPlatformReturn(slug)
     return descriptor
   } catch {
-    window.sessionStorage.removeItem(key)
+    clearCachedPlatformReturn(slug)
     return null
   }
 }

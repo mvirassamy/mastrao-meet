@@ -78,7 +78,7 @@ describe('Feedback Mastrao return', () => {
     )
     window.history.replaceState(
       {
-        reason: 4,
+        reason: 5,
         room_id: roomId,
         platform_return: descriptor,
       },
@@ -139,6 +139,39 @@ describe('Feedback Mastrao return', () => {
     expect(
       screen.getByRole('button', { name: 'feedback.returnToMatter' })
     ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'feedback.back' })).toBeNull()
+  })
+
+  it('does not offer the Platform return after removal', () => {
+    const roomId = 'room_0123456789abcdef0123456789abcdef'
+    const descriptor = {
+      url: 'https://platform.mastrao.test/api/meeting-return?organization_ref=organization_0123456789&meeting_ref=meeting_0123456789abcdef',
+      expires_at: Math.floor(Date.now() / 1000) + 60,
+    }
+    window.sessionStorage.setItem(
+      `mastrao-platform-return-v1:${roomId}`,
+      JSON.stringify(descriptor)
+    )
+    window.history.replaceState(
+      {
+        reason: 4,
+        room_id: roomId,
+        platform_return: descriptor,
+      },
+      ''
+    )
+
+    render(<FeedbackRoute />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'feedback.heading.participantRemoved',
+      })
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: 'feedback.returnToMatter' })
+    ).toBeNull()
+    expect(screen.getByRole('button', { name: 'feedback.home' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'feedback.back' })).toBeNull()
   })
 })
