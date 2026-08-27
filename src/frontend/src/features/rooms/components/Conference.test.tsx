@@ -6,6 +6,8 @@ import { Conference } from './Conference'
 
 const createRoom = vi.fn()
 const fetchRoom = vi.fn()
+const navigateTo = vi.fn()
+let liveKitOnDisconnected: ((reason: number) => void) | undefined
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: ({ queryFn }: { queryFn: () => Promise<unknown> }) => {
@@ -20,12 +22,26 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 
 vi.mock('@livekit/components-react', () => ({
-  LiveKitRoom: ({ children }: { children: ReactNode }) => <>{children}</>,
+  LiveKitRoom: ({
+    children,
+    onDisconnected,
+  }: {
+    children: ReactNode
+    onDisconnected?: (reason: number) => void
+  }) => {
+    liveKitOnDisconnected = onDisconnected
+    return <>{children}</>
+  },
   usePersistentUserChoices: () => ({ userChoices: {} }),
 }))
 
 vi.mock('livekit-client', () => ({
-  DisconnectReason: {},
+  DisconnectReason: {
+    ROOM_DELETED: 4,
+    CLIENT_INITIATED: 1,
+    DUPLICATE_IDENTITY: 2,
+    PARTICIPANT_REMOVED: 3,
+  },
   MediaDeviceFailure: { getFailure: () => undefined },
   Room: class {
     numParticipants = 0
@@ -53,6 +69,10 @@ vi.mock('@/api/queryClient', () => ({
 
 vi.mock('../api/fetchRoom', () => ({
   fetchRoom: (...args: unknown[]) => fetchRoom(...args),
+}))
+
+vi.mock('@/navigation/navigateTo', () => ({
+  navigateTo: (...args: unknown[]) => navigateTo(...args),
 }))
 
 vi.mock('../api/createRoom', () => ({
@@ -111,6 +131,7 @@ vi.mock('@/styled-system/css', () => ({ css: () => '' }))
 describe('Conference room lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    liveKitOnDisconnected = undefined
   })
 
   it.each(['404', '410'])(
@@ -123,4 +144,20 @@ describe('Conference room lookup', () => {
       expect(createRoom).not.toHaveBeenCalled()
     }
   )
+
+  it('keeps legacy room deletion on the feedback route', async () => {
+    fetchRoom.mockResolvedValue({})
+    render(<Conference roomId="abc-defg-hij" />)
+
+    await waitFor(() => expect(liveKitOnDisconnected).toBeDefined())
+    liveKitOnDisconnected?.(4)
+
+    expect(navigateTo).toHaveBeenCalledWith(
+      'feedback',
+      { outcome: 'ended', roomId: 'abc-defg-hij' },
+      expect.objectContaining({
+        state: expect.objectContaining({ reason: 4 }),
+      })
+    )
+  })
 })

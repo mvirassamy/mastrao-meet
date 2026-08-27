@@ -74,22 +74,18 @@ const Room = () => {
     return <ErrorScreen />
   }
 
-  if (!hasSubmittedEntry && !skipJoinScreen) {
-    return (
-      <BaseRoom>
-        <Join enterRoom={() => setHasSubmittedEntry(true)} roomId={roomId} />
-      </BaseRoom>
-    )
-  }
-
   return (
     <BaseRoom>
       <MeetingLifecycleProvider key={roomId} roomId={roomId}>
-        <Conference
-          initialRoomData={initialRoomData}
-          roomId={roomId}
-          mode={mode}
-        />
+        {!hasSubmittedEntry && !skipJoinScreen ? (
+          <Join enterRoom={() => setHasSubmittedEntry(true)} roomId={roomId} />
+        ) : (
+          <Conference
+            initialRoomData={initialRoomData}
+            roomId={roomId}
+            mode={mode}
+          />
+        )}
       </MeetingLifecycleProvider>
     </BaseRoom>
   )

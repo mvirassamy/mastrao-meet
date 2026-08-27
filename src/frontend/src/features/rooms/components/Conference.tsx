@@ -468,6 +468,20 @@ export const Conference = ({
 
             switch (e) {
               case DisconnectReason.ROOM_DELETED:
+                if (!isMastraoRoomId(roomId)) {
+                  queryClient.removeQueries({ queryKey: fetchKey, exact: true })
+                  navigateTo(
+                    'feedback',
+                    { outcome: 'ended', roomId },
+                    {
+                      state: {
+                        reason: e,
+                        ...metadata,
+                      },
+                    }
+                  )
+                  return
+                }
                 markEndingUncertain()
                 void fetchRoomLifecycle(roomId)
                   .then((lifecycle) => {

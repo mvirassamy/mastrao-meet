@@ -97,6 +97,10 @@
       "title": "Cette réunion est terminée",
       "body": "L’hôte a terminé la réunion. Ce lien ne peut plus être utilisé."
     },
+    "ending": {
+      "title": "Fin de la réunion en cours",
+      "body": "Nous confirmons la fermeture de la réunion."
+    },
     "recordingStopping": {
       "title": "L’enregistrement s’arrête",
       "body": "Patientez jusqu’à l’arrêt complet de la capture avant de rejoindre."

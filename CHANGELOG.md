@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(frontend) resume interrupted meeting closure from the lobby
 - 🐛(frontend) keep historical room slugs joinable
 - 🐛(frontend) wait for canonical room authority without creating the room
 - 🐛(frontend) fence canonical room closure before egress

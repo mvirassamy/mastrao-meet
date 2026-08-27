@@ -6,12 +6,14 @@ import json
 import time
 from unittest import mock
 
+from django.http import Http404
 from django.test import RequestFactory, override_settings
 from django.utils import timezone
 
 import pytest
 
 from core import models
+from core.api.permissions import HasMeetingLifecycleAccess
 from core.api.viewsets import RoomViewSet
 from core.mastrao_meeting_close import request_meeting_close
 from core.mastrao_room_close_adapter import close_mastrao_room
@@ -122,6 +124,23 @@ def test_authorized_lifecycle_projection_distinguishes_ending_and_ended():
     assert response.data == {"state": "ended"}
 
 
+@pytest.mark.django_db
+def test_lifecycle_projection_masks_unauthorized_room_existence():
+    """Unauthorized lifecycle reads cannot enumerate canonical rooms."""
+
+    binding = _binding("masked")
+    permission = HasMeetingLifecycleAccess()
+    request = RequestFactory().get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/")
+    request.session = {}
+
+    with pytest.raises(Http404):
+        permission.has_object_permission(
+            request,
+            mock.Mock(),
+            binding.room,
+        )
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_MEETING_CLOSE_ENABLED=True,
@@ -178,12 +197,13 @@ def test_core_close_acceptance_fences_room_before_effect_delivery():
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("status", [404, 409, 503])
 @override_settings(
     MASTRAO_MEETING_CLOSE_ENABLED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
 )
-def test_lost_core_response_keeps_monotone_local_closing_fence():
-    """A committed close with a lost response never projects locally as open."""
+def test_refused_or_unaccepted_core_close_does_not_create_local_fence(status):
+    """Meet cannot become the lifecycle authority before Core accepts the close."""
 
     binding = _binding("lost_response")
     grant = mock.Mock(
@@ -206,7 +226,7 @@ def test_lost_core_response_keeps_monotone_local_closing_fence():
         ),
         mock.patch(
             "core.mastrao_meeting_close.post_core_json",
-            side_effect=RoomCloseRefused(status=503),
+            side_effect=RoomCloseRefused(status=status),
         ),
         pytest.raises(RoomCloseRefused),
     ):
@@ -215,9 +235,8 @@ def test_lost_core_response_keeps_monotone_local_closing_fence():
         )
 
     binding.refresh_from_db()
-    assert binding.closing_at is not None
-    with pytest.raises(MastraoRoomClosed):
-        ensure_livekit_room(str(binding.room_id))
+    assert binding.closing_at is None
+    assert not models.MastraoRoomClosure.objects.filter(room_binding=binding).exists()
 
 
 @pytest.mark.django_db(transaction=True)

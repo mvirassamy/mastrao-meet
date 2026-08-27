@@ -97,6 +97,10 @@
       "title": "This meeting has ended",
       "body": "The host ended the meeting. This link can no longer be used."
     },
+    "ending": {
+      "title": "Meeting is ending",
+      "body": "We are confirming that the meeting has closed."
+    },
     "recordingStopping": {
       "title": "Recording is stopping",
       "body": "Please wait until capture has fully stopped before joining."

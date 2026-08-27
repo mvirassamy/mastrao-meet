@@ -97,6 +97,10 @@
       "title": "Dieses Meeting ist beendet",
       "body": "Der Host hat das Meeting beendet. Dieser Link kann nicht mehr verwendet werden."
     },
+    "ending": {
+      "title": "Das Meeting wird beendet",
+      "body": "Wir bestätigen, dass das Meeting geschlossen wurde."
+    },
     "recordingStopping": {
       "title": "Die Aufzeichnung wird beendet",
       "body": "Bitte warten Sie, bis die Aufnahme vollständig beendet ist."

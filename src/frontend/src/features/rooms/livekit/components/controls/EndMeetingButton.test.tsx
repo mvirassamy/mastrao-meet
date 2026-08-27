@@ -84,6 +84,10 @@ describe('EndMeetingButton', () => {
 
     expect(endMeeting).toHaveBeenCalledOnce()
     expect(beginEnding).toHaveBeenCalledOnce()
+    expect(beginEnding.mock.invocationCallOrder[0]).toBeLessThan(
+      endMeeting.mock.invocationCallOrder[0]
+    )
+    expect(endMeeting.mock.calls[0][1]).toBe('close_0123456789abcdef')
   })
 
   it('retries an uncertain close with the same request id', async () => {
