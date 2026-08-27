@@ -274,6 +274,14 @@ class RoomViewSet(
     queryset = models.Room.objects.all()
     serializer_class = serializers.RoomSerializer
 
+    def finalize_response(self, request, response, *args, **kwargs):
+        """Keep lifecycle reads uncacheable, including masked 404 responses."""
+
+        response = super().finalize_response(request, response, *args, **kwargs)
+        if getattr(self, "action", None) == "mastrao_meeting_lifecycle":
+            response["Cache-Control"] = "no-store"
+        return response
+
     def get_object(self):
         """Allow getting a room by its slug."""
         try:
@@ -810,9 +818,7 @@ class RoomViewSet(
             state = "ending"
         else:
             state = "open"
-        response = drf_response.Response({"state": state})
-        response["Cache-Control"] = "no-store"
-        return response
+        return drf_response.Response({"state": state})
 
     @decorators.action(
         detail=False,

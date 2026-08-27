@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) keep lifecycle projection responses uncacheable
 - 🐛(frontend) resume interrupted meeting closure from the lobby
 - 🐛(frontend) keep historical room slugs joinable
 - 🐛(frontend) wait for canonical room authority without creating the room

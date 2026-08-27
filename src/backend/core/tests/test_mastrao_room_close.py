@@ -7,7 +7,7 @@ import time
 from unittest import mock
 
 from django.http import Http404
-from django.test import RequestFactory, override_settings
+from django.test import Client, RequestFactory, override_settings
 from django.utils import timezone
 
 import pytest
@@ -129,6 +129,16 @@ def test_lifecycle_projection_masks_unauthorized_room_existence():
     """Unauthorized lifecycle reads cannot enumerate canonical rooms."""
 
     binding = _binding("masked")
+    client = Client()
+
+    response = client.get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/")
+    assert response.status_code == 404
+    assert response["Cache-Control"] == "no-store"
+
+    missing = client.get("/api/v1.0/rooms/room_missing_0123456789/lifecycle/")
+    assert missing.status_code == 404
+    assert missing["Cache-Control"] == "no-store"
+
     permission = HasMeetingLifecycleAccess()
     request = RequestFactory().get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/")
     request.session = {}
