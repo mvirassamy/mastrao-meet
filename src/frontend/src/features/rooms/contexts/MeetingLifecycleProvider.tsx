@@ -53,11 +53,10 @@ export const MeetingLifecycleProvider = ({
     'active' | 'requesting' | 'ending' | 'uncertain' | 'ended'
   >(() => (readStoredCloseRequestId(storageKey) ? 'uncertain' : 'active'))
   const closeRequestIdRef = useRef(closeRequestId)
-  const restoredCloseRequestIdRef = useRef(closeRequestId)
 
   useEffect(() => {
-    const requestId = restoredCloseRequestIdRef.current
-    if (!requestId) return
+    const requestId = closeRequestId
+    if (phase !== 'uncertain' || !requestId) return
 
     let cancelled = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
@@ -86,7 +85,7 @@ export const MeetingLifecycleProvider = ({
       controller?.abort()
       if (retryTimer) clearTimeout(retryTimer)
     }
-  }, [roomId])
+  }, [closeRequestId, phase, roomId])
 
   const beginEnding = useCallback(() => {
     const requestId =

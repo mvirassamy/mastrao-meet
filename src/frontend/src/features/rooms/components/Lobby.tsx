@@ -49,7 +49,8 @@ export const Lobby = ({
   const { data: configData } = useConfig()
   const { isLoggedIn, user } = useUser()
   const { username } = useSnapshot(userStore)
-  const { phase, markActive, markEnding, markEnded } = useMeetingLifecycle()
+  const { phase, closeRequestId, markActive, markEnding, markEnded } =
+    useMeetingLifecycle()
   const [canonicalLifecycle, setCanonicalLifecycle] = useState<
     'checking' | 'open' | 'ending' | 'ended'
   >('open')
@@ -150,8 +151,11 @@ export const Lobby = ({
           navigateToEndedMeeting(roomId)
           return
         }
-        if (lifecycle.state === 'open') markActive()
-        else markEnding()
+        if (lifecycle.state === 'open') {
+          if (!closeRequestId) markActive()
+          return
+        }
+        markEnding()
       } catch {
         // Keep the safe non-joinable state until authority can be reached.
       }
@@ -163,7 +167,7 @@ export const Lobby = ({
       controller.abort()
       if (timer) clearTimeout(timer)
     }
-  }, [markActive, markEnded, markEnding, phase, roomId])
+  }, [closeRequestId, markActive, markEnded, markEnding, phase, roomId])
 
   useEffect(() => {
     if (isError && ['404', '410'].includes(String(error?.statusCode))) {

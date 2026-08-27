@@ -64,6 +64,7 @@ export const Conference = ({
   const {
     phase,
     isEnding,
+    closeRequestId,
     markActive,
     markEnding,
     markEndingUncertain,
@@ -213,8 +214,11 @@ export const Conference = ({
           navigateToEndedMeeting()
           return
         }
-        if (lifecycle.state === 'open') markActive()
-        else markEnding()
+        if (lifecycle.state === 'open') {
+          if (!closeRequestId) markActive()
+          return
+        }
+        markEnding()
       } catch {
         // Keep the durable uncertain state and retry without creating the room.
       }
@@ -226,7 +230,14 @@ export const Conference = ({
       controller.abort()
       if (timer) clearTimeout(timer)
     }
-  }, [markActive, markEnding, navigateToEndedMeeting, phase, roomId])
+  }, [
+    closeRequestId,
+    markActive,
+    markEnding,
+    navigateToEndedMeeting,
+    phase,
+    roomId,
+  ])
 
   const roomOptions = useMemo((): RoomOptions => {
     return {

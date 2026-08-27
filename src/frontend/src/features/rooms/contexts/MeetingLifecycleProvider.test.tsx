@@ -35,6 +35,21 @@ const DoubleProbe = () => {
   )
 }
 
+const UncertainProbe = () => {
+  const lifecycle = useMeetingLifecycle()
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        lifecycle.beginEnding()
+        lifecycle.markEndingUncertain()
+      }}
+    >
+      {lifecycle.phase}:{lifecycle.closeRequestId ?? 'none'}
+    </button>
+  )
+}
+
 describe('MeetingLifecycleProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -105,6 +120,33 @@ describe('MeetingLifecycleProvider', () => {
     expect(window.history.state.first).toBe(window.history.state.second)
     expect(window.history.state.first).toBe(
       window.sessionStorage.getItem(`mastrao-meeting-close-v1:${roomId}`)
+    )
+  })
+
+  it('retries a current-tab uncertain close intent with the same id', async () => {
+    vi.useFakeTimers()
+    const roomId = 'room_0123456789abcdef0123456789abcdef'
+    endMeeting.mockResolvedValueOnce({ state: 'ending' })
+
+    render(
+      <MeetingLifecycleProvider roomId={roomId}>
+        <UncertainProbe />
+      </MeetingLifecycleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button'))
+
+    await vi.waitFor(() => expect(endMeeting).toHaveBeenCalledOnce())
+    const requestId = screen.getByRole('button').textContent?.split(':')[1]
+    expect(endMeeting).toHaveBeenCalledWith(
+      roomId,
+      requestId,
+      expect.any(AbortSignal)
+    )
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button').textContent).toBe(
+        `ending:${requestId}`
+      )
     )
   })
 

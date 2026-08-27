@@ -5,9 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Conference } from './Conference'
 
 const createRoom = vi.fn()
+const fetchRoomLifecycle = vi.fn()
 const fetchRoom = vi.fn()
 const navigateTo = vi.fn()
 let liveKitOnDisconnected: ((reason: number) => void) | undefined
+const markActive = vi.fn()
+const markEnding = vi.fn()
+
+let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
+  'active'
+let lifecycleCloseRequestId: string | undefined
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: ({ queryFn }: { queryFn: () => Promise<unknown> }) => {
@@ -71,6 +78,23 @@ vi.mock('../api/fetchRoom', () => ({
   fetchRoom: (...args: unknown[]) => fetchRoom(...args),
 }))
 
+vi.mock('../api/fetchRoomLifecycle', () => ({
+  fetchRoomLifecycle: (...args: unknown[]) => fetchRoomLifecycle(...args),
+}))
+
+vi.mock('../contexts/MeetingLifecycleContext', () => ({
+  useMeetingLifecycle: () => ({
+    phase: lifecyclePhase,
+    isEnding: lifecyclePhase !== 'active',
+    closeRequestId: lifecycleCloseRequestId,
+    beginEnding: vi.fn(),
+    markActive,
+    markEnding,
+    markEndingUncertain: vi.fn(),
+    markEnded: vi.fn(),
+  }),
+}))
+
 vi.mock('@/navigation/navigateTo', () => ({
   navigateTo: (...args: unknown[]) => navigateTo(...args),
 }))
@@ -132,6 +156,8 @@ describe('Conference room lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     liveKitOnDisconnected = undefined
+    lifecyclePhase = 'active'
+    lifecycleCloseRequestId = undefined
   })
 
   it.each(['404', '410'])(
@@ -159,5 +185,18 @@ describe('Conference room lookup', () => {
         state: expect.objectContaining({ reason: 4 }),
       })
     )
+  })
+
+  it('keeps a pending close intent when canonical lifecycle is still open', async () => {
+    lifecyclePhase = 'uncertain'
+    lifecycleCloseRequestId = 'close_existing'
+    fetchRoom.mockResolvedValue({})
+    fetchRoomLifecycle.mockResolvedValueOnce({ state: 'open' })
+
+    render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
+
+    await waitFor(() => expect(fetchRoomLifecycle).toHaveBeenCalled())
+    expect(markActive).not.toHaveBeenCalled()
+    expect(markEnding).not.toHaveBeenCalled()
   })
 })

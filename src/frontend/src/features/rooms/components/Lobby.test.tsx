@@ -16,6 +16,7 @@ const markEnded = vi.fn()
 let lobbyStatus = ApiLobbyStatus.IDLE
 let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
   'active'
+let lifecycleCloseRequestId: string | undefined
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -67,6 +68,7 @@ vi.mock('../contexts/MeetingLifecycleContext', () => ({
   useMeetingLifecycle: () => ({
     phase: lifecyclePhase,
     isEnding: lifecyclePhase !== 'active',
+    closeRequestId: lifecycleCloseRequestId,
     beginEnding: vi.fn(),
     markActive,
     markEnding,
@@ -119,6 +121,7 @@ describe('Lobby lifecycle reconciliation', () => {
     vi.clearAllMocks()
     lobbyStatus = ApiLobbyStatus.IDLE
     lifecyclePhase = 'active'
+    lifecycleCloseRequestId = undefined
     refetchRoom.mockResolvedValue({
       data: {
         livekit: { token: 'token', url: 'wss://livekit.test' },
@@ -186,5 +189,22 @@ describe('Lobby lifecycle reconciliation', () => {
     if (submit) fireEvent.click(submit)
     expect(refetchRoom).not.toHaveBeenCalled()
     expect(enterRoom).not.toHaveBeenCalled()
+  })
+
+  it('keeps a pending close intent when canonical lifecycle is still open', async () => {
+    lifecyclePhase = 'uncertain'
+    lifecycleCloseRequestId = 'close_existing'
+    fetchRoomLifecycle.mockResolvedValueOnce({ state: 'open' })
+
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={vi.fn()}
+      />
+    )
+
+    await vi.waitFor(() => expect(fetchRoomLifecycle).toHaveBeenCalled())
+    expect(markActive).not.toHaveBeenCalled()
+    expect(markEnding).not.toHaveBeenCalled()
   })
 })
