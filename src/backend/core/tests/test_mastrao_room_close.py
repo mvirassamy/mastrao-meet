@@ -138,6 +138,7 @@ def test_lifecycle_projection_masks_unauthorized_room_existence():
     missing = client.get("/api/v1.0/rooms/room_missing_0123456789/lifecycle/")
     assert missing.status_code == 404
     assert missing["Cache-Control"] == "no-store"
+    assert missing.json() == response.json()
 
     permission = HasMeetingLifecycleAccess()
     request = RequestFactory().get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/")

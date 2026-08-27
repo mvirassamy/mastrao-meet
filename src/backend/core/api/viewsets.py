@@ -275,11 +275,13 @@ class RoomViewSet(
     serializer_class = serializers.RoomSerializer
 
     def finalize_response(self, request, response, *args, **kwargs):
-        """Keep lifecycle reads uncacheable, including masked 404 responses."""
+        """Keep lifecycle reads uncacheable and non-enumerable."""
 
         response = super().finalize_response(request, response, *args, **kwargs)
         if getattr(self, "action", None) == "mastrao_meeting_lifecycle":
             response["Cache-Control"] = "no-store"
+            if response.status_code == drf_status.HTTP_404_NOT_FOUND:
+                response.data = {"detail": "Not found."}
         return response
 
     def get_object(self):
