@@ -45,9 +45,14 @@ from core.api import throttling
 from core.api.filters import ListFileFilter
 from core.enums import MEDIA_STORAGE_URL_PATTERN
 from core.mastrao_guest_contract import GuestHandoffRefused
-from core.mastrao_guest_grant import CANONICAL_ROOM_SLUG, can_access_canonical_room
+from core.mastrao_guest_grant import (
+    CANONICAL_ROOM_SLUG,
+    active_guest_lifecycle_grant_for_room_ref,
+    can_access_canonical_room,
+)
 from core.mastrao_guest_handoff import decide_guest_admission
 from core.mastrao_host_contract import HostHandoffRefused
+from core.mastrao_host_grant import active_host_close_grant_for_room_ref
 from core.mastrao_meeting_close import request_meeting_close
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
@@ -809,10 +814,17 @@ class RoomViewSet(
     def mastrao_meeting_lifecycle(self, request, pk=None):  # pylint: disable=unused-argument
         """Return the minimal authoritative lifecycle for this browser session."""
 
-        room = self.get_object()
-        if not hasattr(room, "mastrao_binding"):
+        room_ref = pk
+        if not isinstance(room_ref, str):
             raise Http404
-        binding = room.mastrao_binding
+        if not CANONICAL_ROOM_SLUG.fullmatch(room_ref):
+            raise Http404
+        grant = active_host_close_grant_for_room_ref(
+            request, room_ref
+        ) or active_guest_lifecycle_grant_for_room_ref(request, room_ref)
+        if grant is None:
+            raise Http404
+        binding = grant.room_binding
         closure = getattr(binding, "closure", None)
         if closure and closure.state == models.MastraoRoomClosure.State.APPLIED:
             state = "ended"

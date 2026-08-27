@@ -60,6 +60,30 @@ def active_guest_lifecycle_grant(request, room, *, observed_at=None):
     )
 
 
+def active_guest_lifecycle_grant_for_room_ref(request, room_ref, *, observed_at=None):
+    """Resolve a guest grant by canonical room ref before room disclosure."""
+
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return None
+    digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
+    grant_ref = request.session.get(SESSION_GRANT_REF_KEY)
+    if digest is None or not isinstance(grant_ref, str):
+        return None
+    observed_at = observed_at or timezone.now()
+    return (
+        models.MastraoGuestGrant.objects.select_related(
+            "room_binding", "room_binding__room", "room_binding__closure"
+        )
+        .filter(
+            grant_ref=grant_ref,
+            room_binding__room_ref=room_ref,
+            session_nonce_digest=digest,
+            expires_at__gt=observed_at,
+        )
+        .first()
+    )
+
+
 def active_guest_compact_grant(request, grant):
     """Return the Core bearer only when it belongs to the active local session."""
 

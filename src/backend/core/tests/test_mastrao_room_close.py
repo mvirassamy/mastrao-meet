@@ -82,17 +82,20 @@ def test_authorized_lifecycle_projection_distinguishes_ending_and_ended():
     """The browser gets only the authoritative minimal terminal state."""
 
     binding = _binding("lifecycle")
+    binding.room_ref = "room_11111111111111111111111111111111"
+    binding.save(update_fields=["room_ref", "updated_at"])
     binding.closing_at = timezone.now()
     binding.save(update_fields=["closing_at", "updated_at"])
     view = RoomViewSet.as_view({"get": "mastrao_meeting_lifecycle"})
     factory = RequestFactory()
-
+    lifecycle_grant = mock.Mock(room_binding=binding)
     with mock.patch(
-        "core.api.permissions.active_host_close_grant", return_value=mock.Mock()
+        "core.api.viewsets.active_host_close_grant_for_room_ref",
+        return_value=lifecycle_grant,
     ):
         response = view(
-            factory.get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/"),
-            pk=binding.room.slug,
+            factory.get(f"/api/v1.0/rooms/{binding.room_ref}/lifecycle/"),
+            pk=binding.room_ref,
         )
     assert response.status_code == 200
     assert response.data == {"state": "ending"}
@@ -115,11 +118,12 @@ def test_authorized_lifecycle_projection_distinguishes_ending_and_ended():
         receipt_digest="d" * 64,
     )
     with mock.patch(
-        "core.api.permissions.active_host_close_grant", return_value=mock.Mock()
+        "core.api.viewsets.active_host_close_grant_for_room_ref",
+        return_value=lifecycle_grant,
     ):
         response = view(
-            factory.get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/"),
-            pk=binding.room.slug,
+            factory.get(f"/api/v1.0/rooms/{binding.room_ref}/lifecycle/"),
+            pk=binding.room_ref,
         )
     assert response.data == {"state": "ended"}
 
