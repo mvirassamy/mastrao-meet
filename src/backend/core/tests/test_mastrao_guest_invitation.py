@@ -194,6 +194,13 @@ def test_tombstone_revokes_exact_guest_projection():
     )
 
     assert active_guest_grant(request, binding.room) is None
+    lifecycle = client.get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/")
+    assert lifecycle.status_code == 200
+    assert lifecycle.json() == {"state": "ending"}
+    assert lifecycle["Cache-Control"] == "no-store"
+
+    room_detail = client.get(f"/api/v1.0/rooms/{binding.room.slug}/")
+    assert room_detail.status_code == 404
     assert (
         client.post(
             f"/api/v1.0/rooms/{binding.room_id}/request-entry/",
