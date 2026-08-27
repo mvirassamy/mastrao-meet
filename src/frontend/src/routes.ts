@@ -1,5 +1,6 @@
 import { flexibleRoomIdPattern } from '@/features/rooms'
 import { ComponentType, lazy, LazyExoticComponent } from 'react'
+import { buildPostMeetingPath } from '@/features/rooms/postMeetingRoute'
 
 const HomeRoute = lazy(() => import('@/features/home/routes/Home'))
 const RecordingDownloadRoute = lazy(
@@ -69,6 +70,7 @@ export const routes: Record<
   },
   feedback: {
     name: 'feedback',
+    to: buildPostMeetingPath,
     path: '/feedback',
     Component: FeedbackRoute,
   },

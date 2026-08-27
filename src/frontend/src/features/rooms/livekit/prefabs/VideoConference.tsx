@@ -47,6 +47,7 @@ export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElemen
   canEnd?: boolean
   recording?: ApiRoom['recording']
   onRecordingChanged?: () => Promise<unknown>
+  onMeetingEnded?: () => void
 }
 
 /**
@@ -72,6 +73,7 @@ export function VideoConference({
   canEnd,
   recording,
   onRecordingChanged,
+  onMeetingEnded,
   ...props
 }: VideoConferenceProps) {
   useNoiseReduction()
@@ -91,6 +93,7 @@ export function VideoConference({
   const withdrawalIds = useRef(crypto.randomUUID().replaceAll('-', ''))
 
   const withdraw = async () => {
+    if (isEnding || isWithdrawing) return
     setIsWithdrawing(true)
     setWithdrawFailed(false)
     try {
@@ -172,7 +175,7 @@ export function VideoConference({
                 <Button
                   size="sm"
                   variant="danger"
-                  isDisabled={isWithdrawing}
+                  isDisabled={isEnding || isWithdrawing}
                   onPress={withdraw}
                 >
                   {tRecording(canEnd ? 'stop' : 'withdraw')}
@@ -208,6 +211,7 @@ export function VideoConference({
             <ControlBar
               roomId={roomId}
               canEnd={canEnd}
+              onMeetingEnded={onMeetingEnded}
               onDeviceError={(e) => {
                 reportError('device_switch_failure', e.error, {
                   at: 'ControlBar.onDeviceError',

@@ -20,7 +20,9 @@ def _nonce_digest(nonce):
     return hashlib.sha256(nonce.encode()).hexdigest()
 
 
-def active_guest_grant(request, room, *, observed_at=None):
+def _session_bound_guest_grant(
+    request, room, *, observed_at=None, include_closed=False
+):
     """Resolve the exact non-expired guest grant bound to this browser and room."""
 
     if getattr(request, "user", None) and request.user.is_authenticated:
@@ -30,15 +32,53 @@ def active_guest_grant(request, room, *, observed_at=None):
     if digest is None or not isinstance(grant_ref, str):
         return None
     observed_at = observed_at or timezone.now()
-    return (
-        models.MastraoGuestGrant.objects.select_related("room_binding")
-        .filter(
-            grant_ref=grant_ref,
-            room_binding__room=room,
-            session_nonce_digest=digest,
-            expires_at__gt=observed_at,
+    queryset = models.MastraoGuestGrant.objects.select_related("room_binding").filter(
+        grant_ref=grant_ref,
+        room_binding__room=room,
+        session_nonce_digest=digest,
+        expires_at__gt=observed_at,
+    )
+    if not include_closed:
+        queryset = queryset.filter(
             room_binding__closing_at__isnull=True,
             room_binding__closure__isnull=True,
+        )
+    return queryset.first()
+
+
+def active_guest_grant(request, room, *, observed_at=None):
+    """Resolve an open-room guest grant for media and lobby capabilities."""
+
+    return _session_bound_guest_grant(request, room, observed_at=observed_at)
+
+
+def active_guest_lifecycle_grant(request, room, *, observed_at=None):
+    """Resolve the exact guest grant after close for lifecycle reads only."""
+
+    return _session_bound_guest_grant(
+        request, room, observed_at=observed_at, include_closed=True
+    )
+
+
+def active_guest_lifecycle_grant_for_room_ref(request, room_ref, *, observed_at=None):
+    """Resolve a guest grant by canonical room ref before room disclosure."""
+
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return None
+    digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
+    grant_ref = request.session.get(SESSION_GRANT_REF_KEY)
+    if digest is None or not isinstance(grant_ref, str):
+        return None
+    observed_at = observed_at or timezone.now()
+    return (
+        models.MastraoGuestGrant.objects.select_related(
+            "room_binding", "room_binding__room", "room_binding__closure"
+        )
+        .filter(
+            grant_ref=grant_ref,
+            room_binding__room_ref=room_ref,
+            session_nonce_digest=digest,
+            expires_at__gt=observed_at,
         )
         .first()
     )

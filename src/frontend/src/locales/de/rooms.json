@@ -4,10 +4,11 @@
       "normal": "Du hast das Meeting verlassen",
       "duplicateIdentity": "Du bist dem Meeting von einem anderen Gerät aus beigetreten",
       "participantRemoved": "Du wurdest vom Host aus dem Meeting entfernt",
-      "meetingEnded": "Der Host hat das Meeting beendet"
+      "meetingEnded": "Meeting beendet"
     },
     "home": "Zur Startseite zurückkehren",
     "returnToMatter": "Zur Akte zurückkehren",
+    "meetingEndedBody": "Das Meeting ist beendet. Aufnahme und Transkript werden möglicherweise noch verarbeitet. Sie können diesen Tab schließen.",
     "back": "Dem Meeting erneut beitreten"
   },
   "selectDevice": {
@@ -95,6 +96,10 @@
     "ended": {
       "title": "Dieses Meeting ist beendet",
       "body": "Der Host hat das Meeting beendet. Dieser Link kann nicht mehr verwendet werden."
+    },
+    "ending": {
+      "title": "Das Meeting wird beendet",
+      "body": "Wir bestätigen, dass das Meeting geschlossen wurde."
     },
     "recordingStopping": {
       "title": "Die Aufzeichnung wird beendet",

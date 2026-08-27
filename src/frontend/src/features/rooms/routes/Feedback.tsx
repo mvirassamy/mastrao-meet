@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/primitives'
+import { Button, Text } from '@/primitives'
 import { Screen } from '@/layout/Screen'
 import { Center, HStack, styled, VStack } from '@/styled-system/jsx'
 import { Rating } from '@/features/rooms/components/Rating.tsx'
@@ -9,17 +9,20 @@ import { DisconnectReason } from 'livekit-client'
 import { useConfig } from '@/api/useConfig'
 import type { CandidateInfo } from '@/stores/connectionObserver'
 import {
-  clearCachedPlatformReturn,
   readCachedPlatformReturn,
   validatePlatformReturn,
 } from '../platformReturn'
+import {
+  readPostMeetingRoute,
+  type PostMeetingOutcome,
+} from '../postMeetingRoute'
 
-const readPlatformReturn = (expectedOrigin: unknown) => {
+const readPlatformReturn = (expectedOrigin: unknown, routeRoomId?: string) => {
   const state = window.history.state
   const descriptor =
     validatePlatformReturn(state?.platform_return, expectedOrigin) ??
-    (typeof state?.room_id === 'string'
-      ? readCachedPlatformReturn(state.room_id, expectedOrigin)
+    (typeof state?.room_id === 'string' || routeRoomId
+      ? readCachedPlatformReturn(state?.room_id ?? routeRoomId, expectedOrigin)
       : null)
   return descriptor?.url
 }
@@ -45,13 +48,26 @@ enum DisconnectReasonKey {
   MeetingEnded = 'meetingEnded',
 }
 
+const outcomeReasonKey: Partial<
+  Record<PostMeetingOutcome, DisconnectReasonKey>
+> = {
+  ended: DisconnectReasonKey.MeetingEnded,
+  removed: DisconnectReasonKey.ParticipantRemoved,
+  duplicate: DisconnectReasonKey.DuplicateIdentity,
+}
+
 const FeedbackRoute = () => {
   const { t } = useTranslation('rooms')
   const { data: apiConfig } = useConfig()
   const [, setLocation] = useLocation()
+  const routeState = useMemo(
+    () => readPostMeetingRoute(window.location.search),
+    []
+  )
   const platformReturn = useMemo(
-    () => readPlatformReturn(apiConfig?.mastrao_platform_origin),
-    [apiConfig?.mastrao_platform_origin]
+    () =>
+      readPlatformReturn(apiConfig?.mastrao_platform_origin, routeState.roomId),
+    [apiConfig?.mastrao_platform_origin, routeState.roomId]
   )
   const headingRef = useRef<HTMLHeadingElement>(null)
 
@@ -60,7 +76,7 @@ const FeedbackRoute = () => {
   const reasonKey = useMemo(() => {
     const state = window.history.state
 
-    if (!state?.reason) return
+    if (!state?.reason) return outcomeReasonKey[routeState.outcome ?? 'left']
     switch (state.reason) {
       case DisconnectReason.DUPLICATE_IDENTITY:
         return DisconnectReasonKey.DuplicateIdentity
@@ -69,7 +85,7 @@ const FeedbackRoute = () => {
       case DisconnectReason.ROOM_DELETED:
         return DisconnectReasonKey.MeetingEnded
     }
-  }, [])
+  }, [routeState.outcome])
 
   const metadata = useMemo(() => {
     const state = window.history.state
@@ -87,6 +103,8 @@ const FeedbackRoute = () => {
     DisconnectReasonKey.MeetingEnded,
   ].includes(reasonKey as DisconnectReasonKey)
   const showRating = reasonKey !== DisconnectReasonKey.MeetingEnded
+  const showPlatformReturn =
+    reasonKey === DisconnectReasonKey.MeetingEnded && Boolean(platformReturn)
 
   return (
     <Screen layout="centered" footer={false}>
@@ -95,15 +113,19 @@ const FeedbackRoute = () => {
           <Heading ref={headingRef} tabIndex={-1}>
             {t(`feedback.heading.${reasonKey || 'normal'}`)}
           </Heading>
+          {reasonKey === DisconnectReasonKey.MeetingEnded && (
+            <Text as="p">{t('feedback.meetingEndedBody')}</Text>
+          )}
           <HStack>
-            {platformReturn && (
+            {showPlatformReturn && (
               <Button
                 variant="primary"
                 onPress={() => {
-                  const roomId = window.history.state?.room_id
-                  if (typeof roomId === 'string')
-                    clearCachedPlatformReturn(roomId)
-                  window.location.assign(platformReturn)
+                  window.open(
+                    platformReturn as string,
+                    '_blank',
+                    'noopener,noreferrer'
+                  )
                 }}
               >
                 {t('feedback.returnToMatter')}
@@ -115,7 +137,7 @@ const FeedbackRoute = () => {
               </Button>
             )}
             <Button
-              variant={platformReturn ? 'secondary' : 'primary'}
+              variant={showPlatformReturn ? 'secondary' : 'primary'}
               onPress={() => setLocation('/')}
             >
               {t('feedback.home')}

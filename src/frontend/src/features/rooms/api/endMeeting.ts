@@ -1,4 +1,5 @@
 import { fetchApi } from '@/api/fetchApi'
+import { ApiError } from '@/api/ApiError'
 
 export type EndMeetingResponse = {
   version: 1
@@ -12,9 +13,17 @@ export type EndMeetingResponse = {
 
 export const endMeeting = (
   roomId: string,
-  closeRequestId: string
+  closeRequestId: string,
+  signal?: AbortSignal
 ): Promise<EndMeetingResponse> =>
   fetchApi(`/rooms/${roomId}/end/`, {
     method: 'POST',
     body: JSON.stringify({ close_request_id: closeRequestId }),
+    signal,
   })
+
+export const isRetryableEndMeetingError = (error: unknown) =>
+  !(error instanceof ApiError) ||
+  error.statusCode === 408 ||
+  error.statusCode === 429 ||
+  error.statusCode >= 500

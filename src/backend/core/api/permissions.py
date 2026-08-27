@@ -5,7 +5,10 @@ from django.http import Http404
 
 from rest_framework import permissions
 
-from ..mastrao_guest_grant import can_access_canonical_room
+from ..mastrao_guest_grant import (
+    active_guest_lifecycle_grant,
+    can_access_canonical_room,
+)
 from ..mastrao_host_grant import active_host_close_grant, active_host_grant
 from ..mastrao_identity import is_mastrao_host_subject
 from ..models import RoleChoices
@@ -138,6 +141,21 @@ class HasMeetingClosePrivilegesOnRoom(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         return active_host_close_grant(request, obj) is not None
+
+
+class HasMeetingLifecycleAccess(permissions.BasePermission):
+    """Allow only the session-bound host or guest to read terminal state."""
+
+    def has_permission(self, request, view):
+        return request.method in permissions.SAFE_METHODS
+
+    def has_object_permission(self, request, view, obj):
+        if (
+            active_host_close_grant(request, obj) is None
+            and active_guest_lifecycle_grant(request, obj) is None
+        ):
+            raise Http404
+        return True
 
 
 class HasLiveKitRoomAccess(permissions.BasePermission):

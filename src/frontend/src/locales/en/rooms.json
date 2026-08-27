@@ -4,10 +4,11 @@
       "normal": "You have left the meeting",
       "duplicateIdentity": "You have joined the meeting from another device",
       "participantRemoved": "You have been removed from the meeting by a host",
-      "meetingEnded": "The host has ended the meeting"
+      "meetingEnded": "Meeting ended"
     },
     "home": "Return to home",
     "returnToMatter": "Return to the case file",
+    "meetingEndedBody": "The meeting has ended. The recording and transcript may still be processing. You can close this tab.",
     "back": "Rejoin the meeting"
   },
   "selectDevice": {
@@ -95,6 +96,10 @@
     "ended": {
       "title": "This meeting has ended",
       "body": "The host ended the meeting. This link can no longer be used."
+    },
+    "ending": {
+      "title": "Meeting is ending",
+      "body": "We are confirming that the meeting has closed."
     },
     "recordingStopping": {
       "title": "Recording is stopping",

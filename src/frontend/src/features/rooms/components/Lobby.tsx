@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
@@ -18,8 +18,24 @@ import { fetchRoom } from '../api/fetchRoom'
 import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
 import { ApiLobbyStatus, type ApiRequestEntry } from '../api/requestEntry'
 import { useLobby } from '../hooks/useLobby'
-import { isMastraoRoomId } from '../utils/isRoomValid'
+import {
+  isMastraoRoomId,
+  shouldWaitForCanonicalRoom,
+} from '../utils/isRoomValid'
 import { RecordingConsent } from './RecordingConsent'
+import { fetchRoomLifecycle } from '../api/fetchRoomLifecycle'
+import { navigateTo } from '@/navigation/navigateTo'
+import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
+
+const navigateToEndedMeeting = (roomId: string) =>
+  navigateTo(
+    'feedback',
+    { outcome: 'ended', roomId },
+    {
+      replace: true,
+      state: { room_id: roomId },
+    }
+  )
 
 export const Lobby = ({
   roomId,
@@ -33,6 +49,11 @@ export const Lobby = ({
   const { data: configData } = useConfig()
   const { isLoggedIn, user } = useUser()
   const { username } = useSnapshot(userStore)
+  const { phase, closeRequestId, markActive, markEnding, markEnded } =
+    useMeetingLifecycle()
+  const [canonicalLifecycle, setCanonicalLifecycle] = useState<
+    'checking' | 'open' | 'ending' | 'ended'
+  >('open')
 
   // Room data strategy:
   // 1. Initial fetch is performed to check access and get LiveKit configuration
@@ -43,6 +64,7 @@ export const Lobby = ({
     data: roomData,
     error,
     isError,
+    isPending,
     refetch: refetchRoom,
   } = useQuery({
     queryKey: [keys.room, roomId],
@@ -77,30 +99,132 @@ export const Lobby = ({
     enterRoom()
   }
 
-  const { status, startWaiting, markEnded } = useLobby({
+  const { status, startWaiting } = useLobby({
     roomId,
     username: username || user?.full_name || 'anonymous',
     onAccepted: handleAccepted,
   })
 
   useEffect(() => {
-    if (isError && error?.statusCode == 404) {
+    if (status !== ApiLobbyStatus.ENDED || !isMastraoRoomId(roomId)) return
+
+    setCanonicalLifecycle('checking')
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const controller = new AbortController()
+    const reconcile = async () => {
+      try {
+        const lifecycle = await fetchRoomLifecycle(roomId, controller.signal)
+        if (cancelled) return
+        setCanonicalLifecycle(lifecycle.state)
+        if (lifecycle.state === 'ended') {
+          navigateToEndedMeeting(roomId)
+          return
+        }
+      } catch {
+        // Keep the non-terminal copy until authority can be reached.
+      }
+      if (!cancelled) timer = setTimeout(reconcile, 1000)
+    }
+    void reconcile()
+    return () => {
+      cancelled = true
+      controller.abort()
+      if (timer) clearTimeout(timer)
+    }
+  }, [roomId, status])
+
+  useEffect(() => {
+    if (phase === 'active' || !isMastraoRoomId(roomId)) return
+
+    setCanonicalLifecycle(phase === 'ended' ? 'ended' : 'checking')
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const controller = new AbortController()
+    const reconcile = async () => {
+      try {
+        const lifecycle = await fetchRoomLifecycle(roomId, controller.signal)
+        if (cancelled) return
+        setCanonicalLifecycle(lifecycle.state)
+        if (lifecycle.state === 'ended') {
+          markEnded()
+          navigateToEndedMeeting(roomId)
+          return
+        }
+        if (lifecycle.state === 'open') {
+          if (!closeRequestId) markActive()
+          return
+        }
+        markEnding()
+      } catch {
+        // Keep the safe non-joinable state until authority can be reached.
+      }
+      if (!cancelled) timer = setTimeout(reconcile, 1000)
+    }
+    void reconcile()
+    return () => {
+      cancelled = true
+      controller.abort()
+      if (timer) clearTimeout(timer)
+    }
+  }, [closeRequestId, markActive, markEnded, markEnding, phase, roomId])
+
+  useEffect(() => {
+    if (isError && ['404', '410'].includes(String(error?.statusCode))) {
       if (isMastraoRoomId(roomId)) {
-        markEnded()
-        return
+        setCanonicalLifecycle('checking')
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const controller = new AbortController()
+        const reconcile = async () => {
+          try {
+            const lifecycle = await fetchRoomLifecycle(
+              roomId,
+              controller.signal
+            )
+            if (cancelled) return
+            setCanonicalLifecycle(lifecycle.state)
+            if (lifecycle.state === 'ended') {
+              navigateToEndedMeeting(roomId)
+              return
+            }
+          } catch {
+            // Preserve the safe waiting state while authority is unavailable.
+          }
+          if (!cancelled) timer = setTimeout(reconcile, 1000)
+        }
+        void reconcile()
+        return () => {
+          cancelled = true
+          controller.abort()
+          if (timer) clearTimeout(timer)
+        }
       }
       // The room component will handle the room creation if the user is authenticated
       enterRoom()
     }
-  }, [isError, error, enterRoom, markEnded, roomId])
+  }, [isError, error, enterRoom, roomId])
 
   const { openLoginHint } = useLoginHint()
 
   const handleSubmit = async () => {
+    if (phase !== 'active') {
+      setCanonicalLifecycle('checking')
+      return
+    }
+
     const { data, error: roomError } = await refetchRoom()
 
-    if (roomError?.statusCode == 404 && isMastraoRoomId(roomId)) {
-      markEnded()
+    if (
+      ['404', '410'].includes(String(roomError?.statusCode)) &&
+      isMastraoRoomId(roomId)
+    ) {
+      const lifecycle = await fetchRoomLifecycle(roomId).catch(() => null)
+      if (lifecycle?.state === 'ended') {
+        navigateToEndedMeeting(roomId)
+      } else if (lifecycle) {
+        setCanonicalLifecycle(lifecycle.state)
+      }
       return
     }
 
@@ -114,6 +238,38 @@ export const Lobby = ({
     }
 
     enterRoom()
+  }
+
+  if (phase !== 'active' && ['checking', 'open'].includes(canonicalLifecycle)) {
+    return (
+      <VStack alignItems="center" textAlign="center">
+        <H lvl={1} margin={false} centered>
+          {t('ending.title')}
+        </H>
+        <Text as="p" variant="note">
+          {t('ending.body')}
+        </Text>
+        <Spinner />
+      </VStack>
+    )
+  }
+
+  if (shouldWaitForCanonicalRoom(roomId, isPending)) {
+    return <Spinner />
+  }
+
+  if (canonicalLifecycle === 'checking' || canonicalLifecycle === 'ending') {
+    return (
+      <VStack alignItems="center" textAlign="center">
+        <H lvl={1} margin={false} centered>
+          {t('ending.title')}
+        </H>
+        <Text as="p" variant="note">
+          {t('ending.body')}
+        </Text>
+        <Spinner />
+      </VStack>
+    )
   }
 
   const recording = roomData?.recording
@@ -174,6 +330,19 @@ export const Lobby = ({
 
   switch (status) {
     case ApiLobbyStatus.ENDED:
+      if (isMastraoRoomId(roomId)) {
+        return (
+          <VStack alignItems="center" textAlign="center">
+            <H lvl={1} margin={false} centered>
+              {t('ending.title')}
+            </H>
+            <Text as="p" variant="note">
+              {t('ending.body')}
+            </Text>
+            <Spinner />
+          </VStack>
+        )
+      }
       return (
         <VStack alignItems="center" textAlign="center">
           <H lvl={1} margin={false} centered>

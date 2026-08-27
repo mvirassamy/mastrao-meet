@@ -33,6 +33,7 @@ export function MobileControlBar({
   onDeviceError,
   roomId,
   canEnd,
+  onMeetingEnded,
 }: Readonly<ControlBarAuxProps>) {
   const { t } = useTranslation('rooms')
   const [isMenuOpened, setIsMenuOpened] = React.useState(false)
@@ -127,7 +128,10 @@ export function MobileControlBar({
               <EndMeetingButton
                 roomId={roomId}
                 description={true}
-                onEnded={() => setIsMenuOpened(false)}
+                onEnded={() => {
+                  setIsMenuOpened(false)
+                  onMeetingEnded?.()
+                }}
               />
             )}
             <Button

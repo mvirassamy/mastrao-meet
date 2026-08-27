@@ -92,10 +92,10 @@ export const readCachedPlatformReturn = (
       JSON.parse(window.sessionStorage.getItem(key) ?? 'null'),
       expectedOrigin
     )
-    if (!descriptor) window.sessionStorage.removeItem(key)
+    if (!descriptor) clearCachedPlatformReturn(slug)
     return descriptor
   } catch {
-    window.sessionStorage.removeItem(key)
+    clearCachedPlatformReturn(slug)
     return null
   }
 }
@@ -108,4 +108,9 @@ export const clearCachedPlatformReturn = (slug: string) => {
   } catch {
     // Nothing durable or authoritative depends on this cleanup.
   }
+}
+
+export const clearPlatformReturnForRoomUrl = (roomUrl: string) => {
+  const slug = roomUrl.split('?')[0]?.split('/').filter(Boolean).at(-1)
+  if (slug) clearCachedPlatformReturn(slug)
 }

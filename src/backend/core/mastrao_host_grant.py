@@ -69,6 +69,38 @@ def active_host_close_grant(request, room, *, observed_at=None):
     )
 
 
+def active_host_close_grant_for_room_ref(request, room_ref, *, observed_at=None):
+    """Resolve a closed/open host grant by canonical room ref before room disclosure."""
+
+    user = getattr(request, "user", None)
+    if (
+        not user
+        or not user.is_authenticated
+        or not user.is_active
+        or not is_mastrao_host_subject(user.sub)
+    ):
+        return None
+    digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
+    platform_session_ref = request.session.get(SESSION_PLATFORM_REF_KEY)
+    if digest is None or not isinstance(platform_session_ref, str):
+        return None
+    observed_at = observed_at or timezone.now()
+    return (
+        models.MastraoHostGrant.objects.select_related(
+            "identity", "room_binding", "room_binding__room", "room_binding__closure"
+        )
+        .filter(
+            identity__user=user,
+            room_binding__room_ref=room_ref,
+            session_nonce_digest=digest,
+            platform_session_ref=platform_session_ref,
+            expires_at__gt=observed_at,
+        )
+        .order_by("-expires_at")
+        .first()
+    )
+
+
 def host_media_projection(request, room):
     """Resolve one grant snapshot into its media role and bounded token TTL."""
 

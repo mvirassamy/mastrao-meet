@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -38,13 +38,14 @@ import { userPreferencesStore } from '@/stores/userPreferences'
 import { userStore } from '@/stores/user'
 import { WatchMediaDeviceErrors } from './WatchMediaDeviceErrors'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
-import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 import { activateRecording } from '../api/recordingConsent'
 import { Button } from '@/primitives'
 import {
   cachePlatformReturn,
   readCachedPlatformReturn,
 } from '../platformReturn'
+import { isMastraoRoomId } from '../utils/isRoomValid'
+import { fetchRoomLifecycle } from '../api/fetchRoomLifecycle'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -60,6 +61,15 @@ export const Conference = ({
   mode?: 'join' | 'create'
   initialRoomData?: ApiRoom
 }) => {
+  const {
+    phase,
+    isEnding,
+    closeRequestId,
+    markActive,
+    markEnding,
+    markEndingUncertain,
+    markEnded,
+  } = useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
 
   const { userChoices: userConfig } = usePersistentUserChoices() as {
@@ -100,17 +110,31 @@ export const Conference = ({
     queryKey: fetchKey,
     staleTime: 6 * 60 * 60 * 1000, // By default, LiveKit access tokens expire 6 hours after generation
     initialData: initialRoomData,
-    queryFn: () =>
-      fetchRoom({
-        roomId: roomId as string,
-        username: username,
-      }).catch((error) => {
-        if (error.statusCode == '404') {
-          createRoom({ slug: roomId, username })
+    queryFn: async () => {
+      try {
+        return await fetchRoom({
+          roomId: roomId as string,
+          username: username,
+        })
+      } catch (error) {
+        const statusCode = String(
+          (error as { statusCode?: string | number }).statusCode
+        )
+        if (isMastraoRoomId(roomId) && ['404', '410'].includes(statusCode)) {
+          markEndingUncertain()
+          const currentRoom = queryClient.getQueryData<ApiRoom>(fetchKey)
+          if (currentRoom) return currentRoom
+          throw error
         }
-      }),
+        if (statusCode === '404') {
+          return createRoom({ slug: roomId, username })
+        }
+        throw error
+      }
+    },
     retry: false,
     refetchInterval: (query) => {
+      if (isEnding) return false
       const state = (query.state.data as ApiRoom | undefined)?.recording
         ?.recording_state
       return state &&
@@ -131,6 +155,14 @@ export const Conference = ({
   })
 
   useEffect(() => {
+    const refetchAfterReconnect = () => {
+      if (!isEnding) void refetchRoom()
+    }
+    window.addEventListener('online', refetchAfterReconnect)
+    return () => window.removeEventListener('online', refetchAfterReconnect)
+  }, [isEnding, refetchRoom])
+
+  useEffect(() => {
     if (data?.platform_return) {
       cachePlatformReturn(
         roomId,
@@ -139,6 +171,73 @@ export const Conference = ({
       )
     }
   }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
+
+  const navigateToEndedMeeting = useCallback(() => {
+    markEnded()
+    queryClient.removeQueries({ queryKey: [keys.room, roomId], exact: true })
+    const platformOrigin = apiConfig?.mastrao_platform_origin
+    navigateTo(
+      'feedback',
+      { outcome: 'ended', roomId },
+      {
+        replace: true,
+        state: {
+          reason: DisconnectReason.ROOM_DELETED,
+          room_id: roomId,
+          platform_return:
+            data?.platform_return ??
+            (platformOrigin
+              ? readCachedPlatformReturn(roomId, platformOrigin)
+              : undefined),
+        },
+      }
+    )
+  }, [
+    apiConfig?.mastrao_platform_origin,
+    data?.platform_return,
+    markEnded,
+    roomId,
+  ])
+
+  useEffect(() => {
+    if (!isMastraoRoomId(roomId) || !['ending', 'uncertain'].includes(phase)) {
+      return
+    }
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const controller = new AbortController()
+    const reconcile = async () => {
+      try {
+        const lifecycle = await fetchRoomLifecycle(roomId, controller.signal)
+        if (cancelled) return
+        if (lifecycle.state === 'ended') {
+          navigateToEndedMeeting()
+          return
+        }
+        if (lifecycle.state === 'open') {
+          if (!closeRequestId) markActive()
+          return
+        }
+        markEnding()
+      } catch {
+        // Keep the durable uncertain state and retry without creating the room.
+      }
+      if (!cancelled) timer = setTimeout(reconcile, 1000)
+    }
+    void reconcile()
+    return () => {
+      cancelled = true
+      controller.abort()
+      if (timer) clearTimeout(timer)
+    }
+  }, [
+    closeRequestId,
+    markActive,
+    markEnding,
+    navigateToEndedMeeting,
+    phase,
+    roomId,
+  ])
 
   const roomOptions = useMemo((): RoomOptions => {
     return {
@@ -225,6 +324,7 @@ export const Conference = ({
   const activationAttempts = useRef(0)
 
   useEffect(() => {
+    if (isEnding) return
     const recording = data?.recording
     const shouldActivate =
       isLiveKitConnected &&
@@ -278,6 +378,7 @@ export const Conference = ({
     activationRetry,
     data?.can_end,
     data?.recording,
+    isEnding,
     isLiveKitConnected,
     refetchRoom,
     roomId,
@@ -378,28 +479,32 @@ export const Conference = ({
 
             switch (e) {
               case DisconnectReason.ROOM_DELETED:
-                queryClient.removeQueries({ queryKey: fetchKey, exact: true })
-                navigateTo(
-                  'feedback',
-                  {},
-                  {
-                    state: {
-                      reason: e,
-                      platform_return:
-                        data?.platform_return ??
-                        readCachedPlatformReturn(
-                          roomId,
-                          apiConfig?.mastrao_platform_origin
-                        ),
-                      ...metadata,
-                    },
-                  }
-                )
+                if (!isMastraoRoomId(roomId)) {
+                  queryClient.removeQueries({ queryKey: fetchKey, exact: true })
+                  navigateTo(
+                    'feedback',
+                    { outcome: 'ended', roomId },
+                    {
+                      state: {
+                        reason: e,
+                        ...metadata,
+                      },
+                    }
+                  )
+                  return
+                }
+                markEndingUncertain()
+                void fetchRoomLifecycle(roomId)
+                  .then((lifecycle) => {
+                    if (lifecycle.state === 'ended') navigateToEndedMeeting()
+                    else if (lifecycle.state === 'ending') markEnding()
+                  })
+                  .catch(() => undefined)
                 return
               case DisconnectReason.CLIENT_INITIATED:
                 navigateTo(
                   'feedback',
-                  {},
+                  { outcome: 'left', roomId },
                   {
                     state: {
                       platform_return:
@@ -414,11 +519,24 @@ export const Conference = ({
                 )
                 return
               case DisconnectReason.DUPLICATE_IDENTITY:
+                navigateTo(
+                  'feedback',
+                  { outcome: 'duplicate', roomId },
+                  {
+                    replace: true,
+                    state: {
+                      reason: e,
+                      ...metadata,
+                    },
+                  }
+                )
+                return
               case DisconnectReason.PARTICIPANT_REMOVED:
                 navigateTo(
                   'feedback',
-                  {},
+                  { outcome: 'removed', roomId },
                   {
+                    replace: true,
                     state: {
                       reason: e,
                       ...metadata,
@@ -429,52 +547,53 @@ export const Conference = ({
             }
           }}
         >
-          <MeetingLifecycleProvider key={roomId}>
-            <WatchMediaDeviceErrors />
-            {activationFailed && (
-              <div
-                role="alert"
-                className={css({
-                  position: 'absolute',
-                  top: '1rem',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 1002,
-                  padding: '0.75rem 1rem',
-                  borderRadius: 'md',
-                  backgroundColor: 'danger.100',
-                  color: 'danger.800',
-                })}
-              >
-                {t(
-                  activationExhausted
-                    ? 'recordingConsent.activationExhausted'
-                    : 'recordingConsent.activationError'
-                )}
-                {activationExhausted && (
-                  <Button
-                    variant="secondary"
-                    onPress={() => {
-                      activationAttempts.current = 0
-                      setActivationFailed(false)
-                      setActivationExhausted(false)
-                      setActivationRetry((value) => value + 1)
-                    }}
-                  >
-                    {t('recordingConsent.activationRetry')}
-                  </Button>
-                )}
-              </div>
-            )}
-            <VideoConference
-              roomId={roomId}
-              canEnd={data?.can_end}
-              recording={data?.recording}
-              onRecordingChanged={refetchRoom}
-            />
-            {!isMobile && <ActiveInviteDialog mode={mode} />}
-            <PictureInPictureConference />
-          </MeetingLifecycleProvider>
+          <WatchMediaDeviceErrors />
+          {activationFailed && (
+            <div
+              role="alert"
+              className={css({
+                position: 'absolute',
+                top: '1rem',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1002,
+                padding: '0.75rem 1rem',
+                borderRadius: 'md',
+                backgroundColor: 'danger.100',
+                color: 'danger.800',
+              })}
+            >
+              {t(
+                activationExhausted
+                  ? 'recordingConsent.activationExhausted'
+                  : 'recordingConsent.activationError'
+              )}
+              {activationExhausted && (
+                <Button
+                  variant="secondary"
+                  onPress={() => {
+                    activationAttempts.current = 0
+                    setActivationFailed(false)
+                    setActivationExhausted(false)
+                    setActivationRetry((value) => value + 1)
+                  }}
+                >
+                  {t('recordingConsent.activationRetry')}
+                </Button>
+              )}
+            </div>
+          )}
+          <VideoConference
+            roomId={roomId}
+            canEnd={data?.can_end}
+            recording={data?.recording}
+            onRecordingChanged={refetchRoom}
+            onMeetingEnded={() => {
+              navigateToEndedMeeting()
+            }}
+          />
+          {!isMobile && <ActiveInviteDialog mode={mode} />}
+          <PictureInPictureConference />
         </LiveKitRoom>
       </Screen>
     </QueryAware>

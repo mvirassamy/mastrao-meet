@@ -4,10 +4,11 @@
       "normal": "Vous avez quitté la réunion",
       "duplicateIdentity": "Vous avez rejoint la réunion depuis un autre appareil",
       "participantRemoved": "Vous avez été exclu de l'appel par un administrateur",
-      "meetingEnded": "L’hôte a terminé la réunion"
+      "meetingEnded": "Réunion terminée"
     },
     "home": "Retourner à l'accueil",
     "returnToMatter": "Retourner au dossier",
+    "meetingEndedBody": "La réunion est terminée. L’enregistrement et la transcription peuvent encore être en préparation. Vous pouvez fermer cet onglet.",
     "back": "Réintégrer la réunion"
   },
   "selectDevice": {
@@ -95,6 +96,10 @@
     "ended": {
       "title": "Cette réunion est terminée",
       "body": "L’hôte a terminé la réunion. Ce lien ne peut plus être utilisé."
+    },
+    "ending": {
+      "title": "Fin de la réunion en cours",
+      "body": "Nous confirmons la fermeture de la réunion."
     },
     "recordingStopping": {
       "title": "L’enregistrement s’arrête",

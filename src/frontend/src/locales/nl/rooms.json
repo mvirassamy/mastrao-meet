@@ -4,10 +4,11 @@
       "normal": "Je hebt de vergadering verlaten",
       "duplicateIdentity": "U heeft de vergadering via een ander apparaat geopend",
       "participantRemoved": "U bent door een beheerder uit het gesprek verwijderd",
-      "meetingEnded": "De host heeft de vergadering beëindigd"
+      "meetingEnded": "Vergadering beëindigd"
     },
     "home": "Keer terug naar het hoofdscherm",
     "returnToMatter": "Terug naar het dossier",
+    "meetingEndedBody": "De vergadering is beëindigd. De opname en het transcript worden mogelijk nog verwerkt. U kunt dit tabblad sluiten.",
     "back": "Sluit weer bij de vergadering aan"
   },
   "selectDevice": {
@@ -95,6 +96,10 @@
     "ended": {
       "title": "Deze vergadering is beëindigd",
       "body": "De host heeft de vergadering beëindigd. Deze link kan niet meer worden gebruikt."
+    },
+    "ending": {
+      "title": "De vergadering wordt beëindigd",
+      "body": "We bevestigen dat de vergadering is afgesloten."
     },
     "recordingStopping": {
       "title": "De opname wordt gestopt",

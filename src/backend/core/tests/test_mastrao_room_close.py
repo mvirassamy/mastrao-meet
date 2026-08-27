@@ -6,13 +6,18 @@ import json
 import time
 from unittest import mock
 
-from django.test import RequestFactory, override_settings
+from django.http import Http404
+from django.test import Client, RequestFactory, override_settings
+from django.utils import timezone
 
 import pytest
 
 from core import models
+from core.api.permissions import HasMeetingLifecycleAccess
+from core.api.viewsets import RoomViewSet
 from core.mastrao_meeting_close import request_meeting_close
 from core.mastrao_room_close_adapter import close_mastrao_room
+from core.mastrao_room_close_contract import RoomCloseRefused
 from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.services.room_management import (
     RoomManagementException,
@@ -72,6 +77,85 @@ def _request():
     )
 
 
+@pytest.mark.django_db
+def test_authorized_lifecycle_projection_distinguishes_ending_and_ended():
+    """The browser gets only the authoritative minimal terminal state."""
+
+    binding = _binding("lifecycle")
+    binding.room_ref = "room_11111111111111111111111111111111"
+    binding.save(update_fields=["room_ref", "updated_at"])
+    binding.closing_at = timezone.now()
+    binding.save(update_fields=["closing_at", "updated_at"])
+    view = RoomViewSet.as_view({"get": "mastrao_meeting_lifecycle"})
+    factory = RequestFactory()
+    lifecycle_grant = mock.Mock(room_binding=binding)
+    with mock.patch(
+        "core.api.viewsets.active_host_close_grant_for_room_ref",
+        return_value=lifecycle_grant,
+    ):
+        response = view(
+            factory.get(f"/api/v1.0/rooms/{binding.room_ref}/lifecycle/"),
+            pk=binding.room_ref,
+        )
+    assert response.status_code == 200
+    assert response.data == {"state": "ending"}
+    assert response["Cache-Control"] == "no-store"
+
+    models.MastraoRoomClosure.objects.create(
+        room_binding=binding,
+        organization_external_id="organization_lifecycle_0123456789",
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        close_ref="close_lifecycle_0123456789",
+        effect_key="close_effect_lifecycle_0123456789",
+        arguments_digest="c" * 64,
+        state=models.MastraoRoomClosure.State.APPLIED,
+        requested_at=timezone.now(),
+        applied_at=timezone.now(),
+        provider_observation=models.MastraoRoomClosure.ProviderObservation.DELETED,
+        receipt_claims={"state": "ended"},
+        receipt_digest="d" * 64,
+    )
+    with mock.patch(
+        "core.api.viewsets.active_host_close_grant_for_room_ref",
+        return_value=lifecycle_grant,
+    ):
+        response = view(
+            factory.get(f"/api/v1.0/rooms/{binding.room_ref}/lifecycle/"),
+            pk=binding.room_ref,
+        )
+    assert response.data == {"state": "ended"}
+
+
+@pytest.mark.django_db
+def test_lifecycle_projection_masks_unauthorized_room_existence():
+    """Unauthorized lifecycle reads cannot enumerate canonical rooms."""
+
+    binding = _binding("masked")
+    client = Client()
+
+    response = client.get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/")
+    assert response.status_code == 404
+    assert response["Cache-Control"] == "no-store"
+
+    missing = client.get("/api/v1.0/rooms/room_missing_0123456789/lifecycle/")
+    assert missing.status_code == 404
+    assert missing["Cache-Control"] == "no-store"
+    assert missing.json() == response.json()
+
+    permission = HasMeetingLifecycleAccess()
+    request = RequestFactory().get(f"/api/v1.0/rooms/{binding.room.slug}/lifecycle/")
+    request.session = {}
+
+    with pytest.raises(Http404):
+        permission.has_object_permission(
+            request,
+            mock.Mock(),
+            binding.room,
+        )
+
+
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_MEETING_CLOSE_ENABLED=True,
@@ -125,6 +209,49 @@ def test_core_close_acceptance_fences_room_before_effect_delivery():
     assert not models.MastraoRoomClosure.objects.filter(room_binding=binding).exists()
     with pytest.raises(MastraoRoomClosed):
         ensure_livekit_room(str(binding.room_id))
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("status", [404, 409, 503])
+@override_settings(
+    MASTRAO_MEETING_CLOSE_ENABLED=True,
+    LIVEKIT_EXPLICIT_ROOM_CREATION=True,
+)
+def test_refused_or_unaccepted_core_close_does_not_create_local_fence(status):
+    """Meet cannot become the lifecycle authority before Core accepts the close."""
+
+    binding = _binding("lost_response")
+    grant = mock.Mock(
+        room_binding_id=binding.pk,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+    )
+    with (
+        mock.patch(
+            "core.mastrao_meeting_close.active_host_close_grant",
+            return_value=grant,
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.active_host_compact_grant",
+            return_value="host.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.sign_meeting_close_request",
+            return_value=("close.payload.signature", {}),
+        ),
+        mock.patch(
+            "core.mastrao_meeting_close.post_core_json",
+            side_effect=RoomCloseRefused(status=status),
+        ),
+        pytest.raises(RoomCloseRefused),
+    ):
+        request_meeting_close(
+            mock.Mock(), binding.room, "close_request_lost_0123456789"
+        )
+
+    binding.refresh_from_db()
+    assert binding.closing_at is None
+    assert not models.MastraoRoomClosure.objects.filter(room_binding=binding).exists()
 
 
 @pytest.mark.django_db(transaction=True)

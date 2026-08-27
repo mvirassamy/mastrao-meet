@@ -17,6 +17,7 @@ import { useConfig } from '@/api/useConfig.ts'
 import { LogLevel, setLogLevel } from 'livekit-client'
 import { useWatchDeviceAvailability } from '@/features/rooms/hooks/useWatchDeviceAvailability'
 import { useRoomPageTitle } from '@/features/rooms/livekit/hooks/useRoomPageTitle'
+import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 
 const BaseRoom = ({ children }: { children: ReactNode }) => {
   return (
@@ -73,21 +74,19 @@ const Room = () => {
     return <ErrorScreen />
   }
 
-  if (!hasSubmittedEntry && !skipJoinScreen) {
-    return (
-      <BaseRoom>
-        <Join enterRoom={() => setHasSubmittedEntry(true)} roomId={roomId} />
-      </BaseRoom>
-    )
-  }
-
   return (
     <BaseRoom>
-      <Conference
-        initialRoomData={initialRoomData}
-        roomId={roomId}
-        mode={mode}
-      />
+      <MeetingLifecycleProvider key={roomId} roomId={roomId}>
+        {!hasSubmittedEntry && !skipJoinScreen ? (
+          <Join enterRoom={() => setHasSubmittedEntry(true)} roomId={roomId} />
+        ) : (
+          <Conference
+            initialRoomData={initialRoomData}
+            roomId={roomId}
+            mode={mode}
+          />
+        )}
+      </MeetingLifecycleProvider>
     </BaseRoom>
   )
 }

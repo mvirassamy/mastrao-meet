@@ -1,10 +1,13 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiStopCircleLine } from '@remixicon/react'
 
 import { Button, Dialog, P } from '@/primitives'
 import { HStack } from '@/styled-system/jsx'
-import { endMeeting } from '@/features/rooms/api/endMeeting'
+import {
+  endMeeting,
+  isRetryableEndMeetingError,
+} from '@/features/rooms/api/endMeeting'
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
 
 export const EndMeetingButton = ({
@@ -20,22 +23,43 @@ export const EndMeetingButton = ({
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasFailed, setHasFailed] = useState(false)
-  const { isEnding, markEnding } = useMeetingLifecycle()
-  const closeRequestId = useRef(
-    `close_${crypto.randomUUID().replaceAll('-', '')}`
-  )
+  const {
+    phase,
+    beginEnding,
+    markActive,
+    markEnding,
+    markEndingUncertain,
+    markEnded,
+  } = useMeetingLifecycle()
 
   const confirm = async () => {
+    const closeRequestId = beginEnding()
     setIsSubmitting(true)
     setHasFailed(false)
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15_000)
     try {
-      await endMeeting(roomId, closeRequestId.current)
-      markEnding()
+      const response = await endMeeting(
+        roomId,
+        closeRequestId,
+        controller.signal
+      )
       setIsOpen(false)
-      onEnded?.()
-    } catch {
+      if (response.state === 'ended') {
+        markEnded()
+        onEnded?.()
+      } else {
+        markEnding()
+      }
+    } catch (error) {
+      if (isRetryableEndMeetingError(error)) {
+        markEndingUncertain()
+      } else {
+        markActive()
+      }
       setHasFailed(true)
     } finally {
+      window.clearTimeout(timeout)
       setIsSubmitting(false)
     }
   }
@@ -47,7 +71,7 @@ export const EndMeetingButton = ({
         tooltip={t('label')}
         aria-label={t('label')}
         description={description}
-        isDisabled={isEnding}
+        isDisabled={phase === 'requesting' || phase === 'ended'}
         onPress={() => setIsOpen(true)}
         data-attr="controls-end-meeting"
       >
