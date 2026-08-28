@@ -481,17 +481,24 @@ class MetadataCollector:
         endpoint = _safe_http_url(
             _required_env("MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT")
         )
-        receipt = _sign_artifact_receipt(self._artifact_receipt_claims(payload, data))
+        receipt_claims = self._artifact_receipt_claims(payload, data)
+        receipt = _sign_artifact_receipt(receipt_claims)
         body = json.dumps(
             {"speaker_evidence_artifact_receipt": receipt},
             separators=(",", ":"),
             sort_keys=True,
         ).encode("utf-8")
+        sidecar_ref = f"{self.output_filename}{ARTIFACT_RECEIPT_SUFFIX}"
+        sidecar_body = json.dumps(
+            {"speaker_evidence_artifact_receipt_claims": receipt_claims},
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
         self.minio_client.put_object(
             self.bucket_name,
-            f"{self.output_filename}{ARTIFACT_RECEIPT_SUFFIX}",
-            BytesIO(body),
-            length=len(body),
+            sidecar_ref,
+            BytesIO(sidecar_body),
+            length=len(sidecar_body),
             content_type="application/json",
         )
         core_request = request.Request(  # noqa: S310
@@ -510,6 +517,17 @@ class MetadataCollector:
                 or len(response_body) > MAX_CORE_RESPONSE_BYTES
             ):
                 raise RuntimeError("speaker_evidence_artifact_refused")
+            try:
+                result = json.loads(response_body)
+            except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as error:
+                raise RuntimeError("speaker_evidence_artifact_refused") from error
+            if (
+                not isinstance(result, dict)
+                or result.get("state") != "available"
+                or result.get("outcome") != "available"
+            ):
+                raise RuntimeError("speaker_evidence_artifact_refused")
+        self.minio_client.remove_object(self.bucket_name, sidecar_ref)
 
     async def aclose(self):
         """Close all sessions and cleanup resources."""

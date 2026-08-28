@@ -18,6 +18,8 @@ from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_speaker_evidence_contract import (
     build_capture_receipt_claims,
+    refresh_artifact_receipt_claims,
+    sign_artifact_receipt,
     sign_capture_receipt,
     verify_speaker_evidence_capture_effect,
 )
@@ -82,6 +84,28 @@ def _receipt_sidecar_ref(effect):
     return f"mastrao-speaker-evidence/{effect['evidence_ref']}.json{SPEAKER_EVIDENCE_RECEIPT_SUFFIX}"
 
 
+def _artifact_object_ref(effect):
+    return f"mastrao-speaker-evidence/{effect['evidence_ref']}.json"
+
+
+def _artifact_claims_match_effect(claims, effect):
+    return (
+        claims.get("organization_external_id") == effect["organization_external_id"]
+        and claims.get("meeting_ref") == effect["meeting_ref"]
+        and claims.get("room_ref") == effect["room_ref"]
+        and claims.get("recording_ref") == effect["recording_ref"]
+        and claims.get("evidence_ref") == effect["evidence_ref"]
+        and claims.get("provider_binding_digest") == effect["provider_binding_digest"]
+        and claims.get("policy_ref") == effect["policy_ref"]
+        and claims.get("notice_version") == effect["notice_version"]
+        and claims.get("notice_digest") == effect["notice_digest"]
+        and claims.get("purpose") == effect["purpose"]
+        and claims.get("scope") == effect["scope"]
+        and claims.get("retention_expires_at") == effect["retention_expires_at"]
+        and claims.get("object_ref") == _artifact_object_ref(effect)
+    )
+
+
 def _pending_dispatch_marker():
     return {
         "state": SPEAKER_EVIDENCE_DISPATCH_PENDING,
@@ -124,12 +148,21 @@ def _replay_artifact_receipt(effect):
         body = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
         raise RecordingContractRefused(status=503) from error
-    if not isinstance(body, dict) or set(body) != {"speaker_evidence_artifact_receipt"}:
+    if not isinstance(body, dict) or set(body) != {
+        "speaker_evidence_artifact_receipt_claims"
+    }:
+        raise RecordingContractRefused(status=503)
+    claims = body["speaker_evidence_artifact_receipt_claims"]
+    if not isinstance(claims, dict) or not _artifact_claims_match_effect(claims, effect):
         raise RecordingContractRefused(status=503)
     result = post_core_json(
         endpoint=settings.MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT,
         expected_path="/internal/v1/meetings/speaker-evidence/artifacts/finalize",
-        body=body,
+        body={
+            "speaker_evidence_artifact_receipt": sign_artifact_receipt(
+                refresh_artifact_receipt_claims(claims)
+            )
+        },
         timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
         refusal=RecordingContractRefused,
         expected_fields={"state", "outcome"},

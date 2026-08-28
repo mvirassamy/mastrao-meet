@@ -22,6 +22,8 @@ CAPTURE_EFFECT_TYPE = "mastrao.core-meeting-speaker-evidence-capture-effect"
 CAPTURE_EFFECT_JOSE_TYPE = "mastrao-meeting-speaker-evidence-capture-effect+jws"
 CAPTURE_RECEIPT_TYPE = "mastrao.meeting-speaker-evidence-capture-receipt"
 CAPTURE_RECEIPT_JOSE_TYPE = "mastrao-meeting-speaker-evidence-capture-receipt+jws"
+ARTIFACT_RECEIPT_TYPE = "mastrao.meeting-speaker-evidence-artifact-receipt"
+ARTIFACT_RECEIPT_JOSE_TYPE = "mastrao-meeting-speaker-evidence-artifact-receipt+jws"
 
 CAPTURE_EFFECT_FIELDS = {
     "version",
@@ -136,3 +138,22 @@ def sign_capture_receipt(claims):
     """Sign one speaker-evidence capture receipt."""
 
     return _sign(claims, CAPTURE_RECEIPT_JOSE_TYPE)
+
+
+def refresh_artifact_receipt_claims(claims):
+    """Refresh replay-safe timing fields for one exact artifact receipt."""
+
+    now = int(time.time())
+    refreshed = dict(claims)
+    refreshed.update(
+        issued_at=now,
+        expires_at=now + MAX_ASSERTION_SECONDS,
+        jti=f"speakerartifact_{_sha256_canonical([claims, now])[:32]}",
+    )
+    return refreshed
+
+
+def sign_artifact_receipt(claims):
+    """Sign one speaker-evidence artifact receipt."""
+
+    return _sign(claims, ARTIFACT_RECEIPT_JOSE_TYPE)

@@ -3,6 +3,7 @@
 # Test names carry the proof intent.
 # pylint: disable=missing-function-docstring
 
+import json
 from unittest import mock
 
 from django.utils import timezone
@@ -72,6 +73,26 @@ def _effect(binding):
     }
 
 
+def _artifact_claims(binding):
+    effect = _effect(binding)
+    return {
+        **effect,
+        "object_ref": "mastrao-speaker-evidence/evidence_0123456789abcdef.json",
+        "artifact_ref": "speakerevidenceartifact_0123456789abcdef",
+        "byte_size": 1234,
+        "checksum_digest": "e" * 64,
+        "participant_count": 1,
+        "event_count": 2,
+        "timeline_started_at_ms": 0,
+        "timeline_ended_at_ms": 1000,
+        "region_ref": "fr-par",
+        "encryption_ref": "sse-s3",
+        "lifecycle_policy_ref": "retention-30-days",
+        "issued_at": 1_900_000_000,
+        "expires_at": 1_900_000_030,
+    }
+
+
 def test_speaker_evidence_capture_starts_collector_with_opaque_metadata():
     binding = _active_recording_binding()
     with (
@@ -115,6 +136,7 @@ def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
 
 def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start():
     binding = _active_recording_binding()
+    sidecar_claims = _artifact_claims(binding)
     binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
     binding.recording.save(update_fields=["options"])
     with (
@@ -128,9 +150,21 @@ def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start(
         mock.patch(
             "core.mastrao_speaker_evidence_adapter.default_storage.open",
             mock.mock_open(
-                read_data=b'{"speaker_evidence_artifact_receipt":"receipt"}'
+                read_data=(
+                    b'{"speaker_evidence_artifact_receipt_claims":'
+                    + json.dumps(sidecar_claims).encode()
+                    + b"}"
+                )
             ),
         ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.refresh_artifact_receipt_claims",
+            return_value={"jti": "fresh"},
+        ) as refresh,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt",
+            return_value="fresh.receipt.signature",
+        ) as sign_artifact,
         mock.patch(
             "core.mastrao_speaker_evidence_adapter.post_core_json",
             return_value={"state": "available", "outcome": "available"},
@@ -143,7 +177,46 @@ def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start(
         assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
 
     start.assert_not_called()
+    refresh.assert_called_once_with(sidecar_claims)
+    sign_artifact.assert_called_once_with({"jti": "fresh"})
     post.assert_called_once()
+    _, kwargs = post.call_args
+    assert kwargs["body"] == {
+        "speaker_evidence_artifact_receipt": "fresh.receipt.signature"
+    }
+
+
+def test_speaker_evidence_capture_refuses_tampered_sidecar_claims():
+    binding = _active_recording_binding()
+    sidecar_claims = {
+        **_artifact_claims(binding),
+        "recording_ref": "recording_other_012345",
+    }
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
+    binding.recording.save(update_fields=["options"])
+    with (
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=True,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.open",
+            mock.mock_open(
+                read_data=(
+                    b'{"speaker_evidence_artifact_receipt_claims":'
+                    + json.dumps(sidecar_claims).encode()
+                    + b"}"
+                )
+            ),
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt"
+        ) as sign_artifact,
+    ):
+        with pytest.raises(RecordingContractRefused):
+            _apply_capture(_effect(binding))
+
+    sign_artifact.assert_not_called()
 
 
 def test_speaker_evidence_capture_recovers_stale_pending_dispatch():
