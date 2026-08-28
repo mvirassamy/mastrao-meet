@@ -34,6 +34,24 @@ from .sip_management import SIPException, SIPManagement
 
 logger = getLogger(__name__)
 
+SPEAKER_EVIDENCE_DISPATCH_KEY = "mastrao_speaker_evidence_dispatch_id"
+
+
+def _stop_metadata_collector_dispatches(recording):
+    for dispatch_option_key, warning in (
+        ("metadata_collector_dispatch_id", "Failed to stop the MetadataCollectorService"),
+        (SPEAKER_EVIDENCE_DISPATCH_KEY, "Failed to stop the speaker evidence collector"),
+    ):
+        if recording.options.get(dispatch_option_key, None) is None:
+            continue
+        try:
+            MetadataCollectorService().stop(
+                recording,
+                dispatch_option_key=dispatch_option_key,
+            )
+        except MetadataCollectorException:
+            logger.warning(warning)
+
 
 class LiveKitWebhookError(Exception):
     """Base exception for LiveKit webhook processing errors."""
@@ -202,11 +220,7 @@ class LiveKitEventsService:
         except RoomManagementException as e:
             logger.exception("Failed to update room's metadata: %s", e)
 
-        if recording.options.get("metadata_collector_dispatch_id", None) is not None:
-            try:
-                MetadataCollectorService().stop(recording)
-            except MetadataCollectorException:
-                logger.warning("Failed to stop the MetadataCollectorService")
+        _stop_metadata_collector_dispatches(recording)
 
         if (
             data.egress_info.status == api.EgressStatus.EGRESS_LIMIT_REACHED

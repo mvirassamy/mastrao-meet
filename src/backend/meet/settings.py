@@ -66,6 +66,9 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "transcription_egress_request",
     "transcription_egress_grant",
     "transcription_terminal_receipt",
+    "speaker_evidence_capture_effect",
+    "speaker_evidence_capture_receipt",
+    "speaker_evidence_artifact_receipt",
     "object_ref",
 )
 
@@ -422,6 +425,11 @@ class Base(Configuration):
     MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT",
         environ_prefix=None,
     )
     MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT = values.Value(

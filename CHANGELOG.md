@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) bind speaker evidence labels and fresh capture windows
+- 🐛(backend) seal and drain speaker evidence artifact replay sidecars
+- 🐛(backend) refresh speaker evidence artifact receipts on replay
+- 🐛(agent) bound speaker evidence artifact exports
+- 🐛(backend) recover and stop speaker evidence collector dispatches
+- 🔐(agent) keep speaker evidence free of chat and identities
 - 🐛(backend) keep lifecycle projection responses uncacheable
 - 🐛(frontend) resume interrupted meeting closure from the lobby
 - 🐛(frontend) keep historical room slugs joinable
