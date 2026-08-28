@@ -3,9 +3,13 @@
 # Test names carry the proof intent.
 # pylint: disable=missing-function-docstring
 
+import hashlib
 import json
+import time
+from io import BytesIO
 from unittest import mock
 
+from django.conf import settings
 from django.utils import timezone
 
 import pytest
@@ -13,7 +17,7 @@ import pytest
 from core import models
 from core.factories import RoomFactory, UserFactory
 from core.mastrao_recording_contract import RecordingContractRefused
-from core.mastrao_speaker_evidence_adapter import _apply_capture
+from core.mastrao_speaker_evidence_adapter import _apply_capture, _sidecar_digest
 from core.models import RoomAccessLevel
 
 pytestmark = pytest.mark.django_db
@@ -75,22 +79,75 @@ def _effect(binding):
 
 def _artifact_claims(binding):
     effect = _effect(binding)
+    data = _artifact_object_bytes(binding)
+    now = int(time.time())
     return {
-        **effect,
+        "version": 1,
+        "type": "mastrao.meeting-speaker-evidence-artifact-receipt",
+        "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
+        "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
+        "operation": "confirm_meeting_speaker_evidence_artifact",
+        "operation_version": 1,
+        "organization_external_id": effect["organization_external_id"],
+        "meeting_ref": effect["meeting_ref"],
+        "room_ref": effect["room_ref"],
+        "recording_ref": effect["recording_ref"],
+        "evidence_ref": effect["evidence_ref"],
+        "provider_binding_digest": effect["provider_binding_digest"],
+        "policy_ref": effect["policy_ref"],
+        "notice_version": effect["notice_version"],
+        "notice_digest": effect["notice_digest"],
+        "purpose": effect["purpose"],
+        "scope": effect["scope"],
+        "retention_expires_at": effect["retention_expires_at"],
         "object_ref": "mastrao-speaker-evidence/evidence_0123456789abcdef.json",
-        "artifact_ref": "speakerevidenceartifact_0123456789abcdef",
-        "byte_size": 1234,
-        "checksum_digest": "e" * 64,
+        "artifact_ref": "speakerartifact_0123456789abcdef",
+        "byte_size": len(data),
+        "checksum_digest": hashlib.sha256(data).hexdigest(),
         "participant_count": 1,
         "event_count": 2,
         "timeline_started_at_ms": 0,
         "timeline_ended_at_ms": 1000,
-        "region_ref": "fr-par",
-        "encryption_ref": "sse-s3",
-        "lifecycle_policy_ref": "retention-30-days",
-        "issued_at": 1_900_000_000,
-        "expires_at": 1_900_000_030,
+        "region_ref": "region_speaker_012345",
+        "encryption_ref": "encryption_speaker_012345",
+        "lifecycle_policy_ref": "lifecycle_speaker_012345",
+        "issued_at": now,
+        "expires_at": now + 30,
+        "jti": "speakerartifact_0123456789abcdef",
     }
+
+
+def _artifact_object_bytes(binding):
+    effect = _effect(binding)
+    return json.dumps(
+        {
+            "version": 1,
+            "recording_ref": effect["recording_ref"],
+            "recording_started_at_ms": 0,
+            "timeline_started_at_ms": 0,
+            "timeline_ended_at_ms": 1000,
+            "participants": [{"participant_ref": "participant_0123456789abcdef"}],
+            "events": [{"at_ms": 0}, {"at_ms": 1000}],
+            "evidence_ref": effect["evidence_ref"],
+            "meeting_ref": effect["meeting_ref"],
+            "room_ref": effect["room_ref"],
+        },
+        sort_keys=True,
+    ).encode()
+
+
+def _sidecar_bytes(claims):
+    return json.dumps(
+        {
+            "speaker_evidence_artifact_receipt_claims": claims,
+            "speaker_evidence_artifact_receipt_claims_digest": _sidecar_digest(claims),
+        },
+        sort_keys=True,
+    ).encode()
+
+
+def _open_bytes(data):
+    return BytesIO(data)
 
 
 def test_speaker_evidence_capture_starts_collector_with_opaque_metadata():
@@ -137,6 +194,7 @@ def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
 def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start():
     binding = _active_recording_binding()
     sidecar_claims = _artifact_claims(binding)
+    artifact_data = _artifact_object_bytes(binding)
     binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
     binding.recording.save(update_fields=["options"])
     with (
@@ -149,14 +207,18 @@ def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start(
         ),
         mock.patch(
             "core.mastrao_speaker_evidence_adapter.default_storage.open",
-            mock.mock_open(
-                read_data=(
-                    b'{"speaker_evidence_artifact_receipt_claims":'
-                    + json.dumps(sidecar_claims).encode()
-                    + b"}"
-                )
-            ),
+            side_effect=[
+                _open_bytes(_sidecar_bytes(sidecar_claims)),
+                _open_bytes(artifact_data),
+            ],
         ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.delete",
+        ) as delete,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.validate_artifact_receipt_claims",
+            return_value=sidecar_claims,
+        ) as validate,
         mock.patch(
             "core.mastrao_speaker_evidence_adapter.refresh_artifact_receipt_claims",
             return_value={"jti": "fresh"},
@@ -177,8 +239,12 @@ def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start(
         assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
 
     start.assert_not_called()
+    validate.assert_called_once_with(sidecar_claims, allow_expired=True)
     refresh.assert_called_once_with(sidecar_claims)
     sign_artifact.assert_called_once_with({"jti": "fresh"})
+    delete.assert_called_once_with(
+        "mastrao-speaker-evidence/evidence_0123456789abcdef.json.receipt.json"
+    )
     post.assert_called_once()
     _, kwargs = post.call_args
     assert kwargs["body"] == {
@@ -192,6 +258,7 @@ def test_speaker_evidence_capture_refuses_tampered_sidecar_claims():
         **_artifact_claims(binding),
         "recording_ref": "recording_other_012345",
     }
+    artifact_data = _artifact_object_bytes(binding)
     binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
     binding.recording.save(update_fields=["options"])
     with (
@@ -201,12 +268,38 @@ def test_speaker_evidence_capture_refuses_tampered_sidecar_claims():
         ),
         mock.patch(
             "core.mastrao_speaker_evidence_adapter.default_storage.open",
-            mock.mock_open(
-                read_data=(
-                    b'{"speaker_evidence_artifact_receipt_claims":'
-                    + json.dumps(sidecar_claims).encode()
-                    + b"}"
-                )
+            side_effect=[
+                _open_bytes(_sidecar_bytes(sidecar_claims)),
+                _open_bytes(artifact_data),
+            ],
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt"
+        ) as sign_artifact,
+    ):
+        with pytest.raises(RecordingContractRefused):
+            _apply_capture(_effect(binding))
+
+    sign_artifact.assert_not_called()
+
+
+def test_speaker_evidence_capture_refuses_unsigned_sidecar_claims():
+    binding = _active_recording_binding()
+    sidecar_claims = _artifact_claims(binding)
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
+    binding.recording.save(update_fields=["options"])
+    with (
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=True,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.open",
+            return_value=_open_bytes(
+                json.dumps(
+                    {"speaker_evidence_artifact_receipt_claims": sidecar_claims},
+                    sort_keys=True,
+                ).encode()
             ),
         ),
         mock.patch(
@@ -217,6 +310,23 @@ def test_speaker_evidence_capture_refuses_tampered_sidecar_claims():
             _apply_capture(_effect(binding))
 
     sign_artifact.assert_not_called()
+
+
+def test_speaker_evidence_capture_clears_terminal_dispatch_without_sidecar():
+    binding = _active_recording_binding()
+    binding.state = models.MastraoRecordingBinding.State.FINALIZED
+    binding.save(update_fields=["state"])
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
+    binding.recording.save(update_fields=["options"])
+    with mock.patch(
+        "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+        return_value=False,
+    ):
+        with pytest.raises(RecordingContractRefused):
+            _apply_capture(_effect(binding))
+
+    binding.recording.refresh_from_db()
+    assert "mastrao_speaker_evidence_dispatch_id" not in binding.recording.options
 
 
 def test_speaker_evidence_capture_recovers_stale_pending_dispatch():

@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) seal and drain speaker evidence artifact replay sidecars
 - 🐛(backend) refresh speaker evidence artifact receipts on replay
 - 🐛(agent) bound speaker evidence artifact exports
 - 🐛(backend) recover and stop speaker evidence collector dispatches

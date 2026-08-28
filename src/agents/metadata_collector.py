@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -61,6 +62,13 @@ def _digest(*parts: str) -> str:
     """Return a stable local SHA-256 digest for sensitive room material."""
     value = "\0".join(parts).encode("utf-8")
     return hashlib.sha256(value).hexdigest()
+
+
+def _sidecar_digest(claims: dict) -> str:
+    """Seal replay claims with the local receipt private key material."""
+    secret = _required_env("MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK").encode("utf-8")
+    claims_digest = hashlib.sha256(_canonical_json(claims)).hexdigest()
+    return hmac.digest(secret, claims_digest.encode("ascii"), "sha256").hex()
 
 
 def _base64url_decode(value: str) -> bytes:
@@ -330,9 +338,7 @@ class MetadataCollector:
                 "participant_session_digest": participant["participant_session_digest"],
             }
             if participant.get("declared_label_digest") is not None:
-                exported["declared_label_digest"] = participant[
-                    "declared_label_digest"
-                ]
+                exported["declared_label_digest"] = participant["declared_label_digest"]
             participants.append(exported)
 
         participants = participants[:MAX_PARTICIPANTS]
@@ -383,6 +389,8 @@ class MetadataCollector:
             logger.exception(
                 "Failed to upload meeting metadata",
             )
+            if self.evidence_ref is not None:
+                raise
 
     def _bounded_artifact_bytes(self, payload: dict) -> bytes:
         """Return compact artifact bytes within the Core speaker-evidence cap."""
@@ -490,7 +498,12 @@ class MetadataCollector:
         ).encode("utf-8")
         sidecar_ref = f"{self.output_filename}{ARTIFACT_RECEIPT_SUFFIX}"
         sidecar_body = json.dumps(
-            {"speaker_evidence_artifact_receipt_claims": receipt_claims},
+            {
+                "speaker_evidence_artifact_receipt_claims": receipt_claims,
+                "speaker_evidence_artifact_receipt_claims_digest": _sidecar_digest(
+                    receipt_claims
+                ),
+            },
             separators=(",", ":"),
             sort_keys=True,
         ).encode("utf-8")

@@ -1,6 +1,9 @@
 """Private adapter for signed Mastrao speaker evidence capture effects."""
 
+import hashlib
+import hmac
 import json
+import secrets
 import time
 import uuid
 
@@ -16,11 +19,13 @@ from botocore.exceptions import BotoCoreError, ClientError
 from core import models
 from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_contract import RecordingContractRefused
+from core.mastrao_room_contract import _sha256_canonical
 from core.mastrao_speaker_evidence_contract import (
     build_capture_receipt_claims,
     refresh_artifact_receipt_claims,
     sign_artifact_receipt,
     sign_capture_receipt,
+    validate_artifact_receipt_claims,
     verify_speaker_evidence_capture_effect,
 )
 from core.recording.services.metadata_collector import MetadataCollectorService
@@ -30,6 +35,10 @@ SPEAKER_EVIDENCE_DISPATCH_KEY = "mastrao_speaker_evidence_dispatch_id"
 SPEAKER_EVIDENCE_DISPATCH_PENDING = "pending"
 SPEAKER_EVIDENCE_PENDING_LEASE_SECONDS = 60
 SPEAKER_EVIDENCE_RECEIPT_SUFFIX = ".receipt.json"
+SPEAKER_EVIDENCE_SIDE_CAR_FIELDS = {
+    "speaker_evidence_artifact_receipt_claims",
+    "speaker_evidence_artifact_receipt_claims_digest",
+}
 
 
 def _safe_response(payload, status=200):
@@ -106,6 +115,44 @@ def _artifact_claims_match_effect(claims, effect):
     )
 
 
+def _sidecar_digest(claims):
+    raw_secret = getattr(settings, "MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK", "")
+    if not isinstance(raw_secret, str) or not raw_secret:
+        raise RecordingContractRefused(status=503)
+    secret = raw_secret.encode("utf-8")
+    return hmac.digest(
+        secret, _sha256_canonical(claims).encode("ascii"), "sha256"
+    ).hex()
+
+
+def _verify_sidecar_body(body):
+    if not isinstance(body, dict) or set(body) != SPEAKER_EVIDENCE_SIDE_CAR_FIELDS:
+        raise RecordingContractRefused(status=503)
+    claims = validate_artifact_receipt_claims(
+        body["speaker_evidence_artifact_receipt_claims"],
+        allow_expired=True,
+    )
+    provided = body["speaker_evidence_artifact_receipt_claims_digest"]
+    if not isinstance(provided, str) or not secrets.compare_digest(
+        provided, _sidecar_digest(claims)
+    ):
+        raise RecordingContractRefused(status=503)
+    return claims
+
+
+def _verify_artifact_object(claims):
+    object_ref = claims["object_ref"]
+    try:
+        with default_storage.open(object_ref, "rb") as stream:
+            raw = stream.read(claims["byte_size"] + 1)
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise RecordingContractRefused(status=503) from error
+    if len(raw) != claims["byte_size"] or not hmac.compare_digest(
+        hashlib.sha256(raw).hexdigest(), claims["checksum_digest"]
+    ):
+        raise RecordingContractRefused(status=503)
+
+
 def _pending_dispatch_marker():
     return {
         "state": SPEAKER_EVIDENCE_DISPATCH_PENDING,
@@ -116,7 +163,8 @@ def _pending_dispatch_marker():
 
 def _is_pending_dispatch(value):
     return value == SPEAKER_EVIDENCE_DISPATCH_PENDING or (
-        isinstance(value, dict) and value.get("state") == SPEAKER_EVIDENCE_DISPATCH_PENDING
+        isinstance(value, dict)
+        and value.get("state") == SPEAKER_EVIDENCE_DISPATCH_PENDING
     )
 
 
@@ -134,11 +182,11 @@ def _pending_dispatch_expired(value):
 
 
 def _replay_artifact_receipt(effect):
-    object_ref = _receipt_sidecar_ref(effect)
+    sidecar_ref = _receipt_sidecar_ref(effect)
     try:
-        if not default_storage.exists(object_ref):
+        if not default_storage.exists(sidecar_ref):
             return False
-        with default_storage.open(object_ref, "rb") as stream:
+        with default_storage.open(sidecar_ref, "rb") as stream:
             raw = stream.read(MAX_BODY_BYTES + 1)
     except (BotoCoreError, ClientError, OSError, ValueError) as error:
         raise RecordingContractRefused(status=503) from error
@@ -148,13 +196,10 @@ def _replay_artifact_receipt(effect):
         body = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
         raise RecordingContractRefused(status=503) from error
-    if not isinstance(body, dict) or set(body) != {
-        "speaker_evidence_artifact_receipt_claims"
-    }:
+    claims = _verify_sidecar_body(body)
+    if not _artifact_claims_match_effect(claims, effect):
         raise RecordingContractRefused(status=503)
-    claims = body["speaker_evidence_artifact_receipt_claims"]
-    if not isinstance(claims, dict) or not _artifact_claims_match_effect(claims, effect):
-        raise RecordingContractRefused(status=503)
+    _verify_artifact_object(claims)
     result = post_core_json(
         endpoint=settings.MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT,
         expected_path="/internal/v1/meetings/speaker-evidence/artifacts/finalize",
@@ -170,6 +215,10 @@ def _replay_artifact_receipt(effect):
     )
     if result["state"] != "available" or result["outcome"] != "available":
         raise RecordingContractRefused(status=503)
+    try:
+        default_storage.delete(sidecar_ref)
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise RecordingContractRefused(status=503) from error
     return True
 
 
@@ -206,12 +255,12 @@ def _claim_recording_for_capture(effect):
             marker = _pending_dispatch_marker()
             recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = marker
             recording.save(update_fields=["options"])
-            return recording, True, marker["claim_id"]
-        return recording, False, None
+            return recording, True, marker["claim_id"], binding.state
+        return recording, False, None, binding.state
     marker = _pending_dispatch_marker()
     recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = marker
     recording.save(update_fields=["options"])
-    return recording, True, marker["claim_id"]
+    return recording, True, marker["claim_id"], binding.state
 
 
 @transaction.atomic
@@ -223,6 +272,15 @@ def _clear_pending_dispatch(recording, claim_id):
         and isinstance(current, dict)
         and current.get("claim_id") == claim_id
     ):
+        locked.options.pop(SPEAKER_EVIDENCE_DISPATCH_KEY, None)
+        locked.save(update_fields=["options"])
+
+
+@transaction.atomic
+def _clear_terminal_dispatch(recording):
+    locked = models.Recording.objects.select_for_update().get(pk=recording.pk)
+    current = locked.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
+    if current and not _is_pending_dispatch(current):
         locked.options.pop(SPEAKER_EVIDENCE_DISPATCH_KEY, None)
         locked.save(update_fields=["options"])
 
@@ -252,10 +310,19 @@ def _capture_metadata(recording, effect):
 
 
 def _apply_capture(effect):
-    recording, should_start, claim_id = _claim_recording_for_capture(effect)
+    recording, should_start, claim_id, binding_state = _claim_recording_for_capture(
+        effect
+    )
     if not should_start:
-        if not _is_pending_dispatch(recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)):
+        if not _is_pending_dispatch(
+            recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
+        ):
             if not _replay_artifact_receipt(effect):
+                if binding_state in {
+                    models.MastraoRecordingBinding.State.PROCESSING,
+                    models.MastraoRecordingBinding.State.FINALIZED,
+                }:
+                    _clear_terminal_dispatch(recording)
                 raise RecordingContractRefused(status=503)
         return sign_capture_receipt(
             build_capture_receipt_claims(effect, "already_active")
