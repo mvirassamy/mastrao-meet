@@ -49,6 +49,7 @@ logger = logging.getLogger("metadata-collector")
 AGENT_NAME = os.getenv("METADATA_COLLECTOR_AGENT_NAME", "metadata-collector")
 MAX_PARTICIPANTS = 500
 MAX_EVENTS = 200_000
+MAX_DECLARED_LABEL_LENGTH = 160
 MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES = 5_000_000
 MAX_CORE_RESPONSE_BYTES = 32_768
 CORE_HTTP_OK = 200
@@ -145,6 +146,14 @@ def _safe_core_artifact_endpoint(value: str) -> str:
     return value
 
 
+def _agent_identity(room_name: str, metadata: str) -> str:
+    parsed = _metadata_dict(metadata)
+    evidence_ref = _metadata_str(parsed, "evidence_ref") if parsed else None
+    if evidence_ref:
+        return f"{AGENT_NAME}-speaker-evidence-{room_name}-{evidence_ref}"
+    return f"{AGENT_NAME}-{room_name}"
+
+
 def _sign_artifact_receipt(claims: dict) -> str:
     jwk = json.loads(_required_env("MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK"))
     private_key = Ed25519PrivateKey.from_private_bytes(_base64url_decode(jwk["d"]))
@@ -160,6 +169,13 @@ def _sign_artifact_receipt(claims: dict) -> str:
     encoded = _base64url_encode(_canonical_json(claims))
     signature = private_key.sign(f"{protected}.{encoded}".encode("ascii"))
     return f"{protected}.{encoded}.{_base64url_encode(signature)}"
+
+
+def _bounded_declared_label(value: str) -> str | None:
+    value = value.strip()
+    if not value:
+        return None
+    return value[:MAX_DECLARED_LABEL_LENGTH]
 
 
 def _participant_ref(recording_id: str, participant_identity: str) -> str:
@@ -188,6 +204,19 @@ server = AgentServer(
     ),
 )
 server.setup_fnc = prewarm
+
+
+@dataclass
+class DisplayNameEvent:
+    """A declared display-name observation for one participant instance."""
+
+    timestamp: datetime
+    label: str
+
+    def effective_at_ms(self, recording_started_at_ms: int) -> int:
+        """Return the label observation timestamp relative to the recording."""
+        wall_clock_ms = int(self.timestamp.timestamp() * 1000)
+        return max(0, wall_clock_ms - recording_started_at_ms)
 
 
 @dataclass
@@ -285,6 +314,8 @@ class MetadataCollector:
 
         self.ctx = ctx
         self._sessions: dict[str, AgentSession] = {}
+        self._participant_refs: dict[str, str] = {}
+        self._connection_sequence = 0
         self._tasks: set[asyncio.Task] = set()
         self.recording_id = recording_metadata
         self.recording_ref = f"recording_{_digest(self.recording_id)[:32]}"
@@ -360,6 +391,16 @@ class MetadataCollector:
             }
             if participant.get("declared_label_digest") is not None:
                 exported["declared_label_digest"] = participant["declared_label_digest"]
+            exported["display_name_events"] = [
+                {
+                    "effective_at_ms": event.effective_at_ms(
+                        self.recording_started_at_ms,
+                    ),
+                    "label": event.label,
+                    "source": "meet_display_name",
+                }
+                for event in participant.get("display_name_events", [])
+            ]
             participants.append(exported)
 
         if len(participants) > MAX_PARTICIPANTS:
@@ -419,6 +460,11 @@ class MetadataCollector:
     def _bounded_artifact_bytes(self, payload: dict) -> bytes:
         """Return compact artifact bytes within the Core speaker-evidence cap."""
         event_times = [event["at_ms"] for event in payload["events"]]
+        for participant in payload["participants"]:
+            event_times.extend(
+                event["effective_at_ms"]
+                for event in participant.get("display_name_events", [])
+            )
         payload["timeline_started_at_ms"] = min(event_times, default=0)
         payload["timeline_ended_at_ms"] = max(event_times, default=0)
         data = _canonical_json(payload)
@@ -518,7 +564,7 @@ class MetadataCollector:
             method="POST",
             headers={"content-type": "application/json"},
         )
-        opener = request.build_opener(_NoRedirectHandler)
+        opener = request.build_opener(request.ProxyHandler({}), _NoRedirectHandler)
         with opener.open(
             core_request,
             timeout=CORE_CALLBACK_TIMEOUT_SECONDS,
@@ -562,10 +608,11 @@ class MetadataCollector:
         self, ctx: JobContext, participant: rtc.RemoteParticipant
     ):
         """Handle new participant by starting a VAD monitoring session."""
-        if participant.identity in self._sessions:
+        participant_key = self._participant_key(participant)
+        if participant_key in self._sessions:
             logger.debug("VAD session already exists for participant")
             return
-        participant_ref = _participant_ref(self.recording_id, participant.identity)
+        participant_ref = self._new_participant_ref(participant_key)
 
         self.events.append(
             MetadataEvent(
@@ -579,26 +626,27 @@ class MetadataCollector:
             "participant_kind": "unknown",
             "participant_session_digest": _digest(
                 self.recording_id,
-                participant.identity,
+                participant_ref,
                 "session",
             ),
-            "declared_label_digest": _digest(
-                self.recording_id,
-                participant.name or "",
-                "label",
-            ),
+            "display_name_events": [],
         }
+        self._record_display_name(participant_ref, participant.name or "")
 
         logger.info("New participant connected")
         try:
-            session = await self._start_session(participant)
-            self._sessions[participant.identity] = session
+            session = await self._start_session(participant, participant_ref)
+            self._sessions[participant_key] = session
         except Exception:
             logger.exception("Failed to start VAD session")
 
     def on_participant_disconnected(self, participant: rtc.RemoteParticipant):
         """Handle participant disconnection by closing VAD monitoring."""
-        participant_ref = _participant_ref(self.recording_id, participant.identity)
+        participant_key = self._participant_key(participant)
+        participant_ref = self._participant_refs.get(participant_key)
+        if participant_ref is None:
+            logger.debug("No speaker evidence participant ref found")
+            return
         self.events.append(
             MetadataEvent(
                 participant_ref=participant_ref,
@@ -607,7 +655,8 @@ class MetadataCollector:
             )
         )
 
-        session = self._sessions.pop(participant.identity, None)
+        self._participant_refs.pop(participant_key, None)
+        session = self._sessions.pop(participant_key, None)
         if session is None:
             logger.debug("No VAD session found for participant")
             return
@@ -629,23 +678,13 @@ class MetadataCollector:
 
     def on_participant_name_changed(self, participant: rtc.RemoteParticipant):
         """Record a sanitized participant label change."""
-        participant_ref = _participant_ref(self.recording_id, participant.identity)
+        participant_key = self._participant_key(participant)
+        participant_ref = self._participant_refs.get(participant_key)
+        if participant_ref is None:
+            logger.debug("No speaker evidence participant ref found for rename")
+            return
         logger.info("Participant label changed")
-        self.participants.setdefault(
-            participant_ref,
-            {
-                "participant_kind": "unknown",
-                "participant_session_digest": _digest(
-                    self.recording_id,
-                    participant.identity,
-                    "session",
-                ),
-            },
-        )["declared_label_digest"] = _digest(
-            self.recording_id,
-            participant.name or "",
-            "label",
-        )
+        self._record_display_name(participant_ref, participant.name or "")
         self.events.append(
             MetadataEvent(
                 participant_ref=participant_ref,
@@ -655,10 +694,45 @@ class MetadataCollector:
             )
         )
 
-    async def _start_session(self, participant: rtc.RemoteParticipant) -> AgentSession:
+    def _participant_key(self, participant: rtc.RemoteParticipant) -> str:
+        sid = getattr(participant, "sid", "")
+        return sid if isinstance(sid, str) and sid else participant.identity
+
+    def _new_participant_ref(self, participant_key: str) -> str:
+        self._connection_sequence += 1
+        participant_ref = _participant_ref(
+            self.recording_id,
+            f"{participant_key}:{self._connection_sequence}",
+        )
+        self._participant_refs[participant_key] = participant_ref
+        return participant_ref
+
+    def _record_display_name(self, participant_ref: str, raw_label: str) -> None:
+        label = _bounded_declared_label(raw_label)
+        if label is None:
+            return
+        participant = self.participants[participant_ref]
+        participant["declared_label_digest"] = _digest(
+            self.recording_id,
+            label,
+            "label",
+        )
+        participant.setdefault("display_name_events", []).append(
+            DisplayNameEvent(
+                timestamp=datetime.now(timezone.utc),
+                label=label,
+            )
+        )
+
+    async def _start_session(
+        self,
+        participant: rtc.RemoteParticipant,
+        participant_ref: str,
+    ) -> AgentSession:
         """Create and start VAD monitoring session for participant."""
-        if participant.identity in self._sessions:
-            return self._sessions[participant.identity]
+        participant_key = self._participant_key(participant)
+        if participant_key in self._sessions:
+            return self._sessions[participant_key]
 
         # Create session with VAD only - no STT, LLM, or TTS
         session = AgentSession(
@@ -683,10 +757,7 @@ class MetadataCollector:
         await room_io.start()
         await session.start(
             agent=VADAgent(
-                participant_ref=_participant_ref(
-                    self.recording_id,
-                    participant.identity,
-                ),
+                participant_ref=participant_ref,
                 events=self.events,
             )
         )
@@ -705,7 +776,7 @@ async def handle_job_request(job_req: JobRequest) -> None:
     """Accept or reject the job request based on agent presence in the room."""
     room_name = job_req.room.name
     recording_id = job_req.job.metadata
-    agent_identity = f"{AGENT_NAME}-{room_name}"
+    agent_identity = _agent_identity(room_name, recording_id)
 
     async with api.LiveKitAPI() as lk:
         try:

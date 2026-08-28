@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) bind speaker evidence labels and fresh capture windows
 - 🐛(backend) seal and drain speaker evidence artifact replay sidecars
 - 🐛(backend) refresh speaker evidence artifact receipts on replay
 - 🐛(agent) bound speaker evidence artifact exports

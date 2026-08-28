@@ -39,6 +39,15 @@ SPEAKER_EVIDENCE_SIDE_CAR_FIELDS = {
     "speaker_evidence_artifact_receipt_claims",
     "speaker_evidence_artifact_receipt_claims_digest",
 }
+SPEAKER_EVIDENCE_LIVE_CAPTURE_STATES = {
+    models.MastraoRecordingBinding.State.STARTING,
+    models.MastraoRecordingBinding.State.ACTIVE,
+    models.MastraoRecordingBinding.State.STOPPING,
+}
+SPEAKER_EVIDENCE_REPLAY_ONLY_STATES = {
+    models.MastraoRecordingBinding.State.PROCESSING,
+    models.MastraoRecordingBinding.State.FINALIZED,
+}
 
 
 def _safe_response(payload, status=200):
@@ -239,17 +248,16 @@ def _claim_recording_for_capture(effect):
         or binding.recording is None
         or not _matches_effect(binding, effect)
         or binding.state
-        not in {
-            models.MastraoRecordingBinding.State.STARTING,
-            models.MastraoRecordingBinding.State.ACTIVE,
-            models.MastraoRecordingBinding.State.STOPPING,
-            models.MastraoRecordingBinding.State.PROCESSING,
-            models.MastraoRecordingBinding.State.FINALIZED,
-        }
+        not in SPEAKER_EVIDENCE_LIVE_CAPTURE_STATES
+        | SPEAKER_EVIDENCE_REPLAY_ONLY_STATES
     ):
         raise RecordingContractRefused(status=503)
     recording = binding.recording
     dispatch_id = recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
+    if binding.state in SPEAKER_EVIDENCE_REPLAY_ONLY_STATES:
+        if dispatch_id and not _is_pending_dispatch(dispatch_id):
+            return recording, False, None, binding.state
+        raise RecordingContractRefused(status=503)
     if dispatch_id:
         if _is_pending_dispatch(dispatch_id) and _pending_dispatch_expired(dispatch_id):
             marker = _pending_dispatch_marker()

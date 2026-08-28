@@ -127,7 +127,18 @@ def _artifact_object_bytes(binding):
             "recording_started_at_ms": 0,
             "timeline_started_at_ms": 0,
             "timeline_ended_at_ms": 1000,
-            "participants": [{"participant_ref": "participant_0123456789abcdef"}],
+            "participants": [
+                {
+                    "participant_ref": "participant_0123456789abcdef",
+                    "display_name_events": [
+                        {
+                            "effective_at_ms": 0,
+                            "label": "Matthias",
+                            "source": "meet_display_name",
+                        }
+                    ],
+                }
+            ],
             "events": [{"at_ms": 0}, {"at_ms": 1000}],
             "evidence_ref": effect["evidence_ref"],
             "meeting_ref": effect["meeting_ref"],
@@ -203,10 +214,26 @@ def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
     start.assert_not_called()
 
 
+def test_speaker_evidence_capture_refuses_late_fresh_start():
+    binding = _active_recording_binding()
+    binding.state = models.MastraoRecordingBinding.State.FINALIZED
+    binding.save(update_fields=["state"])
+
+    with mock.patch(
+        "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
+    ) as start:
+        with pytest.raises(RecordingContractRefused):
+            _apply_capture(_effect(binding))
+
+    start.assert_not_called()
+
+
 def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start():
     binding = _active_recording_binding()
     sidecar_claims = _artifact_claims(binding)
     artifact_data = _artifact_object_bytes(binding)
+    binding.state = models.MastraoRecordingBinding.State.FINALIZED
+    binding.save(update_fields=["state"])
     binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
     binding.recording.save(update_fields=["options"])
     with (
