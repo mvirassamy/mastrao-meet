@@ -56,6 +56,22 @@ CORE_CALLBACK_TIMEOUT_SECONDS = 10
 ARTIFACT_RECEIPT_TYPE = "mastrao.meeting-speaker-evidence-artifact-receipt"
 ARTIFACT_RECEIPT_JOSE_TYPE = "mastrao-meeting-speaker-evidence-artifact-receipt+jws"
 ARTIFACT_RECEIPT_SUFFIX = ".receipt.json"
+CORE_SPEAKER_EVIDENCE_ARTIFACT_PATH = (
+    "/internal/v1/meetings/speaker-evidence/artifacts/finalize"
+)
+ALLOWED_CORE_HOSTS = {
+    "127.0.0.1",
+    "localhost",
+    "::1",
+    "host.docker.internal",
+    "127.0.0.1.nip.io",
+    "cabinet-core",
+}
+
+
+class _NoRedirectHandler(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: PLR0913, PLR0917
+        return None
 
 
 def _digest(*parts: str) -> str:
@@ -117,9 +133,14 @@ def _metadata_int(metadata: dict, name: str):
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _safe_http_url(value: str) -> str:
+def _safe_core_artifact_endpoint(value: str) -> str:
     parsed = urlparse(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in ALLOWED_CORE_HOSTS
+        or parsed.path != CORE_SPEAKER_EVIDENCE_ARTIFACT_PATH
+        or any((parsed.username, parsed.password, parsed.query, parsed.fragment))
+    ):
         raise MissingConfigError
     return value
 
@@ -341,15 +362,18 @@ class MetadataCollector:
                 exported["declared_label_digest"] = participant["declared_label_digest"]
             participants.append(exported)
 
-        participants = participants[:MAX_PARTICIPANTS]
+        if len(participants) > MAX_PARTICIPANTS:
+            raise RuntimeError("speaker_evidence_participant_limit_exceeded")
         exported_participant_refs = {
             participant["participant_ref"] for participant in participants
         }
         sorted_events = sorted(self.events, key=lambda e: e.timestamp)
+        if len(sorted_events) > MAX_EVENTS:
+            raise RuntimeError("speaker_evidence_event_limit_exceeded")
 
         events = [
             event.serialize(self.recording_id, self.recording_started_at_ms)
-            for event in sorted_events[:MAX_EVENTS]
+            for event in sorted_events
             if event.participant_ref in exported_participant_refs
         ]
 
@@ -394,39 +418,13 @@ class MetadataCollector:
 
     def _bounded_artifact_bytes(self, payload: dict) -> bytes:
         """Return compact artifact bytes within the Core speaker-evidence cap."""
-        original_events = list(payload["events"])
-
-        def serialize_with_events(events: list[dict]) -> bytes:
-            payload["events"] = events
-            event_times = [event["at_ms"] for event in events]
-            payload["timeline_started_at_ms"] = min(event_times, default=0)
-            payload["timeline_ended_at_ms"] = max(event_times, default=0)
-            return _canonical_json(payload)
-
-        full = serialize_with_events(original_events)
-        if len(full) <= MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES:
-            return full
-
-        empty = serialize_with_events([])
-        if len(empty) > MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES:
+        event_times = [event["at_ms"] for event in payload["events"]]
+        payload["timeline_started_at_ms"] = min(event_times, default=0)
+        payload["timeline_ended_at_ms"] = max(event_times, default=0)
+        data = _canonical_json(payload)
+        if len(data) > MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES:
             raise RuntimeError("speaker_evidence_artifact_too_large")
-
-        low = 0
-        high = len(original_events)
-        best_events: list[dict] = []
-        best = empty
-        while low <= high:
-            mid = (low + high) // 2
-            candidate_events = original_events[:mid]
-            candidate = serialize_with_events(candidate_events)
-            if len(candidate) <= MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES:
-                best_events = candidate_events
-                best = candidate
-                low = mid + 1
-            else:
-                high = mid - 1
-        best = serialize_with_events(best_events)
-        return best
+        return data
 
     def _artifact_receipt_claims(self, payload: dict, data: bytes):
         """Build the signed Core receipt for one uploaded speaker evidence artifact."""
@@ -486,7 +484,7 @@ class MetadataCollector:
 
     def notify_core_artifact(self, payload: dict, data: bytes):
         """Notify Core that the speaker evidence artifact is durably available."""
-        endpoint = _safe_http_url(
+        endpoint = _safe_core_artifact_endpoint(
             _required_env("MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT")
         )
         receipt_claims = self._artifact_receipt_claims(payload, data)
@@ -520,7 +518,8 @@ class MetadataCollector:
             method="POST",
             headers={"content-type": "application/json"},
         )
-        with request.urlopen(  # noqa: S310
+        opener = request.build_opener(_NoRedirectHandler)
+        with opener.open(
             core_request,
             timeout=CORE_CALLBACK_TIMEOUT_SECONDS,
         ) as response:

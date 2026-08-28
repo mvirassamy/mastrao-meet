@@ -18,6 +18,7 @@ from core import models
 from core.factories import RoomFactory, UserFactory
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_speaker_evidence_adapter import _apply_capture, _sidecar_digest
+from core.mastrao_speaker_evidence_contract import validate_artifact_receipt_claims
 from core.models import RoomAccessLevel
 
 pytestmark = pytest.mark.django_db
@@ -63,7 +64,7 @@ def _effect(binding):
         "meeting_ref": binding.meeting_ref,
         "room_ref": binding.room_ref,
         "recording_ref": binding.recording_ref,
-        "evidence_ref": "evidence_0123456789abcdef",
+        "evidence_ref": "evidence_0123456789abcdef0123456789abcdef",
         "provider_binding_digest": binding.provider_binding_digest,
         "policy_ref": binding.policy_ref,
         "notice_version": binding.notice_version,
@@ -100,8 +101,8 @@ def _artifact_claims(binding):
         "purpose": effect["purpose"],
         "scope": effect["scope"],
         "retention_expires_at": effect["retention_expires_at"],
-        "object_ref": "mastrao-speaker-evidence/evidence_0123456789abcdef.json",
-        "artifact_ref": "speakerartifact_0123456789abcdef",
+        "object_ref": "mastrao-speaker-evidence/evidence_0123456789abcdef0123456789abcdef.json",
+        "artifact_ref": "speakerartifact_0123456789abcdef0123456789abcdef",
         "byte_size": len(data),
         "checksum_digest": hashlib.sha256(data).hexdigest(),
         "participant_count": 1,
@@ -113,7 +114,7 @@ def _artifact_claims(binding):
         "lifecycle_policy_ref": "lifecycle_speaker_012345",
         "issued_at": now,
         "expires_at": now + 30,
-        "jti": "speakerartifact_0123456789abcdef",
+        "jti": "speakerartifact_0123456789abcdef0123456789abcdef",
     }
 
 
@@ -150,6 +151,18 @@ def _open_bytes(data):
     return BytesIO(data)
 
 
+def test_speaker_evidence_artifact_ref_requires_canonical_object_key():
+    claims = _artifact_claims(_active_recording_binding())
+
+    with pytest.raises(RecordingContractRefused):
+        validate_artifact_receipt_claims(
+            {
+                **claims,
+                "object_ref": "mastrao-speaker-evidence/custom_0123456789abcdef.json",
+            }
+        )
+
+
 def test_speaker_evidence_capture_starts_collector_with_opaque_metadata():
     binding = _active_recording_binding()
     with (
@@ -167,9 +180,8 @@ def test_speaker_evidence_capture_starts_collector_with_opaque_metadata():
     _, kwargs = start.call_args
     assert kwargs["dispatch_option_key"] == "mastrao_speaker_evidence_dispatch_id"
     assert "Matthias" not in kwargs["metadata"]
-    assert (
-        "mastrao-speaker-evidence/evidence_0123456789abcdef.json" in kwargs["metadata"]
-    )
+    assert "mastrao-speaker-evidence/evidence_" in kwargs["metadata"]
+    assert "0123456789abcdef0123456789abcdef.json" in kwargs["metadata"]
 
 
 def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
@@ -243,7 +255,8 @@ def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start(
     refresh.assert_called_once_with(sidecar_claims)
     sign_artifact.assert_called_once_with({"jti": "fresh"})
     delete.assert_called_once_with(
-        "mastrao-speaker-evidence/evidence_0123456789abcdef.json.receipt.json"
+        "mastrao-speaker-evidence/"
+        "evidence_0123456789abcdef0123456789abcdef.json.receipt.json"
     )
     post.assert_called_once()
     _, kwargs = post.call_args
