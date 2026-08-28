@@ -53,6 +53,7 @@ CORE_HTTP_OK = 200
 CORE_CALLBACK_TIMEOUT_SECONDS = 10
 ARTIFACT_RECEIPT_TYPE = "mastrao.meeting-speaker-evidence-artifact-receipt"
 ARTIFACT_RECEIPT_JOSE_TYPE = "mastrao-meeting-speaker-evidence-artifact-receipt+jws"
+ARTIFACT_RECEIPT_SUFFIX = ".receipt.json"
 
 
 def _digest(*parts: str) -> str:
@@ -168,9 +169,10 @@ class MetadataEvent:
     timestamp: datetime
     data_digest: Optional[str] = None
 
-    def serialize(self, recording_id: str) -> dict:
+    def serialize(self, recording_id: str, recording_started_at_ms: int) -> dict:
         """Return a JSON-serializable dictionary representation of the event."""
-        at_ms = int(self.timestamp.timestamp() * 1000)
+        wall_clock_ms = int(self.timestamp.timestamp() * 1000)
+        at_ms = max(0, wall_clock_ms - recording_started_at_ms)
         event_id = _event_id(
             recording_id,
             self.type,
@@ -335,11 +337,12 @@ class MetadataCollector:
         sorted_events = sorted(self.events, key=lambda e: e.timestamp)
 
         events = [
-            event.serialize(self.recording_id) for event in sorted_events[:MAX_EVENTS]
+            event.serialize(self.recording_id, self.recording_started_at_ms)
+            for event in sorted_events[:MAX_EVENTS]
         ]
         event_times = [event["at_ms"] for event in events]
-        timeline_started_at_ms = min(event_times, default=self.recording_started_at_ms)
-        timeline_ended_at_ms = max(event_times, default=self.recording_started_at_ms)
+        timeline_started_at_ms = min(event_times, default=0)
+        timeline_ended_at_ms = max(event_times, default=0)
 
         payload = {
             "version": 1,
@@ -445,6 +448,13 @@ class MetadataCollector:
             separators=(",", ":"),
             sort_keys=True,
         ).encode("utf-8")
+        self.minio_client.put_object(
+            self.bucket_name,
+            f"{self.output_filename}{ARTIFACT_RECEIPT_SUFFIX}",
+            BytesIO(body),
+            length=len(body),
+            content_type="application/json",
+        )
         core_request = request.Request(  # noqa: S310
             endpoint,
             data=body,

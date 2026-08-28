@@ -2,12 +2,17 @@
 
 import json
 
+from django.conf import settings
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from botocore.exceptions import BotoCoreError, ClientError
+
 from core import models
+from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_speaker_evidence_contract import (
     build_capture_receipt_claims,
@@ -18,6 +23,8 @@ from core.recording.services.metadata_collector import MetadataCollectorService
 
 MAX_BODY_BYTES = 32_768
 SPEAKER_EVIDENCE_DISPATCH_KEY = "mastrao_speaker_evidence_dispatch_id"
+SPEAKER_EVIDENCE_DISPATCH_PENDING = "pending"
+SPEAKER_EVIDENCE_RECEIPT_SUFFIX = ".receipt.json"
 
 
 def _safe_response(payload, status=200):
@@ -68,8 +75,42 @@ def _matches_effect(binding, effect):
     )
 
 
+def _receipt_sidecar_ref(effect):
+    return f"mastrao-speaker-evidence/{effect['evidence_ref']}.json{SPEAKER_EVIDENCE_RECEIPT_SUFFIX}"
+
+
+def _replay_artifact_receipt(effect):
+    object_ref = _receipt_sidecar_ref(effect)
+    try:
+        if not default_storage.exists(object_ref):
+            return
+        with default_storage.open(object_ref, "rb") as stream:
+            raw = stream.read(MAX_BODY_BYTES + 1)
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise RecordingContractRefused(status=503) from error
+    if len(raw) > MAX_BODY_BYTES:
+        raise RecordingContractRefused(status=503)
+    try:
+        body = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
+        raise RecordingContractRefused(status=503) from error
+    if not isinstance(body, dict) or set(body) != {"speaker_evidence_artifact_receipt"}:
+        raise RecordingContractRefused(status=503)
+    result = post_core_json(
+        endpoint=settings.MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT,
+        expected_path="/internal/v1/meetings/speaker-evidence/artifacts/finalize",
+        body=body,
+        timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
+        refusal=RecordingContractRefused,
+        expected_fields={"state", "outcome"},
+        passthrough_statuses=frozenset({404, 409, 503}),
+    )
+    if result["state"] != "available" or result["outcome"] != "available":
+        raise RecordingContractRefused(status=503)
+
+
 @transaction.atomic
-def _recording_for_capture(effect):
+def _claim_recording_for_capture(effect):
     binding = (
         models.MastraoRecordingBinding.objects.select_for_update(of=("self",))
         .select_related("recording")
@@ -94,7 +135,21 @@ def _recording_for_capture(effect):
         }
     ):
         raise RecordingContractRefused(status=503)
-    return binding.recording
+    recording = binding.recording
+    dispatch_id = recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
+    if dispatch_id:
+        return recording, False
+    recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = SPEAKER_EVIDENCE_DISPATCH_PENDING
+    recording.save(update_fields=["options"])
+    return recording, True
+
+
+@transaction.atomic
+def _clear_pending_dispatch(recording):
+    locked = models.Recording.objects.select_for_update().get(pk=recording.pk)
+    if locked.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY) == SPEAKER_EVIDENCE_DISPATCH_PENDING:
+        locked.options.pop(SPEAKER_EVIDENCE_DISPATCH_KEY, None)
+        locked.save(update_fields=["options"])
 
 
 def _capture_metadata(recording, effect):
@@ -122,8 +177,10 @@ def _capture_metadata(recording, effect):
 
 
 def _apply_capture(effect):
-    recording = _recording_for_capture(effect)
-    if recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY):
+    recording, should_start = _claim_recording_for_capture(effect)
+    if not should_start:
+        if recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY) != SPEAKER_EVIDENCE_DISPATCH_PENDING:
+            _replay_artifact_receipt(effect)
         return sign_capture_receipt(
             build_capture_receipt_claims(effect, "already_active")
         )
@@ -134,6 +191,7 @@ def _apply_capture(effect):
             dispatch_option_key=SPEAKER_EVIDENCE_DISPATCH_KEY,
         )
     except Exception as error:
+        _clear_pending_dispatch(recording)
         raise RecordingContractRefused(status=503) from error
     return sign_capture_receipt(build_capture_receipt_claims(effect, "accepted"))
 
