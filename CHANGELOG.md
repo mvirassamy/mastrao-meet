@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) recover and stop speaker evidence collector dispatches
 - 🔐(agent) keep speaker metadata evidence free of chat, names and participant identities
 - 🐛(backend) keep lifecycle projection responses uncacheable
 - 🐛(frontend) resume interrupted meeting closure from the lobby

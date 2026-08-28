@@ -67,11 +67,16 @@ class MetadataCollectorService:
         return dispatch_id
 
     @async_to_sync
-    async def stop(self, recording: Recording):
+    async def stop(
+        self,
+        recording: Recording,
+        *,
+        dispatch_option_key: str = "metadata_collector_dispatch_id",
+    ):
         """Stop and delete the agent dispatch associated to the room."""
 
         room_id = str(recording.room.id)
-        dispatch_id = recording.options.get("metadata_collector_dispatch_id")
+        dispatch_id = recording.options.get(dispatch_option_key)
         lkapi = utils.create_livekit_client()
 
         try:

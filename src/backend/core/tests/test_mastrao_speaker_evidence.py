@@ -109,3 +109,21 @@ def test_speaker_evidence_capture_replays_existing_dispatch_without_second_start
         assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
 
     start.assert_not_called()
+
+
+def test_speaker_evidence_capture_recovers_stale_pending_dispatch():
+    binding = _active_recording_binding()
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "pending"
+    binding.recording.save(update_fields=["options"])
+    with (
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
+        ) as start,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
+
+    start.assert_called_once()

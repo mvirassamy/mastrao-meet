@@ -1,6 +1,7 @@
 """Private adapter for signed Mastrao speaker evidence capture effects."""
 
 import json
+import time
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -24,6 +25,7 @@ from core.recording.services.metadata_collector import MetadataCollectorService
 MAX_BODY_BYTES = 32_768
 SPEAKER_EVIDENCE_DISPATCH_KEY = "mastrao_speaker_evidence_dispatch_id"
 SPEAKER_EVIDENCE_DISPATCH_PENDING = "pending"
+SPEAKER_EVIDENCE_PENDING_LEASE_SECONDS = 60
 SPEAKER_EVIDENCE_RECEIPT_SUFFIX = ".receipt.json"
 
 
@@ -77,6 +79,32 @@ def _matches_effect(binding, effect):
 
 def _receipt_sidecar_ref(effect):
     return f"mastrao-speaker-evidence/{effect['evidence_ref']}.json{SPEAKER_EVIDENCE_RECEIPT_SUFFIX}"
+
+
+def _pending_dispatch_marker():
+    return {
+        "state": SPEAKER_EVIDENCE_DISPATCH_PENDING,
+        "claimed_at": int(time.time()),
+    }
+
+
+def _is_pending_dispatch(value):
+    return value == SPEAKER_EVIDENCE_DISPATCH_PENDING or (
+        isinstance(value, dict) and value.get("state") == SPEAKER_EVIDENCE_DISPATCH_PENDING
+    )
+
+
+def _pending_dispatch_expired(value):
+    if value == SPEAKER_EVIDENCE_DISPATCH_PENDING:
+        return True
+    if not isinstance(value, dict):
+        return False
+    claimed_at = value.get("claimed_at")
+    return (
+        not isinstance(claimed_at, int)
+        or isinstance(claimed_at, bool)
+        or claimed_at + SPEAKER_EVIDENCE_PENDING_LEASE_SECONDS <= int(time.time())
+    )
 
 
 def _replay_artifact_receipt(effect):
@@ -138,8 +166,12 @@ def _claim_recording_for_capture(effect):
     recording = binding.recording
     dispatch_id = recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
     if dispatch_id:
+        if _is_pending_dispatch(dispatch_id) and _pending_dispatch_expired(dispatch_id):
+            recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = _pending_dispatch_marker()
+            recording.save(update_fields=["options"])
+            return recording, True
         return recording, False
-    recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = SPEAKER_EVIDENCE_DISPATCH_PENDING
+    recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = _pending_dispatch_marker()
     recording.save(update_fields=["options"])
     return recording, True
 
@@ -147,7 +179,7 @@ def _claim_recording_for_capture(effect):
 @transaction.atomic
 def _clear_pending_dispatch(recording):
     locked = models.Recording.objects.select_for_update().get(pk=recording.pk)
-    if locked.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY) == SPEAKER_EVIDENCE_DISPATCH_PENDING:
+    if _is_pending_dispatch(locked.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)):
         locked.options.pop(SPEAKER_EVIDENCE_DISPATCH_KEY, None)
         locked.save(update_fields=["options"])
 
@@ -179,7 +211,7 @@ def _capture_metadata(recording, effect):
 def _apply_capture(effect):
     recording, should_start = _claim_recording_for_capture(effect)
     if not should_start:
-        if recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY) != SPEAKER_EVIDENCE_DISPATCH_PENDING:
+        if not _is_pending_dispatch(recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)):
             _replay_artifact_receipt(effect)
         return sign_capture_receipt(
             build_capture_receipt_claims(effect, "already_active")
