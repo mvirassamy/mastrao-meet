@@ -2,6 +2,7 @@
 
 import json
 import time
+import uuid
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -85,6 +86,7 @@ def _pending_dispatch_marker():
     return {
         "state": SPEAKER_EVIDENCE_DISPATCH_PENDING,
         "claimed_at": int(time.time()),
+        "claim_id": uuid.uuid4().hex,
     }
 
 
@@ -111,7 +113,7 @@ def _replay_artifact_receipt(effect):
     object_ref = _receipt_sidecar_ref(effect)
     try:
         if not default_storage.exists(object_ref):
-            return
+            return False
         with default_storage.open(object_ref, "rb") as stream:
             raw = stream.read(MAX_BODY_BYTES + 1)
     except (BotoCoreError, ClientError, OSError, ValueError) as error:
@@ -135,6 +137,7 @@ def _replay_artifact_receipt(effect):
     )
     if result["state"] != "available" or result["outcome"] != "available":
         raise RecordingContractRefused(status=503)
+    return True
 
 
 @transaction.atomic
@@ -167,19 +170,26 @@ def _claim_recording_for_capture(effect):
     dispatch_id = recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
     if dispatch_id:
         if _is_pending_dispatch(dispatch_id) and _pending_dispatch_expired(dispatch_id):
-            recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = _pending_dispatch_marker()
+            marker = _pending_dispatch_marker()
+            recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = marker
             recording.save(update_fields=["options"])
-            return recording, True
-        return recording, False
-    recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = _pending_dispatch_marker()
+            return recording, True, marker["claim_id"]
+        return recording, False, None
+    marker = _pending_dispatch_marker()
+    recording.options[SPEAKER_EVIDENCE_DISPATCH_KEY] = marker
     recording.save(update_fields=["options"])
-    return recording, True
+    return recording, True, marker["claim_id"]
 
 
 @transaction.atomic
-def _clear_pending_dispatch(recording):
+def _clear_pending_dispatch(recording, claim_id):
     locked = models.Recording.objects.select_for_update().get(pk=recording.pk)
-    if _is_pending_dispatch(locked.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)):
+    current = locked.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
+    if (
+        _is_pending_dispatch(current)
+        and isinstance(current, dict)
+        and current.get("claim_id") == claim_id
+    ):
         locked.options.pop(SPEAKER_EVIDENCE_DISPATCH_KEY, None)
         locked.save(update_fields=["options"])
 
@@ -209,10 +219,11 @@ def _capture_metadata(recording, effect):
 
 
 def _apply_capture(effect):
-    recording, should_start = _claim_recording_for_capture(effect)
+    recording, should_start, claim_id = _claim_recording_for_capture(effect)
     if not should_start:
         if not _is_pending_dispatch(recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)):
-            _replay_artifact_receipt(effect)
+            if not _replay_artifact_receipt(effect):
+                raise RecordingContractRefused(status=503)
         return sign_capture_receipt(
             build_capture_receipt_claims(effect, "already_active")
         )
@@ -221,9 +232,10 @@ def _apply_capture(effect):
             recording,
             metadata=_capture_metadata(recording, effect),
             dispatch_option_key=SPEAKER_EVIDENCE_DISPATCH_KEY,
+            expected_pending_claim_id=claim_id,
         )
     except Exception as error:
-        _clear_pending_dispatch(recording)
+        _clear_pending_dispatch(recording, claim_id)
         raise RecordingContractRefused(status=503) from error
     return sign_capture_receipt(build_capture_receipt_claims(effect, "accepted"))
 

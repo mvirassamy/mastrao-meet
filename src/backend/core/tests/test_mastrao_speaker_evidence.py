@@ -11,6 +11,7 @@ import pytest
 
 from core import models
 from core.factories import RoomFactory, UserFactory
+from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_speaker_evidence_adapter import _apply_capture
 from core.models import RoomAccessLevel
 
@@ -93,7 +94,7 @@ def test_speaker_evidence_capture_starts_collector_with_opaque_metadata():
     )
 
 
-def test_speaker_evidence_capture_replays_existing_dispatch_without_second_start():
+def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
     binding = _active_recording_binding()
     binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
     binding.recording.save(update_fields=["options"])
@@ -106,9 +107,43 @@ def test_speaker_evidence_capture_replays_existing_dispatch_without_second_start
             return_value="receipt.payload.signature",
         ),
     ):
+        with pytest.raises(RecordingContractRefused):
+            _apply_capture(_effect(binding))
+
+    start.assert_not_called()
+
+
+def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start():
+    binding = _active_recording_binding()
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
+    binding.recording.save(update_fields=["options"])
+    with (
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
+        ) as start,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=True,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.open",
+            mock.mock_open(
+                read_data=b'{"speaker_evidence_artifact_receipt":"receipt"}'
+            ),
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.post_core_json",
+            return_value={"state": "available", "outcome": "available"},
+        ) as post,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
         assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
 
     start.assert_not_called()
+    post.assert_called_once()
 
 
 def test_speaker_evidence_capture_recovers_stale_pending_dispatch():

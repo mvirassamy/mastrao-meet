@@ -48,6 +48,7 @@ logger = logging.getLogger("metadata-collector")
 AGENT_NAME = os.getenv("METADATA_COLLECTOR_AGENT_NAME", "metadata-collector")
 MAX_PARTICIPANTS = 500
 MAX_EVENTS = 200_000
+MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES = 5_000_000
 MAX_CORE_RESPONSE_BYTES = 32_768
 CORE_HTTP_OK = 200
 CORE_CALLBACK_TIMEOUT_SECONDS = 10
@@ -323,34 +324,36 @@ class MetadataCollector:
 
         participants = []
         for participant_ref, participant in self.participants.items():
-            participants.append(
-                {
-                    "participant_ref": participant_ref,
-                    "participant_kind": participant["participant_kind"],
-                    "participant_session_digest": participant[
-                        "participant_session_digest"
-                    ],
-                    "declared_label_digest": participant.get("declared_label_digest"),
-                }
-            )
+            exported = {
+                "participant_ref": participant_ref,
+                "participant_kind": participant["participant_kind"],
+                "participant_session_digest": participant["participant_session_digest"],
+            }
+            if participant.get("declared_label_digest") is not None:
+                exported["declared_label_digest"] = participant[
+                    "declared_label_digest"
+                ]
+            participants.append(exported)
 
+        participants = participants[:MAX_PARTICIPANTS]
+        exported_participant_refs = {
+            participant["participant_ref"] for participant in participants
+        }
         sorted_events = sorted(self.events, key=lambda e: e.timestamp)
 
         events = [
             event.serialize(self.recording_id, self.recording_started_at_ms)
             for event in sorted_events[:MAX_EVENTS]
+            if event.participant_ref in exported_participant_refs
         ]
-        event_times = [event["at_ms"] for event in events]
-        timeline_started_at_ms = min(event_times, default=0)
-        timeline_ended_at_ms = max(event_times, default=0)
 
         payload = {
             "version": 1,
             "recording_ref": self.recording_ref,
             "recording_started_at_ms": self.recording_started_at_ms,
-            "timeline_started_at_ms": timeline_started_at_ms,
-            "timeline_ended_at_ms": timeline_ended_at_ms,
-            "participants": participants[:MAX_PARTICIPANTS],
+            "timeline_started_at_ms": 0,
+            "timeline_ended_at_ms": 0,
+            "participants": participants,
             "events": events,
         }
         if self.evidence_ref is not None:
@@ -360,7 +363,7 @@ class MetadataCollector:
         if self.room_ref is not None:
             payload["room_ref"] = self.room_ref
 
-        data = json.dumps(payload, indent=2).encode("utf-8")
+        data = self._bounded_artifact_bytes(payload)
         stream = BytesIO(data)
 
         try:
@@ -380,6 +383,42 @@ class MetadataCollector:
             logger.exception(
                 "Failed to upload meeting metadata",
             )
+
+    def _bounded_artifact_bytes(self, payload: dict) -> bytes:
+        """Return compact artifact bytes within the Core speaker-evidence cap."""
+        original_events = list(payload["events"])
+
+        def serialize_with_events(events: list[dict]) -> bytes:
+            payload["events"] = events
+            event_times = [event["at_ms"] for event in events]
+            payload["timeline_started_at_ms"] = min(event_times, default=0)
+            payload["timeline_ended_at_ms"] = max(event_times, default=0)
+            return _canonical_json(payload)
+
+        full = serialize_with_events(original_events)
+        if len(full) <= MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES:
+            return full
+
+        empty = serialize_with_events([])
+        if len(empty) > MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES:
+            raise RuntimeError("speaker_evidence_artifact_too_large")
+
+        low = 0
+        high = len(original_events)
+        best_events: list[dict] = []
+        best = empty
+        while low <= high:
+            mid = (low + high) // 2
+            candidate_events = original_events[:mid]
+            candidate = serialize_with_events(candidate_events)
+            if len(candidate) <= MAX_SPEAKER_EVIDENCE_ARTIFACT_BYTES:
+                best_events = candidate_events
+                best = candidate
+                low = mid + 1
+            else:
+                high = mid - 1
+        best = serialize_with_events(best_events)
+        return best
 
     def _artifact_receipt_claims(self, payload: dict, data: bytes):
         """Build the signed Core receipt for one uploaded speaker evidence artifact."""

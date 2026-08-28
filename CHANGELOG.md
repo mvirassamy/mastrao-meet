@@ -10,8 +10,9 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(agent) bound speaker evidence artifact exports
 - 🐛(backend) recover and stop speaker evidence collector dispatches
-- 🔐(agent) keep speaker metadata evidence free of chat, names and participant identities
+- 🔐(agent) keep speaker evidence free of chat and identities
 - 🐛(backend) keep lifecycle projection responses uncacheable
 - 🐛(frontend) resume interrupted meeting closure from the lobby
 - 🐛(frontend) keep historical room slugs joinable
