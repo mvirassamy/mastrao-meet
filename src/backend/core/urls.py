@@ -21,6 +21,7 @@ from core.mastrao_recording_adapter import (
 )
 from core.mastrao_room_adapter import ensure_mastrao_room
 from core.mastrao_room_close_adapter import close_mastrao_room
+from core.mastrao_speaker_evidence_adapter import capture_mastrao_speaker_evidence
 from core.mastrao_transcription_adapter import transcribe_mastrao_recording
 from core.roomkit import viewsets as roomkit_viewsets
 
@@ -108,6 +109,11 @@ urlpatterns = [
         "internal/mastrao/transcriptions/transcribe/",
         transcribe_mastrao_recording,
         name="transcribe_mastrao_recording",
+    ),
+    path(
+        "internal/mastrao/speaker-evidence/capture/",
+        capture_mastrao_speaker_evidence,
+        name="capture_mastrao_speaker_evidence",
     ),
     path(
         f"api/{settings.API_VERSION}/",

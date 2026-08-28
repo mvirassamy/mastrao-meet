@@ -23,7 +23,13 @@ class MetadataCollectorService:
     """Service for dispatching and managing the metadata collector agent."""
 
     @async_to_sync
-    async def start(self, recording: Recording):
+    async def start(
+        self,
+        recording: Recording,
+        *,
+        metadata: str | None = None,
+        dispatch_option_key: str = "metadata_collector_dispatch_id",
+    ):
         """Explicitly dispatch the metadata collector agent to a room."""
 
         lkapi = utils.create_livekit_client()
@@ -34,7 +40,7 @@ class MetadataCollectorService:
                 CreateAgentDispatchRequest(
                     agent_name=settings.METADATA_COLLECTOR_AGENT_NAME,
                     room=room_id,
-                    metadata=str(recording.id),
+                    metadata=metadata or str(recording.id),
                 )
             )
         except Exception as e:
@@ -55,7 +61,7 @@ class MetadataCollectorService:
                 f"LiveKit did not return a dispatch_id for room {room_id}"
             )
 
-        recording.options["metadata_collector_dispatch_id"] = dispatch_id
+        recording.options[dispatch_option_key] = dispatch_id
         await sync_to_async(recording.save)(update_fields=["options"])
 
         return dispatch_id
