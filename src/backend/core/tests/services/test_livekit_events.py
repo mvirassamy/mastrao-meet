@@ -304,7 +304,10 @@ def test_handle_egress_ended_calls_metadata_collector_stop_when_conditions_are_m
 
     service._handle_egress_ended(mock_data)
 
-    mock_collector.stop.assert_called_once_with(recording)
+    mock_collector.stop.assert_called_once_with(
+        recording,
+        dispatch_option_key="metadata_collector_dispatch_id",
+    )
 
 
 @pytest.mark.parametrize(

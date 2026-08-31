@@ -19,6 +19,7 @@ from core.mastrao_meeting_close import request_meeting_close
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_room_close_contract import RoomCloseRefused
 from core.mastrao_room_lifecycle import MastraoRoomClosed
+from core.recording.worker.exceptions import WorkerConnectionError
 from core.services.room_management import (
     RoomManagementException,
     RoomNotFoundException,
@@ -330,6 +331,75 @@ def test_provider_failure_keeps_pending_tombstone_that_blocks_creation():
     assert closure.state == models.MastraoRoomClosure.State.PENDING
     with pytest.raises(MastraoRoomClosed):
         ensure_livekit_room(str(binding.room_id))
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_ROOM_ADAPTER_ENABLED=True,
+    MASTRAO_MEETING_CLOSE_ENABLED=True,
+    MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
+    MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
+    ROOM_TELEPHONY_ENABLED=False,
+    ROOMKIT_ENABLED=False,
+)
+def test_already_aborted_recording_does_not_block_room_close():
+    """A terminal-aborted provider recording still allows room closure."""
+
+    binding = _binding("aborted")
+    effect = _effect(binding, "aborted")
+    recording = models.Recording.objects.create(
+        room=binding.room,
+        status=models.RecordingStatusChoices.ACTIVE,
+        mode=models.RecordingModeChoices.SCREEN_RECORDING,
+        worker_id="EG_already_aborted",
+    )
+    recording_binding = models.MastraoRecordingBinding.objects.create(
+        room_binding=binding,
+        recording=recording,
+        organization_external_id=effect["organization_external_id"],
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        recording_ref="recording_aborted_0123456789",
+        provider_binding_digest=binding.provider_binding_digest,
+        policy_ref="policy_aborted_0123456789",
+        notice_version="notice_aborted_0123456789",
+        notice_digest="d" * 64,
+        retention_expires_at=timezone.now() + timezone.timedelta(days=30),
+        state=models.MastraoRecordingBinding.State.ACTIVE,
+        provider_recording_ref="EG_already_aborted",
+    )
+
+    worker_service = mock.Mock()
+    worker_service.stop.side_effect = WorkerConnectionError(
+        "LiveKit client connection error, "
+        "egress with status EGRESS_ABORTED cannot be stopped."
+    )
+
+    with (
+        mock.patch(
+            "core.mastrao_room_close_adapter.verify_room_close_effect",
+            return_value=effect,
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.get_worker_service",
+            return_value=worker_service,
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.sign_room_close_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch("core.mastrao_room_close_adapter.RoomManagement.delete_room"),
+        mock.patch("core.mastrao_room_close_adapter.LobbyService.clear_room_cache"),
+    ):
+        response = close_mastrao_room(_request())
+
+    assert response.status_code == 200
+    recording.refresh_from_db()
+    recording_binding.refresh_from_db()
+    closure = models.MastraoRoomClosure.objects.get(room_binding=binding)
+    assert recording.status == models.RecordingStatusChoices.ABORTED
+    assert recording_binding.state == models.MastraoRecordingBinding.State.PROCESSING
+    assert closure.state == models.MastraoRoomClosure.State.APPLIED
 
 
 @pytest.mark.django_db(transaction=True)

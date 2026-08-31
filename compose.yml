@@ -9,6 +9,8 @@ services:
 
   redis:
     image: redis:5
+    ports:
+      - "6380:6379"
 
   mailcatcher:
     image: sj26/mailcatcher:latest
@@ -233,10 +235,11 @@ services:
       - ./docker/livekit/config/livekit-server.yaml:/config.yaml
     depends_on:
       - redis
-      - livekit-egress
 
   livekit-egress:
     image: livekit/egress:v1.11.0
+    cap_add:
+      - SYS_ADMIN
     environment:
       EGRESS_CONFIG_FILE: ./livekit-egress.yaml
     volumes:
@@ -256,7 +259,6 @@ services:
       - ./src/agents:/app
       - /app/.venv
     depends_on:
-      - livekit
       - minio
     develop:
       watch:

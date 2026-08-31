@@ -397,8 +397,14 @@ def test_sentry_scrubs_transcription_effects_and_receipts():
 
 
 def _assert_host_platform_return(client, binding, grant):
-    with mock.patch("core.mastrao_host_grant.verify_host_grant", return_value=grant):
-        response = client.get(f"/api/v1.0/rooms/{binding.room.id}/")
+    with (
+        mock.patch("core.mastrao_host_grant.verify_host_grant", return_value=grant),
+        mock.patch(
+            "core.mastrao_recording_session.verify_host_grant", return_value=grant
+        ),
+        mock.patch("core.api.serializers.recording_session_status", return_value=None),
+    ):
+        response = client.get(f"/api/v1.0/rooms/{binding.room.slug}/")
     assert response.status_code == 200
     assert response.json()["platform_return"] == {
         "url": (
@@ -455,6 +461,7 @@ def test_host_platform_return_rejects_a_grant_binding_mismatch():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
+    APPLICATION_BASE_URL="https://meet.mastrao.test",
     MASTRAO_HOST_HANDOFF_ENABLED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
@@ -473,9 +480,9 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
             content_type="application/x-www-form-urlencoded",
             HTTP_ORIGIN="https://platform.mastrao.test",
             HTTP_SEC_FETCH_SITE="cross-site",
-        )
+    )
     assert response.status_code == 303
-    assert response["Location"] == f"/{binding.room.slug}"
+    assert response["Location"] == f"https://meet.mastrao.test/{binding.room.slug}"
     assert response["Referrer-Policy"] == "no-referrer"
     assert response.cookies["csrftoken"].value
     assert models.MastraoHostIdentity.objects.count() == 1
@@ -581,8 +588,10 @@ def test_exact_host_can_end_and_retry_after_tombstone(client):
             HTTP_SEC_FETCH_SITE="cross-site",
         )
     assert response.status_code == 303
-
-    room_response = client.get(f"/api/v1.0/rooms/{binding.room_id}/")
+    with mock.patch(
+        "core.api.serializers.recording_session_status", return_value=None
+    ):
+        room_response = client.get(f"/api/v1.0/rooms/{binding.room.slug}/")
     assert room_response.status_code == 200
     assert room_response.json()["can_end"] is True
 

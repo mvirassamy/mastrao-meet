@@ -1,4 +1,4 @@
-LIVEKIT_URL=ws://livekit:7880
+LIVEKIT_URL=ws://host.docker.internal:7880
 LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=secret
 
