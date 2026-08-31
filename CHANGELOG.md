@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) redirect Mastrao host handoffs to the configured frontend room origin
+- 🐛(frontend) proxy Mastrao handoff routes from the local production frontend across backend restarts
 - 🐛(backend) bind speaker evidence labels and fresh capture windows
 - 🐛(backend) seal and drain speaker evidence artifact replay sidecars
 - 🐛(backend) refresh speaker evidence artifact receipts on replay

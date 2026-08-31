@@ -34,6 +34,7 @@ from core.mastrao_recording_contract import (
     RecordingContractRefused,
     build_start_receipt_claims,
 )
+from core.mastrao_recording_failure import report_mastrao_recording_failure
 from core.mastrao_recording_reconciler import (
     reconcile_mastrao_recording,
     reconcile_mastrao_recordings,
@@ -713,6 +714,71 @@ def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings)
         refusal=RecordingContractRefused,
         expected_fields={"recordingRef", "state"},
     )
+
+
+def test_recording_failure_local_stale_core_refusal_tombstones_binding(db, settings):
+    access, _ = _artifact_access()
+    binding = access.recording_binding
+    binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.provider_recording_ref = "EG_oju7PDAhx8k7"
+    binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
+    recording = binding.recording
+    recording.worker_id = binding.provider_recording_ref
+    recording.save(update_fields=["worker_id", "updated_at"])
+    settings.DEBUG = True
+    settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = (
+        "http://127.0.0.1.nip.io:3911/internal/v1/meetings/recording/failures"
+    )
+
+    with (
+        mock.patch(
+            "core.mastrao_recording_failure.sign_failure_receipt",
+            return_value="failure.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_recording_failure.post_core_json",
+            side_effect=RecordingContractRefused(status=404),
+        ),
+    ):
+        assert report_mastrao_recording_failure(
+            recording, livekit_api.EgressStatus.EGRESS_ABORTED
+        )
+
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.FAILED
+
+
+def test_recording_failure_core_unavailable_stays_retryable(db, settings):
+    access, _ = _artifact_access()
+    binding = access.recording_binding
+    binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.provider_recording_ref = "EG_oju7PDAhx8k7"
+    binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
+    recording = binding.recording
+    recording.worker_id = binding.provider_recording_ref
+    recording.save(update_fields=["worker_id", "updated_at"])
+    settings.DEBUG = True
+    settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = (
+        "http://127.0.0.1.nip.io:3911/internal/v1/meetings/recording/failures"
+    )
+
+    with (
+        mock.patch(
+            "core.mastrao_recording_failure.sign_failure_receipt",
+            return_value="failure.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_recording_failure.post_core_json",
+            side_effect=RecordingContractRefused(status=503),
+        ),
+    ):
+        with pytest.raises(RecordingContractRefused):
+            report_mastrao_recording_failure(
+                recording, livekit_api.EgressStatus.EGRESS_ABORTED
+            )
+
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
 
 
 def test_reconciler_isolates_one_bad_item_while_rollout_controls_are_off(db, settings):

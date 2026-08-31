@@ -24,6 +24,7 @@ export const useSyncUserPreferencesWithBackend = () => {
 
   useEffect(() => {
     if (!user || !isLoggedIn) return
+    if (window.location.pathname.startsWith('/room_')) return
 
     const syncBrowserPreferencesToBackend = async () => {
       const currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -42,6 +43,10 @@ export const useSyncUserPreferencesWithBackend = () => {
       }
     }
 
-    syncBrowserPreferencesToBackend()
+    void syncBrowserPreferencesToBackend().catch(() => {
+      // Preference sync is best-effort. Mastrao host handoff sessions are
+      // intentionally constrained and may read /users/me/ while being denied
+      // generic user updates. That must not block joining a meeting.
+    })
   }, [i18n.language, isLoggedIn, user, mutateAsync])
 }

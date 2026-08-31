@@ -42,6 +42,13 @@ COMPACT_JWS = re.compile(
 SESSION_BACKEND = "core.authentication.handoff.MastraoHostAuthenticationBackend"
 
 
+def _room_location(room_slug):
+    application_base_url = (settings.APPLICATION_BASE_URL or "").rstrip("/")
+    if application_base_url:
+        return f"{application_base_url}/{room_slug}"
+    return f"/{room_slug}"
+
+
 def _increment_attempt_counter(key):
     if cache.add(key, 1, timeout=70):
         return 1
@@ -239,7 +246,7 @@ def consume_mastrao_host_handoff(request):
         # matching token instead of being rejected by DRF session auth.
         get_token(request)
         response = HttpResponse(status=303)
-        response["Location"] = f"/{binding.room.slug}"
+        response["Location"] = _room_location(binding.room.slug)
         response["Cache-Control"] = "private, no-store"
         response["Referrer-Policy"] = "no-referrer"
         return response

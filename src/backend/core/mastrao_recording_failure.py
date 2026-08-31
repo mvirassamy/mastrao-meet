@@ -1,6 +1,7 @@
 """Signed terminal provider observations for canonical Mastrao recordings."""
 
 import time
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from django.conf import settings
@@ -25,6 +26,28 @@ FAILURE_STATES = {
     livekit_api.EgressStatus.EGRESS_FAILED: "provider_failed",
 }
 PROVIDER_NOT_STARTED = "provider_not_started"
+
+
+def _can_tombstone_local_stale_failure(error):
+    if getattr(error, "status", None) != 404 or not settings.DEBUG:
+        return False
+    endpoint = urlparse(settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT)
+    return endpoint.hostname in {
+        "127.0.0.1",
+        "localhost",
+        "127.0.0.1.nip.io",
+        "host.docker.internal",
+        "cabinet-core",
+    }
+
+
+def _mark_binding_failed(binding):
+    with transaction.atomic():
+        locked = models.MastraoRecordingBinding.objects.select_for_update().get(
+            pk=binding.pk
+        )
+        locked.state = locked.State.FAILED
+        locked.save(update_fields=["state", "updated_at"])
 
 
 def report_mastrao_recording_failure(recording, provider_status):
@@ -63,20 +86,21 @@ def report_mastrao_recording_failure(recording, provider_status):
     }
     if binding.provider_recording_ref:
         claims["provider_recording_ref"] = binding.provider_recording_ref
-    result = post_core_json(
-        endpoint=settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT,
-        expected_path="/internal/v1/meetings/recording/failures",
-        body={"recording_failure_receipt": sign_failure_receipt(claims)},
-        timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
-        refusal=RecordingContractRefused,
-        expected_fields={"recordingRef", "state"},
-    )
+    try:
+        result = post_core_json(
+            endpoint=settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT,
+            expected_path="/internal/v1/meetings/recording/failures",
+            body={"recording_failure_receipt": sign_failure_receipt(claims)},
+            timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
+            refusal=RecordingContractRefused,
+            expected_fields={"recordingRef", "state"},
+        )
+    except RecordingContractRefused as error:
+        if not _can_tombstone_local_stale_failure(error):
+            raise
+        _mark_binding_failed(binding)
+        return True
     if result != {"recordingRef": binding.recording_ref, "state": "failed"}:
         raise RecordingContractRefused(status=503)
-    with transaction.atomic():
-        locked = models.MastraoRecordingBinding.objects.select_for_update().get(
-            pk=binding.pk
-        )
-        locked.state = locked.State.FAILED
-        locked.save(update_fields=["state", "updated_at"])
+    _mark_binding_failed(binding)
     return True

@@ -10,6 +10,7 @@ import { Permissions } from '../components/Permissions'
 import { SilentMicDialog } from '../components/SilentMicDialog'
 import { useKeyboardShortcuts } from '@/features/shortcuts/useKeyboardShortcuts'
 import {
+  isMastraoRoomId,
   isRoomValid,
   normalizeRoomId,
 } from '@/features/rooms/utils/isRoomValid'
@@ -35,9 +36,11 @@ const Room = () => {
 
   const { roomId } = useParams()
   const [location, setLocation] = useLocation()
-  const initialRoomData = history.state?.initialRoomData
-  const mode = isLoggedIn && history.state?.create ? 'create' : 'join'
-  const skipJoinScreen = isLoggedIn && mode === 'create'
+  const isMastraoRoom = roomId ? isMastraoRoomId(roomId) : false
+  const initialRoomData = isMastraoRoom ? undefined : history.state?.initialRoomData
+  const mode =
+    isLoggedIn && !isMastraoRoom && history.state?.create ? 'create' : 'join'
+  const skipJoinScreen = isLoggedIn && !isMastraoRoom && mode === 'create'
 
   const { data } = useConfig()
 
