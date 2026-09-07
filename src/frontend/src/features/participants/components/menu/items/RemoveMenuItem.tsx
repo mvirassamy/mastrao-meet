@@ -1,7 +1,7 @@
 import React from 'react'
 import { menuRecipe } from '@/primitives/menuRecipe'
 import { HStack } from '@/styled-system/jsx'
-import { RiCloseLine } from '@remixicon/react'
+import { RiCloseFill } from '@remixicon/react'
 import { MenuItem } from 'react-aria-components'
 import { useRemoveParticipant } from '@/features/rooms/api/removeParticipant'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +24,7 @@ export const RemoveMenuItem = React.memo(
         onAction={() => removeParticipant(identity)}
       >
         <HStack gap={0.25}>
-          <RiCloseLine size={20} aria-hidden />
+          <RiCloseFill size={20} aria-hidden />
           {t('label')}
         </HStack>
       </MenuItem>

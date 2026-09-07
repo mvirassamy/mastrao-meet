@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { RiInformationLine } from '@remixicon/react'
+import { RiInformationFill } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { ToggleButton } from '@/primitives'
 import { useSidePanel } from '../../hooks/useSidePanel'
@@ -36,7 +36,7 @@ export const InfoToggle = ({
         data-attr={`controls-info-${tooltipLabel}`}
         {...props}
       >
-        <RiInformationLine />
+        <RiInformationFill />
       </ToggleButton>
     </div>
   )

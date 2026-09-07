@@ -1,6 +1,7 @@
 import { css } from '@/styled-system/css'
 import { ReactNode } from 'react'
 import { Icon } from '@/primitives'
+import type { IconName } from '@/primitives/Icon'
 
 type RowPosition = 'first' | 'middle' | 'last' | 'single'
 
@@ -12,7 +13,7 @@ const BORDER_RADIUS_MAP: Record<RowPosition, string> = {
 } as const
 
 interface RowWrapperProps {
-  iconName: string
+  iconName: IconName
   children: ReactNode
   position?: RowPosition
 }

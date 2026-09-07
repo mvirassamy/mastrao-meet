@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  RiCloseLine,
-  RiDownload2Line,
-  RiErrorWarningLine,
-  RiPlayLine,
+  RiCloseFill,
+  RiDownload2Fill,
+  RiErrorWarningFill,
+  RiPlayFill,
 } from '@remixicon/react'
 import { CenteredContent } from '@/layout/CenteredContent'
 import { Screen } from '@/layout/Screen'
@@ -106,7 +106,7 @@ const ConnectionTest = () => {
                 <Button
                   variant="outline"
                   onPress={reset}
-                  icon={<RiCloseLine size={18} aria-hidden="true" />}
+                  icon={<RiCloseFill size={18} aria-hidden="true" />}
                 >
                   {t('cancel')}
                 </Button>
@@ -114,7 +114,7 @@ const ConnectionTest = () => {
                 <Button
                   variant="primary"
                   onPress={runTest}
-                  icon={<RiPlayLine size={18} aria-hidden="true" />}
+                  icon={<RiPlayFill size={18} aria-hidden="true" />}
                 >
                   {stats.hasStarted ? t('runAgain') : t('runTest')}
                 </Button>
@@ -123,7 +123,7 @@ const ConnectionTest = () => {
                 <Button
                   variant="outline"
                   onPress={() => downloadConnectionTestReport(steps)}
-                  icon={<RiDownload2Line size={18} aria-hidden="true" />}
+                  icon={<RiDownload2Fill size={18} aria-hidden="true" />}
                 >
                   {t('downloadReport')}
                 </Button>
@@ -149,7 +149,7 @@ const ConnectionTest = () => {
 
             {stats.failed > 0 && !isRunning && (
               <p className={helpClass}>
-                <RiErrorWarningLine
+                <RiErrorWarningFill
                   size={18}
                   aria-hidden="true"
                   className={helpIconClass}

@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 
 import { type ToastProps } from './Toast'
 import { Text } from '@/primitives'
-import { RiMessage2Line } from '@remixicon/react'
+import { RiMessage2Fill } from '@remixicon/react'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 import { Button as RACButton } from 'react-aria-components'
 import { css } from '@/styled-system/css'
@@ -58,7 +58,7 @@ export function ToastMessageReceived({
               gap: '0.5rem',
             })}
           >
-            <RiMessage2Line
+            <RiMessage2Fill
               size={20}
               className={css({
                 color: 'primary',

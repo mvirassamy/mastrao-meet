@@ -1,5 +1,6 @@
+import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { useTranslation } from 'react-i18next'
-import { RiHand } from '@remixicon/react'
+
 import { ToggleButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useRoomContext } from '@livekit/components-react'
@@ -83,7 +84,7 @@ export const HandToggle = () => {
         onPress={handleToggle}
         data-attr={`controls-hand-${tooltipLabel}`}
       >
-        <RiHand />
+        <HandRaisedFill />
       </ToggleButton>
     </div>
   )

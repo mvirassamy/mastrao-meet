@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { Bold, Button, Dialog, type DialogProps, P, Text } from '@/primitives'
 import { HStack } from '@/styled-system/jsx'
-import { RiCheckLine, RiFileCopyLine, RiSpam2Fill } from '@remixicon/react'
+import { RiCheckFill, RiFileCopyFill, RiSpam2Fill } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { ApiAccessLevel, ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { useTelephony } from '@/features/rooms/livekit/hooks/useTelephony'
@@ -72,9 +72,9 @@ export const LaterMeetingDialog = ({
                     tooltip={t('copyUrl')}
                   >
                     {isRoomUrlCopied ? (
-                      <RiCheckLine aria-hidden="true" />
+                      <RiCheckFill aria-hidden="true" />
                     ) : (
-                      <RiFileCopyLine aria-hidden="true" />
+                      <RiFileCopyFill aria-hidden="true" />
                     )}
                   </Button>
                 )}
@@ -107,7 +107,7 @@ export const LaterMeetingDialog = ({
               >
                 {isCopied ? (
                   <>
-                    <RiCheckLine
+                    <RiCheckFill
                       size={18}
                       style={{ marginRight: '8px' }}
                       aria-hidden="true"
@@ -116,7 +116,7 @@ export const LaterMeetingDialog = ({
                   </>
                 ) : (
                   <>
-                    <RiFileCopyLine
+                    <RiFileCopyFill
                       style={{ marginRight: '6px', minWidth: '18px' }}
                       aria-hidden="true"
                     />
@@ -140,7 +140,7 @@ export const LaterMeetingDialog = ({
             >
               {isCopied ? (
                 <>
-                  <RiCheckLine
+                  <RiCheckFill
                     size={18}
                     style={{ marginRight: '8px' }}
                     aria-hidden="true"
@@ -149,7 +149,7 @@ export const LaterMeetingDialog = ({
                 </>
               ) : (
                 <>
-                  <RiFileCopyLine
+                  <RiFileCopyFill
                     size={18}
                     style={{ marginRight: '8px', minWidth: '18px' }}
                     aria-hidden="true"

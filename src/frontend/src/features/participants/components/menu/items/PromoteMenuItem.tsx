@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
-import { RiAdminLine, RiUserMinusLine } from '@remixicon/react'
+import { RiAdminFill, RiUserMinusFill } from '@remixicon/react'
 import { useParticipantRole } from '@/features/participants/api/updateParticipantRole'
 import { menuRecipe } from '@/primitives/menuRecipe'
 import { HStack } from '@/styled-system/jsx'
@@ -19,7 +19,7 @@ export const PromoteMenuItem = React.memo(
     const { updateParticipantRole } = useParticipantRole()
 
     const label = isAdmin ? 'demote' : 'promote'
-    const Icon = isAdmin ? RiUserMinusLine : RiAdminLine
+    const Icon = isAdmin ? RiUserMinusFill : RiAdminFill
 
     const toggleRole = useCallback(
       () =>

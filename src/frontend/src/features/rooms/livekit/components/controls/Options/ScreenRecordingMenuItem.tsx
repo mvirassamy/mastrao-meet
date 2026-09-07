@@ -1,4 +1,4 @@
-import { RiRecordCircleLine } from '@remixicon/react'
+import { RiRecordCircleFill } from '@remixicon/react'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -25,7 +25,7 @@ export const ScreenRecordingMenuItem = () => {
         !isScreenRecordingOpen ? openScreenRecording() : toggleTools()
       }
     >
-      <RiRecordCircleLine size={20} />
+      <RiRecordCircleFill size={20} />
       {t('screenRecording')}
     </MenuItem>
   )

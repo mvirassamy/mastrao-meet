@@ -6,13 +6,13 @@ import { Icon } from '@/primitives/Icon'
 import { Heading } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import {
-  RiAccountCircleLine,
-  RiNotification3Line,
-  RiSettings3Line,
-  RiSpeakerLine,
-  RiVideoOnLine,
-  RiEyeLine,
-  RiKeyboardBoxLine,
+  RiAccountCircleFill,
+  RiNotification3Fill,
+  RiSettings3Fill,
+  RiSpeakerFill,
+  RiVideoOnFill,
+  RiEyeFill,
+  RiKeyboardBoxFill,
 } from '@remixicon/react'
 import { AccountTab } from './tabs/AccountTab'
 import { NotificationsTab } from './tabs/NotificationsTab'
@@ -90,28 +90,28 @@ export const SettingsDialogExtended = (props: SettingsDialogExtended) => {
           )}
           <TabList border={false}>
             <Tab icon highlight id={SettingsDialogExtendedKey.ACCOUNT}>
-              <RiAccountCircleLine />
+              <RiAccountCircleFill />
               {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.ACCOUNT}`)}
             </Tab>
             <Tab icon highlight id={SettingsDialogExtendedKey.AUDIO}>
-              <RiSpeakerLine />
+              <RiSpeakerFill />
               {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.AUDIO}`)}
             </Tab>
             <Tab icon highlight id={SettingsDialogExtendedKey.VIDEO}>
-              <RiVideoOnLine />
+              <RiVideoOnFill />
               {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.VIDEO}`)}
             </Tab>
             <Tab icon highlight id={SettingsDialogExtendedKey.GENERAL}>
-              <RiSettings3Line />
+              <RiSettings3Fill />
               {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.GENERAL}`)}
             </Tab>
             <Tab icon highlight id={SettingsDialogExtendedKey.NOTIFICATIONS}>
-              <RiNotification3Line />
+              <RiNotification3Fill />
               {isWideScreen &&
                 t(`tabs.${SettingsDialogExtendedKey.NOTIFICATIONS}`)}
             </Tab>
             <Tab icon highlight id={SettingsDialogExtendedKey.SHORTCUTS}>
-              <RiKeyboardBoxLine />
+              <RiKeyboardBoxFill />
               {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.SHORTCUTS}`)}
             </Tab>
             {isAdminOrOwner && (
@@ -122,7 +122,7 @@ export const SettingsDialogExtended = (props: SettingsDialogExtended) => {
               </Tab>
             )}
             <Tab icon highlight id={SettingsDialogExtendedKey.ACCESSIBILITY}>
-              <RiEyeLine />
+              <RiEyeFill />
               {isWideScreen &&
                 t(`tabs.${SettingsDialogExtendedKey.ACCESSIBILITY}`)}
             </Tab>

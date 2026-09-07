@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiEmotionLine } from '@remixicon/react'
+import { RiEmotionFill } from '@remixicon/react'
 import { ToggleButton } from '@/primitives'
 
 import { useRegisterKeyboardShortcut } from '@/features/shortcuts/useRegisterKeyboardShortcut'
@@ -48,7 +48,7 @@ export const ReactionsToggle = () => {
       isSelected={isOpen}
       onChange={toggle}
     >
-      <RiEmotionLine />
+      <RiEmotionFill />
     </ToggleButton>
   )
 }

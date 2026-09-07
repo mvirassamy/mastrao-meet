@@ -1,23 +1,35 @@
+import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { cva, RecipeVariantProps } from '@/styled-system/css'
-import { ComponentPropsWithoutRef, FunctionComponent, SVGProps } from 'react'
+import { ComponentPropsWithoutRef } from 'react'
 
-// Eagerly import every .svg in the icons folder as a React component.
-// Drop a new file in /assets/icons and it's available immediately.
-const modules = import.meta.glob<{
-  default: FunctionComponent<SVGProps<SVGSVGElement>>
-}>('../assets/icons/*.svg', { eager: true, query: '?react', import: 'default' })
+import {
+  RiArrowRightSFill,
+  RiRecordCircleFill,
+  RiSpeakFill,
+  RiTranslate2,
+  RiArticleFill,
+  RiLoginBoxFill,
+  RiMailFill,
+  RiDownloadCloudFill,
+  RiVideoFill,
+  RiInformationFill,
+} from '@remixicon/react'
 
-// Build the registry: { 'chevron-down': Component, 'check': Component, ... }
-// Key = filename without extension.
-const icons = Object.fromEntries(
-  Object.entries(modules).map(([path, mod]) => {
-    const name = path
-      .split('/')
-      .pop()!
-      .replace(/\.svg$/, '')
-    return [name, mod as unknown as FunctionComponent<SVGProps<SVGSVGElement>>]
-  })
-) as Record<string, FunctionComponent<SVGProps<SVGSVGElement>>>
+// Explicit native solid glyphs; do not fill outline SVGs through CSS.
+const icons = {
+  chevron_forward: RiArrowRightSFill,
+  chevron_right: RiArrowRightSFill,
+  mode_standby: RiRecordCircleFill,
+  speech_to_text: RiSpeakFill,
+  language: RiTranslate2,
+  article: RiArticleFill,
+  person_raised_hand: HandRaisedFill,
+  login: RiLoginBoxFill,
+  mail: RiMailFill,
+  cloud_download: RiDownloadCloudFill,
+  screen_record: RiVideoFill,
+  info: RiInformationFill,
+}
 
 export type IconName = keyof typeof icons
 
@@ -27,7 +39,6 @@ const iconRecipe = cva({
     flexShrink: 0,
     lineHeight: 1,
     color: 'currentColor',
-    fill: 'currentColor',
   },
   variants: {
     size: {
@@ -45,7 +56,7 @@ const iconRecipe = cva({
 export type IconRecipeProps = RecipeVariantProps<typeof iconRecipe>
 
 export type IconProps = IconRecipeProps &
-  Omit<ComponentPropsWithoutRef<'svg'>, 'name'> & {
+  Omit<ComponentPropsWithoutRef<'svg'>, 'name' | 'children'> & {
     name: IconName
   }
 

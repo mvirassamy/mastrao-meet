@@ -32,10 +32,7 @@ import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
-import {
-  decideRecording,
-  stopRecording,
-} from '@/features/rooms/api/recordingConsent'
+import { stopRecording } from '@/features/rooms/api/recordingConsent'
 
 /**
  * @public
@@ -93,19 +90,11 @@ export function VideoConference({
   const withdrawalIds = useRef(crypto.randomUUID().replaceAll('-', ''))
 
   const withdraw = async () => {
-    if (isEnding || isWithdrawing) return
+    if (!canEnd || isEnding || isWithdrawing) return
     setIsWithdrawing(true)
     setWithdrawFailed(false)
     try {
-      if (canEnd) {
-        await stopRecording(roomId, 'host', `stop_${withdrawalIds.current}`)
-      } else {
-        await decideRecording(
-          roomId,
-          'withdrawn',
-          `withdrawal_${withdrawalIds.current}`
-        )
-      }
+      await stopRecording(roomId, 'host', `stop_${withdrawalIds.current}`)
     } catch {
       setWithdrawFailed(true)
       return
@@ -157,8 +146,8 @@ export function VideoConference({
               gap: '0.75rem',
               padding: '0.5rem 0.75rem',
               borderRadius: 'surface',
-              backgroundColor: 'recording',
-              color: 'recording-foreground',
+              backgroundColor: 'info',
+              color: 'info-foreground',
             })}
           >
             {recording.recording_state === 'stopping'
@@ -170,15 +159,16 @@ export function VideoConference({
                       ? 'starting'
                       : 'active'
                   )}
-            {recording.decision === 'accepted' &&
+            {canEnd &&
+              recording.decision === 'accepted' &&
               recording.recording_state !== 'stopping' && (
                 <Button
                   size="sm"
-                  variant="danger"
+                  variant="outline"
                   isDisabled={isEnding || isWithdrawing}
                   onPress={withdraw}
                 >
-                  {tRecording(canEnd ? 'stop' : 'withdraw')}
+                  {tRecording('stop')}
                 </Button>
               )}
           </div>

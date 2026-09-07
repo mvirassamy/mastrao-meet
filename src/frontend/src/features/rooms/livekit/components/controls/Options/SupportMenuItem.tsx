@@ -1,4 +1,4 @@
-import { RiQuestionLine } from '@remixicon/react'
+import { RiQuestionFill } from '@remixicon/react'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -20,7 +20,7 @@ export const SupportMenuItem = () => {
         Crisp?.chat.open()
       }}
     >
-      <RiQuestionLine size={20} />
+      <RiQuestionFill size={20} />
       {t('support')}
     </MenuItem>
   )

@@ -4,7 +4,7 @@ import {
 } from 'react-aria-components'
 import { styled } from '@/styled-system/jsx'
 import { type StyledVariantProps } from '@/styled-system/types'
-import { RiCheckLine, RiCloseFill } from '@remixicon/react'
+import { RiCheckFill, RiCloseFill } from '@remixicon/react'
 
 const StyledSwitch = styled(RACSwitch, {
   base: {
@@ -114,7 +114,7 @@ export const Switch = ({ children, ...props }: SwitchProps) => (
       <>
         <div className="indicator">
           <span className="checkmark" aria-hidden="true">
-            <RiCheckLine />
+            <RiCheckFill />
           </span>
           <span className="cross" aria-hidden="true">
             <RiCloseFill />

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useTrackToggle, UseTrackToggleProps } from '@livekit/components-react'
 import { Button, Popover } from '@/primitives'
-import { RiArrowUpSLine, RiImageCircleAiFill } from '@remixicon/react'
+import { RiArrowUpSFill, RiImageCircleAiFill } from '@remixicon/react'
 import { Track, type VideoCaptureOptions } from 'livekit-client'
 
 import { ToggleDevice } from './ToggleDevice'
@@ -132,7 +132,7 @@ export const VideoDeviceControl = ({
             square
             variant={cannotUseDevice ? 'error2' : 'primaryDark'}
           >
-            <RiArrowUpSLine />
+            <RiArrowUpSFill />
           </Button>
           {({ close }) => (
             <div

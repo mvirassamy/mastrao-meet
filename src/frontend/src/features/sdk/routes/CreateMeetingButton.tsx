@@ -4,7 +4,7 @@ import { Link } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { HStack, VStack } from '@/styled-system/jsx'
 import { css } from '@/styled-system/css'
-import { RiCloseLine, RiFileCopyLine, RiSettings3Line } from '@remixicon/react'
+import { RiCloseFill, RiFileCopyFill, RiSettings3Fill } from '@remixicon/react'
 import { Text } from '@/primitives'
 import { Spinner } from '@/primitives/Spinner'
 import { buttonRecipe } from '@/primitives/buttonRecipe'
@@ -130,7 +130,7 @@ const CreateMeetingButton = () => {
           <Button
             variant="quaternaryText"
             square
-            icon={<RiCloseLine />}
+            icon={<RiCloseFill />}
             onPress={resetState}
             aria-label={t('resetLabel')}
           />
@@ -170,7 +170,7 @@ const CreateMeetingButton = () => {
                 <Button
                   variant="quaternaryText"
                   square
-                  icon={<RiSettings3Line />}
+                  icon={<RiSettings3Fill />}
                   aria-label={t('settingsTooltip')}
                   onPress={() => {
                     popupManager.createSettingsPopupWindow(room.slug, () => {})
@@ -180,7 +180,7 @@ const CreateMeetingButton = () => {
               <Button
                 variant="quaternaryText"
                 square
-                icon={<RiFileCopyLine />}
+                icon={<RiFileCopyFill />}
                 onPress={() => {
                   navigator.clipboard.writeText(roomUrl)
                 }}
@@ -190,7 +190,7 @@ const CreateMeetingButton = () => {
                 <Button
                   variant="quaternaryText"
                   square
-                  icon={<RiCloseLine />}
+                  icon={<RiCloseFill />}
                   onPress={resetState}
                   aria-label={t('resetLabel')}
                 />

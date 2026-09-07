@@ -1,3 +1,4 @@
+import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { css } from '@/styled-system/css'
 
 import { HStack } from '@/styled-system/jsx'
@@ -7,7 +8,7 @@ import { useLowerHandParticipant } from '../api/lowerHandParticipant'
 import { getParticipantColor } from '@/features/rooms/utils/getParticipantColor'
 import type { Participant } from 'livekit-client'
 import { isLocal } from '@/utils/livekit'
-import { RiHand } from '@remixicon/react'
+
 import { Button } from '@/primitives'
 import { AdminOrOwnerOnly } from '@/features/rooms/components/AdminOrOwnerOnly'
 import { ParticipantName } from './ParticipantName'
@@ -32,7 +33,7 @@ const ActionButton = ({
       tooltip={t('participants.lowerParticipantHand', { name })}
       data-attr="participants-lower-hand"
     >
-      <RiHand />
+      <HandRaisedFill />
     </Button>
   )
 }

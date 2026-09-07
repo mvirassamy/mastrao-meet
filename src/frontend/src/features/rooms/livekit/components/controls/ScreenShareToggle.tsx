@@ -1,5 +1,5 @@
 import { Div, ToggleButton } from '@/primitives'
-import { RiArrowUpLine, RiCloseFill, RiRectangleLine } from '@remixicon/react'
+import { RiArrowUpFill, RiCloseFill, RiRectangleFill } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import {
   useTrackToggle,
@@ -32,7 +32,7 @@ export const ScreenShareToggle = ({
   })
 
   const tooltipLabel = enabled ? 'stop' : 'start'
-  const Icon = enabled ? RiCloseFill : RiArrowUpLine
+  const Icon = enabled ? RiCloseFill : RiArrowUpFill
 
   const canShareScreen = useCanPublishTrack(TrackSource.SCREEN_SHARE)
 
@@ -56,7 +56,7 @@ export const ScreenShareToggle = ({
       {...props}
     >
       <Div position="relative">
-        <RiRectangleLine size={24} />
+        <RiRectangleFill size={24} />
         <Icon
           size={14}
           style={{

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useMemo } from 'react'
 import { VStack } from '@/styled-system/jsx'
 import { css } from '@/styled-system/css'
-import { RiCheckLine, RiFileCopyLine } from '@remixicon/react'
+import { RiCheckFill, RiFileCopyFill } from '@remixicon/react'
 import { Bold, Button, Div, Text } from '@/primitives'
 import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { useRoomData } from '../hooks/useRoomData'
@@ -78,7 +78,7 @@ export const Info = () => {
         >
           {isCopied ? (
             <>
-              <RiCheckLine
+              <RiCheckFill
                 size={24}
                 style={{ marginRight: '6px' }}
                 aria-hidden="true"
@@ -87,7 +87,7 @@ export const Info = () => {
             </>
           ) : (
             <>
-              <RiFileCopyLine
+              <RiFileCopyFill
                 size={24}
                 style={{ marginRight: '6px' }}
                 aria-hidden="true"

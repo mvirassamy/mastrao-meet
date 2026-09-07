@@ -145,7 +145,7 @@ export const RecordingConsent = ({
           {t(transcriptionOnly ? 'transcription.refuse' : 'refuse')}
         </Button>
         <Button
-          variant="outline"
+          variant="primary"
           isDisabled={pending !== null}
           loading={pending === 'accepted'}
           onPress={() => decide('accepted')}

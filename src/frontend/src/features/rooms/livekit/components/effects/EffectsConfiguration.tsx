@@ -25,7 +25,7 @@ import {
 } from '@/features/files/api/listFiles.ts'
 import { useCreateFile } from '@/features/files/api/createFile.ts'
 import { FileTrigger } from 'react-aria-components'
-import { RiDeleteBinLine, RiImageAddFill } from '@remixicon/react'
+import { RiDeleteBinFill, RiImageAddFill } from '@remixicon/react'
 import { useDeleteFile } from '@/features/files/api/deleteFile.ts'
 import { useUser } from '@/features/auth/api/useUser'
 import { ApiFileItem } from '@/features/files/api/types.ts'
@@ -786,7 +786,7 @@ export const EffectsConfiguration = ({
                               }}
                               isDisabled={deleteFileMutation.isPending}
                             >
-                              <RiDeleteBinLine size={16} />
+                              <RiDeleteBinFill size={16} />
                             </Button>
                           </div>
                         </div>

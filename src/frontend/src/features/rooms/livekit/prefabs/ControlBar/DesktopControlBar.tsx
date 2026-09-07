@@ -58,6 +58,7 @@ export function DesktopControlBar({
         padding: '1.125rem',
         '@media (max-width: 799px)': {
           padding: '0.75rem',
+          flexWrap: 'wrap',
           gap: '0.5rem',
           '--call-control-size': '40px',
         },
@@ -77,7 +78,11 @@ export function DesktopControlBar({
         })}
       />
       <ControlBarRegion
-        style={isNarrowScreen ? { flexWrap: 'wrap', minWidth: 0 } : undefined}
+        style={
+          isNarrowScreen
+            ? { flexWrap: 'wrap', minWidth: 0, flex: '1 0 100%' }
+            : undefined
+        }
       >
         <AudioDevicesControl
           onDeviceError={(error) =>
@@ -89,6 +94,8 @@ export function DesktopControlBar({
             onDeviceError?.({ source: Track.Source.Camera, error })
           }
         />
+        <SubtitlesToggle />
+        <HandToggle />
         <ReactionsToggle />
         {browserSupportsScreenSharing && (
           <ScreenShareToggle
@@ -97,8 +104,6 @@ export function DesktopControlBar({
             }
           />
         )}
-        <SubtitlesToggle />
-        <HandToggle />
         <OptionsButton />
         {canEnd && (
           <EndMeetingButton roomId={roomId} onEnded={onMeetingEnded} />
@@ -106,7 +111,7 @@ export function DesktopControlBar({
         <LeaveButton />
         <StartMediaButton />
       </ControlBarRegion>
-      <MoreOptions parentElement={desktopControlBarEl} />
+      <MoreOptions />
     </div>
   )
 }

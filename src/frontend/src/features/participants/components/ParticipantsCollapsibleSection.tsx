@@ -1,5 +1,5 @@
 import { ReactNode, useId, useState } from 'react'
-import { RiArrowUpSLine } from '@remixicon/react'
+import { RiArrowUpSFill } from '@remixicon/react'
 import { styled, HStack, VStack } from '@/styled-system/jsx'
 
 const Container = styled('div', {
@@ -32,7 +32,7 @@ const Header = styled('button', {
   },
 })
 
-const Chevron = styled(RiArrowUpSLine, {
+const Chevron = styled(RiArrowUpSFill, {
   base: { transition: 'transform 200ms', flexShrink: 0 },
   variants: {
     isOpen: { false: { transform: 'rotate(180deg)' } },

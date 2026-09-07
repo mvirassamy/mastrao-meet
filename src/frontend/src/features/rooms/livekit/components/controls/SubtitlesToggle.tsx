@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { RiClosedCaptioningLine } from '@remixicon/react'
+import { RiClosedCaptioningFill } from '@remixicon/react'
 import { ToggleButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useSubtitles } from '@/features/subtitle/hooks/useSubtitles'
@@ -32,7 +32,7 @@ export const SubtitlesToggle = () => {
         onPress={toggleSubtitles}
         data-attr={`controls-subtitles-${tooltipLabel}`}
       >
-        <RiClosedCaptioningLine />
+        <RiClosedCaptioningFill />
       </ToggleButton>
     </div>
   )

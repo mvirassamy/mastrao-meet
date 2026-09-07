@@ -1,4 +1,4 @@
-import { RiBookOpenLine } from '@remixicon/react'
+import { RiBookOpenFill } from '@remixicon/react'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -16,7 +16,7 @@ export const DocumentationMenuItem = () => {
       target="_blank"
       className={menuRecipe({ icon: true, variant: 'dark' }).item}
     >
-      <RiBookOpenLine size={20} />
+      <RiBookOpenFill size={20} />
       {t('documentation')}
     </MenuItem>
   )

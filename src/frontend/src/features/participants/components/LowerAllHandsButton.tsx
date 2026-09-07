@@ -1,9 +1,10 @@
+import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { Button } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import type { Participant } from 'livekit-client'
 import { useLowerHandParticipants } from '../api/lowerHandParticipants'
 import { css } from '@/styled-system/css'
-import { RiHand } from '@remixicon/react'
+
 import { AdminOrOwnerOnly } from '@/features/rooms/components/AdminOrOwnerOnly'
 
 type LowerAllHandsButtonProps = {
@@ -30,7 +31,7 @@ const LowerAllHandsButtonInner = ({
         marginBottom: '0.5rem',
       })}
     >
-      <RiHand size={16} />
+      <HandRaisedFill size={16} />
       {t('participants.lowerParticipantsHand')}
     </Button>
   )

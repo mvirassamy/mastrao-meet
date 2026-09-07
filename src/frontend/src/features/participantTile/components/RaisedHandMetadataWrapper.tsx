@@ -1,10 +1,10 @@
+import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import React, { ReactNode, RefObject, useEffect, useRef } from 'react'
 import {
   useRaisedHand,
   useRaisedHandPosition,
 } from '@/features/rooms/livekit/hooks/useRaisedHand'
 import { Participant } from 'livekit-client'
-import { RiHand } from '@remixicon/react'
 
 const PositionInQueue = React.memo(
   ({ positionInQueue }: { positionInQueue?: number }) => {
@@ -14,7 +14,7 @@ const PositionInQueue = React.memo(
         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.1rem' }}
       >
         <span>{positionInQueue}</span>
-        <RiHand
+        <HandRaisedFill
           color="currentColor"
           size={16}
           style={{
