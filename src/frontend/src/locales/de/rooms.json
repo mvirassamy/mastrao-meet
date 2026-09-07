@@ -112,7 +112,7 @@
   },
   "recordingConsent": {
     "title": "Diese Besprechung wird aufgezeichnet",
-    "notice": "Audio, Video und geteilte Bildschirme werden aufgezeichnet. Sie können ablehnen und ohne Aufzeichnung teilnehmen oder später widerrufen.",
+    "notice": "Audio, Video und geteilte Bildschirme werden aufgezeichnet. Sie können ablehnen und ohne Aufzeichnung teilnehmen.",
     "purpose": "Zweck: eine Videoaufzeichnung dieser Besprechung erstellen und in der zugehörigen Akte aufbewahren.",
     "recipients": "Zugriff: Nur Personen, die zum Zeitpunkt des Zugriffs über Rechte an dieser Akte verfügen, können die Aufzeichnung ansehen.",
     "retention": "Die Aufzeichnung wird spätestens am {{date}} gelöscht.",

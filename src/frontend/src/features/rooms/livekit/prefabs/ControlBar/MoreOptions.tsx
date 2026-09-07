@@ -14,7 +14,7 @@ export const MoreOptions = () => (
       alignItems: 'center',
       gap: '0.5rem',
       paddingRight: '0.25rem',
-      '@media (max-width: 799px)': {
+      '@media (max-width: 1099px)': {
         flex: '1 0 100%',
       },
     })}

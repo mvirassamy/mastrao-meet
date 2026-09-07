@@ -27,7 +27,7 @@ export function DesktopControlBar({
 }: Readonly<ControlBarAuxProps>) {
   const browserSupportsScreenSharing = supportsScreenSharing()
   const desktopControlBarEl = useRef<HTMLDivElement>(null)
-  const isNarrowScreen = useMediaQuery('(max-width: 799px)')
+  const isNarrowScreen = useMediaQuery('(max-width: 1099px)')
 
   const { toggleFullScreen, isFullscreenAvailable } = useFullScreen({})
 
@@ -56,7 +56,7 @@ export function DesktopControlBar({
         width: '100vw',
         display: 'flex',
         padding: '1.125rem',
-        '@media (max-width: 799px)': {
+        '@media (max-width: 1099px)': {
           padding: '0.75rem',
           flexWrap: 'wrap',
           gap: '0.5rem',
@@ -72,7 +72,7 @@ export function DesktopControlBar({
           alignItems: 'center',
           gap: '0.5rem',
           marginLeft: '0.5rem',
-          '@media (max-width: 799px)': {
+          '@media (max-width: 1099px)': {
             display: 'none',
           },
         })}

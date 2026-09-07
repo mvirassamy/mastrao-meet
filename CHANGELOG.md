@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(frontend) preserve share glyphs and compact host toolbar visibility
+
 - 🎨(frontend) use native solid icons throughout the interface
 - 🎨(frontend) align meeting controls and clarify form and status colors
 - 🎨(frontend) preview accessibility within the meeting settings dialog
