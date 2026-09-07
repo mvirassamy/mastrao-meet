@@ -1,3 +1,4 @@
+import { RiCheckFill } from '@remixicon/react'
 import { type ReactNode, useId, useState } from 'react'
 import {
   type CheckboxProps as RACCheckboxProps,
@@ -30,14 +31,11 @@ const StyledCheckbox = styled(RACCheckbox, {
       transition: 'all 200ms',
     },
     '& svg': {
-      stroke: 'primary.text',
+      color: 'primary-foreground',
       width: '0.875rem',
       height: '0.875rem',
       flexShrink: 0,
-      fill: 'none',
-      strokeWidth: '3px',
-      strokeDasharray: '22px',
-      strokeDashoffset: '66',
+      opacity: 0,
       transition: 'all 200ms',
     },
     '&[data-pressed] .mt-Checkbox-checkbox': {
@@ -57,7 +55,7 @@ const StyledCheckbox = styled(RACCheckbox, {
       backgroundColor: 'primary.active',
     },
     '&[data-selected] svg': {
-      strokeDashoffset: '44',
+      opacity: 1,
     },
     '&[data-mt-checkbox-invalid="true"] .mt-Checkbox-checkbox': {
       borderColor: 'danger',
@@ -139,15 +137,7 @@ export const Checkbox = ({
             return (
               <>
                 <div className="mt-Checkbox-checkbox">
-                  <svg
-                    width={18}
-                    height={18}
-                    viewBox="0 0 18 18"
-                    aria-hidden="true"
-                    preserveAspectRatio="xMinYMin meet"
-                  >
-                    <polyline points="1 9 7 14 15 4" />
-                  </svg>
+                  <RiCheckFill size={18} aria-hidden="true" />
                 </div>
                 <div>
                   {typeof children === 'function'

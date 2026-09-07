@@ -4,7 +4,7 @@ import {
   useStartVideo,
 } from '@livekit/components-react'
 import React from 'react'
-import { RiPlayCircleLine } from '@remixicon/react'
+import { RiPlayCircleFill } from '@remixicon/react'
 import { buttonRecipe } from '@/primitives/buttonRecipe'
 
 /** @public */
@@ -59,7 +59,7 @@ export const StartMediaButton: (
       aria-label={label ?? `Start ${!canPlayAudio ? 'Audio' : 'Video'}`}
       title={label ?? `Start ${!canPlayAudio ? 'Audio' : 'Video'}`}
     >
-      <RiPlayCircleLine aria-hidden="true" />
+      <RiPlayCircleFill aria-hidden="true" />
     </button>
   )
 })

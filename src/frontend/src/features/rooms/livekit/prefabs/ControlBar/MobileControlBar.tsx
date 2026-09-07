@@ -8,10 +8,10 @@ import { Track } from 'livekit-client'
 import { HandToggle } from '../../components/controls/HandToggle'
 import { Button } from '@/primitives/Button'
 import {
-  RiAccountBoxLine,
-  RiMegaphoneLine,
-  RiMore2Line,
-  RiSettings3Line,
+  RiAccountBoxFill,
+  RiMegaphoneFill,
+  RiMore2Fill,
+  RiSettings3Fill,
 } from '@remixicon/react'
 import { ScreenShareToggle } from '../../components/controls/ScreenShareToggle'
 import { ChatToggle } from '../../components/controls/ChatToggle'
@@ -53,7 +53,6 @@ export function MobileControlBar({
         })}
       >
         <ControlBarRegion mobile>
-          <LeaveButton />
           <AudioDevicesControl
             onDeviceError={(error) =>
               onDeviceError?.({ source: Track.Source.Microphone, error })
@@ -66,8 +65,8 @@ export function MobileControlBar({
             }
             hideMenu={true}
           />
-          <ReactionsToggle />
           <HandToggle />
+          <ReactionsToggle />
           <Button
             shape="circle"
             id="room-options-trigger"
@@ -77,8 +76,9 @@ export function MobileControlBar({
             tooltip={t('options.buttonLabel')}
             onPress={() => setIsMenuOpened(true)}
           >
-            <RiMore2Line />
+            <RiMore2Fill />
           </Button>
+          <LeaveButton />
         </ControlBarRegion>
       </div>
       <ResponsiveMenu
@@ -113,11 +113,11 @@ export function MobileControlBar({
                 onPress={() => setIsMenuOpened(false)}
               />
             )}
-            <ChatToggle
+            <ParticipantsToggle
               description={true}
               onPress={() => setIsMenuOpened(false)}
             />
-            <ParticipantsToggle
+            <ChatToggle
               description={true}
               onPress={() => setIsMenuOpened(false)}
             />
@@ -145,7 +145,7 @@ export function MobileControlBar({
               tooltip={t('options.items.effects')}
               description={true}
             >
-              <RiAccountBoxLine size={20} />
+              <RiAccountBoxFill size={20} />
             </Button>
             {data?.feedback?.url && (
               <LinkButton
@@ -157,7 +157,7 @@ export function MobileControlBar({
                 target="_blank"
                 onPress={() => setIsMenuOpened(false)}
               >
-                <RiMegaphoneLine size={20} />
+                <RiMegaphoneFill size={20} />
               </LinkButton>
             )}
             <Button
@@ -170,7 +170,7 @@ export function MobileControlBar({
               tooltip={t('options.items.settings')}
               description={true}
             >
-              <RiSettings3Line size={20} />
+              <RiSettings3Fill size={20} />
             </Button>
             <CameraSwitchButton onPress={() => setIsMenuOpened(false)} />
           </div>

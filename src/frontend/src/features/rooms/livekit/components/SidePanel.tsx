@@ -3,7 +3,7 @@ import { css } from '@/styled-system/css'
 import { Heading } from 'react-aria-components'
 import { text } from '@/primitives/Text'
 import { Button, Div } from '@/primitives'
-import { RiArrowLeftLine, RiCloseLine } from '@remixicon/react'
+import { RiArrowLeftFill, RiCloseFill } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import { ParticipantsList } from '@/features/participants/components/ParticipantsList'
 import { PanelId, useSidePanel } from '../hooks/useSidePanel'
@@ -95,7 +95,7 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
             aria-label={backButtonLabel}
             onPress={onBack}
           >
-            <RiArrowLeftLine size={20} aria-hidden="true" />
+            <RiArrowLeftFill size={20} aria-hidden="true" />
           </Button>
         )}
         <Heading
@@ -129,7 +129,7 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
           aria-label={closeButtonTooltip}
           tooltip={closeButtonTooltip}
         >
-          <RiCloseLine />
+          <RiCloseFill />
         </Button>
       </Div>
       {children}

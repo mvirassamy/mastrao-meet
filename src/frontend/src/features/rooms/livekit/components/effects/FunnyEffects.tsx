@@ -1,7 +1,7 @@
 import { css } from '@/styled-system/css'
 import { H, ToggleButton } from '@/primitives'
 import { ProcessorType } from '../blur'
-import { RiGlassesLine, RiGoblet2Fill } from '@remixicon/react'
+import { RiGlassesFill, RiGoblet2Fill } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import { FaceLandmarksProcessor } from '../blur/FaceLandmarksProcessor'
 import type { LocalVideoTrack } from 'livekit-client'
@@ -100,7 +100,7 @@ export const FunnyEffects = ({
           isSelected={options.showGlasses}
           data-attr="toggle-glasses"
         >
-          <RiGlassesLine />
+          <RiGlassesFill />
         </ToggleButton>
         <ToggleButton
           variant="bigSquare"

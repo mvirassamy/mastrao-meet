@@ -1,9 +1,9 @@
 {
   "icons": [
     {
-      "src": "/assets/mastrao-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/assets/mastrao-logo-icon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
       "purpose": "any"
     }
   ],

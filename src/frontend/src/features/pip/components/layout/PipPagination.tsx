@@ -1,4 +1,4 @@
-import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react'
+import { RiArrowLeftSFill, RiArrowRightSFill } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import { styled } from '@/styled-system/jsx'
 
@@ -27,7 +27,7 @@ export const PipPagination = ({
         disabled={currentPage === 1}
         aria-label={t('previous')}
       >
-        <RiArrowLeftSLine size={18} />
+        <RiArrowLeftSFill size={18} />
       </ArrowButton>
       <Counter role="status">
         {t('count', { currentPage, totalPageCount })}
@@ -38,7 +38,7 @@ export const PipPagination = ({
         disabled={currentPage === totalPageCount}
         aria-label={t('next')}
       >
-        <RiArrowRightSLine size={18} />
+        <RiArrowRightSFill size={18} />
       </ArrowButton>
     </Nav>
   )

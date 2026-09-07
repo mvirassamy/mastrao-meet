@@ -13,7 +13,7 @@ export const LeaveButton = () => {
     <Button
       shape="circle"
       isDisabled={connectionState === ConnectionState.Disconnected}
-      variant="outline"
+      variant="destructive"
       tooltip={t('leave')}
       aria-label={t('leave')}
       onPress={() => {

@@ -1,3 +1,4 @@
+import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { useToast } from 'react-aria'
 import { useRef } from 'react'
 
@@ -5,7 +6,7 @@ import { type ToastProps } from './Toast'
 import { HStack } from '@/styled-system/jsx'
 import { Button, Div } from '@/primitives'
 import { useTranslation } from 'react-i18next'
-import { RiCloseLine, RiHand } from '@remixicon/react'
+import { RiCloseFill } from '@remixicon/react'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 import { css } from '@/styled-system/css'
 import { StyledToastContainer } from './StyledToastContainer'
@@ -32,7 +33,7 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
         padding={14}
         gap={0}
       >
-        <RiHand
+        <HandRaisedFill
           color="currentColor"
           style={{
             marginRight: '1rem',
@@ -68,7 +69,7 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
           invisible
           {...closeButtonProps}
         >
-          <RiCloseLine size={18} color="currentColor" />
+          <RiCloseFill size={18} color="currentColor" />
         </Button>
       </HStack>
     </StyledToastContainer>

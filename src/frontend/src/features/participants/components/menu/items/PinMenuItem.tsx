@@ -1,7 +1,7 @@
 import { Participant, Track } from 'livekit-client'
 import { menuRecipe } from '@/primitives/menuRecipe'
 import { HStack } from '@/styled-system/jsx'
-import { RiPushpin2Line, RiUnpinLine } from '@remixicon/react'
+import { RiPushpin2Fill, RiUnpinFill } from '@remixicon/react'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
@@ -35,12 +35,12 @@ export const PinMenuItem = ({ participant }: { participant: Participant }) => {
       <HStack gap={0.25}>
         {inFocus ? (
           <>
-            <RiUnpinLine size={20} aria-hidden />
+            <RiUnpinFill size={20} aria-hidden />
             {t('unpin.label')}
           </>
         ) : (
           <>
-            <RiPushpin2Line size={20} aria-hidden />
+            <RiPushpin2Fill size={20} aria-hidden />
             {t('pin.label')}
           </>
         )}

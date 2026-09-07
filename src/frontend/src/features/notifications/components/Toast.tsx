@@ -1,6 +1,6 @@
 import { useToast } from 'react-aria'
 import { Button } from '@/primitives'
-import { RiCloseLine } from '@remixicon/react'
+import { RiCloseFill } from '@remixicon/react'
 import { useRef } from 'react'
 import type { ToastState } from 'react-stately'
 import type { ToastData } from './ToastProvider'
@@ -32,7 +32,7 @@ export function Toast({ state, ...props }: Readonly<ToastProps>) {
           invisible
           {...closeButtonProps}
         >
-          <RiCloseLine color="currentColor" />
+          <RiCloseFill color="currentColor" />
         </Button>
       </StyledToast>
     </StyledToastContainer>

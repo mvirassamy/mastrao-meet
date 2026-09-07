@@ -4,7 +4,7 @@ import { useTrackMutedIndicator } from '@livekit/components-react'
 import { useMuteParticipant } from '@/features/rooms/api/muteParticipant'
 import { useState } from 'react'
 import { Button } from '@/primitives'
-import { RiMicLine, RiMicOffLine } from '@remixicon/react'
+import { RiMicFill, RiMicOffFill } from '@remixicon/react'
 import { MuteAlertDialog } from '@/features/rooms/livekit/components/MuteAlertDialog'
 
 export const MuteButton = ({ participant }: { participant: Participant }) => {
@@ -30,7 +30,7 @@ export const MuteButton = ({ participant }: { participant: Participant }) => {
         onPress={() => setIsAlertOpen(true)}
         tooltip={t('muteParticipant', { name })}
       >
-        {!isMuted ? <RiMicLine /> : <RiMicOffLine />}
+        {!isMuted ? <RiMicFill /> : <RiMicOffFill />}
       </Button>
       <MuteAlertDialog
         isOpen={isAlertOpen}

@@ -14,6 +14,7 @@ export const Input = styled(RACInput, {
     border: '1px solid',
     borderColor: 'control.border',
     color: 'control.text',
+    backgroundColor: 'card',
     borderRadius: 'control',
     transition: 'all 200ms',
   },

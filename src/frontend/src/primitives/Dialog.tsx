@@ -1,5 +1,5 @@
 import { styled } from '@/styled-system/jsx'
-import { RiCloseLine } from '@remixicon/react'
+import { RiCloseFill } from '@remixicon/react'
 import { t } from 'i18next'
 import {
   Dialog as RACDialog,
@@ -155,7 +155,7 @@ export const Dialog = ({
                           onPress={() => close()}
                           aria-label={t('closeDialog')}
                         >
-                          <RiCloseLine />
+                          <RiCloseFill />
                         </Button>
                       </Div>
                     )}

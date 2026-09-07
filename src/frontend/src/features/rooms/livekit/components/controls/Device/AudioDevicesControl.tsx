@@ -5,7 +5,7 @@ import {
   UseTrackToggleProps,
 } from '@livekit/components-react'
 import { Button, Popover } from '@/primitives'
-import { RiArrowUpSLine } from '@remixicon/react'
+import { RiArrowUpSFill } from '@remixicon/react'
 import { LocalAudioTrack, Track } from 'livekit-client'
 
 import { ToggleDevice } from './ToggleDevice'
@@ -96,7 +96,7 @@ export const AudioDevicesControl = ({
             square
             variant={cannotUseDevice ? 'error2' : 'primaryDark'}
           >
-            <RiArrowUpSLine />
+            <RiArrowUpSFill />
           </Button>
           {({ close }) => (
             <div

@@ -3,7 +3,7 @@ import { HStack, VStack } from '@/styled-system/jsx'
 import { Avatar } from '@/components/Avatar'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { RiInfinityLine } from '@remixicon/react'
+import { RiInfinityFill } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
 import { usePrevious } from '@/hooks/usePrevious'
@@ -188,7 +188,7 @@ export const WaitingParticipantNotification = () => {
                   {waitingParticipants.length < 102 ? (
                     <p>+{waitingParticipants.length - 2}</p>
                   ) : (
-                    <RiInfinityLine size={20} />
+                    <RiInfinityFill size={20} />
                   )}
                 </span>
               )}

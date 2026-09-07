@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useRemoteParticipants } from '@livekit/components-react'
 import { srOnly } from '@/styles/a11y'
 import { css } from '@/styled-system/css'
-import { RiInfinityLine } from '@remixicon/react'
+import { RiInfinityFill } from '@remixicon/react'
 
 const badgeStyles = css({
   position: 'absolute',
@@ -11,9 +11,9 @@ const badgeStyles = css({
   right: '-.25rem',
   width: '1.25rem',
   height: '1.25rem',
-  backgroundColor: 'gray',
+  backgroundColor: 'accent',
   borderRadius: '50%',
-  color: 'card-foreground',
+  color: 'accent-foreground',
   fontSize: '0.75rem',
   display: 'flex',
   alignItems: 'center',
@@ -43,7 +43,7 @@ export const ParticipantsCount = React.memo(
           {t('count', { count })}
         </span>
         <div className={badgeStyles} aria-hidden>
-          {count < 100 ? count : <RiInfinityLine size={10} />}
+          {count < 100 ? count : <RiInfinityFill size={10} />}
         </div>
       </>
     )

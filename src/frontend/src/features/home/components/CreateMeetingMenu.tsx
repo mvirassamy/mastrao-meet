@@ -3,7 +3,7 @@ import { MenuItem, Menu as RACMenu } from 'react-aria-components'
 import { Button, Menu } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
 import { generateRoomId, useCreateRoom } from '@/features/rooms'
-import { RiAddLine, RiLink } from '@remixicon/react'
+import { RiAddFill, RiLink } from '@remixicon/react'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
 import { useState } from 'react'
 
@@ -38,7 +38,7 @@ export const CreateMeetingMenu = () => {
             }}
             data-attr="create-option-instant"
           >
-            <RiAddLine size={18} />
+            <RiAddFill size={18} />
             {t('createMenu.instantOption')}
           </MenuItem>
           <MenuItem

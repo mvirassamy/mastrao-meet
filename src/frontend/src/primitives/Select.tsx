@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { styled, VisuallyHidden } from '@/styled-system/jsx'
-import { RemixiconComponentType, RiArrowDropDownLine } from '@remixicon/react'
+import { RemixiconComponentType, RiArrowDropDownFill } from '@remixicon/react'
 import {
   Button,
   ListBox,
@@ -45,7 +45,7 @@ const StyledButton = styled(Button, {
   },
   variants: {
     variant: {
-      light: {},
+      light: { backgroundColor: 'card' },
       dark: {
         backgroundColor: 'card',
         fontWeight: 'medium !important',
@@ -126,7 +126,7 @@ export const Select = <T extends string | number>({
               </StyledIcon>
             )}
             <StyledSelectValue />
-            <RiArrowDropDownLine
+            <RiArrowDropDownFill
               aria-hidden="true"
               className={css({ flexShrink: 0 })}
             />

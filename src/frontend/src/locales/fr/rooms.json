@@ -112,7 +112,7 @@
   },
   "recordingConsent": {
     "title": "Cette réunion sera enregistrée",
-    "notice": "L’audio, la vidéo et les écrans partagés seront enregistrés. Vous pouvez refuser et rejoindre sans être enregistré, ou retirer votre accord plus tard.",
+    "notice": "L’audio, la vidéo et les écrans partagés seront enregistrés. Vous pouvez refuser et rejoindre sans être enregistré.",
     "purpose": "Finalité : créer un enregistrement vidéo de cette réunion et le conserver dans le dossier concerné.",
     "recipients": "Accès : seules les personnes disposant, au moment de la consultation, des droits sur ce dossier pourront voir l’enregistrement.",
     "retention": "La suppression de l’enregistrement est prévue au plus tard le {{date}}.",

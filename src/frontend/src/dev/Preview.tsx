@@ -5,8 +5,8 @@ import './preview.css'
 import { notifyAutoMutedOnJoin } from '@/features/notifications/utils'
 import { useApplyA11yFonts } from '@/hooks/useApplyA11yFonts'
 import { SemanticGallery } from './SemanticGallery'
-import { AccessibilityTab } from '@/features/settings/components/tabs/AccessibilityTab'
-import { Tabs, TabList, Tab } from 'react-aria-components'
+import { SettingsDialogExtendedKey } from '@/features/settings/type'
+import { openSettingsDialog, closeSettingsDialog } from '@/stores/settings'
 import { Suspense, useEffect, useState } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { LiveKitRoom } from '@livekit/components-react'
@@ -28,7 +28,7 @@ import { previewRoomId, previewScenario } from './previewFixtures'
 
 const screens = [
   ['components', 'Composants et états'],
-  ['accessibility', 'Préférences d’accessibilité'],
+  ['accessibility', 'Réunion · paramètres d’accessibilité'],
   ['join', 'Avant la réunion'],
   ['devices-off', 'Micro et caméra coupés'],
   ['reconnecting', 'Reconnexion (état visuel)'],
@@ -48,6 +48,10 @@ const screens = [
 const PreviewRoom = () => {
   useEffect(() => {
     if (previewScenario === 'notifications') notifyAutoMutedOnJoin()
+    if (previewScenario === 'accessibility') {
+      openSettingsDialog(SettingsDialogExtendedKey.ACCESSIBILITY)
+      return closeSettingsDialog
+    }
   }, [])
   const [room] = useState(() => {
     const instance = new Room()
@@ -106,21 +110,13 @@ const PreviewScreen = () => {
     userChoicesStore.videoEnabled = false
   }, [])
   if (
+    previewScenario === 'accessibility' ||
     previewScenario === 'room' ||
     previewScenario === 'notifications' ||
     previewScenario === 'reconnecting' ||
     previewScenario.startsWith('recording-')
   )
     return <PreviewRoom />
-  if (previewScenario === 'accessibility')
-    return (
-      <Tabs defaultSelectedKey="accessibility">
-        <TabList aria-label="Préférences">
-          <Tab id="accessibility">Accessibilité</Tab>
-        </TabList>
-        <AccessibilityTab id="accessibility" />
-      </Tabs>
-    )
   if (previewScenario === 'components') return <SemanticGallery />
   if (previewScenario === 'home') return <Home />
   if (previewScenario === 'invitation') return <GuestInvitation />

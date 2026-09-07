@@ -114,7 +114,9 @@ const FeedbackRoute = () => {
             {t(`feedback.heading.${reasonKey || 'normal'}`)}
           </Heading>
           {reasonKey === DisconnectReasonKey.MeetingEnded && (
-            <Text as="p">{t('feedback.meetingEndedBody')}</Text>
+            <Text as="p" style={{ textAlign: 'center' }}>
+              {t('feedback.meetingEndedBody')}
+            </Text>
           )}
           <HStack>
             {showPlatformReturn && (

@@ -112,7 +112,7 @@
   },
   "recordingConsent": {
     "title": "This meeting will be recorded",
-    "notice": "Audio, video and shared screens will be recorded for this meeting. You can refuse and still join without being recorded, or withdraw later.",
+    "notice": "Audio, video and shared screens will be recorded for this meeting. You can refuse and still join without being recorded.",
     "purpose": "Purpose: create a video recording of this meeting and retain it in the relevant case file.",
     "recipients": "Access: only people who have permission to this case file at the time of access will be able to view the recording.",
     "retention": "The recording is scheduled for deletion by {{date}}.",

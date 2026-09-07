@@ -51,6 +51,9 @@ export const AccessibilityTab = ({ id }: AccessibilityTabProps) => {
           <Field
             type="select"
             label={t('accessibility.font.label')}
+            labelProps={{
+              style: { fontSize: '1rem', marginBottom: '0.25rem' },
+            }}
             items={fontItems}
             selectedKey={snap.uiFont}
             onSelectionChange={(key) => {

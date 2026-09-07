@@ -5,9 +5,9 @@ import { HStack, styled, VStack } from '@/styled-system/jsx'
 import { Heading, Dialog } from 'react-aria-components'
 import { Text, text } from '@/primitives/Text'
 import {
-  RiCheckLine,
-  RiCloseLine,
-  RiFileCopyLine,
+  RiCheckFill,
+  RiCloseFill,
+  RiFileCopyFill,
   RiSpam2Fill,
 } from '@remixicon/react'
 import { useMemo, useState } from 'react'
@@ -82,7 +82,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
             }}
             aria-label={t('closeDialog')}
           >
-            <RiCloseLine />
+            <RiCloseFill />
           </Button>
         </Div>
         <P>{t('description')}</P>
@@ -117,9 +117,9 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
                   tooltip={isRoomUrlCopied ? t('copied') : t('copyUrl')}
                 >
                   {isRoomUrlCopied ? (
-                    <RiCheckLine aria-hidden="true" />
+                    <RiCheckFill aria-hidden="true" />
                   ) : (
-                    <RiFileCopyLine aria-hidden="true" />
+                    <RiFileCopyFill aria-hidden="true" />
                   )}
                 </Button>
               )}
@@ -153,7 +153,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
             >
               {isCopied ? (
                 <>
-                  <RiCheckLine
+                  <RiCheckFill
                     size={18}
                     style={{ marginRight: '8px' }}
                     aria-hidden="true"
@@ -162,7 +162,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
                 </>
               ) : (
                 <>
-                  <RiFileCopyLine
+                  <RiFileCopyFill
                     style={{ marginRight: '6px', minWidth: '18px' }}
                     aria-hidden="true"
                   />
@@ -181,12 +181,12 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
           >
             {isCopied ? (
               <>
-                <RiCheckLine size={24} style={{ marginRight: '8px' }} />
+                <RiCheckFill size={24} style={{ marginRight: '8px' }} />
                 {t('copied')}
               </>
             ) : (
               <>
-                <RiFileCopyLine size={24} style={{ marginRight: '8px' }} />
+                <RiFileCopyFill size={24} style={{ marginRight: '8px' }} />
                 {t('copyUrl')}
               </>
             )}

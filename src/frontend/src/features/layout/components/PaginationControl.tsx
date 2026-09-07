@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createInteractingObservable } from '@livekit/components-core'
-import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react'
+import { RiArrowLeftSFill, RiArrowRightSFill } from '@remixicon/react'
 import { Button } from '@/primitives'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,7 +72,7 @@ export function PaginationControl({
         variant="quaternaryText"
         aria-label={t('previous')}
       >
-        <RiArrowLeftSLine />
+        <RiArrowLeftSFill />
       </Button>
       <span
         role="status"
@@ -92,7 +92,7 @@ export function PaginationControl({
         variant="quaternaryText"
         aria-label={t('next')}
       >
-        <RiArrowRightSLine />
+        <RiArrowRightSFill />
       </Button>
     </nav>
   )

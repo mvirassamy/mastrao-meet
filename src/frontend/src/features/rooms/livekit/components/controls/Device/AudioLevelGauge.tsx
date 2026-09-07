@@ -1,7 +1,7 @@
 import { LocalAudioTrack } from 'livekit-client'
 import { useTrackVolume } from '@livekit/components-react'
 import { useTranslation } from 'react-i18next'
-import { RiMicLine, RiMicOffLine } from '@remixicon/react'
+import { RiMicFill, RiMicOffFill } from '@remixicon/react'
 import { styled } from '@/styled-system/jsx'
 import { Text } from '@/primitives'
 import { useIsTrackMuted } from '../../../hooks/useIsTrackMuted'
@@ -93,7 +93,7 @@ const LevelBar = ({
 
   return (
     <>
-      <RiMicLine size={18} aria-hidden="true" />
+      <RiMicFill size={18} aria-hidden="true" />
       <StyledGaugeContainer
         theme={theme}
         role="img"
@@ -117,7 +117,7 @@ export const AudioLevelGauge = ({
     <StyledContainer theme={variant}>
       {showMutedHint ? (
         <>
-          <RiMicOffLine size={18} aria-hidden="true" />
+          <RiMicOffFill size={18} aria-hidden="true" />
           <Text variant="bodyXsMedium">{t('audioinput.muteTest')}</Text>
         </>
       ) : (

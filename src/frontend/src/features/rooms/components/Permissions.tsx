@@ -1,7 +1,7 @@
 import { useWatchPermissions } from '@/features/rooms/hooks/useWatchPermissions'
 import { css } from '@/styled-system/css'
 import { Button, Dialog, H, P } from '@/primitives'
-import { RiEqualizer2Line } from '@remixicon/react'
+import { RiEqualizer2Fill } from '@remixicon/react'
 import { useEffect, useMemo } from 'react'
 import { useSnapshot } from 'valtio'
 import {
@@ -223,7 +223,7 @@ export const Permissions = () => {
                         verticalAlign: 'middle',
                       }}
                     >
-                      <RiEqualizer2Line />
+                      <RiEqualizer2Fill />
                     </span>
                     {descriptionAfterIcon}
                   </>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiStopCircleLine } from '@remixicon/react'
+import { RiStopCircleFill } from '@remixicon/react'
 
 import { Button, Dialog, P } from '@/primitives'
 import { HStack } from '@/styled-system/jsx'
@@ -76,7 +76,7 @@ export const EndMeetingButton = ({
         onPress={() => setIsOpen(true)}
         data-attr="controls-end-meeting"
       >
-        <RiStopCircleLine />
+        <RiStopCircleFill />
       </Button>
       <Dialog
         isOpen={isOpen}
