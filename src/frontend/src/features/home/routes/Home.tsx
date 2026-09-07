@@ -108,7 +108,7 @@ const RightColumn = ({ children }: { children?: ReactNode }) => {
 const Separator = styled('div', {
   base: {
     borderBottom: '1px solid',
-    borderColor: 'greyscale.500',
+    borderColor: 'muted-foreground',
     marginTop: '2.5rem',
     maxWidth: '30rem',
     width: '100%',
@@ -197,7 +197,7 @@ const Home = () => {
               )}
               <DialogTrigger>
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   style={{
                     height:
                       !isLoggedIn && data?.use_proconnect_button

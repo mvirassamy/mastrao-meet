@@ -20,8 +20,8 @@ const StyledContainer = styled('div', {
         width: '58px',
         borderLeftRadius: 8,
         borderRightRadius: 0,
-        backgroundColor: 'primary.200',
-        border: '1px solid primary.500',
+        backgroundColor: 'accent',
+        border: '1px solid primary',
         gap: '3px',
       },
     },
@@ -30,7 +30,7 @@ const StyledContainer = styled('div', {
 
 const StyledChild = styled('div', {
   base: {
-    backgroundColor: 'white',
+    backgroundColor: 'card',
     width: '4px',
     height: '4px',
     borderRadius: '4px',

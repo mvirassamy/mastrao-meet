@@ -21,12 +21,12 @@ export const MutedMicIndicator = ({
   return (
     <div
       className={css({
-        backgroundColor: 'red.600',
+        backgroundColor: 'media-overlay',
         borderRadius: '4px',
         padding: 0.25,
       })}
     >
-      <RiMicOffFill size={16} color="white" />
+      <RiMicOffFill size={16} color="var(--media-overlay-foreground)" />
     </div>
   )
 }

@@ -1,6 +1,9 @@
 {
   "id": "ccf4fd40-4286-474d-854a-4714282a8bec",
   "realm": "meet",
+  "displayName": "Mastrao",
+  "displayNameHtml": "Mastrao",
+  "loginTheme": "mastrao",
   "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": "false",
@@ -681,7 +684,7 @@
       "description": "",
       "rootUrl": "",
       "adminUrl": "",
-      "baseUrl": "",
+      "baseUrl": "http://localhost:3000/",
       "surrogateAuthRequired": "false",
       "enabled": "true",
       "alwaysDisplayInConsole": "false",

@@ -76,7 +76,7 @@ export const ToggleDevice = <T extends ToggleSource>({
       variant: 'primaryDark',
       errorVariant: 'error2',
       toggleButtonProps: {
-        groupPosition: 'left',
+        groupPosition: undefined,
       },
     } as ToggleDeviceStyleProps
   }, [context])
@@ -196,11 +196,10 @@ export const ToggleDevice = <T extends ToggleSource>({
         />
       )}
       <ToggleButton
+        shape="circle"
         isSelected={!enabled}
         isDisabled={isDisabled}
-        variant={
-          isDisabled || cannotUseDevice || !enabled ? errorVariant : variant
-        }
+        variant={cannotUseDevice || deviceMissing ? errorVariant : variant}
         shySelected
         onPress={onPress}
         aria-label={toggleLabel}

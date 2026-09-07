@@ -2,6 +2,7 @@ import { styled } from '@/styled-system/jsx'
 import { Avatar } from '@/components/Avatar'
 import { getParticipantBackgroundGradient } from '@/features/rooms/utils/getParticipantBackgroundGradient'
 import React, { useMemo } from 'react'
+import { DEFAULT_PARTICIPANT_COLOR } from '@/features/rooms/utils/getParticipantColor'
 
 const StyledParticipantPlaceHolder = styled('div', {
   base: {
@@ -40,8 +41,14 @@ export const ParticipantPlaceholder = React.memo(
     return (
       <StyledParticipantPlaceHolder
         style={{
-          backgroundColor: color,
-          backgroundImage: backgroundGradient,
+          backgroundColor:
+            color === DEFAULT_PARTICIPANT_COLOR
+              ? 'var(--media-surface)'
+              : color,
+          backgroundImage:
+            color === DEFAULT_PARTICIPANT_COLOR
+              ? undefined
+              : backgroundGradient,
         }}
       >
         <StyledAvatarWrapper>

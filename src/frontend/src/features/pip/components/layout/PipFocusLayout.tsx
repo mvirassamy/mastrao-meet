@@ -52,7 +52,7 @@ const FocusContainer = styled('div', {
     height: '100%',
     borderRadius: '8px',
     overflow: 'hidden',
-    backgroundColor: 'primaryDark.100',
+    backgroundColor: 'media-surface',
     boxSizing: 'border-box',
   },
 })

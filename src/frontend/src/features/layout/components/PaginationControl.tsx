@@ -57,7 +57,7 @@ export function PaginationControl({
         transition: 'opacity ease-in-out .15s',
         display: 'none',
         border: '1px solid',
-        borderColor: 'primaryDark.100',
+        borderColor: 'card',
         overflow: 'hidden',
       })}
       style={{

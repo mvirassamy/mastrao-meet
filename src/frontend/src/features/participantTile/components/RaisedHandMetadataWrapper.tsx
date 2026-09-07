@@ -15,7 +15,7 @@ const PositionInQueue = React.memo(
       >
         <span>{positionInQueue}</span>
         <RiHand
-          color="black"
+          color="currentColor"
           size={16}
           style={{
             marginRight: '0.4rem',
@@ -47,8 +47,10 @@ const RaisedHandActiveItem = ({
     const el = targetRef.current
     if (!el) return
 
-    el.style.backgroundColor = firstInQueue ? '#fde047' : 'white'
-    el.style.color = 'black'
+    el.style.backgroundColor = firstInQueue ? 'var(--warning)' : 'var(--card)'
+    el.style.color = firstInQueue
+      ? 'var(--warning-foreground)'
+      : 'var(--card-foreground)'
 
     return () => {
       el.style.backgroundColor = ''

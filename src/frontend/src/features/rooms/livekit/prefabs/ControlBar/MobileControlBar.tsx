@@ -69,6 +69,7 @@ export function MobileControlBar({
           <ReactionsToggle />
           <HandToggle />
           <Button
+            shape="circle"
             id="room-options-trigger"
             square
             variant="primaryDark"

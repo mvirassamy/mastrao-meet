@@ -67,6 +67,7 @@ export const EndMeetingButton = ({
   return (
     <>
       <Button
+        shape="circle"
         variant="danger"
         tooltip={t('label')}
         aria-label={t('label')}
@@ -87,7 +88,7 @@ export const EndMeetingButton = ({
         {hasFailed && <P role="alert">{t('dialog.error')}</P>}
         <HStack gap={2}>
           <Button
-            variant="secondary"
+            variant="outline"
             isDisabled={isSubmitting}
             onPress={() => setIsOpen(false)}
           >

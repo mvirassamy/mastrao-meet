@@ -33,7 +33,7 @@ export const Layout = ({
         className={css({
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: 'white',
+          backgroundColor: 'background',
           color: 'default.text',
           flex: '1',
         })}

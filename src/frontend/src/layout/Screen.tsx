@@ -41,7 +41,7 @@ export const Screen = ({
       {headerTitle && (
         <div
           className={css({
-            backgroundColor: 'primary.100',
+            backgroundColor: 'secondary',
             width: '100%',
           })}
         >

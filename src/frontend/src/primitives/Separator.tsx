@@ -4,7 +4,7 @@ import { Separator as RACSeparator } from 'react-aria-components'
 export const Separator = styled(RACSeparator, {
   base: {
     height: '1px',
-    background: 'primaryDark.200',
+    background: 'border',
     margin: '4px 0',
   },
 })

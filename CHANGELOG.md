@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(frontend) preserve desktop meeting controls in narrow windows
+- 🐛(frontend) restore notification and screen-share warning contrast
+
 - 🐛(backend) redirect Mastrao host handoffs to the configured frontend room origin
 - 🐛(frontend) proxy Mastrao handoff routes from the local production frontend across backend restarts
 - 🐛(backend) bind speaker evidence labels and fresh capture windows
@@ -75,6 +78,9 @@ and this project adheres to
 - ✨(frontend) add accessible recording consent and active-capture controls
 
 ### Changed
+
+- 🎨(frontend) apply Mastrao semantic colors, Arial and rounded controls
+- 🎨(frontend) brand the carousel and Keycloak login with Mastrao assets
 
 - ✨(frontend) generate Panda styles before the consent test so CI can resolve styled-system
 - 📝(backend) force fake ASR when emitting the provider-free qualification artifact

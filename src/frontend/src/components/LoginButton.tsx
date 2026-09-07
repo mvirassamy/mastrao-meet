@@ -5,10 +5,14 @@ import { ProConnectButton } from './ProConnectButton'
 import { authUrl } from '@/features/auth/utils/authUrl'
 
 type LoginButtonProps = {
+  size?: 'default' | 'sm'
   proConnectHint?: boolean // Hide hint in layouts where space doesn't allow it.
 }
 
-export const LoginButton = ({ proConnectHint = true }: LoginButtonProps) => {
+export const LoginButton = ({
+  proConnectHint = true,
+  size = 'default',
+}: LoginButtonProps) => {
   const { t } = useTranslation('global', { keyPrefix: 'login' })
   const { data } = useConfig()
 
@@ -17,7 +21,12 @@ export const LoginButton = ({ proConnectHint = true }: LoginButtonProps) => {
   }
 
   return (
-    <LinkButton href={authUrl()} data-attr="login" variant="primary">
+    <LinkButton
+      size={size}
+      href={authUrl()}
+      data-attr="login"
+      variant="primary"
+    >
       {t('buttonLabel')}
     </LinkButton>
   )

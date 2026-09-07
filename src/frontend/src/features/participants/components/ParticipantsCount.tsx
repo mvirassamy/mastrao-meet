@@ -13,7 +13,7 @@ const badgeStyles = css({
   height: '1.25rem',
   backgroundColor: 'gray',
   borderRadius: '50%',
-  color: 'white',
+  color: 'card-foreground',
   fontSize: '0.75rem',
   display: 'flex',
   alignItems: 'center',

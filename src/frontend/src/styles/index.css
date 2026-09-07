@@ -1,3 +1,4 @@
+@import './mastrao-theme.css';
 @import './livekit.css';
 @layer reset, base, tokens, recipes, utilities;
 html,
@@ -98,4 +99,10 @@ html:has(.lk-video-conference) {
 .hoverGroup:focus-within .hoverGroupChild {
   opacity: 1;
   pointer-events: auto;
+}
+
+body {
+  font-family: var(--fonts-sans);
+  background: var(--background);
+  color: var(--foreground);
 }

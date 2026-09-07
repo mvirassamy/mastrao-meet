@@ -29,6 +29,7 @@ export const ToolsToggle = ({
       })}
     >
       <ToggleButton
+        shape="circle"
         square
         variant={variant}
         aria-label={t(tooltipLabel)}

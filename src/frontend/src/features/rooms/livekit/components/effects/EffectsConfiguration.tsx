@@ -578,14 +578,14 @@ export const EffectsConfiguration = ({
               width: '100%',
               height: '100%',
               display: 'flex',
-              backgroundColor: 'black',
+              backgroundColor: 'var(--media-surface)',
               justifyContent: 'center',
               flexDirection: 'column',
             }}
           >
             <P
               style={{
-                color: 'white',
+                color: 'var(--media-foreground)',
                 textAlign: 'center',
                 textWrap: 'balance',
                 marginBottom: 0,
@@ -612,7 +612,7 @@ export const EffectsConfiguration = ({
           layout === 'horizontal'
             ? {
                 md: {
-                  borderLeft: '1px solid greyscale.250',
+                  borderLeft: '1px solid border',
                   paddingLeft: '1.5rem',
                   width: '420px',
                   flexShrink: 0,

@@ -25,8 +25,14 @@ export function Toast({ state, ...props }: Readonly<ToastProps>) {
     <StyledToastContainer {...toastProps} ref={ref}>
       <StyledToast>
         <div {...contentProps}>{props.toast.content?.message}</div>
-        <Button square size="sm" invisible {...closeButtonProps}>
-          <RiCloseLine color="white" />
+        <Button
+          square
+          size="sm"
+          variant="ghost"
+          invisible
+          {...closeButtonProps}
+        >
+          <RiCloseLine color="currentColor" />
         </Button>
       </StyledToast>
     </StyledToastContainer>

@@ -19,12 +19,12 @@ const StyledContainer = styled('div', {
   variants: {
     theme: {
       light: {
-        borderColor: 'gray.200',
-        color: 'greyscale.600',
+        borderColor: 'border',
+        color: 'muted-foreground',
       },
       dark: {
-        borderColor: 'primaryDark.300',
-        color: 'rgba(255 255 255 / 0.7)',
+        borderColor: 'input',
+        color: 'muted-foreground',
       },
     },
   },
@@ -40,10 +40,10 @@ const StyledGaugeContainer = styled('div', {
   variants: {
     theme: {
       light: {
-        backgroundColor: 'greyscale.250',
+        backgroundColor: 'border',
       },
       dark: {
-        backgroundColor: 'rgba(255 255 255 / 0.25)',
+        backgroundColor: 'muted',
       },
     },
   },
@@ -61,10 +61,10 @@ const StyledGauge = styled('div', {
   variants: {
     theme: {
       light: {
-        backgroundColor: 'primary.500',
+        backgroundColor: 'primary',
       },
       dark: {
-        backgroundColor: 'primaryDark.800',
+        backgroundColor: 'foreground',
       },
     },
   },

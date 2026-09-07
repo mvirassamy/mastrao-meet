@@ -12,13 +12,13 @@ const loader = cva({
       inset: '0',
       borderRadius: '50%',
       borderStyle: 'solid',
-      borderColor: 'white',
+      borderColor: 'currentColor',
     },
     _before: {
       animation: 'prixClipFix 2s linear infinite',
     },
     _after: {
-      borderColor: 'white',
+      borderColor: 'currentColor',
       animation:
         'prixClipFix 2s linear infinite, rotate 0.5s linear infinite reverse',
       inset: 6,

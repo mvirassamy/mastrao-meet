@@ -15,6 +15,7 @@ export const SettingsButton = ({
 
   return (
     <Button
+      shape="circle"
       size="sm"
       square
       tooltip={t(`settings.${settingTab}`)}

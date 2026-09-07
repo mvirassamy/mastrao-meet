@@ -5,7 +5,7 @@ const box = cva({
   base: {
     position: 'relative',
     gap: 'gutter',
-    borderRadius: 8,
+    borderRadius: 'surface',
     padding: 'boxPadding',
     flex: 1,
   },
@@ -21,8 +21,10 @@ const box = cva({
       },
       popover: {
         padding: 'boxPadding.xs',
+        backgroundColor: 'popover',
+        color: 'popover-foreground',
         minWidth: '10rem',
-        boxShadow: '0 8px 20px #0000001a',
+        boxShadow: '0 8px 20px var(--shadow-color)',
       },
       dialog: {
         width: '30rem',
@@ -51,8 +53,9 @@ const box = cva({
         color: 'control.text',
       },
       dark: {
-        backgroundColor: 'primaryDark.50',
-        borderColord: 'primaryDark.50',
+        backgroundColor: 'popover',
+        color: 'popover-foreground',
+        borderColor: 'border',
       },
     },
     size: {

@@ -32,6 +32,7 @@ export const ChatToggle = ({
       })}
     >
       <ToggleButton
+        shape="circle"
         square
         variant="primaryTextDark"
         aria-label={t(tooltipLabel)}
@@ -59,7 +60,7 @@ export const ChatToggle = ({
             borderRadius: '50%',
             zIndex: 1,
             border: '2px solid',
-            borderColor: 'greyscale.250',
+            borderColor: 'border',
           })}
         />
       )}

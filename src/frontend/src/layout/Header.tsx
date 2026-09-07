@@ -17,14 +17,41 @@ import { logout } from '@/features/auth/utils/logout'
 import { useMemo } from 'react'
 
 const Logo = () => (
-  <img
-    src="/assets/logo.svg"
-    alt={`${import.meta.env.VITE_APP_TITLE}`}
-    className={`Header-logo ${css({
-      maxHeight: { base: '30px', sm: '40px' },
-      marginTop: { base: '10px', sm: '5px' },
-    })}`}
-  />
+  <span
+    className={`Header-logo ${css({ display: 'inline-flex', alignItems: 'center', gap: '0.625rem', whiteSpace: 'nowrap', fontFamily: 'sans' })}`}
+  >
+    {/* Frame the supplied icon without its large surrounding margins. */}
+    <svg
+      viewBox="270 335 780 485"
+      width="36"
+      height="24"
+      aria-hidden="true"
+      focusable="false"
+      className={css({ flexShrink: 0 })}
+    >
+      <image href="/assets/mastrao-logo-icon.png" width="1254" height="1254" />
+    </svg>
+    <span
+      className={css({
+        fontSize: '24px',
+        fontWeight: 'normal',
+        letterSpacing: '-0.75px',
+      })}
+    >
+      Mastrao
+    </span>
+    <span
+      className={css({
+        fontSize: '14px',
+        color: 'muted-foreground',
+        borderLeft: '1px solid',
+        borderColor: 'border',
+        paddingLeft: '0.625rem',
+      })}
+    >
+      Visio
+    </span>
+  </span>
 )
 
 const LoginHint = () => {
@@ -35,21 +62,21 @@ const LoginHint = () => {
     <div
       className={css({
         position: 'absolute',
-        top: '103px',
+        top: '64px',
         right: '110px',
         zIndex: '100',
         outline: 'none',
         padding: '1.25rem',
         maxWidth: '350px',
-        boxShadow: '0 2px 5px rgba(0 0 0 / 0.1)',
+        boxShadow: '0 2px 5px var(--shadow-color)',
         borderRadius: '1rem',
-        backgroundColor: 'primary.200',
+        backgroundColor: 'accent',
         display: 'none',
         xsm: {
           display: 'block',
         },
         sm: {
-          top: '131px',
+          top: '64px',
           right: '100px',
           zIndex: '100',
         },
@@ -61,7 +88,7 @@ const LoginHint = () => {
           marginLeft: '-10px',
           borderWidth: '0 10px 10px 10px',
           borderStyle: 'solid',
-          borderColor: 'transparent transparent #E3E3FB transparent',
+          borderColor: 'transparent transparent var(--accent) transparent',
         },
       })}
     >
@@ -117,9 +144,10 @@ export const Header = () => {
       <FeedbackBanner />
       <div
         className={css({
-          paddingBottom: 1,
-          paddingX: 1,
-          paddingTop: 0.25,
+          backgroundColor: 'card',
+          color: 'card-foreground',
+          paddingY: '0.5rem',
+          paddingX: '1rem',
           flexShrink: 0,
         })}
       >
@@ -132,9 +160,9 @@ export const Header = () => {
                   flexDirection: { base: 'column', sm: 'row' },
                   alignItems: 'start',
                   gap: { base: '0', sm: '2rem' },
-                  padding: { base: '0.5rem', sm: '1rem' },
+                  padding: '0.25rem',
                   _hover: {
-                    backgroundColor: 'greyscale.100',
+                    backgroundColor: 'muted',
                     borderRadius: '4px',
                   },
                 })}
@@ -174,7 +202,7 @@ export const Header = () => {
                         display: { base: 'none', xsm: 'block' },
                       })}
                     >
-                      <LoginButton proConnectHint={false} />
+                      <LoginButton proConnectHint={false} size="sm" />
                     </div>
                     <LoginHint />
                   </>

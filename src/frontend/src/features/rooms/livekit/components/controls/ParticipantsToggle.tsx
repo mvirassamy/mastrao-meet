@@ -37,6 +37,7 @@ export const ParticipantsToggle = ({
     <div className={containerStyles}>
       <VisualOnlyTooltip tooltip={t(tooltipLabel)}>
         <ToggleButton
+          shape="circle"
           square
           variant="primaryTextDark"
           aria-label={t(tooltipLabel)}

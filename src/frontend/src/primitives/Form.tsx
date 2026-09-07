@@ -54,7 +54,7 @@ export const Form = ({
           {submitLabel}
         </Button>
         {!!onCancel && (
-          <Button variant="secondary" onPress={() => onCancel()}>
+          <Button variant="outline" onPress={() => onCancel()}>
             {t('cancel')}
           </Button>
         )}

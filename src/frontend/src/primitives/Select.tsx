@@ -27,8 +27,8 @@ const StyledButton = styled(Button, {
     border: '1px solid',
     borderColor: 'control.border',
     color: 'control.text',
-    borderRadius: 4,
-    boxShadow: '0 1px 2px rgba(0 0 0 / 0.1)',
+    borderRadius: 'control',
+    boxShadow: '0 1px 2px var(--shadow-color)',
     '&[data-focus-visible]': {
       outline: '2px solid {colors.focusRing}',
       outlineOffset: '-1px',
@@ -39,28 +39,28 @@ const StyledButton = styled(Button, {
     // fixme disabled style is being overridden by placeholder one and needs refinement.
     '&[data-disabled]': {
       color: 'default.subtle-text',
-      borderColor: 'gray.200',
-      boxShadow: '0 1px 2px rgba(0 0 0 / 0.02)',
+      borderColor: 'input',
+      boxShadow: '0 1px 2px var(--shadow-soft)',
     },
   },
   variants: {
     variant: {
       light: {},
       dark: {
-        backgroundColor: 'primaryDark.100',
+        backgroundColor: 'card',
         fontWeight: 'medium !important',
-        color: 'white',
+        color: 'card-foreground',
         '&[data-pressed]': {
-          backgroundColor: 'primaryDark.900',
-          color: 'primaryDark.100',
+          backgroundColor: 'selected',
+          color: 'selected-foreground',
         },
         '&[data-hovered]': {
-          backgroundColor: 'primaryDark.300',
-          color: 'white',
+          backgroundColor: 'accent',
+          color: 'card-foreground',
         },
         '&[data-selected]': {
-          backgroundColor: 'primaryDark.700 !important',
-          color: 'primaryDark.100 !important',
+          backgroundColor: 'selected !important',
+          color: 'selected-foreground !important',
         },
       },
     },

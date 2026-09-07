@@ -24,13 +24,13 @@ const HIDE_LIVEKIT_VIDEO_CLASS = 'connection-test-hide-livekit-video'
 
 const sectionClass = css({
   width: '100%',
-  borderTop: '2px solid {colors.greyscale.900}',
+  borderTop: '2px solid {colors.border}',
   paddingTop: '1rem',
 })
 
 const sectionTitleClass = css({
   textStyle: 'h2',
-  color: 'greyscale.1000',
+  color: 'foreground',
   margin: 0,
 })
 
@@ -47,15 +47,15 @@ const helpClass = css({
   gap: '0.5rem',
   width: '100%',
   borderRadius: 8,
-  border: '1px solid {colors.greyscale.200}',
-  backgroundColor: 'white',
+  border: '1px solid {colors.border}',
+  backgroundColor: 'card',
   padding: '0.75rem 1rem',
   textStyle: 'sm',
-  color: 'greyscale.800',
+  color: 'foreground',
 })
 
 const helpIconClass = css({
-  color: 'danger.600',
+  color: 'destructive',
   flexShrink: 0,
   marginTop: '2px',
 })
@@ -104,7 +104,7 @@ const ConnectionTest = () => {
                 // A disabled "run" button while the test runs is dead weight:
                 // cancelling is the only thing left to do.
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   onPress={reset}
                   icon={<RiCloseLine size={18} aria-hidden="true" />}
                 >
@@ -121,7 +121,7 @@ const ConnectionTest = () => {
               )}
               {stats.hasStarted && !isRunning && (
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   onPress={() => downloadConnectionTestReport(steps)}
                   icon={<RiDownload2Line size={18} aria-hidden="true" />}
                 >

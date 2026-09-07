@@ -126,64 +126,6 @@ const config: Config = {
       ...pandaPreset.theme.tokens,
       colors: defineTokens.colors({
         ...pandaPreset.theme.tokens.colors,
-        primaryDark: {
-          50: { value: '#161622' },
-          75: { value: '#222234' },
-          100: { value: '#2D2D46' },
-          200: { value: '#43436A' },
-          300: { value: '#5A5A8F' },
-          400: { value: '#7070B3' },
-          500: { value: '#8787D7' },
-          600: { value: '#9D9DDF' },
-          700: { value: '#B3B3E7' },
-          800: { value: '#C9C9EE' },
-          900: { value: '#DFDFF6' },
-          950: { value: '#F5F5FE' },
-          action: { value: '#C1C1FB' },
-        },
-        primary: {
-          50: { value: '#F5F5FE' },
-          100: { value: '#ECECFE' },
-          200: { value: '#E3E3FB' },
-          300: { value: '#CACAFB' },
-          400: { value: '#8585F6' },
-          500: { value: '#6A6AF4' },
-          600: { value: '#313178' },
-          700: { value: '#272747' },
-          800: { value: '#000091' },
-          900: { value: '#21213F' },
-          950: { value: '#1B1B35' },
-          action: { value: '#1212FF' },
-        },
-        greyscale: {
-          '000': { value: '#FFFFFF' },
-          50: { value: '#F6F6F6' },
-          100: { value: '#EEEEEE' },
-          200: { value: '#E5E5E5' },
-          250: { value: '#DDDDDD' },
-          300: { value: '#CECECE' },
-          400: { value: '#929292' },
-          500: { value: '#7C7C7C' },
-          600: { value: '#666666' },
-          700: { value: '#3A3A3A' },
-          750: { value: '#353535' },
-          800: { value: '#2A2A2A' },
-          900: { value: '#242424' },
-          950: { value: '#1E1E1E' },
-          1000: { value: '#161616' },
-        },
-        error: {
-          100: { value: '#261212' },
-          200: { value: '#6C302E' },
-          300: { value: '#983533' },
-          400: { value: '#CA3632' },
-          500: { value: '#EF413D' },
-          600: { value: '#EE6A66' },
-          700: { value: '#F28D8A' },
-          800: { value: '#F6AFAD' },
-          900: { value: '#FAD2D1' },
-          950: { value: '#FFF4F4' },
-        },
       }),
       animations: {},
       blurs: {},
@@ -193,34 +135,8 @@ const config: Config = {
        * see semanticTokens for tokens targeting specific usages
        */
       fonts: {
-        sans: {
-          value: [
-            'ui-sans-serif',
-            'system-ui',
-            '-apple-system',
-            'BlinkMacSystemFont',
-            '"Segoe UI"',
-            'Roboto',
-            '"Helvetica Neue"',
-            'Arial',
-            '"Noto Sans"',
-            'sans-serif',
-            '"Apple Color Emoji"',
-            '"Segoe UI Emoji"',
-            '"Segoe UI Symbol"',
-            '"Noto Color Emoji"',
-          ],
-        },
-        serif: {
-          value: [
-            'ui-serif',
-            'Georgia',
-            'Cambria',
-            '"Times New Roman"',
-            'Times',
-            'serif',
-          ],
-        },
+        sans: { value: 'var(--font-ui)' },
+        serif: { value: 'var(--font-ui)' },
         mono: {
           value: [
             'Source Code Pro',
@@ -266,6 +182,9 @@ const config: Config = {
         2: { value: '2' },
       },
       radii: {
+        control: { value: 'var(--radius-control)' },
+        surface: { value: 'var(--radius-surface)' },
+        dialog: { value: 'var(--radius-dialog)' },
         4: { value: '0.25rem' },
         6: { value: '0.375rem' },
         8: { value: '0.5rem' },
@@ -289,65 +208,256 @@ const config: Config = {
     }),
     semanticTokens: defineSemanticTokens({
       colors: {
-        default: {
-          text: { value: '{colors.greyscale.1000}' },
-          bg: { value: 'white' },
-          subtle: { value: '{colors.gray.100}' },
-          'subtle-text': { value: '{colors.gray.600}' },
+        background: {
+          value: 'var(--background)',
         },
-        box: {
-          text: { value: '{colors.default.text}' },
-          bg: { value: '{colors.white}' },
-          border: { value: '{colors.gray.300}' },
+        foreground: {
+          value: 'var(--foreground)',
         },
-        control: {
-          DEFAULT: { value: '{colors.gray.100}' },
-          hover: { value: '{colors.gray.200}' },
-          active: { value: '{colors.gray.300}' },
-          text: { value: '{colors.default.text}' },
-          border: { value: '{colors.gray.500}' },
-          subtle: { value: '{colors.gray.400}' },
+        card: {
+          value: 'var(--card)',
+        },
+        'card-foreground': {
+          value: 'var(--card-foreground)',
+        },
+        popover: {
+          value: 'var(--popover)',
+        },
+        'popover-foreground': {
+          value: 'var(--popover-foreground)',
+        },
+        muted: {
+          value: 'var(--muted)',
+        },
+        'muted-foreground': {
+          value: 'var(--muted-foreground)',
         },
         primary: {
-          DEFAULT: { value: '{colors.blue.700}' },
-          hover: { value: '{colors.blue.800}' },
-          active: { value: '{colors.blue.900}' },
-          text: { value: '{colors.white}' },
-          warm: { value: '{colors.blue.300}' },
-          subtle: { value: '{colors.blue.100}' },
-          'subtle-text': { value: '{colors.blue.700}' },
+          DEFAULT: {
+            value: 'var(--primary)',
+          },
+          hover: {
+            value: 'var(--primary-hover)',
+          },
+          active: {
+            value: 'var(--primary-active)',
+          },
+          text: {
+            value: 'var(--primary-foreground)',
+          },
+          warm: {
+            value: 'var(--accent)',
+          },
+          subtle: {
+            value: 'var(--info)',
+          },
+          'subtle-text': {
+            value: 'var(--info-foreground)',
+          },
         },
-        danger: {
-          DEFAULT: { value: '{colors.red.600}' },
-          hover: { value: '{colors.red.700}' },
-          active: { value: '{colors.red.800}' },
-          text: { value: '{colors.white}' },
-          subtle: { value: '{colors.red.100}' },
-          'subtle-text': { value: '{colors.red.700}' },
-          ...pandaPreset.theme.tokens.colors.red,
+        'primary-foreground': {
+          value: 'var(--primary-foreground)',
         },
-        alert: {
-          DEFAULT: { value: '{colors.blue.700}' },
-          notification: { value: '{colors.red.600}' },
+        secondary: {
+          value: 'var(--secondary)',
         },
-        success: {
-          DEFAULT: { value: '{colors.green.700}' },
-          hover: { value: '{colors.green.800}' },
-          active: { value: '{colors.green.900}' },
-          text: { value: '{colors.white}' },
-          subtle: { value: '{colors.green.100}' },
-          'subtle-text': { value: '{colors.green.800}' },
-          ...pandaPreset.theme.tokens.colors.green,
+        'secondary-foreground': {
+          value: 'var(--secondary-foreground)',
+        },
+        accent: {
+          value: 'var(--accent)',
+        },
+        'accent-foreground': {
+          value: 'var(--accent-foreground)',
+        },
+        selected: {
+          value: 'var(--selected)',
+        },
+        'selected-foreground': {
+          value: 'var(--selected-foreground)',
+        },
+        border: {
+          value: 'var(--border)',
+        },
+        input: {
+          value: 'var(--input)',
+        },
+        ring: {
+          value: 'var(--ring)',
+        },
+        destructive: {
+          value: 'var(--destructive)',
+        },
+        'destructive-foreground': {
+          value: 'var(--destructive-foreground)',
+        },
+        'media-surface': {
+          value: 'var(--media-surface)',
+        },
+        'media-foreground': {
+          value: 'var(--media-foreground)',
+        },
+        'media-overlay': {
+          value: 'var(--media-overlay)',
+        },
+        'media-overlay-foreground': {
+          value: 'var(--media-overlay-foreground)',
+        },
+        info: {
+          value: 'var(--info)',
+        },
+        'info-foreground': {
+          value: 'var(--info-foreground)',
         },
         warning: {
-          DEFAULT: { value: '{colors.amber.700}' },
-          hover: { value: '{colors.amber.800}' },
-          active: { value: '{colors.amber.900}' },
-          text: { value: '{colors.white}' },
-          subtle: { value: '{colors.amber.100}' },
-          'subtle-text': { value: '{colors.amber.700}' },
+          DEFAULT: {
+            value: 'var(--warning)',
+          },
+          hover: {
+            value: 'var(--warning-foreground)',
+          },
+          active: {
+            value: 'var(--warning-foreground)',
+          },
+          text: {
+            value: 'var(--warning-foreground)',
+          },
+          subtle: {
+            value: 'var(--warning)',
+          },
+          'subtle-text': {
+            value: 'var(--warning-foreground)',
+          },
         },
-        focusRing: { value: 'rgb(74, 121, 199)' },
+        'warning-foreground': {
+          value: 'var(--warning-foreground)',
+        },
+        success: {
+          DEFAULT: {
+            value: 'var(--success)',
+          },
+          hover: {
+            value: 'var(--success-foreground)',
+          },
+          active: {
+            value: 'var(--success-foreground)',
+          },
+          text: {
+            value: 'var(--success-foreground)',
+          },
+          subtle: {
+            value: 'var(--success)',
+          },
+          'subtle-text': {
+            value: 'var(--success-foreground)',
+          },
+        },
+        'success-foreground': {
+          value: 'var(--success-foreground)',
+        },
+        recording: {
+          value: 'var(--recording)',
+        },
+        'recording-foreground': {
+          value: 'var(--recording-foreground)',
+        },
+        overlay: {
+          value: 'var(--overlay)',
+        },
+        'primary-hover': {
+          value: 'var(--primary-hover)',
+        },
+        'primary-active': {
+          value: 'var(--primary-active)',
+        },
+        'destructive-hover': {
+          value: 'var(--destructive-hover)',
+        },
+        'destructive-active': {
+          value: 'var(--destructive-active)',
+        },
+        disabled: {
+          value: 'var(--disabled)',
+        },
+        'disabled-foreground': {
+          value: 'var(--disabled-foreground)',
+        },
+        danger: {
+          DEFAULT: {
+            value: 'var(--destructive)',
+          },
+          hover: {
+            value: 'var(--destructive-hover)',
+          },
+          active: {
+            value: 'var(--destructive-active)',
+          },
+          text: {
+            value: 'var(--destructive-foreground)',
+          },
+          subtle: {
+            value: 'var(--recording)',
+          },
+          'subtle-text': {
+            value: 'var(--recording-foreground)',
+          },
+        },
+        default: {
+          text: {
+            value: 'var(--foreground)',
+          },
+          bg: {
+            value: 'var(--background)',
+          },
+          subtle: {
+            value: 'var(--muted)',
+          },
+          'subtle-text': {
+            value: 'var(--muted-foreground)',
+          },
+        },
+        box: {
+          text: {
+            value: 'var(--card-foreground)',
+          },
+          bg: {
+            value: 'var(--card)',
+          },
+          border: {
+            value: 'var(--border)',
+          },
+        },
+        control: {
+          DEFAULT: {
+            value: 'var(--card)',
+          },
+          hover: {
+            value: 'var(--accent)',
+          },
+          active: {
+            value: 'var(--selected)',
+          },
+          text: {
+            value: 'var(--card-foreground)',
+          },
+          border: {
+            value: 'var(--input)',
+          },
+          subtle: {
+            value: 'var(--muted-foreground)',
+          },
+        },
+        alert: {
+          DEFAULT: {
+            value: 'var(--info-foreground)',
+          },
+          notification: {
+            value: 'var(--recording-foreground)',
+          },
+        },
+        focusRing: {
+          value: 'var(--ring)',
+        },
       },
       shadows: {
         box: { value: '{shadows.sm}' },

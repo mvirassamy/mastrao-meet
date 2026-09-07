@@ -43,6 +43,6 @@ const Container = styled('div', {
     gap: '0.5rem',
     padding: '1.5rem',
     textAlign: 'center',
-    color: 'white',
+    color: 'foreground',
   },
 })

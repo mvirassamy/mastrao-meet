@@ -37,6 +37,7 @@ export const LateralMenu = () => {
   return (
     <DialogTrigger isOpen={isOpen} onOpenChange={setIsOpen}>
       <Button
+        shape="circle"
         id="controlbar-more-options-trigger"
         square
         variant="secondaryDark"
@@ -50,11 +51,11 @@ export const LateralMenu = () => {
         <Dialog
           className={css({
             width: '65px',
-            backgroundColor: 'primaryDark.50',
+            backgroundColor: 'background',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            borderRadius: '4px',
+            borderRadius: 'surface',
             paddingTop: '10px',
             gap: '0.5rem',
           })}
@@ -101,6 +102,9 @@ export const MoreOptions = ({
         alignItems: 'center',
         gap: '0.5rem',
         paddingRight: '0.25rem',
+        '@media (max-width: 799px)': {
+          flex: '0 0 auto',
+        },
       })}
     >
       <BreakpointObserver

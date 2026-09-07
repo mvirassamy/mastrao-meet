@@ -74,6 +74,7 @@ export const HandToggle = () => {
       })}
     >
       <ToggleButton
+        shape="circle"
         square
         variant="primaryDark"
         aria-label={t(tooltipLabel)}

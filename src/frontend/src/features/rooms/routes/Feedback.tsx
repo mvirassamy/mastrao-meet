@@ -132,12 +132,12 @@ const FeedbackRoute = () => {
               </Button>
             )}
             {showBackButton && (
-              <Button variant="secondary" onPress={() => window.history.back()}>
+              <Button variant="outline" onPress={() => window.history.back()}>
                 {t('feedback.back')}
               </Button>
             )}
             <Button
-              variant={showPlatformReturn ? 'secondary' : 'primary'}
+              variant={showPlatformReturn ? 'outline' : 'primary'}
               onPress={() => setLocation('/')}
             >
               {t('feedback.home')}

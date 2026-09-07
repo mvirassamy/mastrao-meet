@@ -37,6 +37,7 @@ export const ReactionsToggle = () => {
 
   return (
     <ToggleButton
+      shape="circle"
       id={REACTIONS_TOGGLE_ID}
       data-attr="reactions-toggle"
       square
