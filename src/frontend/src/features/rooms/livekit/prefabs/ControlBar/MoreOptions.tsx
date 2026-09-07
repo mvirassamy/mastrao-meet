@@ -102,6 +102,9 @@ export const MoreOptions = ({
         alignItems: 'center',
         gap: '0.5rem',
         paddingRight: '0.25rem',
+        '@media (max-width: 799px)': {
+          flex: '0 0 auto',
+        },
       })}
     >
       <BreakpointObserver

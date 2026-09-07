@@ -1,7 +1,7 @@
 :root {
   --font-ui: Arial, Helvetica, sans-serif;
-  --primary: #2d55ef;
-  --primary-hover: #2346cf;
+  --primary: #2d5be3;
+  --primary-hover: color-mix(in srgb, var(--primary) 88%, var(--login-foreground));
   --primary-foreground: #ffffff;
   --radius-control: 10px;
   --login-background: #f8faff;

@@ -111,7 +111,7 @@ export const FullScreenShareWarning = ({
             <Text
               role="alert"
               style={{
-                color: 'media-overlay-foreground',
+                color: 'var(--media-overlay-foreground)',
                 flexBasis: '55%',
                 fontWeight: '500',
               }}
@@ -144,7 +144,7 @@ export const FullScreenShareWarning = ({
                 {t('stop')}
               </Button>
               <Button
-                variant="primaryTextDark"
+                variant="outline"
                 size="sm"
                 style={{
                   height: 'fit-content',

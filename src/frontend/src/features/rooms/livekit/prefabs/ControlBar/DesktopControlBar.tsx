@@ -17,6 +17,7 @@ import { AudioDevicesControl } from '../../components/controls/Device/AudioDevic
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { EndMeetingButton } from '../../components/controls/EndMeetingButton'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 
 export function DesktopControlBar({
   onDeviceError,
@@ -26,6 +27,7 @@ export function DesktopControlBar({
 }: Readonly<ControlBarAuxProps>) {
   const browserSupportsScreenSharing = supportsScreenSharing()
   const desktopControlBarEl = useRef<HTMLDivElement>(null)
+  const isNarrowScreen = useMediaQuery('(max-width: 799px)')
 
   const { toggleFullScreen, isFullscreenAvailable } = useFullScreen({})
 
@@ -54,6 +56,11 @@ export function DesktopControlBar({
         width: '100vw',
         display: 'flex',
         padding: '1.125rem',
+        '@media (max-width: 799px)': {
+          padding: '0.75rem',
+          gap: '0.5rem',
+          '--call-control-size': '40px',
+        },
       })}
     >
       <div
@@ -64,9 +71,14 @@ export function DesktopControlBar({
           alignItems: 'center',
           gap: '0.5rem',
           marginLeft: '0.5rem',
+          '@media (max-width: 799px)': {
+            display: 'none',
+          },
         })}
       />
-      <ControlBarRegion>
+      <ControlBarRegion
+        style={isNarrowScreen ? { flexWrap: 'wrap', minWidth: 0 } : undefined}
+      >
         <AudioDevicesControl
           onDeviceError={(error) =>
             onDeviceError?.({ source: Track.Source.Microphone, error })

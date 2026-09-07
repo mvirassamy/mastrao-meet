@@ -3,10 +3,10 @@ import * as React from 'react'
 
 import { MobileControlBar } from './MobileControlBar'
 import { DesktopControlBar } from './DesktopControlBar'
-import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useIsMobile } from '@/utils/useIsMobile'
 import { ReactionsToolbar } from '@/features/reactions/components/toolbar/ReactionsToolbar'
 import { css } from '@/styled-system/css'
+import { useSize } from '../../hooks/useResizeObserver'
 
 export interface ControlBarProps extends React.HTMLAttributes<HTMLDivElement> {
   onDeviceError?: (error: { source: Track.Source; error: Error }) => void
@@ -25,9 +25,23 @@ export function ControlBar({
   canEnd,
   onMeetingEnded,
 }: ControlBarProps) {
-  const isMobileBrowser = useIsMobile()
-  const isNarrowScreen = useMediaQuery('(max-width: 799px)')
-  const isMobile = isMobileBrowser || isNarrowScreen
+  const isMobile = useIsMobile()
+  const controlBarRef = React.useRef<HTMLDivElement>(null)
+  const { height } = useSize(controlBarRef)
+
+  React.useLayoutEffect(() => {
+    const conference = controlBarRef.current?.closest<HTMLElement>(
+      '.lk-video-conference'
+    )
+    if (!conference || !height) return
+    const property = '--sizes-room-control-bar'
+    const previousHeight = conference.style.getPropertyValue(property)
+    conference.style.setProperty(property, `${height}px`)
+    return () => {
+      if (previousHeight) conference.style.setProperty(property, previousHeight)
+      else conference.style.removeProperty(property)
+    }
+  }, [height])
 
   return (
     <div
@@ -44,6 +58,7 @@ export function ControlBar({
       <ReactionsToolbar />
       <div
         id="control-bar"
+        ref={controlBarRef}
         className={css({
           zIndex: 100,
         })}

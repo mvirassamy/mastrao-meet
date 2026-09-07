@@ -10,6 +10,9 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(frontend) preserve desktop meeting controls in narrow windows
+- 🐛(frontend) restore notification and screen-share warning contrast
+
 - 🐛(backend) redirect Mastrao host handoffs to the configured frontend room origin
 - 🐛(frontend) proxy Mastrao handoff routes from the local production frontend across backend restarts
 - 🐛(backend) bind speaker evidence labels and fresh capture windows

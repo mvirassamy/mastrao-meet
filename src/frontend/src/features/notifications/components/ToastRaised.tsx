@@ -61,7 +61,13 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
             {t('raised.cta')}
           </Button>
         )}
-        <Button square size="sm" invisible {...closeButtonProps}>
+        <Button
+          square
+          size="sm"
+          variant="ghost"
+          invisible
+          {...closeButtonProps}
+        >
           <RiCloseLine size={18} color="currentColor" />
         </Button>
       </HStack>
