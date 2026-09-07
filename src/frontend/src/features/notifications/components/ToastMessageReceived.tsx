@@ -61,7 +61,7 @@ export function ToastMessageReceived({
             <RiMessage2Line
               size={20}
               className={css({
-                color: 'primary.300',
+                color: 'primary',
                 marginTop: '3px',
               })}
               aria-hidden="true"

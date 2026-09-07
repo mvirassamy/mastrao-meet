@@ -1,0 +1,62 @@
+/* Mastrao semantic palette. Components consume roles, never palette values. */
+:root {
+  --font-ui: Arial, Helvetica, sans-serif;
+  --radius-control: 10px;
+  --radius-surface: 16px;
+  --radius-dialog: 20px;
+  --call-control-size: 44px;
+  color-scheme: light;
+  --background: #f5f7fb;
+  --foreground: #14213a;
+  --card: #ffffff;
+  --card-foreground: #14213a;
+  --popover: #ffffff;
+  --popover-foreground: #14213a;
+  --muted: #eef2f7;
+  --muted-foreground: #56637a;
+  --primary: #2d5be3;
+  --primary-foreground: #ffffff;
+  --secondary: #e7eefc;
+  --secondary-foreground: #244480;
+  --accent: #e1eafb;
+  --accent-foreground: #173b84;
+  --selected: var(--accent);
+  --selected-foreground: var(--accent-foreground);
+  --border: #d7dfe9;
+  /* Increased from the provisional #9aa9bd: 3.47:1 against card. */
+  --input: #7a8ba3;
+  --ring: #2d5be3;
+  --destructive: #a92e36;
+  --destructive-foreground: #ffffff;
+  --media-surface: #e2e8f0;
+  --media-foreground: #33465e;
+  --media-overlay: #14213ae8;
+  --media-overlay-foreground: #ffffff;
+  --info: #edf2ff;
+  --info-foreground: #254ba2;
+  --warning: #ffcc55;
+  --warning-foreground: #513600;
+  --success: #edf7f0;
+  --success-foreground: #28643b;
+  --recording: #fbecec;
+  --recording-foreground: #962932;
+  --overlay: #14213a66;
+  --primary-hover: color-mix(in srgb, var(--primary) 88%, var(--foreground));
+  --primary-active: color-mix(in srgb, var(--primary) 78%, var(--foreground));
+  --destructive-hover: color-mix(
+    in srgb,
+    var(--destructive) 88%,
+    var(--foreground)
+  );
+  --destructive-active: color-mix(
+    in srgb,
+    var(--destructive) 78%,
+    var(--foreground)
+  );
+  --disabled: var(--muted);
+  --disabled-foreground: var(--muted-foreground);
+  --participant-default: var(--primary);
+  --shadow-color: #14213a1a;
+  --shadow-strong: #14213a33;
+  --shadow-soft: #14213a05;
+}

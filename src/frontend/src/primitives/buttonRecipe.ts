@@ -1,4 +1,146 @@
 import { type RecipeVariantProps, cva } from '@/styled-system/css'
+import type { SystemStyleObject } from '@/styled-system/types'
+
+const primaryStyle = {
+  backgroundColor: 'primary',
+  color: 'primary-foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'transparent',
+  '&[data-hovered]:not([data-disabled])': {
+    backgroundColor: 'primary.hover',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    backgroundColor: 'primary.active',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'primary',
+    color: 'primary-foreground',
+  },
+} satisfies SystemStyleObject
+
+const secondaryStyle = {
+  backgroundColor: 'secondary',
+  color: 'secondary-foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'transparent',
+  '&[data-hovered]:not([data-disabled])': {
+    backgroundColor: 'accent',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    backgroundColor: 'accent',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'selected',
+    color: 'selected-foreground',
+  },
+} satisfies SystemStyleObject
+
+const outlineStyle = {
+  backgroundColor: 'card',
+  color: 'card-foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'input',
+  '&[data-hovered]:not([data-disabled])': {
+    color: 'primary',
+    borderColor: 'primary',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    color: 'primary.active',
+    borderColor: 'primary.active',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'selected',
+    color: 'selected-foreground',
+  },
+} satisfies SystemStyleObject
+
+const ghostStyle = {
+  backgroundColor: 'transparent',
+  color: 'foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'transparent',
+  '&[data-hovered]:not([data-disabled])': {
+    backgroundColor: 'accent',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    backgroundColor: 'accent',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'selected',
+    color: 'selected-foreground',
+  },
+} satisfies SystemStyleObject
+
+const destructiveStyle = {
+  backgroundColor: 'destructive',
+  color: 'destructive-foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'transparent',
+  '&[data-hovered]:not([data-disabled])': {
+    backgroundColor: 'destructive-hover',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    backgroundColor: 'destructive-active',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'destructive',
+    color: 'destructive-foreground',
+  },
+} satisfies SystemStyleObject
+
+const mediaStyle = {
+  backgroundColor: 'media-overlay',
+  color: 'media-overlay-foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'media-overlay-foreground',
+  '&[data-hovered]:not([data-disabled])': {
+    backgroundColor: 'media-overlay',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    backgroundColor: 'media-overlay',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'media-overlay',
+    color: 'media-overlay-foreground',
+  },
+} satisfies SystemStyleObject
+
+const successStyle = {
+  backgroundColor: 'success',
+  color: 'success-foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'transparent',
+  '&[data-hovered]:not([data-disabled])': {
+    backgroundColor: 'success',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    backgroundColor: 'success',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'success',
+    color: 'success-foreground',
+  },
+} satisfies SystemStyleObject
+
+const warningStyle = {
+  '&[data-disabled]': { opacity: 1 },
+  backgroundColor: 'warning',
+  color: 'warning-foreground',
+  fontWeight: 'medium !important',
+  borderColor: 'transparent',
+  '&[data-hovered]:not([data-disabled])': {
+    backgroundColor: 'warning',
+  },
+  '&[data-pressed]:not([data-disabled])': {
+    backgroundColor: 'warning',
+  },
+  '&[data-selected]': {
+    backgroundColor: 'warning',
+    color: 'warning-foreground',
+  },
+} satisfies SystemStyleObject
+
+// Legacy names remain adapters; new consumers choose the semantic variants.
 
 export const buttonRecipe = cva({
   base: {
@@ -10,29 +152,45 @@ export const buttonRecipe = cva({
     border: '1px solid transparent',
     '&[data-disabled]': {
       cursor: 'default',
+      opacity: 0.55,
+    },
+    '&[data-focus-visible]': {
+      outline: '2px solid',
+      outlineColor: 'ring',
+      outlineOffset: '2px',
     },
     gap: '0.5rem',
   },
   variants: {
+    shape: {
+      circle: {
+        borderRadius: '50%!',
+        width: 'var(--call-control-size)',
+        height: 'var(--call-control-size)',
+        minWidth: 'var(--call-control-size)',
+        padding: '0!',
+        flexShrink: 0,
+      },
+    },
     size: {
       default: {
-        borderRadius: 4,
+        borderRadius: 'control',
         paddingX: '1',
         paddingY: '0.625',
         '--square-padding': '{spacing.0.625}',
       },
       sm: {
-        borderRadius: 4,
+        borderRadius: 'control',
         paddingX: '0.5',
         paddingY: '0.25',
         '--square-padding': '{spacing.0.25}',
       },
       xs: {
-        borderRadius: 4,
+        borderRadius: 'control',
         '--square-padding': '0',
       },
       compact: {
-        borderRadius: 4,
+        borderRadius: 'control',
         paddingX: '0.5',
         paddingY: '0.625',
         '--square-padding': '{spacing.0.625}',
@@ -52,272 +210,54 @@ export const buttonRecipe = cva({
       },
     },
     variant: {
-      primary: {
-        backgroundColor: 'primary.800',
-        color: 'white',
-        fontWeight: 'medium !important',
-        '&[data-hovered]': {
-          backgroundColor: 'primary.action',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'primary.action',
-        },
-        '&[data-disabled]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.400',
-        },
-      },
-      secondary: {
-        backgroundColor: 'white',
-        color: 'primary.800',
-        fontWeight: 'medium !important',
-        borderColor: 'primary.800',
-        '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'greyscale.100',
-        },
-      },
-      secondaryText: {
-        backgroundColor: 'transparent',
-        fontWeight: 'medium !important',
-        color: 'primary.800',
-        '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'greyscale.100',
-        },
-        '&[data-disabled]': {
-          color: 'greyscale.400',
-        },
-      },
+      primary: primaryStyle,
+      default: primaryStyle,
+      secondary: secondaryStyle,
+      outline: outlineStyle,
+      ghost: ghostStyle,
+      destructive: destructiveStyle,
+      link: { ...ghostStyle, color: 'primary', textDecoration: 'underline' },
+      secondaryText: ghostStyle,
+      tertiary: secondaryStyle,
+      tertiaryText: ghostStyle,
+      primaryDark: outlineStyle,
+      secondaryDark: outlineStyle,
+      primaryTextDark: ghostStyle,
+      quaternaryText: ghostStyle,
+      greyscale: ghostStyle,
+      danger: destructiveStyle,
+      error2: warningStyle,
+      success: successStyle,
+      text: { ...ghostStyle, color: 'primary' },
       whiteCircle: {
-        color: 'white',
-        border: '1px white solid',
+        ...mediaStyle,
         width: '56px',
         height: '56px',
         borderRadius: '100%',
-        '&[data-hovered]': {
-          backgroundColor: 'greyscale.100/20',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'greyscale.100/50',
-        },
-      },
-      bigSquare: {
-        width: '56px',
-        height: '56px',
-        borderColor: 'greyscale.200',
-        borderRadius: '4px',
-        backgroundColor: 'greyscale.50',
-        padding: '0',
-        flexShrink: 0,
-        '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
-        },
-        transition: 'box-shadow 0.2s ease-in-out',
-        '&[data-selected]': {
-          boxShadow:
-            '0 0 0 3px token(colors.primary.600) inset, 0 0 0 5px white inset',
-        },
-        '&[data-disabled]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.400',
-          opacity: '0.7',
-        },
-      },
-      tertiary: {
-        backgroundColor: 'primary.100',
-        fontWeight: 'medium !important',
-        color: 'primary.800',
-        '&[data-hovered]': {
-          backgroundColor: 'primary.300',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'primary.300',
-        },
-        '&[data-disabled]': {
-          backgroundColor: 'transparent',
-          color: 'primary.400',
-        },
-      },
-      tertiaryText: {
-        backgroundColor: 'transparent',
-        fontWeight: 'medium !important',
-        color: 'primary.900',
-        '&[data-hovered]': {
-          backgroundColor: 'primary.300',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'primary.300',
-        },
-      },
-      primaryDark: {
-        backgroundColor: 'primaryDark.100',
-        fontWeight: 'medium !important',
-        color: 'white',
-        '&[data-pressed]': {
-          backgroundColor: 'primaryDark.900',
-          color: 'primaryDark.100',
-        },
-        '&[data-disabled]': {
-          backgroundColor: 'primaryDark.75',
-          color: 'primaryDark.300',
-        },
-        '&[data-hovered]': {
-          backgroundColor: 'primaryDark.300',
-          color: 'white',
-        },
-        '&[data-selected]': {
-          backgroundColor: 'primaryDark.700 !important',
-          color: 'primaryDark.100 !important',
-        },
-      },
-      secondaryDark: {
-        backgroundColor: 'primaryDark.50',
-        fontWeight: 'medium !important',
-        color: 'white',
-        '&[data-pressed]': {
-          backgroundColor: 'primaryDark.200',
-        },
-        '&[data-hovered]': {
-          backgroundColor: 'primaryDark.100',
-          color: 'white',
-        },
-        '&[data-selected]': {
-          backgroundColor: 'primaryDark.700 !important',
-          color: 'primaryDark.100 !important',
-        },
-      },
-      primaryTextDark: {
-        backgroundColor: 'transparent',
-        fontWeight: 'medium !important',
-        color: 'white',
-        '&[data-hovered]': {
-          backgroundColor: 'primaryDark.100',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'primaryDark.700',
-          color: 'primaryDark.100',
-        },
-        '&[data-selected]': {
-          backgroundColor: 'primaryDark.700',
-          color: 'primaryDark.100',
-        },
-        '&[data-focus-visible]': {
-          outline: '2px solid',
-          outlineColor: 'focusRing',
-          outlineOffset: '2px',
-        },
-        '&[data-disabled]': {
-          opacity: 0.2,
-        },
-      },
-      quaternaryText: {
-        backgroundColor: 'transparent',
-        fontWeight: 'medium !important',
-        color: 'greyscale.600',
-        '&[data-hovered]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.700',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'greyscale.100',
-          color: 'greyscale.700',
-        },
-        '&[data-disabled]': {
-          backgroundColor: 'transparent',
-          color: 'greyscale.300',
-        },
-      },
-      greyscale: {
-        backgroundColor: 'transparent',
-        color: 'greyscale.400',
-        '&[data-hovered]': {
-          color: 'greyscale.800',
-        },
-        '&[data-pressed]': {
-          color: 'greyscale.800',
-        },
-        '&[data-selected]': {
-          color: 'greyscale.800',
-        },
-        '&[data-disabled]': {
-          color: 'greyscale.200',
-        },
-      },
-      danger: {
-        backgroundColor: 'error.400',
-        color: 'white',
-        '&[data-hovered]': {
-          backgroundColor: 'error.600',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'error.700',
-          color: 'error.200',
-        },
-      },
-      error2: {
-        backgroundColor: 'error.200',
-        color: 'error.900',
-        '&[data-hovered]': {
-          backgroundColor: 'error.300',
-        },
-        '&[data-focused]': {
-          backgroundColor: 'error.200',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'error.900',
-          color: 'error.100',
-        },
-        '&[data-selected]': {
-          backgroundColor: 'error.900 !important',
-          color: 'error.100 !important',
-        },
-        '&[data-disabled]': {
-          backgroundColor: 'error.200 !important',
-          color: 'error.300 !important',
-        },
       },
       errorCircle: {
-        backgroundColor: 'error.500',
+        ...warningStyle,
         width: '56px',
         height: '56px',
         borderRadius: '100%',
-        color: 'white',
-        '&[data-hovered]': {
-          backgroundColor: 'error.600',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'error.700',
-          color: 'error.200',
-        },
       },
-      // @TODO: better handling of colors… this is a mess
-      success: {
-        colorPalette: 'success',
-        color: 'success.subtle-text',
-        backgroundColor: 'success.subtle',
-        '&[data-hovered]': {
-          backgroundColor: 'success.200',
-        },
-        '&[data-pressed]': {
-          backgroundColor: 'success.subtle!',
-        },
-      },
-      text: {
-        color: 'primary',
-        '&[data-hovered]': {
-          background: 'gray.100 !important',
-          color: 'primary !important',
+      bigSquare: {
+        ...outlineStyle,
+        width: '56px',
+        height: '56px',
+        borderRadius: 'control',
+        padding: '0',
+        flexShrink: 0,
+        '&[data-selected]': {
+          boxShadow:
+            '0 0 0 3px token(colors.ring) inset, 0 0 0 5px token(colors.card) inset',
         },
       },
       permission: {
         position: 'relative',
         borderRadius: '100%',
-        color: 'amber.500',
+        color: 'warning-foreground',
+        backgroundColor: 'warning',
         width: 'fit-content',
         height: 'fit-content',
         padding: '0 !important',
@@ -329,17 +269,17 @@ export const buttonRecipe = cva({
     },
     invisible: {
       true: {
-        borderColor: 'none!',
-        backgroundColor: 'none!',
+        borderColor: 'transparent!',
+        backgroundColor: 'transparent!',
         '&[data-hovered]': {
-          backgroundColor: 'none!',
+          backgroundColor: 'transparent!',
           borderColor: 'colorPalette.active!',
         },
         '&[data-pressed]': {
           borderColor: 'currentcolor',
         },
         '&[data-disabled]': {
-          color: 'gray.300',
+          color: 'disabled-foreground',
         },
       },
     },
@@ -383,12 +323,22 @@ export const buttonRecipe = cva({
   },
   compoundVariants: [
     {
+      shape: 'circle',
+      description: true,
+      css: {
+        width: 'auto',
+        height: 'auto',
+        borderRadius: 'control!',
+        padding: '0.625rem!',
+      },
+    },
+    {
       variant: 'primaryDark',
       shySelected: true,
       css: {
         '&[data-selected]': {
-          backgroundColor: 'primaryDark.100',
-          color: 'white',
+          backgroundColor: 'card',
+          color: 'card-foreground',
         },
       },
     },

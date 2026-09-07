@@ -39,6 +39,7 @@ export const ScreenShareToggle = ({
   // fixme - remove ToggleButton custom styles when we design a proper icon
   return (
     <ToggleButton
+      shape="circle"
       isSelected={enabled}
       isDisabled={!canShareScreen}
       square

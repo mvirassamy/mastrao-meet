@@ -1,0 +1,87 @@
+.preview-shell {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.preview-shell > div:nth-child(2) {
+  min-height: 0;
+  flex: 1;
+}
+.preview-banner {
+  position: relative;
+  z-index: 2000;
+  background: var(--info);
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  color: var(--info-foreground);
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+}
+.preview-banner label {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.preview-banner select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem;
+}
+.preview-shell .lk-room-container {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  background: var(--background);
+}
+@media (max-width: 640px) {
+  .preview-banner {
+    padding: 0.5rem 0.75rem;
+  }
+  .preview-banner > span {
+    order: 3;
+    width: 100%;
+    font-size: 0.75rem;
+  }
+}
+
+.semantic-gallery {
+  padding: 1.5rem;
+  max-width: 75rem;
+  margin: auto;
+}
+.semantic-gallery h1 {
+  font-size: 1.75rem;
+}
+.semantic-gallery h2 {
+  font-size: 1.125rem;
+}
+.semantic-gallery section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.semantic-gallery-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+.semantic-gallery p {
+  padding: 0.5rem;
+}
+.preview-banner label {
+  min-width: 0;
+  max-width: 100%;
+}
+.preview-banner select {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+}

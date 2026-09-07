@@ -5,10 +5,10 @@ import { Icon } from '@/primitives'
 type RowPosition = 'first' | 'middle' | 'last' | 'single'
 
 const BORDER_RADIUS_MAP: Record<RowPosition, string> = {
-  first: '4px 4px 0 0',
+  first: 'var(--radius-surface) var(--radius-surface) 0 0',
   middle: '0',
-  last: '0 0 4px 4px',
-  single: '4px',
+  last: '0 0 var(--radius-surface) var(--radius-surface)',
+  single: 'var(--radius-surface)',
 } as const
 
 interface RowWrapperProps {
@@ -29,7 +29,7 @@ export const RowWrapper = ({
       }}
       className={css({
         width: '100%',
-        background: 'gray.100',
+        background: 'muted',
         paddingBlock: '0.5rem',
         paddingInline: '0',
         display: 'flex',

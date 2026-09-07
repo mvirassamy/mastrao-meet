@@ -27,6 +27,7 @@ export const AdminToggle = ({
       })}
     >
       <ToggleButton
+        shape="circle"
         square
         variant={variant}
         aria-label={t(tooltipLabel)}

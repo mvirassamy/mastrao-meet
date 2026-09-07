@@ -26,13 +26,13 @@ const BetaBadge = () => (
       display: 'block',
       letterSpacing: '-0.02rem',
       padding: '0 0.25rem',
-      backgroundColor: 'primary.100',
-      color: '#0063CB',
+      backgroundColor: 'secondary',
+      color: 'info-foreground',
       fontSize: '14px',
       fontWeight: 500,
       margin: '0 0.3125rem',
       lineHeight: '1rem',
-      borderRadius: '4px',
+      borderRadius: 'surface',
       width: 'fit-content',
       height: 'fit-content',
     })}
@@ -154,8 +154,8 @@ const RecordingDownload = () => {
             </LinkButton>
             <div
               className={css({
-                backgroundColor: 'greyscale.50',
-                borderRadius: '5px',
+                backgroundColor: 'muted',
+                borderRadius: 'surface',
                 paddingY: '1rem',
                 paddingX: '1rem',
                 maxWidth: '80%',

@@ -53,7 +53,7 @@ export const Spinner = ({
               strokeDashoffset={0}
               strokeLinecap="round"
               className={css({
-                stroke: variant == 'light' ? 'primary.100' : 'transparent',
+                stroke: variant == 'light' ? 'secondary' : 'transparent',
               })}
             />
             <circle
@@ -70,7 +70,8 @@ export const Spinner = ({
               className={cx(
                 rotatingArcClassName,
                 css({
-                  stroke: variant == 'light' ? 'primary.800' : 'white',
+                  stroke:
+                    variant == 'light' ? 'primary' : 'media-overlay-foreground',
                 })
               )}
             />
@@ -79,7 +80,7 @@ export const Spinner = ({
             aria-hidden="true"
             className={css({
               display: 'none',
-              color: 'black',
+              color: 'foreground',
               '@media (prefers-reduced-motion: reduce)': {
                 display: 'inline-flex',
               },
@@ -90,7 +91,10 @@ export const Spinner = ({
               style={{
                 display: 'block',
                 transform: 'translateY(1px)',
-                color: variant == 'light' ? 'primary.800' : 'white',
+                color:
+                  variant == 'light'
+                    ? 'var(--primary)'
+                    : 'var(--media-overlay-foreground)',
               }}
             />
           </span>

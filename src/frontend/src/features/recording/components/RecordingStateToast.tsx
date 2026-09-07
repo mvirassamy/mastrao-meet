@@ -98,11 +98,11 @@ export const RecordingStateToast = () => {
           left: '10px',
           paddingY: '0.25rem',
           paddingX: '0.75rem 0.75rem',
-          backgroundColor: 'danger.700',
-          borderColor: 'white',
+          backgroundColor: 'recording',
+          borderColor: 'border',
           border: '1px solid',
-          color: 'white',
-          borderRadius: '4px',
+          color: 'recording-foreground',
+          borderRadius: 'surface',
           gap: '0.5rem',
         })}
       >

@@ -89,7 +89,7 @@ export function FloatingReaction({
         <Text
           variant="sm"
           className={css({
-            backgroundColor: isLocal ? 'primary.100' : 'primaryDark.100',
+            backgroundColor: isLocal ? 'secondary' : 'card',
             color: isLocal ? 'black' : 'white',
             fontWeight: 500,
             textAlign: 'center',
@@ -97,7 +97,7 @@ export function FloatingReaction({
             paddingX: '0.5rem',
             paddingBottom: '0.3125rem',
             paddingTop: '0.15rem',
-            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 2px 4px var(--shadow-color)',
             lineHeight: '16px',
             maxWidth: '12rem',
             display: 'inline-block',

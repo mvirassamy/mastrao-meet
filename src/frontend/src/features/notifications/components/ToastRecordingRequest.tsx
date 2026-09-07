@@ -76,7 +76,7 @@ export function ToastRecordingRequest({
               size="sm"
               variant="text"
               className={css({
-                color: 'primary.300',
+                color: 'primary',
               })}
               onPress={options.openMenu}
             >

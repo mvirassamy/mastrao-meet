@@ -11,7 +11,7 @@ const StyledSwitch = styled(RACSwitch, {
     display: 'flex',
     alignItems: 'center',
     gap: '0.571rem',
-    color: 'black',
+    color: 'foreground',
     cursor: 'pointer',
     forcedColorAdjust: 'none',
     '& .indicator': {
@@ -19,7 +19,7 @@ const StyledSwitch = styled(RACSwitch, {
       width: '2.6rem',
       height: '1.563rem',
       border: '0.125rem solid',
-      borderColor: 'primary.800',
+      borderColor: 'primary',
       borderRadius: '1.143rem',
       transition: 'all 200ms, outline 200ms',
       _before: {
@@ -30,7 +30,7 @@ const StyledSwitch = styled(RACSwitch, {
         width: '1.063rem',
         height: '1.063rem',
         borderRadius: '1.063rem',
-        background: 'primary.800',
+        background: 'primary',
         transition: 'transform 200ms, background-color 200ms',
         transitionDelay: '0ms',
       },
@@ -52,21 +52,21 @@ const StyledSwitch = styled(RACSwitch, {
     },
     '& .checkmark': {
       right: 0,
-      color: 'primary.800',
+      color: 'primary',
       opacity: 0,
     },
     '& .cross': {
       left: 0,
-      color: 'white',
+      color: 'primary-foreground',
       opacity: 1,
       transition: 'opacity 200ms',
       transitionDelay: '0ms',
     },
     '&[data-selected] .indicator': {
-      borderColor: 'primary.800',
-      background: 'primary.800',
+      borderColor: 'primary',
+      background: 'primary',
       _before: {
-        background: 'white',
+        background: 'card',
         transform: 'translateX(100%)',
       },
     },
@@ -84,14 +84,14 @@ const StyledSwitch = styled(RACSwitch, {
       cursor: 'not-allowed',
     },
     '&[data-disabled] .indicator': {
-      borderColor: 'primary.200',
+      borderColor: 'accent',
       background: 'transparent',
       _before: {
-        background: 'primary.200',
+        background: 'accent',
       },
     },
     '&[data-disabled] .cross': {
-      color: 'primary.500',
+      color: 'primary',
     },
     '&[data-focus-visible] .indicator': {
       outline: '2px solid!',

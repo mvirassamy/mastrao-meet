@@ -138,13 +138,14 @@ export const RecordingConsent = ({
       )}
       <HStack gap="0.75rem" flexWrap="wrap" justifyContent="center">
         <Button
-          variant="secondary"
+          variant="outline"
           isDisabled={pending !== null}
           onPress={() => decide('refused')}
         >
           {t(transcriptionOnly ? 'transcription.refuse' : 'refuse')}
         </Button>
         <Button
+          variant="outline"
           isDisabled={pending !== null}
           loading={pending === 'accepted'}
           onPress={() => decide('accepted')}

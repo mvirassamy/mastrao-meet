@@ -61,16 +61,16 @@ const StyledTab = styled(RACTab, {
     },
     highlight: {
       true: {
-        borderRadius: 4,
+        borderRadius: 'control',
         backgroundColor: 'colorPalette.active',
         transition: 'background 200ms, color 200ms',
         '&[data-hovered]': {
-          backgroundColor: 'gray.100',
+          backgroundColor: 'muted',
           color: 'box.text',
         },
         '&[data-selected]': {
-          backgroundColor: 'primary.800',
-          color: 'white',
+          backgroundColor: 'primary',
+          color: 'primary-foreground',
         },
       },
     },
@@ -117,11 +117,11 @@ const StyledTabList = styled(RACTabList, {
       true: {
         '&[data-orientation=horizontal]': {
           borderBottom: '1px solid',
-          borderColor: 'gray.300',
+          borderColor: 'border',
         },
         '&[data-orientation=vertical]': {
           borderInlineEnd: '1px solid',
-          borderColor: 'gray.300',
+          borderColor: 'border',
         },
       },
     },
@@ -152,7 +152,7 @@ export const TabList = ({ children, border, ...props }: TabListProps) => {
 const StyledTabPanel = styled(RACTabPanel, {
   base: {
     marginTop: '4px',
-    borderRadius: '4px',
+    borderRadius: 'control',
     '&[data-focus-visible]': {
       outline: 'none!',
     },

@@ -81,7 +81,7 @@ export const ParticipantTileFocus = ({
     <FadeOverlay hasKeyboardFocus={hasKeyboardFocus}>
       <div
         className={css({
-          backgroundColor: 'primaryDark.50',
+          backgroundColor: 'background',
           zIndex: 1,
           borderRadius: '0.25rem',
           display: 'flex',

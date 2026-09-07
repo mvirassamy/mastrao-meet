@@ -434,7 +434,7 @@ export const Conference = ({
           }
           connectOptions={connectOptions}
           className={css({
-            backgroundColor: 'primaryDark.50 !important',
+            backgroundColor: 'background !important',
           })}
           onError={(e) => {
             reportError('livekit_room_error', e, {
@@ -558,9 +558,9 @@ export const Conference = ({
                 transform: 'translateX(-50%)',
                 zIndex: 1002,
                 padding: '0.75rem 1rem',
-                borderRadius: 'md',
-                backgroundColor: 'danger.100',
-                color: 'danger.800',
+                borderRadius: 'surface',
+                backgroundColor: 'recording',
+                color: 'recording-foreground',
               })}
             >
               {t(
@@ -570,7 +570,7 @@ export const Conference = ({
               )}
               {activationExhausted && (
                 <Button
-                  variant="secondary"
+                  variant="outline"
                   onPress={() => {
                     activationAttempts.current = 0
                     setActivationFailed(false)

@@ -107,7 +107,7 @@ export const VideoDeviceControl = ({
     <div
       className={css({
         display: 'flex',
-        gap: '1px',
+        gap: '6px',
       })}
     >
       <ToggleDevice
@@ -128,13 +128,9 @@ export const VideoDeviceControl = ({
           <Button
             tooltip={selectLabel}
             aria-label={selectLabel}
-            groupPosition="right"
+            shape="circle"
             square
-            variant={
-              !canPublishTrack || !trackProps.enabled || cannotUseDevice
-                ? 'error2'
-                : 'primaryDark'
-            }
+            variant={cannotUseDevice ? 'error2' : 'primaryDark'}
           >
             <RiArrowUpSLine />
           </Button>

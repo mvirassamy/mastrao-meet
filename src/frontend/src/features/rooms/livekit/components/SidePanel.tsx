@@ -55,7 +55,7 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
         borderColor: 'box.border',
         backgroundColor: 'box.bg',
         color: 'box.text',
-        borderRadius: 8,
+        borderRadius: 'surface',
         flex: 1,
         position: 'absolute',
         overflow: 'hidden',

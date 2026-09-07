@@ -132,9 +132,9 @@ export function VideoConference({
             transform: 'translateX(-50%)',
             zIndex: 1001,
             padding: '0.75rem 1rem',
-            borderRadius: 'md',
-            backgroundColor: 'primaryDark.100',
-            color: 'white',
+            borderRadius: 'surface',
+            backgroundColor: 'info',
+            color: 'info-foreground',
           })}
         >
           {t('status')}
@@ -156,9 +156,9 @@ export function VideoConference({
               alignItems: 'center',
               gap: '0.75rem',
               padding: '0.5rem 0.75rem',
-              borderRadius: 'md',
-              backgroundColor: 'primaryDark.100',
-              color: 'white',
+              borderRadius: 'surface',
+              backgroundColor: 'recording',
+              color: 'recording-foreground',
             })}
           >
             {recording.recording_state === 'stopping'

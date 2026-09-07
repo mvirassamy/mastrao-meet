@@ -48,16 +48,16 @@
       "tooltip": "Accéder au formulaire"
     },
     "slide1": {
-      "title": "Passez à la simplicité. Essayez-nous dès maintenant !",
-      "body": "Découvrez une solution intuitive et accessible, conçue pour tous les agents publics et leurs partenaires, et bien plus encore."
+      "title": "Vos échanges, hébergés en France.",
+      "body": "Retrouvez-vous dans un espace sécurisé, avec une infrastructure hébergée en France."
     },
     "slide2": {
-      "title": "Organisez des appels de groupe sans limite",
-      "body": "Réunions sans limite de temps, avec une communication fluide et de haute qualité, quel que soit le nombre."
+      "title": "Un lien suffit pour se retrouver.",
+      "body": "Rejoignez votre rendez-vous depuis votre navigateur, sans créer de compte."
     },
     "slide3": {
-      "title": "Transformez vos réunions avec l'IA",
-      "body": "Obtenez des transcriptions précises et actionnables, pour booster votre productivité. Fonctionnalité en beta, essayez-la maintenant !"
+      "title": "Retrouvez l’essentiel grâce à l’IA.",
+      "body": "Avec l’accord des participants, retrouvez l’essentiel de vos échanges dans une transcription et un compte rendu faciles à consulter."
     }
   }
 }

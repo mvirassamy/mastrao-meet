@@ -23,8 +23,8 @@ const StyledOverlayArrow = styled(OverlayArrow, {
     variant: {
       light: {},
       dark: {
-        fill: 'primaryDark.50',
-        stroke: 'primaryDark.50',
+        fill: 'popover',
+        stroke: 'border',
       },
     },
   },

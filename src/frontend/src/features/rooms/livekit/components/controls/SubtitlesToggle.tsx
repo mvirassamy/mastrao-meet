@@ -22,6 +22,7 @@ export const SubtitlesToggle = () => {
       })}
     >
       <ToggleButton
+        shape="circle"
         square
         variant="primaryDark"
         aria-label={t(tooltipLabel)}

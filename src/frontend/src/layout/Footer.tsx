@@ -14,7 +14,7 @@ const StyledLi = styled('li', {
           display: 'inline-block',
           marginX: '.75rem',
           verticalAlign: 'middle',
-          boxShadow: 'inset 0 0 0 1px #ddd',
+          boxShadow: 'inset 0 0 0 1px var(--border)',
           height: '1rem',
           width: '1px',
         },
@@ -58,7 +58,7 @@ const FirstRow = styled('div', {
 const SecondRow = styled('ul', {
   base: {
     display: 'flex',
-    borderTop: '1px solid rgb(217 217 217)',
+    borderTop: '1px solid var(--border)',
     paddingTop: '0.5rem',
     width: '100%',
     flexWrap: 'wrap',
@@ -69,8 +69,8 @@ const SecondRow = styled('ul', {
 const ThirdRow = styled('p', {
   base: {
     fontSize: '0.75rem',
-    color: 'rgb(77 77 77)',
-    fontFamily: 'Marianne',
+    color: 'muted-foreground',
+    fontFamily: 'sans',
     textWrap: 'wrap',
     lineHeight: '1rem',
     marginTop: { base: '1rem', xs: '0.5rem' },
@@ -108,7 +108,7 @@ const Marianne = () => {
           letterSpacing: '-.01em',
           textTransform: 'uppercase',
           fontWeight: '700',
-          fontFamily: 'Marianne',
+          fontFamily: 'sans',
           fontSize: '1.25rem',
           lineHeight: '1.75rem',
         })}
@@ -129,7 +129,7 @@ export const Footer = () => {
   return (
     <footer
       className={css({
-        borderTop: '2px solid rgb(0 0 145)',
+        borderTop: '2px solid var(--border)',
         paddingY: '2rem',
         marginTop: { base: '50px', sm: '100px' },
       })}
@@ -149,7 +149,7 @@ export const Footer = () => {
             <span
               className={css({
                 height: '80px',
-                backgroundColor: 'rgb(77 77 77)',
+                backgroundColor: 'muted-foreground',
                 width: '1px',
                 display: { base: 'none', sm: 'block' },
               })}
@@ -158,7 +158,7 @@ export const Footer = () => {
               className={css({
                 display: 'none',
                 fontWeight: '700',
-                fontFamily: 'Marianne',
+                fontFamily: 'sans',
                 sm: {
                   display: 'block',
                   fontSize: '1rem',

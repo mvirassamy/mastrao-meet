@@ -2,37 +2,37 @@
 */
 [data-lk-theme='visio-light'] {
   color-scheme: light;
-  --lk-bg: var(--colors-white);
-  --lk-room-bg: var(--colors-default-bg);
-  --lk-bg2: var(--colors-gray-100);
-  --lk-bg3: var(--colors-gray-200);
-  --lk-bg4: var(--colors-gray-300);
-  --lk-bg5: var(--colors-gray-400);
-  --lk-fg: var(--colors-text);
-  --lk-fg5: #52525b;
-  --lk-border-color: var(--colors-gray-400);
-  --lk-accent-fg: var(--colors-primary-text);
-  --lk-accent-bg: var(--colors-primary);
-  --lk-accent2: var(--colors-primary-hover);
-  --lk-accent3: var(--colors-primary-active);
-  --lk-accent4: var(--colors-primary-active);
-  --lk-danger-fg: var(--colors-danger-text);
-  --lk-danger: var(--colors-danger);
-  --lk-danger-hover-bg: var(--colors-danger-hover);
-  --lk-danger-active-bg: var(--colors-danger-active);
-  --lk-success-fg: var(--colors-success-text);
-  --lk-success: var(--colors-success);
-  --lk-control-fg: var(--colors-control-text);
-  --lk-control-bg: var(--colors-control);
-  --lk-control-hover-bg: var(--colors-control-hover);
-  --lk-control-toggled-on-bg: var(--colors-control-hover);
-  --lk-control-active-bg: var(--colors-control-active);
-  --lk-control-active-hover-bg: var(--colors-control-active);
-  --lk-connection-excellent: var(--colors-success);
-  --lk-connection-good: var(--colors-warning);
-  --lk-connection-poor: var(--colors-danger);
+  --lk-bg: var(--card);
+  --lk-room-bg: var(--background);
+  --lk-bg2: var(--muted);
+  --lk-bg3: var(--accent);
+  --lk-bg4: var(--border);
+  --lk-bg5: var(--input);
+  --lk-fg: var(--foreground);
+  --lk-fg5: var(--muted-foreground);
+  --lk-border-color: var(--border);
+  --lk-accent-fg: var(--primary-foreground);
+  --lk-accent-bg: var(--primary);
+  --lk-accent2: var(--primary-hover);
+  --lk-accent3: var(--primary-active);
+  --lk-accent4: var(--primary-active);
+  --lk-danger-fg: var(--destructive-foreground);
+  --lk-danger: var(--destructive);
+  --lk-danger-hover-bg: var(--destructive-hover);
+  --lk-danger-active-bg: var(--destructive-active);
+  --lk-success-fg: var(--success-foreground);
+  --lk-success: var(--success);
+  --lk-control-fg: var(--card-foreground);
+  --lk-control-bg: var(--card);
+  --lk-control-hover-bg: var(--accent);
+  --lk-control-toggled-on-bg: var(--selected);
+  --lk-control-active-bg: var(--selected);
+  --lk-control-active-hover-bg: var(--accent);
+  --lk-connection-excellent: var(--success-foreground);
+  --lk-connection-good: var(--warning-foreground);
+  --lk-connection-poor: var(--destructive);
   --lk-line-height: var(--line-heights-1\.5);
-  --lk-border-radius: var(--radii-8);
+  --lk-border-radius: var(--radius-surface);
   --lk-box-shadow: var(--shadows-sm);
   --lk-grid-gap: 1.5rem;
   --lk-control-bar-height: 69px;
@@ -40,14 +40,14 @@
 
   --lk-font-family: var(--fonts-sans);
   --lk-font-size: 1rem;
-  --lk-bg6: #6b7280;
+  --lk-bg6: var(--muted-foreground);
   --lk-control-border-width: 1px;
   --lk-control-border-color: var(--lk-bg5);
   --lk-control-border: var(--lk-control-border-color);
   --lk-control-hover-border: var(--lk-bg6);
 
-  --lk-controlbar-bg: var(--colors-gray-300);
-  --lk-participant-border: var(--colors-gray-400);
+  --lk-controlbar-bg: var(--card);
+  --lk-participant-border: var(--border);
 }
 
 [data-lk-theme] .lk-room-container {
@@ -96,7 +96,7 @@
 }
 
 [data-lk-theme] .lk-disconnect-button:not(:disabled):hover {
-  --lk-control-hover-bg: var(--lk-danger-hover-bg);
+  --lk-control-hover-bg: var(--accent);
 }
 
 [data-lk-theme] .lk-disconnect-button:not(:disabled):active {
@@ -111,7 +111,7 @@
 [data-lk-theme='visio-light']
   .lk-participant-tile
   .lk-focus-toggle-button:not(:hover) {
-  color: white;
+  color: var(--media-overlay-foreground);
 }
 
 .lk-chat-entry .lk-meta-data {
@@ -151,4 +151,10 @@
 .lk-participant-metadata > *:first-child .lk-participant-metadata-item {
   display: flex;
   align-items: center;
+}
+
+/* Media labels keep a contrast surface independent of the video content. */
+[data-lk-theme='visio-light'] .lk-participant-metadata-item {
+  background: var(--media-overlay);
+  color: var(--media-overlay-foreground);
 }

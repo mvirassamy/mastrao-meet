@@ -35,6 +35,23 @@ const Image = styled('img', {
     maxHeight: '362px',
     height: '100%',
     width: 'fit-content',
+    '@media (prefers-reduced-motion: reduce)': {
+      transition: 'none',
+      transform: 'none',
+    },
+  },
+  variants: {
+    visible: {
+      true: {
+        opacity: 1,
+        transform: 'none',
+        transition: 'opacity .35s ease-out, transform .35s ease-out',
+      },
+      false: {
+        opacity: 0,
+        transform: 'translateX(-24px)',
+      },
+    },
   },
 })
 
@@ -49,10 +66,10 @@ const Dot = styled('div', {
   variants: {
     selected: {
       true: {
-        backgroundColor: 'primary.800',
+        backgroundColor: 'primary',
       },
       false: {
-        backgroundColor: 'primary.300',
+        backgroundColor: 'card',
       },
     },
   },
@@ -123,17 +140,21 @@ const TextAnimation = styled('div', {
     alignItems: 'center',
     flexDirection: 'column',
     gap: '0.5rem',
+    '@media (prefers-reduced-motion: reduce)': {
+      transition: 'none',
+      transform: 'none',
+    },
   },
   variants: {
     visible: {
       true: {
         opacity: 1,
         transform: 'none',
-        transition: 'opacity ease-in .3s, transform ease-in .3s',
+        transition: 'opacity .35s ease-out, transform .35s ease-out',
       },
       false: {
         opacity: 0,
-        transform: 'translateX(-30%)',
+        transform: 'translateX(-24px)',
       },
     },
   },
@@ -151,7 +172,7 @@ const carouselNavButton = css({
     outlineOffset: '1px',
   },
   _disabled: {
-    color: 'greyscale.400',
+    color: 'muted-foreground',
     cursor: 'default',
     pointerEvents: 'none',
     _pressed: {
@@ -164,15 +185,15 @@ const carouselNavButton = css({
 const SLIDES: Slide[] = [
   {
     key: 'slide1',
-    src: '/assets/intro-slider/1.png',
+    src: '/assets/intro-slider/mastrao-france-Photoroom.png',
   },
   {
     key: 'slide2',
-    src: '/assets/intro-slider/2.png',
+    src: '/assets/intro-slider/mastrao-lien-sans-coeur-Photoroom.png',
   },
   {
     key: 'slide3',
-    src: '/assets/intro-slider/3.png',
+    src: '/assets/intro-slider/mastrao-essentiel-ia-Photoroom.png',
   },
 ]
 
@@ -246,7 +267,12 @@ export const IntroSlider = () => {
               visible={index === slideIndex}
               key={index}
             >
-              <Image src={slide.src} alt="" role="presentation" />
+              <Image
+                src={slide.src}
+                alt=""
+                role="presentation"
+                visible={index === slideIndex}
+              />
               <TextAnimation visible={index == slideIndex}>
                 <Heading>{t(`${slide.key}.title`)}</Heading>
                 <Body>{t(`${slide.key}.body`)}</Body>

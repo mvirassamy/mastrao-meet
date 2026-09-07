@@ -125,7 +125,7 @@ export const WaitingParticipantNotification = () => {
                 size="sm"
                 variant="text"
                 className={css({
-                  color: 'primary.300',
+                  color: 'primary',
                 })}
                 onPress={async () => {
                   await handleParticipantEntry(waitingParticipants[0], true)
@@ -138,7 +138,7 @@ export const WaitingParticipantNotification = () => {
                 size="sm"
                 variant="text"
                 className={css({
-                  color: 'primary.300',
+                  color: 'primary',
                 })}
                 onPress={() => {
                   toggleParticipants()
@@ -175,12 +175,12 @@ export const WaitingParticipantNotification = () => {
                     width: '32px',
                     height: '32px',
                     fontSize: '1rem',
-                    color: 'white',
+                    color: 'card-foreground',
                     display: 'flex',
                     borderRadius: '50%',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    background: 'primaryDark.100',
+                    background: 'card',
                     border: '2px solid white',
                     marginLeft: '-10px',
                   })}
@@ -208,7 +208,7 @@ export const WaitingParticipantNotification = () => {
                 size="sm"
                 variant="text"
                 className={css({
-                  color: 'primary.300',
+                  color: 'primary',
                 })}
                 onPress={() => {
                   toggleParticipants()

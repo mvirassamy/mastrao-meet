@@ -65,11 +65,11 @@ const ArrowButton = styled('button', {
     borderRadius: '4px',
     border: 'none',
     cursor: 'pointer',
-    color: 'white',
-    backgroundColor: 'primaryDark.100',
+    color: 'card-foreground',
+    backgroundColor: 'card',
     transition: 'opacity 0.15s, background-color 0.15s',
     '&:hover:not(:disabled)': {
-      backgroundColor: 'primaryDark.75',
+      backgroundColor: 'muted',
     },
     '&:focus-visible': {
       outline: '2px solid',
@@ -86,7 +86,7 @@ const ArrowButton = styled('button', {
 const Counter = styled('span', {
   base: {
     fontSize: '0.75rem',
-    color: 'white',
+    color: 'card-foreground',
     opacity: 0.8,
     whiteSpace: 'nowrap',
     padding: '0 0.25rem',

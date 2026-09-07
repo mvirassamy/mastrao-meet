@@ -9,6 +9,7 @@ export const OptionsButton = () => {
   return (
     <Menu variant="dark">
       <Button
+        shape="circle"
         id="room-options-trigger"
         square
         variant="primaryDark"

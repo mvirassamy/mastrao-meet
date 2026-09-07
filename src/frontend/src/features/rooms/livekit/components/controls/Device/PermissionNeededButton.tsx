@@ -46,7 +46,7 @@ export const PermissionNeededButton = ({
             position: 'absolute',
             top: '4px',
             left: '4px',
-            backgroundColor: 'black',
+            backgroundColor: 'warning',
             borderRadius: '100%',
           })}
         />

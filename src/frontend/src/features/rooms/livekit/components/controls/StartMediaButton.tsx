@@ -4,6 +4,8 @@ import {
   useStartVideo,
 } from '@livekit/components-react'
 import React from 'react'
+import { RiPlayCircleLine } from '@remixicon/react'
+import { buttonRecipe } from '@/primitives/buttonRecipe'
 
 /** @public */
 export interface AllowMediaPlaybackProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -41,11 +43,23 @@ export const StartMediaButton: (
     props: audioProps,
   })
   const { style, ...restProps } = mergedProps
-  style.display = canPlayAudio && canPlayVideo ? 'none' : 'block'
+  style.display = canPlayAudio && canPlayVideo ? 'none' : 'flex'
 
   return (
-    <button ref={ref} style={style} {...restProps}>
-      {label ?? `Start ${!canPlayAudio ? 'Audio' : 'Video'}`}
+    <button
+      ref={ref}
+      style={style}
+      {...restProps}
+      className={[
+        buttonRecipe({ shape: 'circle', variant: 'outline' }),
+        restProps.className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      aria-label={label ?? `Start ${!canPlayAudio ? 'Audio' : 'Video'}`}
+      title={label ?? `Start ${!canPlayAudio ? 'Audio' : 'Video'}`}
+    >
+      <RiPlayCircleLine aria-hidden="true" />
     </button>
   )
 })

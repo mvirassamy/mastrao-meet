@@ -66,7 +66,7 @@ const GridCell = styled('div', {
     minHeight: 0,
     borderRadius: '8px',
     overflow: 'hidden',
-    backgroundColor: 'primaryDark.100',
+    backgroundColor: 'media-surface',
     // Paint on own layer so FLIP transforms don't trigger layout thrash.
     willChange: 'transform',
     '& .lk-participant-tile': {

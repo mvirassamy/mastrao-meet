@@ -33,7 +33,7 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
         gap={0}
       >
         <RiHand
-          color="white"
+          color="currentColor"
           style={{
             marginRight: '1rem',
             animationDuration: '300ms',
@@ -51,7 +51,7 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
             size="sm"
             variant="text"
             className={css({
-              color: 'primary.300',
+              color: 'primary',
             })}
             onPress={(e) => {
               toggleParticipants()
@@ -62,7 +62,7 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
           </Button>
         )}
         <Button square size="sm" invisible {...closeButtonProps}>
-          <RiCloseLine size={18} color="white" />
+          <RiCloseLine size={18} color="currentColor" />
         </Button>
       </HStack>
     </StyledToastContainer>

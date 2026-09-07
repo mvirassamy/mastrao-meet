@@ -48,10 +48,10 @@ export const TooltipWrapper = ({
  */
 const StyledTooltip = styled(RACTooltip, {
   base: {
-    boxShadow: '0 var(--sizes-tooltip-spacing) 20px rgba(0 0 0 / 0.1)',
+    boxShadow: '0 var(--sizes-tooltip-spacing) 20px var(--shadow-color)',
     borderRadius: '4px',
-    backgroundColor: 'primaryDark.100',
-    color: 'gray.100',
+    backgroundColor: 'popover',
+    color: 'popover-foreground',
     forcedColorAdjust: 'none',
     outline: 'none',
     padding: '2px var(--sizes-tooltip-spacing)',
@@ -77,7 +77,7 @@ const StyledTooltip = styled(RACTooltip, {
     },
     '& .react-aria-OverlayArrow svg': {
       display: 'block',
-      fill: 'var(--highlight-background)',
+      fill: 'popover',
     },
     '&[data-entering]': { animation: 'slide 200ms' },
     '&[data-exiting]': { animation: 'slide 200ms reverse ease-in' },
@@ -88,7 +88,7 @@ const StyledOverlayArrow = styled(OverlayArrow, {
   base: {
     '& svg': {
       display: 'block',
-      fill: 'gray.800',
+      fill: 'popover',
     },
     '&[data-placement=bottom] svg': {
       transform: 'rotate(180deg)',

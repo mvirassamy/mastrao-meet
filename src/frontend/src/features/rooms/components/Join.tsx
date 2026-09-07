@@ -76,7 +76,7 @@ const styles = {
     height: '5rem',
     width: '100%',
     backgroundImage:
-      'linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0.1) 80%, rgba(0, 0, 0, 0) 100%)',
+      'linear-gradient(to bottom, color-mix(in srgb, var(--media-overlay) 66%, transparent) 0%, color-mix(in srgb, var(--media-overlay) 33%, transparent) 40%, color-mix(in srgb, var(--media-overlay) 11%, transparent) 80%, transparent 100%)',
     zIndex: 1,
   }),
   gradientBottom: css({
@@ -85,16 +85,17 @@ const styles = {
     height: '5rem',
     width: '100%',
     backgroundImage:
-      'linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 35%, rgba(0, 0, 0, 0.1) 75%, rgba(0, 0, 0, 0) 100%)',
+      'linear-gradient(to top, color-mix(in srgb, var(--media-overlay) 66%, transparent) 0%, color-mix(in srgb, var(--media-overlay) 33%, transparent) 35%, color-mix(in srgb, var(--media-overlay) 11%, transparent) 75%, transparent 100%)',
     zIndex: 1,
   }),
   previewAspect: css({
     position: 'relative',
     width: '100%',
     aspectRatio: '16 / 9',
+    minHeight: { base: '280px', sm: '0' },
   }),
   previewSurface: css({
-    backgroundColor: 'black',
+    backgroundColor: 'media-surface',
     position: 'absolute',
     boxSizing: 'border-box',
     top: 0,
@@ -134,7 +135,7 @@ const styles = {
     justifyContent: 'center',
     textAlign: 'center',
     alignItems: 'center',
-    padding: '0.24rem',
+    padding: { base: '1rem 0.5rem 5rem', sm: '0.24rem' },
     boxSizing: 'border-box',
     gap: '1rem',
   }),
@@ -142,7 +143,7 @@ const styles = {
     fontWeight: '400',
     fontSize: { base: '1rem', sm: '1.25rem', lg: '1.5rem' },
     textWrap: 'balance',
-    color: 'white',
+    color: 'media-foreground',
   }),
   togglesOverlay: css({
     position: 'absolute',

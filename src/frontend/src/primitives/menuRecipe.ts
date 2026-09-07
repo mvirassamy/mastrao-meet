@@ -9,7 +9,7 @@ export const menuRecipe = sva({
       paddingX: 0.5,
       textAlign: 'left',
       width: 'full',
-      borderRadius: 4,
+      borderRadius: 'control',
       cursor: 'pointer',
       color: 'box.text',
       border: '1px solid transparent',
@@ -23,13 +23,13 @@ export const menuRecipe = sva({
         },
       },
       '&[data-focused]': {
-        color: 'primary.text',
-        backgroundColor: 'primaryDark.100',
+        color: 'accent-foreground',
+        backgroundColor: 'accent',
         outline: 'none!',
       },
       '&[data-hovered]': {
-        color: 'primary.text',
-        backgroundColor: 'primaryDark.100',
+        color: 'accent-foreground',
+        backgroundColor: 'accent',
         outline: 'none!',
       },
     },
@@ -39,16 +39,16 @@ export const menuRecipe = sva({
       light: {
         item: {
           '&[data-focused]': {
-            backgroundColor: 'primary.800',
+            backgroundColor: 'accent',
           },
           '&[data-hovered]': {
-            backgroundColor: 'primary.800',
+            backgroundColor: 'accent',
           },
         },
       },
       dark: {
         item: {
-          color: 'white',
+          color: 'popover-foreground',
         },
       },
     },

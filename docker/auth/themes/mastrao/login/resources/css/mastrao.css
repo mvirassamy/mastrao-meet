@@ -1,0 +1,106 @@
+:root {
+  --font-ui: Arial, Helvetica, sans-serif;
+  --primary: #2d55ef;
+  --primary-hover: #2346cf;
+  --primary-foreground: #ffffff;
+  --radius-control: 10px;
+  --login-background: #f8faff;
+  --login-foreground: #14213a;
+}
+
+.login-pf body {
+  font-family: var(--font-ui);
+  background-color: var(--login-background);
+  background-image: url("../img/contours.svg");
+  background-size: 100% 100%;
+}
+
+#kc-header {
+  color: var(--login-foreground);
+}
+
+#kc-header-wrapper {
+  text-transform: none;
+  letter-spacing: -0.75px;
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--login-foreground);
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  display: inline-block;
+  width: 36px;
+  height: 24px;
+  margin-right: 10px;
+  vertical-align: -2px;
+  background: url("../img/mastrao-logo-icon.png") -13px -16px / 60px 60px no-repeat;
+  mix-blend-mode: multiply;
+}
+
+.login-pf h1,
+.login-pf input,
+.login-pf button {
+  font-family: var(--font-ui);
+}
+
+#kc-login {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 0;
+  border-radius: var(--radius-control);
+  min-height: 42px;
+  box-shadow: none;
+}
+
+#kc-login:hover,
+#kc-login:active {
+  background: var(--primary-hover);
+}
+
+#kc-login:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.login-pf .card-pf {
+  border-top-color: var(--primary);
+}
+
+@media (max-width: 767px) {
+  #kc-header-wrapper {
+    padding-top: 52px;
+  }
+
+  #kc-info {
+    margin-inline: 0;
+  }
+}
+
+.mastrao-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #7a8ba3;
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  color: var(--login-foreground);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.login-pf .mastrao-back:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  text-decoration: none;
+}
+
+.mastrao-back:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}

@@ -93,7 +93,7 @@ export const FullScreenShareWarning = ({
             position: 'absolute',
             height: '100%',
             width: '100%',
-            backgroundColor: 'rgba(22, 22, 34, 0.9)',
+            backgroundColor: 'media-overlay',
             padding: '2rem',
           })}
         >
@@ -111,7 +111,7 @@ export const FullScreenShareWarning = ({
             <Text
               role="alert"
               style={{
-                color: 'white',
+                color: 'media-overlay-foreground',
                 flexBasis: '55%',
                 fontWeight: '500',
               }}

@@ -13,7 +13,9 @@ const controlBarRegion = cva({
     mobile: {
       true: {
         justifyContent: 'center',
-        width: '330px',
+        width: '100%',
+        gap: '6px',
+        '--call-control-size': '40px',
       },
     },
   },

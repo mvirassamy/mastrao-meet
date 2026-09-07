@@ -8,8 +8,8 @@ type ShortcutBadgeProps = {
 }
 
 const badgeStyle = css({
-  fontFamily: 'monospace',
-  backgroundColor: 'rgba(255,255,255,0.12)',
+  fontFamily: 'sans',
+  backgroundColor: 'muted',
   paddingInline: '0.4rem',
   paddingBlock: '0.2rem',
   borderRadius: '6px',

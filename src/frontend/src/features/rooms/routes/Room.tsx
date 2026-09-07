@@ -37,7 +37,9 @@ const Room = () => {
   const { roomId } = useParams()
   const [location, setLocation] = useLocation()
   const isMastraoRoom = roomId ? isMastraoRoomId(roomId) : false
-  const initialRoomData = isMastraoRoom ? undefined : history.state?.initialRoomData
+  const initialRoomData = isMastraoRoom
+    ? undefined
+    : history.state?.initialRoomData
   const mode =
     isLoggedIn && !isMastraoRoom && history.state?.create ? 'create' : 'join'
   const skipJoinScreen = isLoggedIn && !isMastraoRoom && mode === 'create'

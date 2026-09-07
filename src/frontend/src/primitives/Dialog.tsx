@@ -23,7 +23,7 @@ const StyledModalOverlay = styled(ModalOverlay, {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'overlay',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -131,6 +131,7 @@ export const Dialog = ({
                     ref={innerRef}
                     className={css({
                       padding: '1.5rem',
+                      borderRadius: 'dialog',
                     })}
                   >
                     {!!title && (

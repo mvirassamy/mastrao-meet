@@ -11,8 +11,9 @@ export const LeaveButton = () => {
   const connectionState = useConnectionState(room)
   return (
     <Button
+      shape="circle"
       isDisabled={connectionState === ConnectionState.Disconnected}
-      variant={'danger'}
+      variant="outline"
       tooltip={t('leave')}
       aria-label={t('leave')}
       onPress={() => {

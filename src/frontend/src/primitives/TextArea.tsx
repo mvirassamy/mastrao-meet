@@ -12,14 +12,14 @@ export const TextArea = styled(RACTextArea, {
     border: '1px solid',
     borderColor: 'control.border',
     color: 'control.text',
-    borderRadius: 4,
+    borderRadius: 'control',
     transition: 'all 200ms',
   },
   variants: {
     placeholderStyle: {
       strong: {
         _placeholder: {
-          color: 'black',
+          color: 'foreground',
         },
       },
     },

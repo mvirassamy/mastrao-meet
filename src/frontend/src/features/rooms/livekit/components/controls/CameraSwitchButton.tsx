@@ -113,6 +113,7 @@ export const CameraSwitchButton = (props: Partial<ButtonProps>) => {
   }
   return (
     <Button
+      shape="circle"
       onPress={(e) => {
         toggle()
         props.onPress?.(e)

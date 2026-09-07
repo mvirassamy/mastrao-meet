@@ -3,6 +3,7 @@ import * as React from 'react'
 
 import { MobileControlBar } from './MobileControlBar'
 import { DesktopControlBar } from './DesktopControlBar'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useIsMobile } from '@/utils/useIsMobile'
 import { ReactionsToolbar } from '@/features/reactions/components/toolbar/ReactionsToolbar'
 import { css } from '@/styled-system/css'
@@ -24,7 +25,9 @@ export function ControlBar({
   canEnd,
   onMeetingEnded,
 }: ControlBarProps) {
-  const isMobile = useIsMobile()
+  const isMobileBrowser = useIsMobile()
+  const isNarrowScreen = useMediaQuery('(max-width: 799px)')
+  const isMobile = isMobileBrowser || isNarrowScreen
 
   return (
     <div

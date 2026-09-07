@@ -37,7 +37,8 @@ export function ResponsiveMenu({
     >
       <Modal
         className={css({
-          backgroundColor: 'primaryDark.200',
+          backgroundColor: 'popover',
+          color: 'popover-foreground',
           borderRadius: '20px',
           flexGrow: 1,
           padding: '1.5rem',

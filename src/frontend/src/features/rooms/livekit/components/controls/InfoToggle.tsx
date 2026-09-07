@@ -22,6 +22,7 @@ export const InfoToggle = ({
       })}
     >
       <ToggleButton
+        shape="circle"
         square
         variant="primaryTextDark"
         aria-label={t(tooltipLabel)}

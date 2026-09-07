@@ -8,22 +8,22 @@ import type { ConnectionTestStepStatus } from '../types'
 export const statusSquareClass: Record<ConnectionTestStepStatus, string> = {
   pending: css({
     backgroundColor: 'transparent',
-    border: '1px solid {colors.greyscale.300}',
+    border: '1px solid {colors.border}',
   }),
   running: css({
-    backgroundColor: 'primary.800',
+    backgroundColor: 'primary',
     animation: 'pulse_background 1.2s ease-in-out infinite',
   }),
-  success: css({ backgroundColor: 'success.600' }),
-  failed: css({ backgroundColor: 'danger.600' }),
-  skipped: css({ backgroundColor: 'greyscale.300' }),
+  success: css({ backgroundColor: 'success-foreground' }),
+  failed: css({ backgroundColor: 'destructive' }),
+  skipped: css({ backgroundColor: 'border' }),
 }
 
 /** Colour is carried by the square; the label stays near-black except on failure. */
 export const statusTextClass: Record<ConnectionTestStepStatus, string> = {
-  pending: css({ color: 'greyscale.500' }),
-  running: css({ color: 'greyscale.700' }),
-  success: css({ color: 'greyscale.1000' }),
-  failed: css({ color: 'danger.600', fontWeight: 'medium' }),
-  skipped: css({ color: 'greyscale.500' }),
+  pending: css({ color: 'muted-foreground' }),
+  running: css({ color: 'foreground' }),
+  success: css({ color: 'foreground' }),
+  failed: css({ color: 'destructive', fontWeight: 'medium' }),
+  skipped: css({ color: 'muted-foreground' }),
 }

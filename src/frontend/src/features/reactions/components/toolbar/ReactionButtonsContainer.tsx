@@ -23,7 +23,7 @@ const StyledContainer = styled('div', {
     alignItems: 'center',
     gap: '0.2rem',
     borderRadius: '21px',
-    backgroundColor: 'primaryDark.100',
+    backgroundColor: 'card',
     maxWidth: '100%',
     opacity: 0,
     transform: 'translateY(3.25rem)',

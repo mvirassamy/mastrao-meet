@@ -70,13 +70,13 @@ const VisualCountDown = () => {
       className={css({
         height: '50px',
         width: '50px',
-        backgroundColor: 'blue.100',
+        backgroundColor: 'info',
         borderRadius: '25px',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         fontWeight: '500',
-        color: 'blue.800',
+        color: 'info-foreground',
         margin: 'auto',
       })}
       aria-hidden="true"
@@ -141,7 +141,7 @@ export const IsIdleDisconnectModal = () => {
                   navigateTo('feedback', { duplicateIdentity: false })
                 }}
                 size="sm"
-                variant="secondary"
+                variant="outline"
               >
                 {t('leaveButton')}
               </Button>
