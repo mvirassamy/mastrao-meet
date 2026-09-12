@@ -14,6 +14,11 @@ from livekit import api
 from core import models
 from core.mastrao_recording_failure import report_mastrao_recording_failure
 from core.mastrao_room_lifecycle import is_mastrao_room_closed
+from core.mastrao_rtc_observations import (
+    InvalidRtcObservation,
+    RtcObservationConflict,
+    record_verified_rtc_observation,
+)
 from core.recording.services.metadata_collector import (
     MetadataCollectorException,
     MetadataCollectorService,
@@ -75,6 +80,12 @@ class UnsupportedEventTypeError(LiveKitWebhookError):
     """Unsupported event type."""
 
     status_code = 422
+
+
+class ConflictingObservationError(LiveKitWebhookError):
+    """Do not replace an earlier authenticated event on ID collision."""
+
+    status_code = 409
 
 
 class ActionFailedError(LiveKitWebhookError):
@@ -174,6 +185,13 @@ class LiveKitEventsService:
             raise UnsupportedEventTypeError(
                 f"Unknown webhook type: {data.event}"
             ) from e
+
+        try:
+            record_verified_rtc_observation(data, request.body)
+        except InvalidRtcObservation as error:
+            raise InvalidPayloadError("Invalid RTC observation") from error
+        except RtcObservationConflict as error:
+            raise ConflictingObservationError("Conflicting RTC observation") from error
 
         # Handle according to received webhook type
         handler = self._webhook_handlers.get(webhook_type.value)

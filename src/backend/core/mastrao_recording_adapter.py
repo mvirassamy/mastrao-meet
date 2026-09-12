@@ -34,8 +34,13 @@ from core.recording.worker.factories import get_worker_service
 from core.recording.worker.mediator import WorkerServiceMediator
 
 MAX_BODY_BYTES = 32_768
+PROVIDER_REGISTRATION_GRACE_SECONDS = 30
 
 ACTIVE_EGRESS_STATES = {
+    livekit_api.EgressStatus.EGRESS_STARTING,
+    livekit_api.EgressStatus.EGRESS_ACTIVE,
+}
+STOPPABLE_EGRESS_STATES = {
     livekit_api.EgressStatus.EGRESS_STARTING,
     livekit_api.EgressStatus.EGRESS_ACTIVE,
 }
@@ -134,6 +139,33 @@ def _exact_provider_egress(recording):
     if len(matches) > 1:
         raise RecordingContractRefused(status=409)
     return matches[0] if matches else None
+
+
+def _provider_registration_started_at(recording_binding):
+    start_effect = (
+        models.MastraoRecordingEffect.objects.filter(
+            recording_binding=recording_binding,
+            operation=models.MastraoRecordingEffect.Operation.START,
+        )
+        .order_by("created_at")
+        .first()
+    )
+    if start_effect is None:
+        return recording_binding.created_at
+    return start_effect.applied_at or start_effect.created_at
+
+
+def _provider_registration_timed_out(recording_binding):
+    started_at = _provider_registration_started_at(recording_binding)
+    return timezone.now() - started_at >= timedelta(
+        seconds=PROVIDER_REGISTRATION_GRACE_SECONDS
+    )
+
+
+def fail_stale_starting_provider_egress(recording_binding, recording):
+    if not _provider_registration_timed_out(recording_binding):
+        return False
+    return report_mastrao_recording_failure(recording, None)
 
 
 @transaction.atomic
@@ -335,7 +367,10 @@ def _apply_stop(effect):
         provider_egress is not None and provider_egress.status in TERMINAL_EGRESS_STATES
     ):
         observation = "already_stopped"
-    elif provider_egress is not None and provider_egress.status in ACTIVE_EGRESS_STATES:
+    elif (
+        provider_egress is not None
+        and provider_egress.status in STOPPABLE_EGRESS_STATES
+    ):
         recording.status = models.RecordingStatusChoices.ACTIVE
         recording.save(update_fields=["status", "updated_at"])
     if recording.status == models.RecordingStatusChoices.ACTIVE and observation not in {
