@@ -70,3 +70,9 @@ ARG DOCKER_USER
 USER ${DOCKER_USER}
 
 CMD ["python", "multi_user_transcriber.py", "start"]
+
+
+# ---- Metadata collector image ----
+FROM production AS metadata-collector-production
+
+CMD ["python", "metadata_collector.py", "start"]
