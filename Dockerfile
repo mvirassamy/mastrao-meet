@@ -1,7 +1,7 @@
 # Django Meet
 
 # ---- base image to inherit from ----
-FROM python:3.13.5-alpine3.21 AS base
+FROM python:3.13.5-alpine3.21@sha256:763eee4b5cf4dfcfbf76a5a5f8177317ac531c635b855cdc5a95e17fe1e4a44d AS base
 
 # Upgrade pip to its latest release to speed up dependencies installation
 RUN python -m pip install --upgrade pip
@@ -23,7 +23,7 @@ ENV UV_LINK_MODE=copy
 ENV UV_PYTHON_DOWNLOADS=0
 
 # install uv
-COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.9@sha256:10902f58a1606787602f303954cea099626a4adb02acbac4c69920fe9d278f82 /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
   uv sync --locked --no-dev
 
 # ---- mails ----
-FROM node:22 AS mail-builder
+FROM node:22@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d AS mail-builder
 
 COPY ./src/mail /mail/app
 
@@ -122,7 +122,7 @@ USER root:root
 RUN apk add postgresql-client
 
 # Install development dependencies
-RUN --mount=from=ghcr.io/astral-sh/uv:0.10.9,source=/uv,target=/bin/uv \
+RUN --mount=from=ghcr.io/astral-sh/uv:0.10.9@sha256:10902f58a1606787602f303954cea099626a4adb02acbac4c69920fe9d278f82,source=/uv,target=/bin/uv \
   uv sync --all-extras --locked
 
 # Restore the un-privileged user running the application

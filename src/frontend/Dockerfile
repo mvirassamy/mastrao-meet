@@ -1,4 +1,4 @@
-FROM node:22-alpine AS frontend-deps
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS frontend-deps
 
 WORKDIR /home/frontend/
 RUN chown node:node /home/frontend
@@ -42,7 +42,7 @@ ENV VITE_APP_TITLE=${VITE_APP_TITLE}
 RUN npm run build
 
 # ---- Front-end image ----
-FROM nginxinc/nginx-unprivileged:1.30.3-alpine3.23 AS frontend-production
+FROM nginxinc/nginx-unprivileged:1.30.3-alpine3.23@sha256:b3f2436575bd5be7386518084d842dac414ab4962712afa31e99e0942a56e3b2 AS frontend-production
 
 USER root
 
