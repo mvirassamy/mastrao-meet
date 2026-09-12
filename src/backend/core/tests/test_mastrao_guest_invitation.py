@@ -31,6 +31,13 @@ from core.services.lobby import LobbyService
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def _allow_guest_test_host(settings):
+    """Allow the explicit origin exercised by this guest-admission test module."""
+
+    settings.ALLOWED_HOSTS = ["meet.test", "testserver"]
+
+
 def _room_binding(suffix="0123456789abcdef0123456789abcdef"):
     owner_ref = f"owner_{suffix}"
     owner = models.User(sub=mastrao_technical_owner_subject(owner_ref), is_device=True)
@@ -393,7 +400,10 @@ def test_guest_entry_persists_display_name_for_speaker_evidence(settings):
         expires_at=now + timedelta(hours=1),
     )
 
-    with mock.patch("core.services.lobby.remember_guest_compact_grant"):
+    with (
+        mock.patch("core.services.lobby.remember_guest_compact_grant"),
+        mock.patch.object(utils, "notify_participants", return_value=None),
+    ):
         participant, livekit = LobbyService()._request_guest_entry(
             binding.room,
             SimpleNamespace(),
@@ -430,7 +440,8 @@ def test_guest_admission_persists_waiting_lobby_name_for_speaker_evidence(settin
         expires_at=now + timedelta(hours=1),
     )
     lobby = LobbyService()
-    lobby.enter(binding.room.id, grant.guest_ref, "  Martine  ")
+    with mock.patch.object(utils, "notify_participants", return_value=None):
+        lobby.enter(binding.room.id, grant.guest_ref, "  Martine  ")
 
     lobby.project_guest_decision(binding.room.id, grant.guest_ref, True)
 

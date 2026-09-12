@@ -3,6 +3,7 @@
 # Test names carry the proof intent.
 # pylint: disable=missing-function-docstring
 
+import base64
 import hashlib
 import json
 import os
@@ -16,6 +17,8 @@ from django.utils import timezone
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core import models
 from core.factories import RoomFactory, UserFactory
@@ -31,6 +34,41 @@ from core.models import RoomAccessLevel
 from core.utils import generate_token
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def _recording_receipt_settings(settings):
+    """Keep speaker-evidence sidecars independent from other test modules."""
+
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = json.dumps(
+        {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "d": _urlsafe_b64(
+                private_key.private_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PrivateFormat.Raw,
+                    serialization.NoEncryption(),
+                )
+            ),
+            "x": _urlsafe_b64(
+                public_key.public_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PublicFormat.Raw,
+                )
+            ),
+        },
+        sort_keys=True,
+    )
+    settings.MASTRAO_RECORDING_RECEIPT_KEY_ID = "speaker-evidence-fixture"
+    settings.MASTRAO_RECORDING_RECEIPT_ISSUER = "meet-fixture"
+    settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE = "core-fixture"
+
+
+def _urlsafe_b64(value):
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
 def _active_recording_binding():
