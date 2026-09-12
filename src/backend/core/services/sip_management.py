@@ -138,9 +138,21 @@ class SIPManagement:
         lkapi = utils.create_livekit_client()
         try:
             for rule_id in rules_ids:
-                await lkapi.sip.delete_sip_dispatch_rule(
-                    delete=DeleteSIPDispatchRuleRequest(sip_dispatch_rule_id=rule_id)
-                )
+                try:
+                    await lkapi.sip.delete_sip_dispatch_rule(
+                        delete=DeleteSIPDispatchRuleRequest(
+                            sip_dispatch_rule_id=rule_id
+                        )
+                    )
+                except TwirpError as e:
+                    if e.code == TwirpErrorCode.NOT_FOUND:
+                        logger.info(
+                            "SIP dispatch rule %s for room %s was already deleted",
+                            rule_id,
+                            room_id,
+                        )
+                        continue
+                    raise
 
             return True
 

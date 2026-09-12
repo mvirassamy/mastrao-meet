@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest import mock
 from urllib.parse import urlencode
 
+from django.db import IntegrityError
 from django.db import transaction as django_transaction
 from django.test import Client
 from django.utils import timezone
@@ -116,8 +117,12 @@ def test_feature_off_does_not_call_core_or_change_native_projection(settings):
     post_core_json.assert_not_called()
 
 
-def test_feature_off_keeps_existing_recording_policy_fail_closed(settings):
+@pytest.mark.parametrize("native_preentry,existing", [(False, True), (True, False)])
+def test_feature_off_keeps_existing_recording_policy_fail_closed(
+    settings, native_preentry, existing
+):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
+    settings.MASTRAO_NATIVE_PREENTRY_ENABLED = native_preentry
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
         "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
     )
@@ -161,7 +166,7 @@ def test_feature_off_keeps_existing_recording_policy_fail_closed(settings):
         ) as post_core_json,
         mock.patch("core.mastrao_recording_session._sync_binding"),
     ):
-        bindings.return_value.exists.return_value = True
+        bindings.return_value.exists.return_value = existing
         projection = recording_session_status(mock.Mock(), room)
 
     post_core_json.assert_called_once()
@@ -306,7 +311,50 @@ def test_sync_binding_does_not_touch_an_unchanged_projection():
     binding.save.assert_not_called()
 
 
-def test_recorded_public_projection_exposes_only_safe_participant_kind():
+def test_sync_binding_recovers_from_concurrent_binding_creation():
+    retention_expires_at = 2_000_000_000
+    room_binding = SimpleNamespace(provider_binding_digest="b" * 64)
+    room = SimpleNamespace(mastrao_binding=room_binding)
+    status = {
+        "mode": "recorded",
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": "meeting_0123456789abcdef",
+        "room_ref": "room_0123456789abcdef",
+        "recording_ref": "recording_0123456789abcdef",
+        "policy_ref": "policy_0123456789abcdef",
+        "notice_version": "notice_0123456789abcdef",
+        "notice_digest": "a" * 64,
+        "purpose": "meeting_recording",
+        "scope": "room_composite_audio_video_screen",
+        "retention_expires_at": retention_expires_at,
+        "recording_state": "collecting",
+    }
+    binding = SimpleNamespace(recording_ref=status["recording_ref"])
+
+    with mock.patch(
+        "core.mastrao_recording_session.models.MastraoRecordingBinding.objects"
+    ) as bindings:
+        bindings.filter.side_effect = [
+            mock.Mock(first=mock.Mock(return_value=None)),
+            mock.Mock(first=mock.Mock(return_value=binding)),
+        ]
+        bindings.create.side_effect = IntegrityError
+
+        assert _sync_binding(room, status) is binding
+
+    bindings.create.assert_called_once()
+    bindings.filter.assert_any_call(room_binding=room_binding)
+    bindings.filter.assert_any_call(
+        room_binding=room_binding,
+        recording_ref=status["recording_ref"],
+    )
+
+
+@pytest.mark.parametrize("video_enabled", [False, True])
+def test_recorded_public_projection_exposes_only_safe_participant_kind(
+    settings, video_enabled
+):
+    settings.MASTRAO_MEETING_RECORDING_ENABLED = video_enabled
     projection = public_projection(
         {
             **_recorded("collecting"),
@@ -321,6 +369,7 @@ def test_recorded_public_projection_exposes_only_safe_participant_kind():
     )
 
     assert projection["participant_kind"] == "guest"
+    assert projection["activation_available"] is video_enabled
     assert "participant_ref" not in projection
     assert "participant_session_digest" not in projection
 
@@ -675,6 +724,108 @@ def test_stop_retry_from_applying_reissues_exact_active_egress(db):
     assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
 
 
+def test_stop_attempts_exact_egress_even_while_starting(db):
+    access, _ = _artifact_access()
+    binding = access.recording_binding
+    recording = binding.recording
+    recording.status = models.RecordingStatusChoices.ACTIVE
+    recording.worker_id = "EG_oju7PDAhx8k7"
+    recording.save(update_fields=["status", "worker_id", "updated_at"])
+    binding.state = models.MastraoRecordingBinding.State.STOPPING
+    binding.provider_recording_ref = recording.worker_id
+    binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
+    effect = {
+        "organization_external_id": binding.organization_external_id,
+        "meeting_ref": binding.meeting_ref,
+        "room_ref": binding.room_ref,
+        "recording_ref": binding.recording_ref,
+        "provider_binding_digest": binding.provider_binding_digest,
+        "provider_recording_ref": recording.worker_id,
+        "effect_key": "effect_stop_starting_01234",
+        "arguments_digest": "a" * 64,
+        "jti": "request_stop_starting_01234",
+    }
+    starting = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_STARTING)
+    with (
+        mock.patch(
+            "core.mastrao_recording_adapter._exact_provider_egress",
+            return_value=starting,
+        ),
+        mock.patch(
+            "core.mastrao_recording_adapter.report_mastrao_recording_failure"
+        ) as report_failure,
+        mock.patch("core.mastrao_recording_adapter.WorkerServiceMediator.stop") as stop,
+        mock.patch(
+            "core.mastrao_recording_adapter.sign_stop_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_stop(effect) == "receipt.payload.signature"
+    report_failure.assert_not_called()
+    stop.assert_called_once_with(recording)
+    local_effect = models.MastraoRecordingEffect.objects.get(
+        recording_binding=binding,
+        operation=models.MastraoRecordingEffect.Operation.STOP,
+    )
+    assert local_effect.state == models.MastraoRecordingEffect.State.APPLIED
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
+
+
+def test_stop_prefers_stopping_stale_starting_provider_egress(db):
+    access, _ = _artifact_access()
+    binding = access.recording_binding
+    recording = binding.recording
+    recording.status = models.RecordingStatusChoices.ACTIVE
+    recording.worker_id = "EG_oju7PDAhx8k7"
+    recording.save(update_fields=["status", "worker_id", "updated_at"])
+    binding.state = models.MastraoRecordingBinding.State.STOPPING
+    binding.provider_recording_ref = recording.worker_id
+    binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
+    start_effect = models.MastraoRecordingEffect.objects.create(
+        recording_binding=binding,
+        effect_key="effect_start_timeout_01234",
+        operation=models.MastraoRecordingEffect.Operation.START,
+        arguments_digest="b" * 64,
+        effect_jti="request_start_timeout_0123",
+        state=models.MastraoRecordingEffect.State.APPLIED,
+        applied_at=timezone.now() - timedelta(seconds=31),
+    )
+    models.MastraoRecordingEffect.objects.filter(pk=start_effect.pk).update(
+        created_at=timezone.now() - timedelta(seconds=31)
+    )
+    effect = {
+        "organization_external_id": binding.organization_external_id,
+        "meeting_ref": binding.meeting_ref,
+        "room_ref": binding.room_ref,
+        "recording_ref": binding.recording_ref,
+        "provider_binding_digest": binding.provider_binding_digest,
+        "provider_recording_ref": recording.worker_id,
+        "effect_key": "effect_stop_timeout_012345",
+        "arguments_digest": "c" * 64,
+        "jti": "request_stop_timeout_01234",
+    }
+    starting = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_STARTING)
+    with (
+        mock.patch(
+            "core.mastrao_recording_adapter._exact_provider_egress",
+            return_value=starting,
+        ),
+        mock.patch(
+            "core.mastrao_recording_adapter.report_mastrao_recording_failure",
+            return_value=True,
+        ) as report_failure,
+        mock.patch("core.mastrao_recording_adapter.WorkerServiceMediator.stop") as stop,
+        mock.patch(
+            "core.mastrao_recording_adapter.sign_stop_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_stop(effect) == "receipt.payload.signature"
+    report_failure.assert_not_called()
+    stop.assert_called_once_with(recording)
+
+
 def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings):
     access, _ = _artifact_access()
     binding = access.recording_binding
@@ -714,6 +865,43 @@ def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings)
         refusal=RecordingContractRefused,
         expected_fields={"recordingRef", "state"},
     )
+
+
+def test_stale_starting_provider_egress_converges_via_reconciler(db):
+    access, _ = _artifact_access()
+    binding = access.recording_binding
+    recording = binding.recording
+    recording.status = models.RecordingStatusChoices.ACTIVE
+    recording.worker_id = "EG_oju7PDAhx8k7"
+    recording.save(update_fields=["status", "worker_id", "updated_at"])
+    binding.state = models.MastraoRecordingBinding.State.STOPPING
+    binding.provider_recording_ref = recording.worker_id
+    binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
+    start_effect = models.MastraoRecordingEffect.objects.create(
+        recording_binding=binding,
+        effect_key="effect_reconcile_start_timeout",
+        operation=models.MastraoRecordingEffect.Operation.START,
+        arguments_digest="d" * 64,
+        effect_jti="request_reconcile_start_timeout",
+        state=models.MastraoRecordingEffect.State.APPLIED,
+        applied_at=timezone.now() - timedelta(seconds=31),
+    )
+    models.MastraoRecordingEffect.objects.filter(pk=start_effect.pk).update(
+        created_at=timezone.now() - timedelta(seconds=31)
+    )
+    starting = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_STARTING)
+    with (
+        mock.patch(
+            "core.mastrao_recording_reconciler._exact_provider_egress",
+            return_value=starting,
+        ),
+        mock.patch(
+            "core.mastrao_recording_reconciler.fail_stale_starting_provider_egress",
+            return_value=True,
+        ) as fail_stale,
+    ):
+        assert reconcile_mastrao_recording(binding)
+    fail_stale.assert_called_once_with(binding, recording)
 
 
 def test_recording_failure_local_stale_core_refusal_tombstones_binding(db, settings):

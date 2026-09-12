@@ -2,6 +2,7 @@
 
 # pylint: disable=abstract-method,no-name-in-module
 import logging
+from functools import partial
 from os.path import splitext
 from typing import Literal
 from urllib.parse import quote
@@ -23,8 +24,11 @@ from core import models, utils
 from core.mastrao_host_grant import (
     host_media_projection,
     host_platform_return_projection,
+    persist_host_display_name,
 )
 from core.mastrao_identity import is_mastrao_host_subject
+from core.mastrao_media_token_binding import generate_host_media_config
+from core.mastrao_native_notice import native_media_allowed, native_notice_projection
 from core.mastrao_recording_session import (
     media_allowed,
     public_projection,
@@ -210,14 +214,24 @@ class RoomSerializer(serializers.ModelSerializer):
         if recording_projection is not None:
             output["recording"] = recording_projection
 
-        should_access_room = media_allowed(recording_status) and (
-            (
-                instance.access_level == models.RoomAccessLevel.TRUSTED
-                and request.user.is_authenticated
-                and not is_mastrao_host_subject(getattr(request.user, "sub", None))
+        native_projection = native_notice_projection(
+            request, instance, recording_status
+        )
+        if native_projection is not None:
+            output["native_capture"] = native_projection
+
+        should_access_room = (
+            media_allowed(recording_status)
+            and native_media_allowed(native_projection)
+            and (
+                (
+                    instance.access_level == models.RoomAccessLevel.TRUSTED
+                    and request.user.is_authenticated
+                    and not is_mastrao_host_subject(getattr(request.user, "sub", None))
+                )
+                or role is not None
+                or instance.is_public
             )
-            or role is not None
-            or instance.is_public
         )
 
         if should_access_room:
@@ -225,7 +239,14 @@ class RoomSerializer(serializers.ModelSerializer):
             username = request.query_params.get("username", None)
             try:
                 ensure_livekit_room(room_id)
-                output["livekit"] = utils.generate_livekit_config(
+                if temporary_host_role is not None:
+                    persist_host_display_name(request, instance, username)
+                generate_config = (
+                    (partial(generate_host_media_config, request, instance))
+                    if temporary_host_role is not None
+                    else utils.generate_livekit_config
+                )
+                output["livekit"] = generate_config(
                     room_id=room_id,
                     user=request.user,
                     username=username,

@@ -2,10 +2,18 @@
 
 from core.tasks.connection_test import delete_connection_test_room
 from core.tasks.file import process_file_deletion
+from core.tasks.native_capture import (
+    process_native_admissions,
+    process_native_asr,
+    process_native_sources,
+)
 from core.tasks.transcription import process_mastrao_transcription
 
 __all__ = (
     "delete_connection_test_room",
     "process_file_deletion",
+    "process_native_admissions",
+    "process_native_asr",
+    "process_native_sources",
     "process_mastrao_transcription",
 )

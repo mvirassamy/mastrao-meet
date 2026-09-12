@@ -67,7 +67,7 @@ def get_frontend_configuration(request):
         "subtitle": {"enabled": settings.ROOM_SUBTITLE_ENABLED},
         "diagnostics": {"connection_test_enabled": settings.CONNECTION_TEST_ENABLED},
         "livekit": {
-            "url": settings.LIVEKIT_CONFIGURATION["url"],
+            "url": settings.LIVEKIT_PUBLIC_URL or settings.LIVEKIT_CONFIGURATION["url"],
             "force_wss_protocol": settings.LIVEKIT_FORCE_WSS_PROTOCOL,
             "enable_firefox_proxy_workaround": settings.LIVEKIT_ENABLE_FIREFOX_PROXY_WORKAROUND,
             "default_sources": settings.LIVEKIT_DEFAULT_SOURCES,

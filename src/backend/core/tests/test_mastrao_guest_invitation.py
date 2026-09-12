@@ -4,6 +4,7 @@ import hashlib
 import json
 import time
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest import mock
 
 from django.conf import settings
@@ -25,6 +26,7 @@ from core.mastrao_guest_grant import (
 )
 from core.mastrao_guest_handoff import GUEST_RETRY_COOKIE, decide_guest_admission
 from core.mastrao_identity import mastrao_technical_owner_subject
+from core.services.lobby import LobbyService
 
 pytestmark = pytest.mark.django_db
 
@@ -368,6 +370,72 @@ def test_confirmed_local_allow_is_required_before_guest_media(settings):
         mock.ANY,
         grant_payload["guest_ref"],
     )
+
+
+def test_guest_entry_persists_display_name_for_speaker_evidence(settings):
+    settings.LOBBY_KEY_PREFIX = "guest-display-name-lobby"
+    binding = _room_binding()
+    now = timezone.now()
+    grant = models.MastraoGuestGrant.objects.create(
+        grant_ref="guestgrant_display_name",
+        redemption_id="redemption_display_name",
+        invitation_ref="invitation_display_name",
+        guest_ref="guest_display_name",
+        organization_external_id="organization_0123456789",
+        grant_digest="a" * 64,
+        credential_digest="b" * 64,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        room_binding=binding,
+        session_nonce_digest="c" * 64,
+        issued_at=now,
+        expires_at=now + timedelta(hours=1),
+    )
+
+    with mock.patch("core.services.lobby.remember_guest_compact_grant"):
+        participant, livekit = LobbyService()._request_guest_entry(
+            binding.room,
+            SimpleNamespace(),
+            "  Martine  ",
+            grant,
+            None,
+            allow_media=False,
+        )
+
+    assert livekit is None
+    assert participant.username == "  Martine  "
+    grant.refresh_from_db()
+    assert grant.display_name == "Martine"
+
+
+def test_guest_admission_persists_waiting_lobby_name_for_speaker_evidence(settings):
+    settings.LOBBY_KEY_PREFIX = "guest-admission-display-name-lobby"
+    binding = _room_binding()
+    now = timezone.now()
+    grant = models.MastraoGuestGrant.objects.create(
+        grant_ref="guestgrant_admitted_display_name",
+        redemption_id="redemption_admitted_display_name",
+        invitation_ref="invitation_admitted_display_name",
+        guest_ref="guest_admitted_display_name",
+        organization_external_id="organization_0123456789",
+        grant_digest="a" * 64,
+        credential_digest="b" * 64,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        room_binding=binding,
+        session_nonce_digest="c" * 64,
+        issued_at=now,
+        expires_at=now + timedelta(hours=1),
+    )
+    lobby = LobbyService()
+    lobby.enter(binding.room.id, grant.guest_ref, "  Martine  ")
+
+    lobby.project_guest_decision(binding.room.id, grant.guest_ref, True)
+
+    grant.refresh_from_db()
+    assert grant.display_name == "Martine"
 
 
 @override_settings(APPLICATION_BASE_URL="http://meet.test")

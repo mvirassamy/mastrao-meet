@@ -330,6 +330,7 @@ export const Conference = ({
       isLiveKitConnected &&
       data?.can_end &&
       recording?.mode === 'recorded' &&
+      recording.activation_available !== false &&
       recording.decision === 'accepted' &&
       ['collecting', 'authorized'].includes(recording.recording_state ?? '')
 
