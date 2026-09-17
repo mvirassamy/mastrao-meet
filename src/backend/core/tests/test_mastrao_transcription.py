@@ -197,6 +197,8 @@ def test_managed_v3_builds_exact_audio_bound_egress_request(settings):
     effect = _contract_effect(binding, settings, operation_version=3)
 
     class Attempt:
+        """Attempt fixture carrying the signed v3 egress-request context."""
+
         attempt_ref = "attempt_managed_012345678"
         audio_sha256 = "a" * 64
         input_bytes = 1234
@@ -217,6 +219,8 @@ def test_managed_v3_accepts_core_grant_semantic_binding(settings):
     effect = _contract_effect(binding, settings, operation_version=3)
 
     class Attempt:
+        """Attempt fixture carrying the Core-bound v3 authorization context."""
+
         attempt_ref = "attempt_managed_012345678"
         audio_sha256 = "a" * 64
         input_bytes = 1234
@@ -371,7 +375,7 @@ def test_submit_contract_refuses_schema_operation_version_mismatch(
 
 
 @pytest.mark.parametrize(
-    ("profile_ref", "provider_ref", "model_ref"),
+    ("profile_ref", "provider_ref", "_model_ref"),
     [
         ("openai-gpt-transcribe-v1", "openai", "gpt-transcribe"),
         (
@@ -382,7 +386,7 @@ def test_submit_contract_refuses_schema_operation_version_mismatch(
     ],
 )
 def test_submit_contract_accepts_closed_v2_asr_references(
-    settings, profile_ref, provider_ref, model_ref
+    settings, profile_ref, provider_ref, _model_ref
 ):
     binding = _finalized_recording_binding(f"closedprofile_{provider_ref}")
     effect = _contract_effect(binding, settings)
@@ -1283,7 +1287,7 @@ def test_concurrent_failure_does_not_notify_after_artifact_persisted():
         try:
             complete_transcription(models.MastraoTranscriptionEffect.objects.get().pk)
         except TranscriptionPipelineFailed:
-            return
+            pass
 
     with (
         mock.patch(ENQUEUE),
