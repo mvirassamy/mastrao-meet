@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(docker) pin public MinIO server and client registry references
+
 - 🐛(frontend) preserve share glyphs and compact host toolbar visibility
 
 - 🎨(frontend) use native solid icons throughout the interface
