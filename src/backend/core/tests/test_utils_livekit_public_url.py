@@ -41,6 +41,10 @@ def test_public_signaling_origin_is_distinct(settings):
 
 def test_unset_public_origin_preserves_existing_configuration(settings):
     """Existing deployments retain their current signaling origin by default."""
+    settings.LIVEKIT_CONFIGURATION = {
+        **settings.LIVEKIT_CONFIGURATION,
+        "url": "http://127.0.0.1.nip.io:7880",
+    }
     settings.LIVEKIT_PUBLIC_URL = ""
     result = generate_livekit_config(
         "synthetic-room", AnonymousUser(), "Guest", participant_id="guest-test"
