@@ -11,6 +11,7 @@ import pytest
 
 from meet import settings as meet_settings
 from meet.settings import (
+    redis_url_with_database,
     validate_mastrao_meeting_close_configuration,
     validate_mastrao_transcription_configuration,
 )
@@ -266,3 +267,13 @@ def test_parallel_test_cache_is_isolated_per_xdist_worker():
     assert caches["BACKEND"] == "django_redis.cache.RedisCache"
     assert caches["KEY_PREFIX"].startswith("meet-test-")
     assert caches["LOCATION"].startswith("redis://")
+
+
+def test_parallel_test_cache_preserves_configured_redis_endpoint():
+    """Database isolation must not replace the configured Redis endpoint."""
+
+    redis_url = "redis://user:pass@localhost:6379/1?ssl_cert_reqs=none"
+
+    assert redis_url_with_database(redis_url, 11) == (
+        "redis://user:pass@localhost:6379/11?ssl_cert_reqs=none"
+    )
