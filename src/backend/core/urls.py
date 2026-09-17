@@ -66,7 +66,11 @@ external_router.register(
 )
 
 urlpatterns = [
-    path("internal/mastrao/captures/native/stop/", stop_native_capture, name="stop_native_capture"),
+    path(
+        "internal/mastrao/captures/native/stop/",
+        stop_native_capture,
+        name="stop_native_capture",
+    ),
     path(
         "internal/mastrao/captures/native/start/",
         start_native_capture,

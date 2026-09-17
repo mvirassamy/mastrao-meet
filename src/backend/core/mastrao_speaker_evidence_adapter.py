@@ -257,9 +257,7 @@ def _durable_host_roster_participants(recording, existing_participants):
         )
         if participant_ref in existing_participants:
             continue
-        label = _bounded_label(
-            host.display_name or host.identity.user.full_name or ""
-        )
+        label = _bounded_label(host.display_name or host.identity.user.full_name or "")
         if label is None:
             continue
         participants[participant_ref] = {
@@ -629,7 +627,9 @@ def _apply_capture(effect):
                 raise RecordingContractRefused(status=503)
             artifact_ref = _save_server_roster_artifact(recording, effect)
             _store_terminal_dispatch(recording, artifact_ref)
-            return sign_capture_receipt(build_capture_receipt_claims(effect, "accepted"))
+            return sign_capture_receipt(
+                build_capture_receipt_claims(effect, "accepted")
+            )
         return sign_capture_receipt(
             build_capture_receipt_claims(effect, "already_active")
         )
@@ -637,7 +637,9 @@ def _apply_capture(effect):
         if _local_roster_snapshot_enabled():
             artifact_ref = _save_server_roster_artifact(recording, effect)
             _store_terminal_dispatch(recording, artifact_ref)
-            return sign_capture_receipt(build_capture_receipt_claims(effect, "accepted"))
+            return sign_capture_receipt(
+                build_capture_receipt_claims(effect, "accepted")
+            )
         MetadataCollectorService().start(
             recording,
             metadata=_capture_metadata(recording, effect),
