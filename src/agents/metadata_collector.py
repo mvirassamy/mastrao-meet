@@ -17,7 +17,6 @@ from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from dotenv import load_dotenv
-from exceptions import MissingConfigError
 from livekit import api, rtc
 from livekit.agents import (
     Agent,
@@ -38,6 +37,8 @@ from livekit.agents import (
 from livekit.plugins import silero
 from minio import Minio
 from minio.error import S3Error
+
+from exceptions import MissingConfigError
 from observability import configure_sentry, set_job_context
 from tasks import done_callback
 
