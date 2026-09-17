@@ -461,6 +461,49 @@ class Base(Configuration):
     MASTRAO_HOST_HANDOFF_ENABLED = values.BooleanValue(
         False, environ_name="MASTRAO_HOST_HANDOFF_ENABLED", environ_prefix=None
     )
+    MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_MEDIA_TOKEN_BINDING_ENABLED", environ_prefix=None
+    )
+    # Admission only. Disabling must not disable reconciliation of accepted starts.
+    MASTRAO_NATIVE_CAPTURE_START_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_NATIVE_CAPTURE_START_ENABLED", environ_prefix=None
+    )
+    MASTRAO_NATIVE_PREENTRY_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_NATIVE_PREENTRY_ENABLED", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_NATIVE_SOURCE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_SOURCE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_NATIVE_ASR_ENABLED", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_ASR_RESULT_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_ASR_RESULT_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN = values.Value(
+        "", environ_name="MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN", environ_prefix=None
+    )
+    # Requires a dedicated Egress volume/pool with NO default cloud destination.
+    MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT = values.Value(
+        "", environ_name="MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT", environ_prefix=None
+    )
     MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE = values.PositiveIntegerValue(
         120,
         environ_name="MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE",
@@ -1080,6 +1123,10 @@ class Base(Configuration):
         ),
         "url": values.Value(environ_name="LIVEKIT_API_URL", environ_prefix=None),
     }
+    # Browser signaling may use a published origin while server API stays private.
+    LIVEKIT_PUBLIC_URL = values.Value(
+        "", environ_name="LIVEKIT_PUBLIC_URL", environ_prefix=None
+    )
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
     )

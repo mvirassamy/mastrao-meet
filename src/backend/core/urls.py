@@ -14,6 +14,8 @@ from core.mastrao_guest_handoff import (
     establish_mastrao_guest_session,
 )
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
+from core.mastrao_native_capture_adapter import start_native_capture
+from core.mastrao_native_capture_stop import stop_native_capture
 from core.mastrao_recording_access import recording_access, recording_download
 from core.mastrao_recording_adapter import (
     start_mastrao_recording,
@@ -64,6 +66,12 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("internal/mastrao/captures/native/stop/", stop_native_capture, name="stop_native_capture"),
+    path(
+        "internal/mastrao/captures/native/start/",
+        start_native_capture,
+        name="start_native_capture",
+    ),
     path("recordings/access/", recording_access, name="mastrao_recording_access"),
     path(
         "recordings/download/current",

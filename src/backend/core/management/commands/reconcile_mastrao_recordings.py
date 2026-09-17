@@ -2,7 +2,10 @@
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core.mastrao_recording_reconciler import reconcile_mastrao_recordings
+from core.mastrao_recording_reconciler import (
+    reconcile_mastrao_recordings,
+    reconcile_native_recordings,
+)
 
 
 class Command(BaseCommand):
@@ -12,10 +15,16 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--limit", type=int, default=20)
+        parser.add_argument("--native-only", action="store_true")
 
     def handle(self, *args, **options):
         limit = options["limit"]
         if limit < 1 or limit > 100:
             raise CommandError("limit must be between 1 and 100")
-        count = reconcile_mastrao_recordings(limit=limit)
+        reconcile = (
+            reconcile_native_recordings
+            if options["native_only"]
+            else reconcile_mastrao_recordings
+        )
+        count = reconcile(limit=limit)
         self.stdout.write(f"Reconciled {count} Mastrao recording(s).")

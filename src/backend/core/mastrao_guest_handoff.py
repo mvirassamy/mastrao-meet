@@ -40,6 +40,7 @@ from core.mastrao_guest_grant import (
     active_guest_grant,
 )
 from core.mastrao_host_grant import active_host_compact_grant, active_host_grant
+from core.mastrao_media_token_binding import generate_guest_media_config
 from core.mastrao_room_lifecycle import MastraoRoomClosed, assert_mastrao_room_open
 from core.services.room_management import ensure_livekit_room
 
@@ -460,7 +461,9 @@ def guest_media_config(request, room, username, color, participant_id):
         ensure_livekit_room(str(room.id))
     except MastraoRoomClosed as error:
         raise GuestHandoffRefused() from error
-    return utils.generate_livekit_config(
+    return generate_guest_media_config(
+        guest,
+        compact_digest(body["media_grant"]),
         room_id=str(room.id),
         user=request.user,
         username=username,

@@ -486,6 +486,197 @@ def test_speaker_mapping_falls_back_to_stable_anonymous_indexes():
     assert indexes == set(range(1, len(indexes) + 1))
 
 
+def test_speaker_mapping_uses_unambiguous_display_name_evidence():
+    transcript = {
+        "segments": [
+            {
+                "segment_id": "segment_0123456789ab",
+                "start_ms": 0,
+                "end_ms": 4_000,
+                "speaker": {"kind": "acoustic", "ref": "SPEAKER_00"},
+                "text": "bonjour ceci est un test",
+            }
+        ],
+        "language": "fr",
+    }
+    evidence = {
+        "evidence_ref": "evidence_0123456789abcdef0123456789abcdef",
+        "recording_ref": "recording_0123456789abcdef",
+        "recording_started_at_ms": 1_000,
+        "timeline_started_at_ms": 0,
+        "timeline_ended_at_ms": 4_000,
+        "participants": [
+            {
+                "participant_ref": "participant_01",
+                "participant_kind": "unknown",
+                "participant_session_digest": "a" * 64,
+                "display_name_events": [
+                    {
+                        "effective_at_ms": 0,
+                        "label": "Martin",
+                        "source": "meet_display_name",
+                    }
+                ],
+            }
+        ],
+        "events": [],
+    }
+
+    mapped = map_speakers(json.loads(json.dumps(transcript)), evidence)
+
+    assert mapped["segments"][0]["speaker"] == {
+        "kind": "participant",
+        "label": "Martin",
+    }
+
+
+def test_speaker_mapping_keeps_multiple_acoustic_speakers_anonymous_without_timeline():
+    transcript = {
+        "segments": [
+            {
+                "segment_id": "segment_0123456789ab",
+                "start_ms": 0,
+                "end_ms": 4_000,
+                "speaker": {"kind": "acoustic", "ref": "SPEAKER_00"},
+                "text": "première partie",
+            },
+            {
+                "segment_id": "segment_0123456789ac",
+                "start_ms": 4_000,
+                "end_ms": 8_000,
+                "speaker": {"kind": "acoustic", "ref": "SPEAKER_01"},
+                "text": "deuxième partie",
+            },
+        ],
+        "language": "fr",
+    }
+    evidence = {
+        "evidence_ref": "evidence_0123456789abcdef0123456789abcdef",
+        "recording_ref": "recording_0123456789abcdef",
+        "recording_started_at_ms": 1_000,
+        "timeline_started_at_ms": 0,
+        "timeline_ended_at_ms": 8_000,
+        "participants": [
+            {
+                "participant_ref": "participant_01",
+                "participant_kind": "unknown",
+                "participant_session_digest": "a" * 64,
+                "display_name_events": [
+                    {
+                        "effective_at_ms": 0,
+                        "label": "Martin",
+                        "source": "meet_display_name",
+                    }
+                ],
+            }
+        ],
+        "events": [],
+    }
+
+    mapped = map_speakers(json.loads(json.dumps(transcript)), evidence)
+
+    assert [
+        segment["speaker"] for segment in mapped["segments"]
+    ] == [
+        {"kind": "anonymous", "index": 1},
+        {"kind": "anonymous", "index": 2},
+    ]
+
+
+def test_speaker_mapping_uses_speech_timeline_for_multiple_participants():
+    transcript = {
+        "segments": [
+            {
+                "segment_id": "segment_0123456789ab",
+                "start_ms": 0,
+                "end_ms": 3_000,
+                "speaker": {"kind": "acoustic", "ref": "SPEAKER_00"},
+                "text": "bonjour de matt",
+            },
+            {
+                "segment_id": "segment_0123456789ac",
+                "start_ms": 4_000,
+                "end_ms": 7_000,
+                "speaker": {"kind": "acoustic", "ref": "SPEAKER_01"},
+                "text": "bonjour de martine",
+            },
+        ],
+        "language": "fr",
+    }
+    evidence = {
+        "evidence_ref": "evidence_0123456789abcdef0123456789abcdef",
+        "recording_ref": "recording_0123456789abcdef",
+        "recording_started_at_ms": 1_000,
+        "timeline_started_at_ms": 0,
+        "timeline_ended_at_ms": 8_000,
+        "participants": [
+            {
+                "participant_ref": "participant_matt",
+                "participant_kind": "host",
+                "participant_session_digest": "a" * 64,
+                "display_name_events": [
+                    {
+                        "effective_at_ms": 0,
+                        "label": "Matt",
+                        "source": "meet_display_name",
+                    }
+                ],
+            },
+            {
+                "participant_ref": "participant_martine",
+                "participant_kind": "guest",
+                "participant_session_digest": "b" * 64,
+                "display_name_events": [
+                    {
+                        "effective_at_ms": 0,
+                        "label": "Martine",
+                        "source": "meet_display_name",
+                    }
+                ],
+            },
+        ],
+        "events": [
+            {
+                "event_id": "event_matt_start",
+                "at_ms": 0,
+                "type": "speech_start",
+                "participant_ref": "participant_matt",
+                "event_digest": "c" * 64,
+            },
+            {
+                "event_id": "event_matt_end",
+                "at_ms": 3_000,
+                "type": "speech_end",
+                "participant_ref": "participant_matt",
+                "event_digest": "d" * 64,
+            },
+            {
+                "event_id": "event_martine_start",
+                "at_ms": 4_000,
+                "type": "speech_start",
+                "participant_ref": "participant_martine",
+                "event_digest": "e" * 64,
+            },
+            {
+                "event_id": "event_martine_end",
+                "at_ms": 7_000,
+                "type": "speech_end",
+                "participant_ref": "participant_martine",
+                "event_digest": "f" * 64,
+            },
+        ],
+    }
+
+    mapped = map_speakers(json.loads(json.dumps(transcript)), evidence)
+
+    assert [
+        segment["speaker"] for segment in mapped["segments"]
+    ] == [
+        {"kind": "participant", "label": "Matt"},
+        {"kind": "participant", "label": "Martine"},
+    ]
+
+
 def test_feature_off_refuses_new_effects_without_side_effects(settings):
     settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED = False
     binding = _finalized_recording_binding("feature_off_0123456")
