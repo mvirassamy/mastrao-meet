@@ -160,7 +160,9 @@ def test_signed_conflicting_id_preserves_first_fact(client, settings, event):
     assert models.MastraoRtcObservation.objects.get().participant_sid == "PA_fixture"
 
 
-@pytest.mark.parametrize("marker", [None, "not-a-uuid", str(uuid4()).upper()])
+@pytest.mark.parametrize(
+    "marker", [None, "not-a-uuid", "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF"]
+)
 def test_untrusted_marker_is_not_required_for_fact_storage(
     client, settings, event, marker
 ):
