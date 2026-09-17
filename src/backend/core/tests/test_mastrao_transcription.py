@@ -575,9 +575,7 @@ def test_speaker_mapping_keeps_multiple_acoustic_speakers_anonymous_without_time
 
     mapped = map_speakers(json.loads(json.dumps(transcript)), evidence)
 
-    assert [
-        segment["speaker"] for segment in mapped["segments"]
-    ] == [
+    assert [segment["speaker"] for segment in mapped["segments"]] == [
         {"kind": "anonymous", "index": 1},
         {"kind": "anonymous", "index": 2},
     ]
@@ -669,9 +667,7 @@ def test_speaker_mapping_uses_speech_timeline_for_multiple_participants():
 
     mapped = map_speakers(json.loads(json.dumps(transcript)), evidence)
 
-    assert [
-        segment["speaker"] for segment in mapped["segments"]
-    ] == [
+    assert [segment["speaker"] for segment in mapped["segments"]] == [
         {"kind": "participant", "label": "Matt"},
         {"kind": "participant", "label": "Martine"},
     ]

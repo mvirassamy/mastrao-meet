@@ -252,10 +252,12 @@ def _participant_labels(speaker_evidence):
         if not candidates:
             continue
         candidates.sort(
-            key=lambda event: event.get("effective_at_ms")
-            if isinstance(event.get("effective_at_ms"), int)
-            and not isinstance(event.get("effective_at_ms"), bool)
-            else -1
+            key=lambda event: (
+                event.get("effective_at_ms")
+                if isinstance(event.get("effective_at_ms"), int)
+                and not isinstance(event.get("effective_at_ms"), bool)
+                else -1
+            )
         )
         label = candidates[-1]["label"].strip()
         if label and label.lower() != "anonymous":
@@ -271,10 +273,12 @@ def _speech_intervals(speaker_evidence):
         return intervals
     for event in sorted(
         (event for event in events if isinstance(event, dict)),
-        key=lambda event: event.get("at_ms")
-        if isinstance(event.get("at_ms"), int)
-        and not isinstance(event.get("at_ms"), bool)
-        else -1,
+        key=lambda event: (
+            event.get("at_ms")
+            if isinstance(event.get("at_ms"), int)
+            and not isinstance(event.get("at_ms"), bool)
+            else -1
+        ),
     ):
         participant_ref = event.get("participant_ref")
         at_ms = event.get("at_ms")
@@ -297,7 +301,9 @@ def _speech_intervals(speaker_evidence):
 
 
 def _overlap_ms(segment, interval):
-    return max(0, min(segment["end_ms"], interval[1]) - max(segment["start_ms"], interval[0]))
+    return max(
+        0, min(segment["end_ms"], interval[1]) - max(segment["start_ms"], interval[0])
+    )
 
 
 def _speaker_participant_mapping(transcript, speaker_evidence):
@@ -325,12 +331,16 @@ def _speaker_participant_mapping(transcript, speaker_evidence):
         for participant_ref, participant_intervals in intervals.items():
             scores[speaker_ref][participant_ref] = scores[speaker_ref].get(
                 participant_ref, 0
-            ) + sum(_overlap_ms(segment, interval) for interval in participant_intervals)
+            ) + sum(
+                _overlap_ms(segment, interval) for interval in participant_intervals
+            )
 
     mapping = {}
     claimed_participants = set()
     for speaker_ref, participant_scores in scores.items():
-        ranked = sorted(participant_scores.items(), key=lambda item: item[1], reverse=True)
+        ranked = sorted(
+            participant_scores.items(), key=lambda item: item[1], reverse=True
+        )
         if not ranked or ranked[0][1] <= 0:
             continue
         if len(ranked) > 1 and ranked[0][1] <= ranked[1][1]:

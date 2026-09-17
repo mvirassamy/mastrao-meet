@@ -567,8 +567,7 @@ def test_speaker_evidence_capture_finalizes_late_roster_when_live_collector_has_
 
     saved_object_ref, saved_content = save.call_args_list[0].args
     assert saved_object_ref == (
-        "mastrao-speaker-evidence/"
-        "evidence_0123456789abcdef0123456789abcdef.json"
+        "mastrao-speaker-evidence/evidence_0123456789abcdef0123456789abcdef.json"
     )
     saved_content.seek(0)
     payload = json.loads(saved_content.read())
@@ -584,9 +583,9 @@ def test_speaker_evidence_capture_finalizes_late_roster_when_live_collector_has_
     )
     post.assert_called_once()
     binding.recording.refresh_from_db()
-    assert binding.recording.options[
-        "mastrao_speaker_evidence_dispatch_id"
-    ].startswith("speakerartifact_")
+    assert binding.recording.options["mastrao_speaker_evidence_dispatch_id"].startswith(
+        "speakerartifact_"
+    )
 
 
 def test_speaker_evidence_late_roster_includes_durable_guest_absent_from_livekit():
@@ -720,9 +719,9 @@ def test_speaker_evidence_terminal_fallback_includes_durable_host_when_collector
     ]
     assert labels == ["Matt"]
     binding.recording.refresh_from_db()
-    assert binding.recording.options[
-        "mastrao_speaker_evidence_dispatch_id"
-    ].startswith("speakerartifact_")
+    assert binding.recording.options["mastrao_speaker_evidence_dispatch_id"].startswith(
+        "speakerartifact_"
+    )
 
 
 def test_speaker_evidence_late_roster_ignores_unconfirmed_guest_display_name():
