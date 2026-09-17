@@ -29,6 +29,13 @@ from core.mastrao_identity import mastrao_technical_owner_subject
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def allow_meet_test_host(settings):
+    """Exercise the canonical guest origin through Django's host validation."""
+
+    settings.ALLOWED_HOSTS = [*settings.ALLOWED_HOSTS, "meet.test"]
+
+
 def _room_binding(suffix="0123456789abcdef0123456789abcdef"):
     owner_ref = f"owner_{suffix}"
     owner = models.User(sub=mastrao_technical_owner_subject(owner_ref), is_device=True)
