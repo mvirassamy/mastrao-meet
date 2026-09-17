@@ -1060,10 +1060,14 @@ class MastraoRecordingDecision(BaseModel):
     """Append-only local receipt for a session-bound participant decision."""
 
     class ParticipantKind(models.TextChoices):
+        """Participant roles that can make a recording decision."""
+
         HOST = "host", _("Host")
         GUEST = "guest", _("Guest")
 
     class Decision(models.TextChoices):
+        """Immutable recording-decision outcomes persisted for a participant."""
+
         ACCEPTED = "accepted", _("Accepted")
         REFUSED = "refused", _("Refused")
         WITHDRAWN = "withdrawn", _("Withdrawn")
@@ -1112,10 +1116,14 @@ class MastraoRecordingEffect(BaseModel):
     """Durable exact Core recording effect and replayable receipt."""
 
     class Operation(models.TextChoices):
+        """Provider operations represented by a durable recording effect."""
+
         START = "start", _("Start")
         STOP = "stop", _("Stop")
 
     class State(models.TextChoices):
+        """Execution states for a recording effect and its replayable receipt."""
+
         APPLYING = "applying", _("Applying")
         PENDING = "pending", _("Pending")
         APPLIED = "applied", _("Applied")
@@ -1358,12 +1366,16 @@ class MastraoTranscriptionEffect(BaseModel):
     """Durable exact Core transcribe effect and replayable receipt."""
 
     class State(models.TextChoices):
+        """Execution states for a transcription effect sent to a provider."""
+
         APPLYING = "applying", _("Applying")
         PENDING = "pending", _("Pending")
         APPLIED = "applied", _("Applied")
         FAILED = "failed", _("Failed")
 
     class DispatchState(models.TextChoices):
+        """Lifecycle states for dispatching transcription work and its artifact."""
+
         DISPATCH_PENDING = "dispatch_pending", _("Dispatch pending")
         QUEUED = "queued", _("Queued")
         RUNNING = "running", _("Running")
@@ -1438,6 +1450,8 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
     """Durable provider-call state for one transcription effect generation."""
 
     class State(models.TextChoices):
+        """Provider-attempt states retained for retry and recovery decisions."""
+
         PREPARED = "prepared", _("Prepared")
         SENDING = "sending", _("Sending")
         RESULT_RECEIVED = "result_received", _("Result received")
@@ -1449,15 +1463,21 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
         CANCELLED = "cancelled", _("Cancelled")
 
     class CleanupState(models.TextChoices):
+        """Cleanup progress after a transcription provider attempt terminates."""
+
         NONE = "none", _("None")
         PENDING = "pending", _("Pending")
         COMPLETED = "completed", _("Completed")
 
     class ExecutionMode(models.TextChoices):
+        """Whether an attempt may contact a provider or only recover state."""
+
         SEND_ALLOWED = "send_allowed", _("Send allowed")
         RECOVER_ONLY = "recover_only", _("Recover only")
 
     class TerminalOutcome(models.TextChoices):
+        """Terminal outcomes used to reconcile a transcription provider attempt."""
+
         FAILED_PRE_EGRESS = "failed_pre_egress", _("Failed before egress")
         REJECTED = "rejected", _("Rejected")
         UNKNOWN = "unknown", _("Unknown")
