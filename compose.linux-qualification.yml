@@ -1,0 +1,20 @@
+services:
+  # Linux qualification uses the production-recommended host network for
+  # LiveKit's RTC plane. The default compose file keeps its Docker Desktop
+  # loopback setup for local macOS development.
+  livekit:
+    network_mode: host
+    volumes:
+      - ./docker/livekit/config/livekit-server.host.yaml:/config.yaml
+
+  # LiveKit advertises loopback-only ICE candidates in this same-host gate.
+  # Egress must therefore share the host network as well: forwarding only the
+  # signalling endpoint does not make 127.0.0.1 RTC candidates reachable from
+  # a separate container namespace.
+  livekit-egress:
+    network_mode: host
+    volumes:
+      - ./docker/livekit/config/livekit-egress.host.yaml:/livekit-egress.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "minio:host-gateway"

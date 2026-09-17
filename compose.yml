@@ -19,7 +19,7 @@ services:
 
   minio:
     user: ${DOCKER_USER:-1000}
-    image: minio/minio
+    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     environment:
       - MINIO_ROOT_USER=meet
       - MINIO_ROOT_PASSWORD=password
@@ -37,7 +37,7 @@ services:
       - ./data/media:/data
 
   createbuckets:
-    image: minio/mc
+    image: quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     depends_on:
       minio:
         condition: service_healthy
@@ -49,7 +49,7 @@ services:
       exit 0;"
 
   createwebhook:
-    image: minio/mc
+    image: quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     depends_on:
       minio:
         condition: service_healthy
@@ -227,7 +227,7 @@ services:
       - kc_postgresql
 
   livekit:
-    image: livekit/livekit-server
+    image: livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3
     entrypoint: /livekit-server --dev --bind 0.0.0.0 --config ./config.yaml
     ports:
       - "7880:7880"
@@ -239,7 +239,7 @@ services:
       - redis
 
   livekit-egress:
-    image: livekit/egress:v1.14.1
+    image: livekit/egress:v1.14.1@sha256:bf2b648b947349c3e9ff7aa8c718f00378d5c06af7624652a3653318e00333ce
     cap_add:
       - SYS_ADMIN
     environment:

@@ -1,5 +1,8 @@
 """Focused recording-consent media gate and native-regression proofs."""
 
+# Shared recording fixtures preserve cross-stage recovery contracts in one module.
+# pylint: disable=too-many-lines
+
 import hashlib
 import io
 import time
@@ -121,6 +124,8 @@ def test_feature_off_does_not_call_core_or_change_native_projection(settings):
 def test_feature_off_keeps_existing_recording_policy_fail_closed(
     settings, native_preentry, existing
 ):
+    """Refuse existing recording policy access when the rollout is disabled."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     settings.MASTRAO_NATIVE_PREENTRY_ENABLED = native_preentry
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
@@ -354,6 +359,8 @@ def test_sync_binding_recovers_from_concurrent_binding_creation():
 def test_recorded_public_projection_exposes_only_safe_participant_kind(
     settings, video_enabled
 ):
+    """Limit recorded public projection to a non-identifying participant kind."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = video_enabled
     projection = public_projection(
         {
@@ -826,7 +833,10 @@ def test_stop_prefers_stopping_stale_starting_provider_egress(db):
     stop.assert_called_once_with(recording)
 
 
-def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings):
+@pytest.mark.usefixtures("db")
+def test_missing_provider_failure_webhook_converges_via_reconciler(settings):
+    """Converge a missing provider-failure webhook through reconciliation."""
+
     access, _ = _artifact_access()
     binding = access.recording_binding
     recording = binding.recording
@@ -904,7 +914,10 @@ def test_stale_starting_provider_egress_converges_via_reconciler(db):
     fail_stale.assert_called_once_with(binding, recording)
 
 
-def test_recording_failure_local_stale_core_refusal_tombstones_binding(db, settings):
+@pytest.mark.usefixtures("db")
+def test_recording_failure_local_stale_core_refusal_tombstones_binding(settings):
+    """Tombstone a stale local binding after Core refuses its failure receipt."""
+
     access, _ = _artifact_access()
     binding = access.recording_binding
     binding.state = models.MastraoRecordingBinding.State.PROCESSING

@@ -304,7 +304,10 @@ def consume_mastrao_guest_invitation(request):
             r"redemption_[a-f0-9]{32}", redemption_id
         ):
             raise GuestHandoffRefused()
-        if not _GUEST_VERIFY_SLOTS.acquire(blocking=False):
+        # Nonblocking admission preserves immediate overload shedding; release is in finally.
+        if not _GUEST_VERIFY_SLOTS.acquire(  # pylint: disable=consider-using-with
+            blocking=False
+        ):
             raise GuestHandoffRefused(status=503)
         try:
             verify_guest_invitation(compact)

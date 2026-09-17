@@ -34,6 +34,8 @@ def _encode_silence_flac(destination: Path, seconds: int):
 
 
 def test_thirty_and_sixty_minute_flac_fit_the_provider_cap(tmp_path):
+    """Keep representative long FLAC inputs within the transcription provider cap."""
+
     for seconds in (30 * 60, 60 * 60):
         path = tmp_path / f"silence-{seconds}.flac"
         _encode_silence_flac(path, seconds)
