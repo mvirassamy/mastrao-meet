@@ -1,5 +1,8 @@
 """Focused recording-consent media gate and native-regression proofs."""
 
+# Shared recording fixtures preserve cross-stage recovery contracts in one module.
+# pylint: disable=too-many-lines
+
 import hashlib
 import io
 import time

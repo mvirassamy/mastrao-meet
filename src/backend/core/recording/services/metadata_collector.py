@@ -80,7 +80,8 @@ class MetadataCollectorService:
                     await lkapi.agent_dispatch.delete_dispatch(
                         dispatch_id=str(dispatch_id), room_name=room_id
                     )
-                except Exception:
+                # Cleanup is best-effort: preserve the primary persistence error.
+                except Exception:  # pylint: disable=broad-exception-caught
                     logger.exception(
                         "Failed to delete superseded metadata collector for room %s",
                         room_id,

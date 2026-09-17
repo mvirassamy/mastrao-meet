@@ -1,5 +1,8 @@
 """Provider-attempt durability, object recovery and queue isolation proofs."""
 
+# Shared attempt fixtures preserve recovery and retry contract continuity.
+# pylint: disable=too-many-lines
+
 # pylint: disable=missing-function-docstring
 
 import hashlib

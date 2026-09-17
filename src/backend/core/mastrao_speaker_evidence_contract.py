@@ -94,7 +94,8 @@ ARTIFACT_RECEIPT_FIELDS = {
 
 
 def _validate_receipt_common(claims):
-    if (
+    # Receipt identity is an indivisible fail-closed contract predicate.
+    if (  # pylint: disable=too-many-boolean-expressions
         claims.get("version") != CONTRACT_VERSION
         or claims.get("type") != ARTIFACT_RECEIPT_TYPE
         or claims.get("issuer") != settings.MASTRAO_RECORDING_RECEIPT_ISSUER
@@ -140,7 +141,8 @@ def _validate_artifact_receipt_time(claims, *, allow_expired):
     issued_at = claims.get("issued_at")
     expires_at = claims.get("expires_at")
     now = int(time.time())
-    if (
+    # Time validity is indivisible: accepting a partial predicate is unsafe.
+    if (  # pylint: disable=too-many-boolean-expressions
         not isinstance(issued_at, int)
         or isinstance(issued_at, bool)
         or not isinstance(expires_at, int)
@@ -173,7 +175,8 @@ def verify_speaker_evidence_capture_effect(compact_jws):
     effect = _verify(compact_jws, CAPTURE_EFFECT_JOSE_TYPE, CAPTURE_EFFECT_FIELDS)
     _validate_time(effect)
     _validate_common(effect)
-    if (
+    # Capture identity claims are checked as one fail-closed contract predicate.
+    if (  # pylint: disable=too-many-boolean-expressions
         effect.get("type") != CAPTURE_EFFECT_TYPE
         or effect.get("operation") != "capture_meeting_speaker_evidence"
         or effect.get("purpose") != PURPOSE
@@ -186,7 +189,8 @@ def verify_speaker_evidence_capture_effect(compact_jws):
         raise RecordingContractRefused()
     retention = effect.get("retention_expires_at")
     recording_started = effect.get("recording_started_at_ms")
-    if (
+    # Retention and recording start jointly preserve temporal capture safety.
+    if (  # pylint: disable=too-many-boolean-expressions
         not isinstance(retention, int)
         or isinstance(retention, bool)
         or retention <= int(time.time())

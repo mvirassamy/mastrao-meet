@@ -32,9 +32,10 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(autouse=True)
-def _allow_guest_test_host(settings):
+def _allow_guest_test_host(request):
     """Allow the explicit origin exercised by this guest-admission test module."""
 
+    request.getfixturevalue("settings")
     settings.ALLOWED_HOSTS = ["meet.test", "testserver"]
 
 
