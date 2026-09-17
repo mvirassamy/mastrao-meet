@@ -107,7 +107,10 @@ def _matches_effect(binding, effect):
 
 
 def _receipt_sidecar_ref(effect):
-    return f"mastrao-speaker-evidence/{effect['evidence_ref']}.json{SPEAKER_EVIDENCE_RECEIPT_SUFFIX}"
+    return (
+        f"mastrao-speaker-evidence/{effect['evidence_ref']}.json"
+        f"{SPEAKER_EVIDENCE_RECEIPT_SUFFIX}"
+    )
 
 
 def _artifact_object_ref(effect):
