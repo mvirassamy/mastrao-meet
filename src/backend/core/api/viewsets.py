@@ -264,7 +264,7 @@ class UserViewSet(
         )
 
 
-class RoomViewSet(
+class RoomViewSet(  # pylint: disable=too-many-public-methods
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
     mixins.UpdateModelMixin,

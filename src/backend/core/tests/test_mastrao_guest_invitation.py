@@ -29,6 +29,14 @@ from core.mastrao_identity import mastrao_technical_owner_subject
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def allow_meet_test_host(request):
+    """Exercise the canonical guest origin through Django's host validation."""
+
+    request.getfixturevalue("settings")
+    settings.ALLOWED_HOSTS = [*settings.ALLOWED_HOSTS, "meet.test"]
+
+
 def _room_binding(suffix="0123456789abcdef0123456789abcdef"):
     owner_ref = f"owner_{suffix}"
     owner = models.User(sub=mastrao_technical_owner_subject(owner_ref), is_device=True)
@@ -250,7 +258,8 @@ def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
     MASTRAO_MEETING_CLOSE_ENABLED=False,
     LIVEKIT_EXPLICIT_ROOM_CREATION=False,
 )
-def test_guest_redemption_creates_only_room_bound_anonymous_grant(settings):
+@pytest.mark.usefixtures("settings")
+def test_guest_redemption_creates_only_room_bound_anonymous_grant():
     """A redeemed invitation creates no durable user or room ACL."""
 
     settings.LOBBY_KEY_PREFIX = "guest-test-lobby"
@@ -318,7 +327,8 @@ def test_guest_redemption_rotates_the_anonymous_session_key():
     APPLICATION_BASE_URL="http://meet.test",
     MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
-def test_confirmed_local_allow_is_required_before_guest_media(settings):
+@pytest.mark.usefixtures("settings")
+def test_confirmed_local_allow_is_required_before_guest_media():
     """A guest gets no media until Meet has confirmed the Core decision."""
 
     settings.LOBBY_KEY_PREFIX = "guest-media-lobby"

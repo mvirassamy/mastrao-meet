@@ -1,5 +1,8 @@
 """Focused recording-consent media gate and native-regression proofs."""
 
+# Shared recording fixtures preserve cross-stage recovery contracts in one module.
+# pylint: disable=too-many-lines
+
 import hashlib
 import io
 import time
@@ -14,7 +17,7 @@ from django.test import Client
 from django.utils import timezone
 
 import pytest
-from livekit import api as livekit_api
+from livekit.protocol import egress as livekit_egress
 from rest_framework.test import APIClient
 
 from core import models, utils
@@ -69,6 +72,8 @@ def _recorded(state, decision="absent"):
 
 
 def test_recording_media_gate_matches_capture_semantics():
+    """Keep media authorization aligned with the recorded-capture contract."""
+
     assert media_allowed(None)
     assert media_allowed({"mode": "disabled"})
     assert not media_allowed({"mode": "unset"})
@@ -81,6 +86,8 @@ def test_recording_media_gate_matches_capture_semantics():
 
 
 def test_livekit_egress_reference_is_a_valid_provider_receipt_reference():
+    """Accept only a LiveKit egress identifier as a provider receipt reference."""
+
     claims = build_start_receipt_claims(
         {
             "organization_external_id": "organization_0123456789",
@@ -99,6 +106,8 @@ def test_livekit_egress_reference_is_a_valid_provider_receipt_reference():
 
 
 def test_feature_off_does_not_call_core_or_change_native_projection(settings):
+    """Keep native room projection unchanged when recording rollout is disabled."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = False
     settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED = False
@@ -117,6 +126,8 @@ def test_feature_off_does_not_call_core_or_change_native_projection(settings):
 
 
 def test_feature_off_keeps_existing_recording_policy_fail_closed(settings):
+    """Refuse existing recording policy access when the rollout is disabled."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
         "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
@@ -170,6 +181,8 @@ def test_feature_off_keeps_existing_recording_policy_fail_closed(settings):
 
 
 def test_recorded_projection_refuses_notice_manifest_drift(settings):
+    """Refuse a recorded projection whose notice manifest no longer matches."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
         "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
@@ -216,6 +229,8 @@ def test_recorded_projection_refuses_notice_manifest_drift(settings):
 
 
 def test_feature_off_refuses_browser_recording_activation(settings):
+    """Prevent browser recording activation while the feature flag is off."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
 
     with pytest.raises(RecordingContractRefused):
@@ -223,6 +238,8 @@ def test_feature_off_refuses_browser_recording_activation(settings):
 
 
 def test_session_status_posts_only_the_bound_participant_grant(settings):
+    """Expose only the participant grant bound to the current session status."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
         "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
@@ -264,6 +281,8 @@ def test_session_status_posts_only_the_bound_participant_grant(settings):
 
 
 def test_sync_binding_does_not_touch_an_unchanged_projection():
+    """Avoid a database write when recording binding projection is unchanged."""
+
     retention_expires_at = 2_000_000_000
     room_binding = SimpleNamespace(provider_binding_digest="b" * 64)
     room = SimpleNamespace(mastrao_binding=room_binding)
@@ -307,6 +326,8 @@ def test_sync_binding_does_not_touch_an_unchanged_projection():
 
 
 def test_recorded_public_projection_exposes_only_safe_participant_kind():
+    """Limit recorded public projection to a non-identifying participant kind."""
+
     projection = public_projection(
         {
             **_recorded("collecting"),
@@ -325,7 +346,10 @@ def test_recorded_public_projection_exposes_only_safe_participant_kind():
     assert "participant_session_digest" not in projection
 
 
-def test_recorded_absent_never_mints_livekit_token(db):
+@pytest.mark.usefixtures("db")
+def test_recorded_absent_never_mints_livekit_token():
+    """Do not mint a LiveKit token for a recording that is absent locally."""
+
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     status = _recorded("collecting")
     status.update(
@@ -353,7 +377,10 @@ def test_recorded_absent_never_mints_livekit_token(db):
     generate.assert_not_called()
 
 
-def test_recorded_terminal_state_allows_unrecorded_token(db):
+@pytest.mark.usefixtures("db")
+def test_recorded_terminal_state_allows_unrecorded_token():
+    """Allow the native token once a recording binding reached a terminal state."""
+
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     status = _recorded("cancelled", "refused")
     status.update(
@@ -383,7 +410,10 @@ def test_recorded_terminal_state_allows_unrecorded_token(db):
     generate.assert_called_once()
 
 
-def test_recording_start_locks_only_the_non_nullable_binding(db, settings):
+@pytest.mark.usefixtures("db")
+def test_recording_start_locks_only_the_non_nullable_binding(settings):
+    """Lock only the persisted recording binding while starting a recording."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     owner = UserFactory()
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
@@ -423,7 +453,10 @@ def test_recording_start_locks_only_the_non_nullable_binding(db, settings):
     assert first_delivery
 
 
-def test_start_control_off_refuses_a_new_recording_start(db, settings):
+@pytest.mark.usefixtures("db")
+def test_start_control_off_refuses_a_new_recording_start(settings):
+    """Refuse a new recording start when the rollout control is disabled."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = False
     owner = UserFactory()
@@ -464,6 +497,8 @@ def test_start_control_off_refuses_a_new_recording_start(db, settings):
 
 
 def test_feature_off_does_not_block_stop_delivery(settings, rf):
+    """Permit the stop delivery path even after recording rollout is disabled."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = False
     settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED = False
@@ -499,7 +534,10 @@ def _provider_egress(recording, status):
     )
 
 
-def test_start_retry_discovers_exact_egress_without_starting_again(db, settings):
+@pytest.mark.usefixtures("db")
+def test_start_retry_discovers_exact_egress_without_starting_again(settings):
+    """Reuse the exact provider egress on a recording-start retry."""
+
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     owner = UserFactory()
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
@@ -533,7 +571,8 @@ def test_start_retry_discovers_exact_egress_without_starting_again(db, settings)
     binding, _, _ = _prepare_start(effect)
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = False
     provider = _provider_egress(
-        binding.recording, livekit_api.EgressStatus.EGRESS_ACTIVE
+        binding.recording,
+        livekit_egress.EgressStatus.EGRESS_ACTIVE,  # pylint: disable=no-member
     )
     with (
         mock.patch(
@@ -556,6 +595,8 @@ def test_start_retry_discovers_exact_egress_without_starting_again(db, settings)
 
 
 def test_resolve_only_start_without_provider_converges_after_grace_period():
+    """Converge a provider-less start through the resolve-only grace period."""
+
     recording = SimpleNamespace(status=models.RecordingStatusChoices.INITIATED)
     recording_binding = SimpleNamespace(recording_id="recording-id")
     local_effect = SimpleNamespace(
@@ -586,7 +627,10 @@ def test_resolve_only_start_without_provider_converges_after_grace_period():
     report_failure.assert_called_once_with(recording, None)
 
 
-def test_stop_response_loss_reconciles_terminal_exact_egress(db):
+@pytest.mark.usefixtures("db")
+def test_stop_response_loss_reconciles_terminal_exact_egress():
+    """Reconcile a terminal egress when its stop response was lost."""
+
     access, _ = _artifact_access()
     binding = access.recording_binding
     recording = binding.recording
@@ -607,8 +651,14 @@ def test_stop_response_loss_reconciles_terminal_exact_egress(db):
         "arguments_digest": "e" * 64,
         "jti": "request_stop_retry_012345",
     }
-    active = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_ACTIVE)
-    terminal = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_COMPLETE)
+    active = _provider_egress(
+        recording,
+        livekit_egress.EgressStatus.EGRESS_ACTIVE,  # pylint: disable=no-member
+    )
+    terminal = _provider_egress(
+        recording,
+        livekit_egress.EgressStatus.EGRESS_COMPLETE,  # pylint: disable=no-member
+    )
     with (
         mock.patch(
             "core.mastrao_recording_adapter._exact_provider_egress",
@@ -628,7 +678,10 @@ def test_stop_response_loss_reconciles_terminal_exact_egress(db):
     assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
 
 
-def test_stop_retry_from_applying_reissues_exact_active_egress(db):
+@pytest.mark.usefixtures("db")
+def test_stop_retry_from_applying_reissues_exact_active_egress():
+    """Retry stop against the same active egress from an applying state."""
+
     access, _ = _artifact_access()
     binding = access.recording_binding
     recording = binding.recording
@@ -657,7 +710,10 @@ def test_stop_retry_from_applying_reissues_exact_active_egress(db):
         effect_jti=effect["jti"],
         state=models.MastraoRecordingEffect.State.APPLYING,
     )
-    active = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_ACTIVE)
+    active = _provider_egress(
+        recording,
+        livekit_egress.EgressStatus.EGRESS_ACTIVE,  # pylint: disable=no-member
+    )
     with (
         mock.patch(
             "core.mastrao_recording_adapter._exact_provider_egress",
@@ -675,7 +731,10 @@ def test_stop_retry_from_applying_reissues_exact_active_egress(db):
     assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
 
 
-def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings):
+@pytest.mark.usefixtures("db")
+def test_missing_provider_failure_webhook_converges_via_reconciler(settings):
+    """Converge a missing provider-failure webhook through reconciliation."""
+
     access, _ = _artifact_access()
     binding = access.recording_binding
     recording = binding.recording
@@ -688,7 +747,10 @@ def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings)
     settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = (
         "http://cabinet-core:3911/internal/v1/meetings/recording/failures"
     )
-    failed = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_FAILED)
+    failed = _provider_egress(
+        recording,
+        livekit_egress.EgressStatus.EGRESS_FAILED,  # pylint: disable=no-member
+    )
     with (
         mock.patch(
             "core.mastrao_recording_reconciler._exact_provider_egress",
@@ -716,7 +778,10 @@ def test_missing_provider_failure_webhook_converges_via_reconciler(db, settings)
     )
 
 
-def test_recording_failure_local_stale_core_refusal_tombstones_binding(db, settings):
+@pytest.mark.usefixtures("db")
+def test_recording_failure_local_stale_core_refusal_tombstones_binding(settings):
+    """Tombstone a stale local binding after Core refuses its failure receipt."""
+
     access, _ = _artifact_access()
     binding = access.recording_binding
     binding.state = models.MastraoRecordingBinding.State.PROCESSING
@@ -741,14 +806,18 @@ def test_recording_failure_local_stale_core_refusal_tombstones_binding(db, setti
         ),
     ):
         assert report_mastrao_recording_failure(
-            recording, livekit_api.EgressStatus.EGRESS_ABORTED
+            recording,
+            livekit_egress.EgressStatus.EGRESS_ABORTED,  # pylint: disable=no-member
         )
 
     binding.refresh_from_db()
     assert binding.state == models.MastraoRecordingBinding.State.FAILED
 
 
-def test_recording_failure_core_unavailable_stays_retryable(db, settings):
+@pytest.mark.usefixtures("db")
+def test_recording_failure_core_unavailable_stays_retryable(settings):
+    """Keep a recording failure retryable while Core is unavailable."""
+
     access, _ = _artifact_access()
     binding = access.recording_binding
     binding.state = models.MastraoRecordingBinding.State.PROCESSING
@@ -774,14 +843,18 @@ def test_recording_failure_core_unavailable_stays_retryable(db, settings):
     ):
         with pytest.raises(RecordingContractRefused):
             report_mastrao_recording_failure(
-                recording, livekit_api.EgressStatus.EGRESS_ABORTED
+                recording,
+                livekit_egress.EgressStatus.EGRESS_ABORTED,  # pylint: disable=no-member
             )
 
     binding.refresh_from_db()
     assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
 
 
-def test_reconciler_isolates_one_bad_item_while_rollout_controls_are_off(db, settings):
+@pytest.mark.usefixtures("db")
+def test_reconciler_isolates_one_bad_item_while_rollout_controls_are_off(settings):
+    """Isolate one failed reconciliation while rollout controls remain disabled."""
+
     first_access, _ = _artifact_access()
     second_access, _ = _artifact_access("second")
     bindings = [first_access.recording_binding, second_access.recording_binding]
@@ -808,7 +881,10 @@ def test_reconciler_isolates_one_bad_item_while_rollout_controls_are_off(db, set
     assert bindings[0].updated_at > failed_before
 
 
-def test_reconciler_rotates_observed_active_items_before_the_next_batch(db):
+@pytest.mark.usefixtures("db")
+def test_reconciler_rotates_observed_active_items_before_the_next_batch():
+    """Rotate observed active bindings before selecting the next reconciliation batch."""
+
     accesses = [_artifact_access(suffix) for suffix in ("first", "second", "third")]
     bindings = [access.recording_binding for access, _retry in accesses]
     for index, binding in enumerate(bindings):
@@ -894,7 +970,10 @@ def _client_for_access(access, retry, stage="ready"):
     return client
 
 
-def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(db, settings):
+@pytest.mark.usefixtures("db")
+def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(settings):
+    """Consume artifact bootstrap state only from the session that created it."""
+
     access, _retry = _artifact_access()
     binding = access.recording_binding
     access.delete()
@@ -958,7 +1037,10 @@ def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(db, setting
         assert refused.status_code == 404
 
 
-def test_artifact_access_shutdown_is_independent_from_capture_rollback(db, settings):
+@pytest.mark.usefixtures("db")
+def test_artifact_access_shutdown_is_independent_from_capture_rollback(settings):
+    """Keep artifact-access shutdown independent from capture rollback handling."""
+
     access, _retry = _artifact_access()
     access.delete()
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = False
@@ -977,7 +1059,10 @@ def test_artifact_access_shutdown_is_independent_from_capture_rollback(db, setti
     assert "réessayez depuis votre dossier Mastrao" in response.content.decode()
 
 
-def test_capture_rollback_preserves_artifact_download(db, settings):
+@pytest.mark.usefixtures("db")
+def test_capture_rollback_preserves_artifact_download(settings):
+    """Preserve a verified artifact download after capture rollback."""
+
     access, retry = _artifact_access()
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = False
@@ -1000,7 +1085,10 @@ def test_capture_rollback_preserves_artifact_download(db, settings):
     assert client.get("/recordings/download/current").status_code == 404
 
 
-def test_artifact_access_shutdown_revokes_a_prepared_download(db, settings):
+@pytest.mark.usefixtures("db")
+def test_artifact_access_shutdown_revokes_a_prepared_download(settings):
+    """Revoke a prepared artifact download when access is shut down."""
+
     access, retry = _artifact_access()
     client = _client_for_access(access, retry, stage="prepared")
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
@@ -1018,7 +1106,10 @@ def test_artifact_access_shutdown_revokes_a_prepared_download(db, settings):
     assert access.consumed_at is None
 
 
-def test_artifact_download_rejects_changed_object(db):
+@pytest.mark.usefixtures("db")
+def test_artifact_download_rejects_changed_object():
+    """Reject an artifact download after its stored object changes."""
+
     access, retry = _artifact_access()
     client = _client_for_access(access, retry, stage="prepared")
     with mock.patch(
@@ -1030,7 +1121,10 @@ def test_artifact_download_rejects_changed_object(db):
     assert access.consumed_at is None
 
 
-def test_artifact_download_reads_and_serves_one_verified_stream(db):
+@pytest.mark.usefixtures("db")
+def test_artifact_download_reads_and_serves_one_verified_stream():
+    """Serve exactly one verified artifact stream to an authorized requester."""
+
     access, retry = _artifact_access()
     client = _client_for_access(access, retry, stage="prepared")
     with mock.patch(
@@ -1043,7 +1137,10 @@ def test_artifact_download_reads_and_serves_one_verified_stream(db):
     storage.assert_called_once()
 
 
-def test_artifact_download_storage_failure_is_opaque_and_retryable(db):
+@pytest.mark.usefixtures("db")
+def test_artifact_download_storage_failure_is_opaque_and_retryable():
+    """Keep an artifact storage failure opaque and eligible for retry."""
+
     access, retry = _artifact_access()
     client = _client_for_access(access, retry, stage="prepared")
     with mock.patch(
@@ -1058,7 +1155,10 @@ def test_artifact_download_storage_failure_is_opaque_and_retryable(db):
     assert access.consumed_at is None
 
 
-def test_artifact_download_started_before_expiry_finishes_after_expiry(db):
+@pytest.mark.usefixtures("db")
+def test_artifact_download_started_before_expiry_finishes_after_expiry():
+    """Allow a verified stream that began before the artifact grant expired."""
+
     access, retry = _artifact_access()
     started_at = timezone.now()
     access.expires_at = started_at + timedelta(seconds=30)
@@ -1079,7 +1179,10 @@ def test_artifact_download_started_before_expiry_finishes_after_expiry(db):
     assert access.consumed_at == started_at + timedelta(minutes=2)
 
 
-def test_artifact_download_started_after_expiry_is_refused(db):
+@pytest.mark.usefixtures("db")
+def test_artifact_download_started_after_expiry_is_refused():
+    """Refuse an artifact stream first requested after grant expiry."""
+
     access, retry = _artifact_access()
     access.expires_at = timezone.now() - timedelta(seconds=1)
     access.save(update_fields=["expires_at", "updated_at"])
@@ -1092,7 +1195,10 @@ def test_artifact_download_started_after_expiry_is_refused(db):
     assert access.consumed_at is None
 
 
-def test_artifact_download_rejects_old_cookie_and_other_browser(db):
+@pytest.mark.usefixtures("db")
+def test_artifact_download_rejects_old_cookie_and_other_browser():
+    """Reject artifact download cookies from an old or different browser session."""
+
     access, retry = _artifact_access()
     wrong_cookie = _client_for_access(access, f"{retry}-old")
     assert wrong_cookie.get("/recordings/download/current").status_code == 404
@@ -1102,7 +1208,10 @@ def test_artifact_download_rejects_old_cookie_and_other_browser(db):
     assert other_browser.get("/recordings/download/current").status_code == 404
 
 
-def test_artifact_download_rechecks_retention_at_stream_time(db):
+@pytest.mark.usefixtures("db")
+def test_artifact_download_rechecks_retention_at_stream_time():
+    """Recheck recording retention immediately before artifact streaming."""
+
     access, retry = _artifact_access()
     binding = access.recording_binding
     binding.retention_expires_at = timezone.now() - timedelta(seconds=1)
@@ -1113,7 +1222,10 @@ def test_artifact_download_rechecks_retention_at_stream_time(db):
     storage.assert_not_called()
 
 
-def test_artifact_finalization_verifies_and_replays_persisted_metadata(db, settings):
+@pytest.mark.usefixtures("db")
+def test_artifact_finalization_verifies_and_replays_persisted_metadata(settings):
+    """Verify persisted metadata before replaying artifact finalization."""
+
     access, _retry = _artifact_access()
     binding = access.recording_binding
     binding.artifact_ref = None
@@ -1153,7 +1265,10 @@ def test_artifact_finalization_verifies_and_replays_persisted_metadata(db, setti
     post_core_json.assert_called_once()
 
 
-def test_artifact_inspection_runs_outside_database_transaction(db, settings):
+@pytest.mark.usefixtures("db")
+def test_artifact_inspection_runs_outside_database_transaction(settings):
+    """Inspect stored artifacts without holding the recording database transaction."""
+
     access, _retry = _artifact_access()
     binding = access.recording_binding
     binding.artifact_ref = None
@@ -1215,7 +1330,10 @@ def test_artifact_inspection_runs_outside_database_transaction(db, settings):
     assert inspection_depths == [0]
 
 
-def test_artifact_finalization_rejects_recording_version_race(db, settings):
+@pytest.mark.usefixtures("db")
+def test_artifact_finalization_rejects_recording_version_race(settings):
+    """Reject artifact finalization when the recording version changes concurrently."""
+
     access, _retry = _artifact_access()
     binding = access.recording_binding
     binding.artifact_ref = None
@@ -1251,7 +1369,10 @@ def test_artifact_finalization_rejects_recording_version_race(db, settings):
     assert binding.artifact_ref is None
 
 
-def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
+@pytest.mark.usefixtures("db")
+def test_artifact_finalization_replays_receipt_after_core_failure(settings):
+    """Replay a persisted artifact receipt after a transient Core failure."""
+
     access, _retry = _artifact_access()
     binding = access.recording_binding
     binding.artifact_ref = None

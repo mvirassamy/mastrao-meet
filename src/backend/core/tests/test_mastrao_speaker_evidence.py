@@ -3,6 +3,7 @@
 # Test names carry the proof intent.
 # pylint: disable=missing-function-docstring
 
+import base64
 import hashlib
 import json
 import time
@@ -13,6 +14,8 @@ from django.conf import settings
 from django.utils import timezone
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core import models
 from core.factories import RoomFactory, UserFactory
@@ -22,6 +25,35 @@ from core.mastrao_speaker_evidence_contract import validate_artifact_receipt_cla
 from core.models import RoomAccessLevel
 
 pytestmark = pytest.mark.django_db
+
+
+def _b64(value):
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+@pytest.fixture(autouse=True)
+def recording_receipt_private_jwk(request):
+    """Use an isolated synthetic receipt key while exercising sidecar integrity."""
+
+    request.getfixturevalue("settings")
+    private_key = Ed25519PrivateKey.generate()
+    public_raw = private_key.public_key().public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    )
+    private_raw = private_key.private_bytes(
+        serialization.Encoding.Raw,
+        serialization.PrivateFormat.Raw,
+        serialization.NoEncryption(),
+    )
+    settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = json.dumps(
+        {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": _b64(public_raw),
+            "d": _b64(private_raw),
+        }
+    )
 
 
 def _active_recording_binding():
@@ -72,6 +104,7 @@ def _effect(binding):
         "purpose": "meeting_speaker_evidence",
         "scope": "recording_roster_vad_timeline",
         "retention_expires_at": int(binding.retention_expires_at.timestamp()),
+        "recording_started_at_ms": 0,
         "effect_key": "speakerevidence_01234567",
         "arguments_digest": "d" * 64,
         "jti": "speakerevidence_01234567",
