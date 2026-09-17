@@ -251,13 +251,13 @@ jobs:
 
       - name: Start MinIO
         run: |
-          docker pull minio/minio
+          docker pull quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
           docker run -d --name minio \
             -p 9000:9000 \
             -e "MINIO_ACCESS_KEY=meet" \
             -e "MINIO_SECRET_KEY=password" \
             -v /data/media:/data \
-            minio/minio server --console-address :9001 /data
+            quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e server --console-address :9001 /data
 
       # Tool to wait for a service to be ready
       - name: Install Dockerize
@@ -270,8 +270,8 @@ jobs:
 
       - name: Configure MinIO
         run: |
-          MINIO=$(docker ps | grep minio/minio | sed -E 's/.*\s+([a-zA-Z0-9_-]+)$/\1/')
-          docker exec ${MINIO} sh -c \
+          docker run --rm --network host --entrypoint sh \
+            quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 -c \
             "mc alias set meet http://localhost:9000 meet password && \
             mc alias ls && \
             mc mb meet/meet-media-storage"
@@ -285,10 +285,10 @@ jobs:
       - name: Install the dependencies
         run: uv sync --locked --all-extras
 
-      - name: Install gettext (required to compile messages)
+      - name: Install backend system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gettext
+          sudo apt-get install -y ffmpeg gettext
 
       - name: Generate a MO file from strings extracted from the project
         run: uv run python manage.py compilemessages

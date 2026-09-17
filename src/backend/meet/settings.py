@@ -89,6 +89,13 @@ def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creatio
 PAID_ASR_PROVIDERS = {"mistral", "openai"}
 
 
+def redis_url_with_database(redis_url, database):
+    """Return a Redis URL that keeps its endpoint and selects one database."""
+
+    parsed_url = urlparse(redis_url)
+    return parsed_url._replace(path=f"/{database}").geturl()
+
+
 def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
     transcription_enabled,
     asr_mode,
@@ -1775,7 +1782,10 @@ class Test(Base):
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": f"redis://redis:6379/{_xdist_cache_db}",
+            "LOCATION": redis_url_with_database(
+                environ.get("REDIS_URL", "redis://redis:6379/1"),
+                _xdist_cache_db,
+            ),
             "KEY_PREFIX": f"meet-test-{_xdist_worker}",
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
