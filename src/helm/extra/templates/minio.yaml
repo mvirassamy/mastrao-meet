@@ -74,7 +74,7 @@ spec:
             value: meet
           - name: MINIO_ROOT_PASSWORD
             value: password
-        image: "minio/minio"
+        image: "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9000
