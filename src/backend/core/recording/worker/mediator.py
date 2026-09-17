@@ -26,9 +26,8 @@ def _is_already_terminal_stop_error(error: Exception) -> bool:
 
     message = str(error)
     return (
-        ("EGRESS_ABORTED" in message or "EGRESS_FAILED" in message)
-        and "cannot be stopped" in message
-    )
+        "EGRESS_ABORTED" in message or "EGRESS_FAILED" in message
+    ) and "cannot be stopped" in message
 
 
 class WorkerServiceMediator:

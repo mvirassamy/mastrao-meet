@@ -21,8 +21,10 @@ and this project adheres to
 - 🐛(frontend) preserve desktop meeting controls in narrow windows
 - 🐛(frontend) restore notification and screen-share warning contrast
 
-- 🐛(backend) redirect Mastrao host handoffs to the configured frontend room origin
-- 🐛(frontend) proxy Mastrao handoff routes from the local production frontend across backend restarts
+- 🐛(backend) redirect Mastrao host handoffs to the configured frontend
+  room origin
+- 🐛(frontend) proxy Mastrao handoff routes from the local production
+  frontend across backend restarts
 - 🐛(backend) bind speaker evidence labels and fresh capture windows
 - 🐛(backend) seal and drain speaker evidence artifact replay sidecars
 - 🐛(backend) refresh speaker evidence artifact receipts on replay
@@ -37,8 +39,10 @@ and this project adheres to
 - 🐛(frontend) keep the post-meeting screen stable across reloads
 - 🐛(backend) keep Gateway recovery and terminal cleanup monotonic
 - 🐛(backend) recover a durable Gateway result after a lost response
-- 🐛(docker) keep the non-root frontend dependency stage writable without BuildKit
-- 🐛(backend) persist the managed-provider rate-limited attempt state in migration 0036
+- 🐛(docker) keep the non-root frontend dependency stage writable
+  without BuildKit
+- 🐛(backend) persist the managed-provider rate-limited attempt state
+  in migration 0036
 - 🐛(backend) keep the v2 ASR catalog to the two paid profiles
 - 🐛(backend) drop the redundant Gateway refusal re-raise
 - 🐛(backend) honor Retry-After and keep the absolute 429 deadline
@@ -53,35 +57,51 @@ and this project adheres to
 - 🐛(backend) retry proven pre-egress failures before notifying Core
 - 🐛(backend) bind recovery by attempt key and succeed after Core accept
 - 🐛(backend) re-check recording authority before Gateway send and commit
-- 🐛(backend) extract 16 kHz FLAC so 30 and 60 minute meetings stay under 25MB
-- 🐛(backend) refuse real ASR without provider, model, token and qualification
+- 🐛(backend) extract 16 kHz FLAC so 30 and 60 minute meetings stay
+  under 25MB
+- 🐛(backend) refuse real ASR without provider, model, token and
+  qualification
 - 🐛(backend) delete durable transcript recovery after Core outcome or revoke
 - 🐛(backend) replay a persisted Gateway result after a paid sending crash
-- 🐛(backend) keep the first-checksum overwrite proof from signing Core receipts
+- 🐛(backend) keep the first-checksum overwrite proof from signing Core
+  receipts
 - 🐛(backend) format provider-attempt modules for the recording quality gate
 - 🐛(backend) add provider-attempt docstrings for the recording quality gate
 
 ### Added
 
-- ✨(frontend) return verified Mastrao hosts to the freshly authorized Platform meeting
-- 🔐(backend) authorize each managed-provider audio egress through Core, bind recover-only replay and preserve v2 provider provenance
+- ✨(frontend) return verified Mastrao hosts to the freshly authorized
+  Platform meeting
+- 🔐(backend) authorize each managed-provider audio egress through
+  Core, bind recover-only replay and preserve v2 provider provenance
 - ✨(backend) accept consent-bound v2 ASR profiles beside draining v1 jobs
 - ✨(backend) allow immutable transcript runs to share one recording
-- 🔐(backend) add durable provider-attempt state, object-save recovery and a dedicated mastrao-transcription Celery worker
-- 🔐(backend) freeze the first pending transcript artifact and delete a losing object after Core failure
+- 🔐(backend) add durable provider-attempt state, object-save recovery
+  and a dedicated mastrao-transcription Celery worker
+- 🔐(backend) freeze the first pending transcript artifact and delete a
+  losing object after Core failure
 - 🔐(backend) send only the durable transcription callback chosen under lock
-- 🔐(backend) converge a late Core failure callback to available when the artifact already won
-- 📝(backend) document that 0029/0030 never shipped on main so no APPLIED/FAILED backfill is required
-- 🔐(backend) converge refused transcription callbacks from Core outcomes without republishing
-- 📝(backend) back off due transcription dispatches with SKIP LOCKED reservation
+- 🔐(backend) converge a late Core failure callback to available when
+  the artifact already won
+- 📝(backend) document that 0029/0030 never shipped on main so no
+  APPLIED/FAILED backfill is required
+- 🔐(backend) converge refused transcription callbacks from Core
+  outcomes without republishing
+- 📝(backend) back off due transcription dispatches with SKIP LOCKED
+  reservation
 - 🔐(helm) route public /recordings to backend on every host
-- 📝(backend) produce canonical consent-bound transcript artifacts with strict ASR validation
-- ✨(frontend) collect a distinct recoverable transcription decision before media entry
+- 📝(backend) produce canonical consent-bound transcript artifacts with
+  strict ASR validation
+- ✨(frontend) collect a distinct recoverable transcription decision
+  before media entry
 - 🚀(helm) add secret-safe staging and production LiveKit Egress overlays
-- 🔐(backend) consume short Mastrao host handoffs into session-bound media grants
-- 🔐(backend) redeem canonical guest invitations into anonymous room-bound lobby grants
+- 🔐(backend) consume short Mastrao host handoffs into session-bound
+  media grants
+- 🔐(backend) redeem canonical guest invitations into anonymous
+  room-bound lobby grants
 - 🔐(backend) enforce canonical recording consent before issuing media grants
-- 📹(backend) reconcile one room-composite recording and finalized MP4 artifact
+- 📹(backend) reconcile one room-composite recording and finalized MP4
+  artifact
 - ✨(frontend) add the fragment-safe Mastrao guest invitation landing flow
 - ✨(frontend) add accessible recording consent and active-capture controls
 
@@ -90,32 +110,52 @@ and this project adheres to
 - 🎨(frontend) apply Mastrao semantic colors, Arial and rounded controls
 - 🎨(frontend) brand the carousel and Keycloak login with Mastrao assets
 
-- ✨(frontend) generate Panda styles before the consent test so CI can resolve styled-system
-- 📝(backend) force fake ASR when emitting the provider-free qualification artifact
-- 🚀(backend) persist ASR artifacts before Core notification and retry callbacks without re-running ASR
-- 🚀(backend) store transcription dispatch in the database instead of treating cache as delivery proof
-- 🔒️(backend) require Celery when transcription is enabled in deployable environments
-- 🔐(backend) treat artifact callbacks before Core submit confirmation as retryable
-- 🚀(backend) enqueue transcription completion on Celery so submit HTTP returns the signed receipt immediately
-- 🔐(backend) bind transcript objects to the authorized transcription and delete them when Core refuses a deleted-recording callback
-- ✨(frontend) show the dedicated transcription notice when recording is already accepted
+- ✨(frontend) generate Panda styles before the consent test so CI can
+  resolve styled-system
+- 📝(backend) force fake ASR when emitting the provider-free
+  qualification artifact
+- 🚀(backend) persist ASR artifacts before Core notification and retry
+  callbacks without re-running ASR
+- 🚀(backend) store transcription dispatch in the database instead of
+  treating cache as delivery proof
+- 🔒️(backend) require Celery when transcription is enabled in
+  deployable environments
+- 🔐(backend) treat artifact callbacks before Core submit confirmation
+  as retryable
+- 🚀(backend) enqueue transcription completion on Celery so submit HTTP
+  returns the signed receipt immediately
+- 🔐(backend) bind transcript objects to the authorized transcription
+  and delete them when Core refuses a deleted-recording callback
+- ✨(frontend) show the dedicated transcription notice when recording
+  is already accepted
 - 🔐(backend) preserve recording-only access after transcription refusal
-- 🔒️(backend) scrub transcription capabilities and receipts from error telemetry
-- 🔒️(backend) split new recording starts from emergency artifact-access shutdown
-- 🔒️(backend) revoke prepared downloads when emergency artifact access closes
-- 🩺(backend) isolate recording reconciliation failures during bounded drain batches
+- 🔒️(backend) scrub transcription capabilities and receipts from error
+  telemetry
+- 🔒️(backend) split new recording starts from emergency
+  artifact-access shutdown
+- 🔒️(backend) revoke prepared downloads when emergency artifact access
+  closes
+- 🩺(backend) isolate recording reconciliation failures during bounded
+  drain batches
 - 🩺(backend) rotate poison recording items behind the bounded drain queue
-- 🚀(helm) harden recording reconciliation scheduling for rollout and rollback
+- 🚀(helm) harden recording reconciliation scheduling for rollout and
+  rollback
 - 🔐(helm) bind secret-safe Meet and Egress overlays through trusted handoffs
-- 🔒️(backend) distinguish pseudonymous Mastrao hosts from non-interactive room owners
-- 🔒️(backend) require Core-confirmed guest admission before minting participant media tokens
-- 🔒️(backend) stream recording artifacts through single-use session-bound access
+- 🔒️(backend) distinguish pseudonymous Mastrao hosts from
+  non-interactive room owners
+- 🔒️(backend) require Core-confirmed guest admission before minting
+  participant media tokens
+- 🔒️(backend) stream recording artifacts through single-use
+  session-bound access
 
 ### Fixed
 
-- 🐛(backend) install the pinned ffmpeg runtime required for transcript audio extraction
-- 🐛(backend) seed the CSRF cookie during host handoff so the first consent mutation is accepted
-- 🐛(backend) isolate pytest-xdist cache and session keys so parallel workers cannot drop each other
+- 🐛(backend) install the pinned ffmpeg runtime required for transcript
+  audio extraction
+- 🐛(backend) seed the CSRF cookie during host handoff so the first
+  consent mutation is accepted
+- 🐛(backend) isolate pytest-xdist cache and session keys so parallel
+  workers cannot drop each other
 
 ## [1.26.0] - 2026-08-12
 
@@ -203,7 +243,8 @@ and this project adheres to
 - 💄(frontend) show pointer cursor on interactive switches
 - 🐛(frontend) fix icon centering in the Switch primitive
 - 🐛(frontend) keep Unicode initials intact in avatar
-- 🐛(frontend) prevent concurrent settings updates from overwriting each other
+- 🐛(frontend) prevent concurrent settings updates from overwriting
+  each other
 
 ## [1.24.0] - 2026-07-21
 
@@ -318,7 +359,8 @@ and this project adheres to
 
 ### Changed
 
-- ♻️(addon) improve Outlook add-on: i18n support, feedback link, smarter link
+- ♻️(addon) improve Outlook add-on: i18n support, feedback link,
+  smarter link
 - ⬆️(frontend) upgrade react-i18next from 15.1.1 to 17.0.8
 
 ### Fixed
@@ -443,8 +485,10 @@ and this project adheres to
 - ♻️(backend) use Authorization header for LiveKit token authentication
 - 🥅(backend) refine Twirp error handling for participant operations
 - ✨(summary) allow more file extensions #1265
-- ♿️(frontend) refocus reactions toolbar with ctrl+shift+e is activated #1262
-- ♿️(frontend) set an explicit document title on recording download page #1261
+- ♿️(frontend) refocus reactions toolbar with ctrl+shift+e is
+  activated #1262
+- ♿️(frontend) set an explicit document title on recording download
+  page #1261
 - ♿️(frontend) add customizable accessibility fonts #1270
 
 ### Fixed
@@ -482,7 +526,8 @@ and this project adheres to
 - ♿️(fronted) improve button descriptions for More tools actions #1184
 - 💄(spinner) enforce spinner height #1183
 - 💄(custom-background) add upload indicator with preview #1183
-- ♿️(backend) improve logo accessibility in recording email notification #1092
+- ♿️(backend) improve logo accessibility in recording email
+  notification #1092
 - ♿️(summary) improve accessibility of transcription download link #1187
 - 💄(frontend) show OS-specific shortcut in participant tile hint #1193
 - ⬆️(frontend) bump flatted from 3.3.1 to 3.4.2 in /src/frontend #1188
@@ -516,7 +561,8 @@ and this project adheres to
 - ♿️(frontend) improve ui and aria labels for help article links #1108
 - 🌐(frontend) improve German translation #1125
 - 🔨(python-env) migrate meet main app to UV #1120
-- ♻️(backend) align Application model field with `is_active` convention #1133
+- ♻️(backend) align Application model field with `is_active`
+  convention #1133
 - 🔐(backend) avoids revealing the inactive status of an application #1135
 - ⚡️(helm) reduce initialDelaySeconds and add periods seconds #1139
 - 🔒️(backend) avoid information exposure through exception messages #1144
@@ -539,13 +585,15 @@ and this project adheres to
 - 🔒️(backend) enhance API input validation to strengthen security #1053
 - 🦺(backend) strengthen API validation for recording options #1063
 - ⚡️(frontend) optimize few performance caveats #1073
-- 🔒️(helm) introduce a dedicated Kubernetes Ingress for webhook-livekit #1066
+- 🔒️(helm) introduce a dedicated Kubernetes Ingress for
+  webhook-livekit #1066
 - ⬆️(deps) bump rollup from 4.44.2 to 4.59.0 in /src/frontend #1088
 
 ### Fixed
 
 - 🐛(migrations) use settings in migrations #1058
-- 💄(frontend) truncate pinned participant name with ellipsis on overflow #1056
+- 💄(frontend) truncate pinned participant name with ellipsis on
+  overflow #1056
 - ♿(frontend) prevent focus ring clipping on invite dialog #1078
 - ♿(frontend) dynamic tab title when connected to meeting #1060
 - 🩹(frontend) remove incorrect reference to ProConnect on the prejoin #1080
@@ -566,7 +614,8 @@ and this project adheres to
 
 ### Changed
 
-- ♻️(frontend) replace custom reactions toolbar with react aria popover #985
+- ♻️(frontend) replace custom reactions toolbar with react aria
+  popover #985
 - 🔒️(frontend) uninstall curl from the frontend production image #987
 - 💄(frontend) add focus ring to reaction emoji buttons
 - ✨(frontend) introduce a shortcut settings tab #975
