@@ -61,7 +61,9 @@ class MetadataCollectorService:
             dispatch_id = getattr(response, "id", None)
 
             if not dispatch_id:
-                logger.error("LiveKit response missing dispatch ID for room %s", room_id)
+                logger.error(
+                    "LiveKit response missing dispatch ID for room %s", room_id
+                )
                 raise MetadataCollectorException(
                     f"LiveKit did not return a dispatch_id for room {room_id}"
                 )
@@ -121,7 +123,9 @@ class MetadataCollectorService:
         """Stop and delete the agent dispatch associated to the room."""
 
         room_id = str(recording.room.id)
-        dispatch_id = self._actual_dispatch_id(recording.options.get(dispatch_option_key))
+        dispatch_id = self._actual_dispatch_id(
+            recording.options.get(dispatch_option_key)
+        )
         lkapi = utils.create_livekit_client()
 
         try:
