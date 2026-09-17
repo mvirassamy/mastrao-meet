@@ -3,7 +3,6 @@
 import json
 import os
 import subprocess
-from uuid import uuid4
 
 from django.db import DatabaseError, connection
 from django.utils import timezone
@@ -84,8 +83,8 @@ def test_stop_snapshot_requires_separate_terminal_observation(
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("capture_ref", str(uuid4())),
-        ("epoch_ref", str(uuid4())),
+        ("capture_ref", "00000000-0000-4000-8000-000000000001"),
+        ("epoch_ref", "00000000-0000-4000-8000-000000000002"),
         ("organization_external_id", "other-cabinet"),
         ("arguments_digest", "a" * 64),
         ("effect_key", "effect_other_fixture"),
