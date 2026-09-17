@@ -1,0 +1,11 @@
+log_level: debug
+api_key: devkey
+api_secret: secret
+ws_url: "ws://127.0.0.1:7880"
+insecure: true
+room_composite:
+  enable_room_composite_sdk_source: true
+redis:
+  address: 127.0.0.1:6380
+cpu_cost:
+  room_composite_cpu_cost: 1.0

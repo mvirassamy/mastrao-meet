@@ -7,8 +7,14 @@ services:
     volumes:
       - ./docker/livekit/config/livekit-server.host.yaml:/config.yaml
 
-  # A bridge-networked Egress worker reaches host-networked LiveKit through
-  # Docker's explicit host-gateway mapping on native Linux.
+  # LiveKit advertises loopback-only ICE candidates in this same-host gate.
+  # Egress must therefore share the host network as well: forwarding only the
+  # signalling endpoint does not make 127.0.0.1 RTC candidates reachable from
+  # a separate container namespace.
   livekit-egress:
+    network_mode: host
+    volumes:
+      - ./docker/livekit/config/livekit-egress.host.yaml:/livekit-egress.yaml
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "minio:host-gateway"
