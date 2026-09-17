@@ -1,0 +1,18 @@
+services:
+  # This topology is exclusively for same-host Linux CI qualification. Staging
+  # remains on its declared manifests and never consumes this override.
+  livekit:
+    network_mode: host
+    ports: !reset []
+    volumes:
+      - ./docker/livekit/config/livekit-server.host.yaml:/config.yaml
+
+  # Loopback ICE candidates are reachable only when Egress shares LiveKit's
+  # host namespace. MinIO remains reachable through Docker's host gateway.
+  livekit-egress:
+    network_mode: host
+    volumes:
+      - ./docker/livekit/config/livekit-egress.host.yaml:/livekit-egress.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "minio:host-gateway"
