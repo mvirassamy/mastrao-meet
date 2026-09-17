@@ -1,5 +1,8 @@
 """Focused proofs for the browser host handoff and temporary media grant."""
 
+# Shared security fixtures and end-to-end grant contracts intentionally stay together.
+# pylint: disable=too-many-lines
+
 import base64
 import json
 import time

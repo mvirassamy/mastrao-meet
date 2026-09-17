@@ -96,7 +96,7 @@ def redis_url_with_database(redis_url, database):
     return parsed_url._replace(path=f"/{database}").geturl()
 
 
-def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
+def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917  # pylint: disable=too-many-arguments,too-many-positional-arguments
     transcription_enabled,
     asr_mode,
     asr_endpoint,
