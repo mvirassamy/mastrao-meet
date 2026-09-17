@@ -1,0 +1,14 @@
+services:
+  # Linux qualification uses the production-recommended host network for
+  # LiveKit's RTC plane. The default compose file keeps its Docker Desktop
+  # loopback setup for local macOS development.
+  livekit:
+    network_mode: host
+    volumes:
+      - ./docker/livekit/config/livekit-server.host.yaml:/config.yaml
+
+  # A bridge-networked Egress worker reaches host-networked LiveKit through
+  # Docker's explicit host-gateway mapping on native Linux.
+  livekit-egress:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
