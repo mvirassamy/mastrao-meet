@@ -227,7 +227,7 @@ services:
       - kc_postgresql
 
   livekit:
-    image: livekit/livekit-server
+    image: livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3
     entrypoint: /livekit-server --dev --bind 0.0.0.0 --config ./config.yaml
     ports:
       - "7880:7880"
@@ -239,7 +239,7 @@ services:
       - redis
 
   livekit-egress:
-    image: livekit/egress:v1.14.1
+    image: livekit/egress:v1.14.1@sha256:bf2b648b947349c3e9ff7aa8c718f00378d5c06af7624652a3653318e00333ce
     cap_add:
       - SYS_ADMIN
     environment:
