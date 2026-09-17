@@ -3,14 +3,21 @@ run-name: Docker Hub Workflow
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'main'
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - 'main'
+      - 'develop'
+  workflow_call:
+    inputs:
+      publish:
+        required: true
+        type: boolean
+      source_branch:
+        required: true
+        type: string
+      source_sha:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,16 +28,23 @@ env:
   DOCKER_CONTAINER_REGISTRY_NAMESPACE: lasuite
   IS_MULTI_PLATFORM_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') }}
   BUILD_PLATFORMS: ${{ startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+  SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+  SOURCE_BRANCH: ${{ inputs.source_branch || github.ref_name }}
+  CAN_PUBLISH: ${{ inputs.publish || false }}
 
 jobs:
   build-and-push-backend:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
     steps:
       -
         name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
       -
         name: Set up QEMU
         if: env.IS_MULTI_PLATFORM_BUILD == 'true'
@@ -44,9 +58,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: '${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-backend'
+          tags: |
+            type=raw,value=${{ env.SOURCE_SHA }}
+            type=raw,value=develop-${{ env.SOURCE_SHA }}
       -
         name: Login to DockerHub
-        if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/')
+        if: env.CAN_PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USER }}
@@ -56,27 +73,35 @@ jobs:
         uses: numerique-gouv/action-trivy-cache@main
         with:
           docker-build-args: '--target backend-production -f Dockerfile'
-          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-backend:${{ github.sha }}'
+          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-backend:${{ env.SOURCE_SHA }}'
       -
         name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           target: backend-production
           platforms: ${{ env.BUILD_PLATFORMS }}
           build-args: DOCKER_USER=${{ env.DOCKER_USER }}:-1000
-          push: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/') }}
+          push: ${{ env.CAN_PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          provenance: mode=max
 
   build-and-push-frontend-generic:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
     steps:
       -
         name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
       -
         name: Set up QEMU
         if: env.IS_MULTI_PLATFORM_BUILD == 'true'
@@ -90,9 +115,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: '${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-frontend'
+          tags: |
+            type=raw,value=${{ env.SOURCE_SHA }}
+            type=raw,value=develop-${{ env.SOURCE_SHA }}
       -
         name: Login to DockerHub
-        if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/')
+        if: env.CAN_PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USER }}
@@ -102,9 +130,10 @@ jobs:
         uses: numerique-gouv/action-trivy-cache@main
         with:
           docker-build-args: '-f src/frontend/Dockerfile --target frontend-production'
-          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-frontend:${{ github.sha }}'
+          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-frontend:${{ env.SOURCE_SHA }}'
       -
         name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -112,18 +141,25 @@ jobs:
           target: frontend-production
           platforms: ${{ env.BUILD_PLATFORMS }}
           build-args: DOCKER_USER=${{ env.DOCKER_USER }}:-1000
-          push: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/') }}
+          push: ${{ env.CAN_PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          provenance: mode=max
 
   build-and-push-frontend-dinum:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
     steps:
       -
         name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
       -
         name: Set up QEMU
         if: env.IS_MULTI_PLATFORM_BUILD == 'true'
@@ -137,9 +173,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: '${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-frontend-dinum'
+          tags: |
+            type=raw,value=${{ env.SOURCE_SHA }}
+            type=raw,value=develop-${{ env.SOURCE_SHA }}
       -
         name: Login to DockerHub
-        if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/')
+        if: env.CAN_PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USER }}
@@ -149,9 +188,10 @@ jobs:
         uses: numerique-gouv/action-trivy-cache@main
         with:
           docker-build-args: '-f docker/dinum-frontend/Dockerfile --target frontend-production'
-          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-frontend-dinum:${{ github.sha }}'
+          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-frontend-dinum:${{ env.SOURCE_SHA }}'
       -
         name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -159,18 +199,25 @@ jobs:
           target: frontend-production
           platforms: ${{ env.BUILD_PLATFORMS }}
           build-args: DOCKER_USER=${{ env.DOCKER_USER }}:-1000
-          push: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/') }}
+          push: ${{ env.CAN_PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          provenance: mode=max
 
   build-and-push-summary:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
     steps:
       -
         name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
       -
         name: Set up QEMU
         if: env.IS_MULTI_PLATFORM_BUILD == 'true'
@@ -184,9 +231,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: '${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-summary'
+          tags: |
+            type=raw,value=${{ env.SOURCE_SHA }}
+            type=raw,value=develop-${{ env.SOURCE_SHA }}
       -
         name: Login to DockerHub
-        if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/')
+        if: env.CAN_PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USER }}
@@ -194,13 +244,14 @@ jobs:
       -
         name: Run trivy scan
         uses: numerique-gouv/action-trivy-cache@main
-        continue-on-error: true
+        continue-on-error: ${{ env.SOURCE_BRANCH != 'develop' }}
         with:
           docker-build-args: '-f src/summary/Dockerfile --target production'
-          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-summary:${{ github.sha }}'
+          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-summary:${{ env.SOURCE_SHA }}'
           docker-context: './src/summary'
       -
         name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./src/summary
@@ -208,18 +259,25 @@ jobs:
           target: production
           platforms: ${{ env.BUILD_PLATFORMS }}
           build-args: DOCKER_USER=${{ env.DOCKER_USER }}:-1000
-          push: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/') }}
+          push: ${{ env.CAN_PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          provenance: mode=max
 
   build-and-push-agents:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
     steps:
       -
         name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
       -
         name: Set up QEMU
         if: env.IS_MULTI_PLATFORM_BUILD == 'true'
@@ -233,9 +291,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: lasuite/meet-agents
+          tags: |
+            type=raw,value=${{ env.SOURCE_SHA }}
+            type=raw,value=develop-${{ env.SOURCE_SHA }}
       -
         name: Login to DockerHub
-        if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/')
+        if: env.CAN_PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USER }}
@@ -243,13 +304,14 @@ jobs:
       -
         name: Run trivy scan
         uses: numerique-gouv/action-trivy-cache@main
-        continue-on-error: true
+        continue-on-error: ${{ env.SOURCE_BRANCH != 'develop' }}
         with:
           docker-build-args: '-f src/agents/Dockerfile --target production'
-          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-agents:${{ github.sha }}'
+          docker-image-name: '${{ env.DOCKER_CONTAINER_REGISTRY_HOSTNAME }}/${{ env.DOCKER_CONTAINER_REGISTRY_NAMESPACE }}/meet-agents:${{ env.SOURCE_SHA }}'
           docker-context: './src/agents'
       -
         name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./src/agents
@@ -257,13 +319,15 @@ jobs:
           target: production
           platforms: ${{ env.BUILD_PLATFORMS }}
           build-args: DOCKER_USER=${{ env.DOCKER_USER }}:-1000
-          push: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'integration/') }}
+          push: ${{ env.CAN_PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          provenance: mode=max
 
-  notify-argocd:
-    permissions:
-      contents: read
+  record-develop-release:
+    name: Record develop image receipt
     needs:
       - build-and-push-frontend-generic
       - build-and-push-frontend-dinum
@@ -271,11 +335,39 @@ jobs:
       - build-and-push-summary
       - build-and-push-agents
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: inputs.publish
+    permissions:
+      contents: read
     steps:
-      - uses: numerique-gouv/action-argocd-webhook-notification@main
-        id: notify
+      - name: Write immutable image receipt
+        env:
+          BACKEND_DIGEST: ${{ needs.build-and-push-backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ needs.build-and-push-frontend-generic.outputs.digest }}
+          FRONTEND_DINUM_DIGEST: ${{ needs.build-and-push-frontend-dinum.outputs.digest }}
+          SUMMARY_DIGEST: ${{ needs.build-and-push-summary.outputs.digest }}
+          AGENTS_DIGEST: ${{ needs.build-and-push-agents.outputs.digest }}
+        run: |
+          for digest in "$BACKEND_DIGEST" "$FRONTEND_DIGEST" "$FRONTEND_DINUM_DIGEST" "$SUMMARY_DIGEST" "$AGENTS_DIGEST"; do
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
+          done
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg revision "$SOURCE_SHA" \
+            --arg workflow "$GITHUB_WORKFLOW_REF" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg backend "$BACKEND_DIGEST" \
+            --arg frontend "$FRONTEND_DIGEST" \
+            --arg frontend_dinum "$FRONTEND_DINUM_DIGEST" \
+            --arg summary "$SUMMARY_DIGEST" \
+            --arg agents "$AGENTS_DIGEST" \
+            '{version: 1, environment: "staging-candidate", source: {repository: $repository, revision: $revision, workflow: $workflow, run_id: $run_id, run_attempt: $run_attempt}, security: {trivy: "required-success"}, images: [{component: "meet-backend", image: ("docker.io/lasuite/meet-backend@" + $backend)}, {component: "meet-frontend", image: ("docker.io/lasuite/meet-frontend@" + $frontend)}, {component: "meet-frontend-dinum", image: ("docker.io/lasuite/meet-frontend-dinum@" + $frontend_dinum)}, {component: "meet-summary", image: ("docker.io/lasuite/meet-summary@" + $summary)}, {component: "meet-agents", image: ("docker.io/lasuite/meet-agents@" + $agents)}]}' \
+            > meet-image-receipt.json
+
+      - name: Upload image receipt
+        uses: actions/upload-artifact@v4
         with:
-          deployment_repo_path: "${{ secrets.DEPLOYMENT_REPO_URL }}"
-          argocd_webhook_secret: "${{ secrets.ARGOCD_PREPROD_WEBHOOK_SECRET }}"
-          argocd_url: "${{ vars.ARGOCD_PREPROD_WEBHOOK_URL }}"
+          name: meet-image-receipt-${{ env.SOURCE_SHA }}
+          path: meet-image-receipt.json
+          if-no-files-found: error
+          retention-days: 90

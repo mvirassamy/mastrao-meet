@@ -85,6 +85,7 @@ and this project adheres to
 
 ### Changed
 
+- 🔐(CI) publish only qualified develop image candidates
 - 🎨(frontend) apply Mastrao semantic colors, Arial and rounded controls
 - 🎨(frontend) brand the carousel and Keycloak login with Mastrao assets
 

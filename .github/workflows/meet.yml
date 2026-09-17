@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
   pull_request:
     branches:
       - "*"
@@ -396,3 +397,36 @@ jobs:
 
       - name: Build SDK
         run: npm run build
+
+  publish-develop-images:
+    needs:
+      - lint-changelog
+      - build-mails
+      - lint-back
+      - lint-agents
+      - lint-summary
+      - test-back
+      - test-summary
+      - lint-front
+      - lint-sdk
+      - build-sdk
+    if: >-
+      always() && github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop' &&
+      vars.MASTRAO_STAGING_CANDIDATES_ENABLED == 'true' &&
+      needs.lint-changelog.result == 'success' &&
+      needs.build-mails.result == 'success' &&
+      needs.lint-back.result == 'success' &&
+      needs.lint-agents.result == 'success' &&
+      needs.lint-summary.result == 'success' &&
+      needs.test-back.result == 'success' &&
+      needs.test-summary.result == 'success' &&
+      needs.lint-front.result == 'success' &&
+      needs.lint-sdk.result == 'success' &&
+      needs.build-sdk.result == 'success'
+    uses: ./.github/workflows/docker-hub.yml
+    with:
+      publish: true
+      source_branch: ${{ github.ref_name }}
+      source_sha: ${{ github.sha }}
+    secrets: inherit
