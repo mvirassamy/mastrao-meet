@@ -57,7 +57,7 @@ def _raise_refusal(refusal, status, outcome=None):
         raise refusal(status=status) from None
 
 
-def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaults unchanged
+def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaults unchanged  # pylint: disable=too-many-arguments
     response,
     refusal,
     *,
@@ -68,7 +68,11 @@ def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaul
 ):
     """Read one bounded JSON object and always close its streamed response."""
 
-    if type(maximum_bytes) is not int or not 1 <= maximum_bytes <= 24 * 1024**2:
+    if (
+        isinstance(maximum_bytes, bool)
+        or not isinstance(maximum_bytes, int)
+        or not 1 <= maximum_bytes <= 24 * 1024**2
+    ):
         response.close()
         raise refusal(status=503)
     declared = response.headers.get("content-length")

@@ -5,7 +5,9 @@ from core.tasks._task import task
 
 @task(name="core.process_native_admissions", queue="mastrao-transcription")
 def process_native_admissions(connection_id):
-    from core.mastrao_native_admission import (  # noqa: PLC0415  # Avoid task autodiscovery cycles.
+    """Reconcile one durable native admission after its RTC event."""
+
+    from core.mastrao_native_admission import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
         reconcile_native_admissions,
     )
 
@@ -14,7 +16,9 @@ def process_native_admissions(connection_id):
 
 @task(name="core.process_native_sources", queue="mastrao-transcription")
 def process_native_sources():
-    from core.mastrao_native_source_transfer import (  # noqa: PLC0415 - avoid task/adapter import cycle
+    """Transfer the next admitted native audio source to durable storage."""
+
+    from core.mastrao_native_source_transfer import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
         transfer_next_native_source,
     )
 
@@ -23,7 +27,9 @@ def process_native_sources():
 
 @task(name="core.process_native_asr", queue="mastrao-transcription")
 def process_native_asr():
-    from core.mastrao_native_asr_worker import (  # noqa: PLC0415 - avoid task import cycle
+    """Process the next durable native source awaiting ASR delivery."""
+
+    from core.mastrao_native_asr_worker import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
         process_next_native_asr,
     )
 
