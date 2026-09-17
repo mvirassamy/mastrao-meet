@@ -37,9 +37,10 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(autouse=True)
-def _recording_receipt_settings(settings):
+def _recording_receipt_settings(request):
     """Keep speaker-evidence sidecars independent from other test modules."""
 
+    request.getfixturevalue("settings")
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
     settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = json.dumps(

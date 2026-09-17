@@ -204,7 +204,7 @@ class LobbyService:
             guest_grant.display_name = normalized_username
             guest_grant.save(update_fields=["display_name", "updated_at"])
 
-    def request_entry(  # noqa: PLR0911,PLR0912
+    def request_entry(  # noqa: PLR0911,PLR0912  # pylint: disable=too-many-return-statements,too-many-branches
         self,
         room: models.Room,
         request,

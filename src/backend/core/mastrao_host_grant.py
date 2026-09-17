@@ -141,7 +141,8 @@ def _platform_return_origin():
     configured = settings.MASTRAO_PLATFORM_ORIGIN
     parsed = urlparse(configured if isinstance(configured, str) else "")
     local = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
-    if (
+    # Origin parts are jointly security-sensitive and must fail closed as one guard.
+    if (  # pylint: disable=too-many-boolean-expressions
         not parsed.hostname
         or parsed.scheme not in ({"http", "https"} if local else {"https"})
         or parsed.username
@@ -169,7 +170,8 @@ def host_platform_return_projection(request, room):
         claims = verify_host_grant(compact)
     except HostHandoffRefused:
         return None
-    if (
+    # Each claim must match the stored, session-bound grant before projection.
+    if (  # pylint: disable=too-many-boolean-expressions
         claims["grant_ref"] != grant.grant_ref
         or claims["meeting_ref"] != grant.meeting_ref
         or claims["room_ref"] != grant.room_ref
