@@ -19,6 +19,7 @@ export interface ApiRequestEntry {
   status: ApiLobbyStatus
   livekit?: ApiLiveKit
   recording?: import('./ApiRoom').ApiRoom['recording']
+  native_capture?: import('./ApiRoom').ApiRoom['native_capture']
 }
 
 export const requestEntry = async ({

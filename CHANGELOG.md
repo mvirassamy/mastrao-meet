@@ -1,5 +1,31 @@
 # Changelog
 
+- 2026-09-17: Compose the accepted PR #19 Visio interface with the R5 native capture, transcription and source-transfer runtime on one local integration branch; no staging deployment or provider call is implied.
+
+- 2026-09-12: Preserve Gateway-sanitized forwarding headers through the frontend nginx proxy and close all exact public media-auth paths before the API/SPA fallbacks; no Gateway or staging deployment is implied.
+
+- 2026-09-11: Seed the CSRF cookie when serving the native audio decision form, including anonymous guest sessions; retain protected decision POSTs and test the fresh-browser GET-to-POST path with missing and incorrect token rejection.
+
+- 2026-09-11: Serve the public LiveKit signaling URL from the frontend configuration endpoint consumed by Conference; preserve private server API routing and the legacy fallback. Add a red/green endpoint regression test.
+
+- 2026-09-11: Record real Resend-confirmed Platform login and creation of the Visio qualification organization; retire the email activation blocker without claiming native two-voice completion.
+
+- 2026-09-11: Record the prepared Platform test-confirmation channel and its operator activation gate; native two-voice qualification remains unproven.
+
+- 2026-09-11: Record the real Platform account bootstrap result for native qualification: password signin is blocked by EMAIL_NOT_VERIFIED, with no auth bypass or provider activation.
+
+- 2026-09-11: Project video activation availability separately from the Core policy and honor it in the conference, so native-audio-only sessions do not automatically request disabled video recording. Keep backend refusal and legacy frontend compatibility.
+
+- 2026-09-11: Allow canonical native preentry to read/synchronize Core recording policy with video disabled; expose a native-only reconciliation command independent of video finalization. No change to consent authority or video/ASR activation gates.
+
+- 2026-09-10: Separate browser LiveKit signaling URL from the private server API endpoint, preserving the existing default when no public URL is configured.
+
+- 2026-09-10: Freeze each native epoch's server-session display label before admission delivery, retain it across retries and carry it as signed display-only metadata to Core. Keep missing names explicit and leave capture authority/provider grants unchanged; no product activation.
+
+- 2026-09-10: Add a dark native ASR delivery worker and scoped Core/gateway client. Persist Core's verified result receipt before acknowledging gateway cleanup; retain source/epoch identity, finite retries and lease fencing without recording/video dependencies or direct provider/storage access.
+
+- 2026-09-10: Add dark ended-epoch native audio materialization and claimed transfer to Core, bounded to the existing 16 MiB private-object limit. Preserve exact fragment manifests, independent source identities and retry receipts; no direct storage/provider access, no video-finalization dependency, no native ASR or full-meeting coverage claim.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0),
@@ -7,6 +33,10 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+- 2026-09-10: Connect the Meet lobby to Core's native preentry notice with explicit accept/refuse, exact text/retention, session-bound CSRF-protected decisions and no media token before confirmation. Preserve the independently consented legacy recording scope and journal host issuance on both entry routes. Deliver fresh native microphone observations from durable RTC epochs via the existing worker/reconciler, with claim fencing, bounded retry and no queued bearer (migration 0044). Local browser/HTTP/PostgreSQL proofs only; native flags remain disabled and no real-media completeness or capacity is claimed.
+
+- Qualify exact native participant-token digests through TypeScript Core verification/signing and Python Meet issuance, RTC intake and HTTP Start; synthetic consent/provider only, no activation.
 
 ### Fixed
 
@@ -19,6 +49,45 @@ and this project adheres to
 - 🐛(frontend) preserve desktop meeting controls in narrow windows
 - 🐛(frontend) restore notification and screen-share warning contrast
 
+- 2026-09-10: Accept a distinct Core-signed native stop command only for an existing exact capture intent; commit a sticky stop latch and return signed requested/drained snapshots without starting media. Add local PostgreSQL, refusal/rollback and TypeScript/Django contract interop tests. No provider, ASR or application activation.
+
+- 2026-09-10: Connect native capture stop/drain to the existing bounded recording reconciler (migration 0043). Persist closure/epoch/quarantine/retention stop latches before exact-job StopEgress, retain unknown outcomes, and require a separate terminal observation. Add 27 local PostgreSQL/HTTP/command regressions, including concurrent workers, lost replies and failed terminal commits. Canonical Core stop effects/receipts, real media durability and production scheduling remain unqualified; admission stays disabled.
+
+- 2026-09-10: Add a disabled-by-default Core-signed native microphone start consumer with migration 0042, a committed send-once intent per RTC epoch, exact Egress reconciliation and signed execution receipts. Reject crossed grants, non-microphone tracks and duplicate admission; resolution survives admission rollback. Local PostgreSQL/Django tests use a provider transport fixture, not real capture. Core issuance, stop/drain, bounded native spool and durable media delivery must be integrated before enabling this path.
+
+- Correlate authenticated RTC observations to exact media issuance, connection SIDs and stable track epochs behind the existing opt-in flag. Quarantine contradictory joins/token reuse, retain missing-join candidates, and never reopen terminal epochs on late delivery. Add migration 0041 and signed HTTP/PostgreSQL tests; correlation is not capture permission.
+
+- Journal authenticated participant/track LiveKit webhooks for canonical rooms behind the disabled-by-default media binding flag. Preserve late facts, deduplicate exact retries, reject conflicting event IDs, and commit before acknowledgement. Add migration 0040 and signed HTTP/PostgreSQL regressions; this inbox is not capture authorization or proof of complete media coverage.
+
+- Add an opt-in media token issuance journal for the exact host/guest grant and session, persisted before returning a signed RTC token. Keep the flag off by default; the opaque token marker is not a recording permission or proof of a captured RTC connection. Add migration 0039 and isolated ORM/route/rollback regressions.
+
+- Keep the durable host roster reference aligned with the actual RTC token subject after disconnect; preserve distinct identities with identical display names. This does not turn roster metadata into capture-session authority or qualify the native application pipeline.
+
+- Add a bounded read-only native EVENT-playlist spool preflight and 13 local-file regressions; refuse unsafe/incomplete inputs and keep snapshot, authority, durability and ASR readiness distinct. No production capture activation or remote-storage qualification is implied.
+
+- Add a frozen offline 88-case window-defect calibration with explicit uncertainty and bounded exclusive reports. Reject this diagnostic for speech-completeness qualification after codec-only false alarms and missed known edits; keep all thresholds and production behavior unchanged.
+- Add a bounded read-only SDK fragment/receipt auditor to the isolated capture bench; reconcile local PCM hashes, sizes, source sessions and sequence intervals, with explicit refusal and separate temporal diagnostics. Historical copy consistency is not speech completeness, remote durability or production qualification.
+- 2026-09-07: Add a guarded recorder-free publisher control and avoid redundant cleanup scheduling for already-terminal source tasks, with cancellation/error regression tests. Preserve failed runtime evidence and unchanged100ms validity limits; leave provider, product and deployment behavior unchanged.
+- Preserve bounded last-frame publisher timings in the isolated capture bench to distinguish observed capture acknowledgements from Python scheduling delay, without changing audio validity thresholds or claiming native reception timestamps.
+- Require the isolated container-SFU bench to return its HTTP health response before starting trials; a published Docker TCP port alone no longer admits an unready server. Keep the fifteen-second readiness budget and all capture/resource thresholds unchanged.
+- Add an offline fixed-excerpt AAC calibration that falsifies direct use of the PCM similarity score as speech coverage; retain exact mutations and codec/timing diagnostics without changing thresholds or rejecting either capture engine.
+- Prepare a paired two-source French native/SDK comparison with equal publisher buffers and container-SFU topology, exact two-job admission and bounded private HLS readback; offline checks do not certify speech completeness and media execution awaits network authorization.
+- Add a separately guarded private-container SFU/native capture probe, fixed isolation checks and bounded redacted logs; keep its short tonal connectivity result separate from speech completeness, comparative cost and production capacity.
+- Constrain the isolated capture-bench SFU to verified loopback UDP/HTTP, refuse unknown or stale socket visibility, and fix a guardian clock-before-heartbeat-read race without weakening resource or freshness thresholds.
+- Add a pinned, sample-indexed French speech profile to the isolated guarded SDK bench; preserve partial publication evidence through repeated cancellation, reject blocking corpus inputs, and measure a real two-source 120-second capture without claiming calibrated completeness or production capacity.
+- Reject legacy tonal coverage as a speech-completeness certificate after exact PCM counterexamples; keep smoke results separate and preserve the calibration evidence without changing qualification thresholds.
+- Run a fresh SDK-only capture bench under the independent guardian, with measured Docker writable layers, source-process admission and terminal receipts; verify two real tonal tracks and exact cleanup while leaving spoken coverage, native comparison, ASR and capacity unqualified.
+- Bind capture-bench container admission to a conforming measured batch, add a constrained native Docker bootstrap probe, and verify one real idle container's startup and exact cleanup; media/ASR/capacity qualification remains pending.
+- Preserve capture-bench SDK terminal CPU through a sole wait4 reaper, identity-bound immutable receipts and strict terminal freshness; verify harmless normal/SIGKILL process flows without claiming media or cost qualification.
+- Add a private ownership registry, identity-checked cleanup and an independent capture-bench guardian with bounded concurrent probes; media-launch integration and terminal resource accounting remain pending.
+- Bound trial-child combined output and guarantee timed TERM/KILL cleanup through timeout or repeated cancellation; descendant registration remains pending.
+- Separate mandatory qualification safety gauges from incomplete cost counters; add bounded read-only host/process and Docker daemon probes without claiming an operational watchdog.
+- Isolate the comparison-bench SDK collector from publishers with bounded private IPC and separate CPU/RSS accounting; real media qualification remains pending.
+- Reject non-finite measurements and empty crash evidence in the isolated media comparison evaluator.
+- Add tested, pure resource-safety decisions for the capture qualification bench; runtime watchdog integration remains pending.
+- Bound capture-bench measurement history with append-only journals and online aggregation; retain before/after object inventories without per-sample full listings.
+- Add an exclusive local French speech fixture builder with reference texts, WAV digests, overlap windows and final phrases; media capture and ASR qualification remain pending.
+- 🐛(backend) persist guest display names for speaker evidence roster fallbacks
 - 🐛(backend) redirect Mastrao host handoffs to the configured frontend room origin
 - 🐛(frontend) proxy Mastrao handoff routes from the local production frontend across backend restarts
 - 🐛(backend) bind speaker evidence labels and fresh capture windows
@@ -61,6 +130,7 @@ and this project adheres to
 
 ### Added
 
+- ⚗️(agent) durably mirror shadow microphone batches to isolated S3-compatible storage
 - ✨(frontend) return verified Mastrao hosts to the freshly authorized Platform meeting
 - 🔐(backend) authorize each managed-provider audio egress through Core, bind recover-only replay and preserve v2 provider provenance
 - ✨(backend) accept consent-bound v2 ASR profiles beside draining v1 jobs

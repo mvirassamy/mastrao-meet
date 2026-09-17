@@ -3,25 +3,72 @@
 # Test names carry the proof intent.
 # pylint: disable=missing-function-docstring
 
+import base64
 import hashlib
 import json
+import os
 import time
 from io import BytesIO
+from types import SimpleNamespace
 from unittest import mock
 
 from django.conf import settings
 from django.utils import timezone
 
+import jwt
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core import models
 from core.factories import RoomFactory, UserFactory
+from core.mastrao_identity import mastrao_host_subject
 from core.mastrao_recording_contract import RecordingContractRefused
-from core.mastrao_speaker_evidence_adapter import _apply_capture, _sidecar_digest
+from core.mastrao_speaker_evidence_adapter import (
+    _apply_capture,
+    _server_roster_participants,
+    _sidecar_digest,
+)
 from core.mastrao_speaker_evidence_contract import validate_artifact_receipt_claims
 from core.models import RoomAccessLevel
+from core.utils import generate_token
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def _recording_receipt_settings(settings):
+    """Keep speaker-evidence sidecars independent from other test modules."""
+
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = json.dumps(
+        {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "d": _urlsafe_b64(
+                private_key.private_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PrivateFormat.Raw,
+                    serialization.NoEncryption(),
+                )
+            ),
+            "x": _urlsafe_b64(
+                public_key.public_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PublicFormat.Raw,
+                )
+            ),
+        },
+        sort_keys=True,
+    )
+    settings.MASTRAO_RECORDING_RECEIPT_KEY_ID = "speaker-evidence-fixture"
+    settings.MASTRAO_RECORDING_RECEIPT_ISSUER = "meet-fixture"
+    settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE = "core-fixture"
+
+
+def _urlsafe_b64(value):
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
 def _active_recording_binding():
@@ -72,10 +119,90 @@ def _effect(binding):
         "purpose": "meeting_speaker_evidence",
         "scope": "recording_roster_vad_timeline",
         "retention_expires_at": int(binding.retention_expires_at.timestamp()),
+        "recording_started_at_ms": 1_700_000_000_000,
         "effect_key": "speakerevidence_01234567",
         "arguments_digest": "d" * 64,
         "jti": "speakerevidence_01234567",
     }
+
+
+def _host_grant(binding, *, display_name="Matt"):
+    user = UserFactory(sub=mastrao_host_subject("host_speaker_012345"))
+    identity = models.MastraoHostIdentity.objects.create(
+        host_ref="host_speaker_012345",
+        user=user,
+    )
+    return models.MastraoHostGrant.objects.create(
+        handoff_ref="handoff_speaker_012345",
+        grant_ref="hostgrant_speaker_012345",
+        grant_digest="a" * 64,
+        credential_digest="b" * 64,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        identity=identity,
+        room_binding=binding.room_binding,
+        platform_session_ref="platform_session_speaker_012345",
+        session_nonce_digest="c" * 64,
+        display_name=display_name,
+        issued_at=timezone.now(),
+        expires_at=timezone.now() + timezone.timedelta(hours=1),
+    )
+
+
+def test_host_roster_reference_matches_live_rtc_identity_after_disconnect():
+    """A live host and its durable fallback are one participant, not two."""
+    binding = _active_recording_binding()
+    host = _host_grant(binding)
+    token = generate_token(room=str(binding.recording.room_id), user=host.identity.user)
+    claims = jwt.decode(
+        token,
+        settings.LIVEKIT_CONFIGURATION["api_secret"],
+        algorithms=["HS256"],
+    )
+    live_host = SimpleNamespace(
+        sid="PA_host_connection",
+        identity=claims["sub"],
+        name="Matt",
+        kind=None,
+    )
+    with mock.patch(
+        "core.mastrao_speaker_evidence_adapter._list_livekit_participants",
+        return_value=[live_host],
+    ):
+        live = _server_roster_participants(binding.recording)
+    with mock.patch(
+        "core.mastrao_speaker_evidence_adapter._list_livekit_participants",
+        return_value=[],
+    ):
+        disconnected = _server_roster_participants(binding.recording)
+
+    assert len(live) == len(disconnected) == 1
+    assert live[0]["participant_ref"] == disconnected[0]["participant_ref"]
+    # This fallback is only roster evidence, not a grant/session/track authority.
+    assert (
+        live[0]["participant_session_digest"]
+        == disconnected[0]["participant_session_digest"]
+    )
+    assert disconnected[0]["display_name_events"][0]["label"] == "Matt"
+
+
+def test_host_roster_does_not_merge_another_rtc_identity_with_the_same_label():
+    """Display names do not confer participant identity."""
+    binding = _active_recording_binding()
+    host = _host_grant(binding)
+    with mock.patch(
+        "core.mastrao_speaker_evidence_adapter._list_livekit_participants",
+        return_value=[
+            SimpleNamespace(
+                identity=str(host.identity.user.sub), name="Matt", kind=None
+            ),
+            SimpleNamespace(identity="guest_another_identity", name="Matt", kind=None),
+        ],
+    ):
+        participants = _server_roster_participants(binding.recording)
+    assert len(participants) == 2
+    assert len({item["participant_ref"] for item in participants}) == 2
 
 
 def _artifact_claims(binding):
@@ -177,6 +304,37 @@ def test_speaker_evidence_artifact_ref_requires_canonical_object_key():
 def test_speaker_evidence_capture_starts_collector_with_opaque_metadata():
     binding = _active_recording_binding()
     with (
+        mock.patch.dict(
+            os.environ,
+            {"METADATA_COLLECTOR_ENABLE_VAD": "true"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
+        ) as start,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
+
+    start.assert_called_once()
+    recording = start.call_args.args[0]
+    assert "room" in recording._state.fields_cache
+    _, kwargs = start.call_args
+    assert kwargs["dispatch_option_key"] == "mastrao_speaker_evidence_dispatch_id"
+    assert "Matthias" not in kwargs["metadata"]
+    assert "mastrao-speaker-evidence/evidence_" in kwargs["metadata"]
+    assert "0123456789abcdef0123456789abcdef.json" in kwargs["metadata"]
+
+
+def test_speaker_evidence_capture_starts_live_collector_without_vad():
+    binding = _active_recording_binding()
+    with (
+        mock.patch.dict(
+            os.environ,
+            {"METADATA_COLLECTOR_ENABLE_VAD": "false"},
+        ),
         mock.patch(
             "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
         ) as start,
@@ -190,9 +348,10 @@ def test_speaker_evidence_capture_starts_collector_with_opaque_metadata():
     start.assert_called_once()
     _, kwargs = start.call_args
     assert kwargs["dispatch_option_key"] == "mastrao_speaker_evidence_dispatch_id"
-    assert "Matthias" not in kwargs["metadata"]
-    assert "mastrao-speaker-evidence/evidence_" in kwargs["metadata"]
-    assert "0123456789abcdef0123456789abcdef.json" in kwargs["metadata"]
+    binding.recording.refresh_from_db()
+    dispatch = binding.recording.options["mastrao_speaker_evidence_dispatch_id"]
+    assert dispatch["state"] == "pending"
+    assert dispatch["claim_id"]
 
 
 def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
@@ -352,6 +511,294 @@ def test_speaker_evidence_capture_refuses_unsigned_sidecar_claims():
     sign_artifact.assert_not_called()
 
 
+def test_speaker_evidence_capture_finalizes_late_roster_when_live_collector_has_no_artifact():
+    binding = _active_recording_binding()
+    binding.state = models.MastraoRecordingBinding.State.STOPPING
+    binding.save(update_fields=["state"])
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
+    binding.recording.save(update_fields=["options"])
+    participants = [
+        SimpleNamespace(
+            sid="livekit_sid_host",
+            identity="mastraohost_1",
+            name="Matt",
+            kind=None,
+        ),
+        SimpleNamespace(
+            sid="livekit_sid_guest",
+            identity="guest_1",
+            name="Martine",
+            kind=None,
+        ),
+    ]
+    with (
+        mock.patch.dict(
+            os.environ,
+            {"METADATA_COLLECTOR_ENABLE_VAD": "false"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter._list_livekit_participants",
+            return_value=participants,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=False,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.save",
+        ) as save,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.delete",
+        ) as delete,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt",
+            return_value="artifact.receipt.signature",
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.post_core_json",
+            return_value={"state": "available", "outcome": "available"},
+        ) as post,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
+
+    saved_object_ref, saved_content = save.call_args_list[0].args
+    assert saved_object_ref == (
+        "mastrao-speaker-evidence/"
+        "evidence_0123456789abcdef0123456789abcdef.json"
+    )
+    saved_content.seek(0)
+    payload = json.loads(saved_content.read())
+    labels = [
+        event["label"]
+        for participant in payload["participants"]
+        for event in participant["display_name_events"]
+    ]
+    assert labels == ["Matt", "Martine"]
+    delete.assert_called_once_with(
+        "mastrao-speaker-evidence/"
+        "evidence_0123456789abcdef0123456789abcdef.json.receipt.json"
+    )
+    post.assert_called_once()
+    binding.recording.refresh_from_db()
+    assert binding.recording.options[
+        "mastrao_speaker_evidence_dispatch_id"
+    ].startswith("speakerartifact_")
+
+
+def test_speaker_evidence_late_roster_includes_durable_guest_absent_from_livekit():
+    binding = _active_recording_binding()
+    binding.state = models.MastraoRecordingBinding.State.STOPPING
+    binding.save(update_fields=["state"])
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
+    binding.recording.save(update_fields=["options"])
+    models.MastraoGuestGrant.objects.create(
+        grant_ref="guestgrant_speaker_012345",
+        redemption_id="redemption_speaker_012345",
+        invitation_ref="invitation_speaker_012345",
+        guest_ref="guest_speaker_012345",
+        organization_external_id=binding.organization_external_id,
+        grant_digest="a" * 64,
+        credential_digest="b" * 64,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        room_binding=binding.room_binding,
+        session_nonce_digest="c" * 64,
+        display_name="Martine",
+        admission_state=models.MastraoGuestGrant.AdmissionState.ALLOWED,
+        decision_ref="decision_speaker_012345",
+        decision_allow=True,
+        decision_grant_digest="d" * 64,
+        decision_receipt_digest="e" * 64,
+        decision_confirmed_at=timezone.now(),
+        issued_at=timezone.now(),
+        expires_at=timezone.now() + timezone.timedelta(hours=1),
+    )
+    participants = [
+        SimpleNamespace(
+            sid="livekit_sid_host",
+            identity="mastraohost_1",
+            name="Matt",
+            kind=None,
+        )
+    ]
+    with (
+        mock.patch.dict(
+            os.environ,
+            {"METADATA_COLLECTOR_ENABLE_VAD": "false"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter._list_livekit_participants",
+            return_value=participants,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=False,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.save",
+        ) as save,
+        mock.patch("core.mastrao_speaker_evidence_adapter.default_storage.delete"),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt",
+            return_value="artifact.receipt.signature",
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.post_core_json",
+            return_value={"state": "available", "outcome": "available"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
+
+    saved_content = save.call_args_list[0].args[1]
+    saved_content.seek(0)
+    payload = json.loads(saved_content.read())
+    labels = [
+        event["label"]
+        for participant in payload["participants"]
+        for event in participant["display_name_events"]
+    ]
+    assert labels == ["Matt", "Martine"]
+
+
+def test_speaker_evidence_terminal_fallback_includes_durable_host_when_collector_failed():
+    binding = _active_recording_binding()
+    binding.state = models.MastraoRecordingBinding.State.FINALIZED
+    binding.save(update_fields=["state"])
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = (
+        "AD_collector_failed"
+    )
+    binding.recording.save(update_fields=["options"])
+    _host_grant(binding, display_name="Matt")
+    with (
+        mock.patch.dict(
+            os.environ,
+            {"METADATA_COLLECTOR_ENABLE_VAD": "false"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter._list_livekit_participants",
+            return_value=[],
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=False,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.save",
+        ) as save,
+        mock.patch("core.mastrao_speaker_evidence_adapter.default_storage.delete"),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt",
+            return_value="artifact.receipt.signature",
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.post_core_json",
+            return_value={"state": "available", "outcome": "available"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
+
+    saved_content = save.call_args_list[0].args[1]
+    saved_content.seek(0)
+    payload = json.loads(saved_content.read())
+    labels = [
+        event["label"]
+        for participant in payload["participants"]
+        for event in participant["display_name_events"]
+    ]
+    assert labels == ["Matt"]
+    binding.recording.refresh_from_db()
+    assert binding.recording.options[
+        "mastrao_speaker_evidence_dispatch_id"
+    ].startswith("speakerartifact_")
+
+
+def test_speaker_evidence_late_roster_ignores_unconfirmed_guest_display_name():
+    binding = _active_recording_binding()
+    binding.state = models.MastraoRecordingBinding.State.STOPPING
+    binding.save(update_fields=["state"])
+    binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
+    binding.recording.save(update_fields=["options"])
+    models.MastraoGuestGrant.objects.create(
+        grant_ref="guestgrant_waiting_speaker",
+        redemption_id="redemption_waiting_speaker",
+        invitation_ref="invitation_waiting_speaker",
+        guest_ref="guest_waiting_speaker",
+        organization_external_id=binding.organization_external_id,
+        grant_digest="a" * 64,
+        credential_digest="b" * 64,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        room_binding=binding.room_binding,
+        session_nonce_digest="c" * 64,
+        display_name="Pas encore admis",
+        issued_at=timezone.now(),
+        expires_at=timezone.now() + timezone.timedelta(hours=1),
+    )
+    participants = [
+        SimpleNamespace(
+            sid="livekit_sid_host",
+            identity="mastraohost_1",
+            name="Matt",
+            kind=None,
+        )
+    ]
+    with (
+        mock.patch.dict(
+            os.environ,
+            {"METADATA_COLLECTOR_ENABLE_VAD": "false"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter._list_livekit_participants",
+            return_value=participants,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=False,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.save",
+        ) as save,
+        mock.patch("core.mastrao_speaker_evidence_adapter.default_storage.delete"),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt",
+            return_value="artifact.receipt.signature",
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.post_core_json",
+            return_value={"state": "available", "outcome": "available"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
+
+    saved_content = save.call_args_list[0].args[1]
+    saved_content.seek(0)
+    payload = json.loads(saved_content.read())
+    labels = [
+        event["label"]
+        for participant in payload["participants"]
+        for event in participant["display_name_events"]
+    ]
+    assert labels == ["Matt"]
+
+
 def test_speaker_evidence_capture_clears_terminal_dispatch_without_sidecar():
     binding = _active_recording_binding()
     binding.state = models.MastraoRecordingBinding.State.FINALIZED
@@ -374,6 +821,10 @@ def test_speaker_evidence_capture_recovers_stale_pending_dispatch():
     binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "pending"
     binding.recording.save(update_fields=["options"])
     with (
+        mock.patch.dict(
+            os.environ,
+            {"METADATA_COLLECTOR_ENABLE_VAD": "true"},
+        ),
         mock.patch(
             "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
         ) as start,

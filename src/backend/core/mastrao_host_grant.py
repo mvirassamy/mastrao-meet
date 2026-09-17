@@ -113,6 +113,18 @@ def host_media_projection(request, room):
     return models.RoleChoices.ADMIN, grant.expires_at
 
 
+def persist_host_display_name(request, room, username) -> None:
+    """Remember the local host display name for late speaker-evidence fallbacks."""
+
+    grant = active_host_grant(request, room)
+    if not grant:
+        return
+    normalized_username = str(username or "").strip()[:160]
+    if normalized_username and grant.display_name != normalized_username:
+        grant.display_name = normalized_username
+        grant.save(update_fields=["display_name", "updated_at"])
+
+
 def active_host_compact_grant(request, grant):
     """Resolve the Core bearer retained only in the server-side host session."""
 

@@ -23,6 +23,7 @@ import {
   shouldWaitForCanonicalRoom,
 } from '../utils/isRoomValid'
 import { RecordingConsent } from './RecordingConsent'
+import { NativeRecordingConsent } from './NativeRecordingConsent'
 import { fetchRoomLifecycle } from '../api/fetchRoomLifecycle'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
@@ -95,6 +96,9 @@ export const Lobby = ({
       ...roomData,
       livekit: response.livekit,
       ...(response.recording ? { recording: response.recording } : {}),
+      ...(response.native_capture
+        ? { native_capture: response.native_capture }
+        : {}),
     })
     enterRoom()
   }
@@ -310,6 +314,19 @@ export const Lobby = ({
         transcriptionDecision={recording.transcription_decision}
         onDecided={async () => {
           await refetchRoom()
+        }}
+      />
+    )
+  }
+
+  if (roomData?.native_capture && !roomData.native_capture.decision) {
+    return (
+      <NativeRecordingConsent
+        roomId={roomId}
+        projection={roomData.native_capture}
+        onDecided={async () => {
+          const result = await refetchRoom()
+          if (result.isError) throw result.error
         }}
       />
     )

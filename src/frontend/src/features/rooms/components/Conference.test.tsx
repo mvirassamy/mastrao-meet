@@ -1,14 +1,18 @@
-import { render, waitFor } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Conference } from './Conference'
+import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
+import { activateRecording } from '../api/recordingConsent'
 
 const createRoom = vi.fn()
 const fetchRoomLifecycle = vi.fn()
 const fetchRoom = vi.fn()
 const navigateTo = vi.fn()
 let liveKitOnDisconnected: ((reason: number) => void) | undefined
+let liveKitOnConnected: (() => Promise<void>) | undefined
+const refetchRoom = vi.fn().mockResolvedValue(undefined)
 const markActive = vi.fn()
 const markEnding = vi.fn()
 
@@ -17,13 +21,19 @@ let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
 let lifecycleCloseRequestId: string | undefined
 
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: ({ queryFn }: { queryFn: () => Promise<unknown> }) => {
+  useQuery: ({
+    queryFn,
+    initialData,
+  }: {
+    queryFn: () => Promise<unknown>
+    initialData?: ApiRoom
+  }) => {
     void queryFn().catch(() => undefined)
     return {
       status: 'pending',
       isError: false,
-      data: undefined,
-      refetch: vi.fn(),
+      data: initialData,
+      refetch: refetchRoom,
     }
   },
 }))
@@ -32,11 +42,14 @@ vi.mock('@livekit/components-react', () => ({
   LiveKitRoom: ({
     children,
     onDisconnected,
+    onConnected,
   }: {
     children: ReactNode
     onDisconnected?: (reason: number) => void
+    onConnected?: () => Promise<void>
   }) => {
     liveKitOnDisconnected = onDisconnected
+    liveKitOnConnected = onConnected
     return <>{children}</>
   },
   usePersistentUserChoices: () => ({ userChoices: {} }),
@@ -156,9 +169,41 @@ describe('Conference room lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     liveKitOnDisconnected = undefined
+    liveKitOnConnected = undefined
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
+    vi.mocked(activateRecording).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof activateRecording>>
+    )
   })
+
+  it.each([false, true, undefined])(
+    'respects video activation availability %s after connection',
+    async (available) => {
+      const room: ApiRoom = {
+        id: 'room_0123456789abcdef0123456789abcdef',
+        name: 'Test',
+        slug: 'test',
+        access_level: ApiAccessLevel.RESTRICTED,
+        is_administrable: true,
+        can_end: true,
+        recording: {
+          mode: 'recorded',
+          recording_state: 'collecting',
+          decision: 'accepted',
+          activation_available: available,
+        },
+      }
+      fetchRoom.mockResolvedValue(room)
+      render(<Conference roomId={room.id} initialRoomData={room} />)
+      await act(async () => {
+        await liveKitOnConnected?.()
+      })
+      expect(activateRecording).toHaveBeenCalledTimes(
+        available === false ? 0 : 1
+      )
+    }
+  )
 
   it.each(['404', '410'])(
     'never tries to create a canonical room after a %s',
