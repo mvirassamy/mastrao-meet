@@ -195,7 +195,7 @@ class LobbyService:
         )
         return participant, None
 
-    def request_entry(  # noqa: PLR0911,PLR0912
+    def request_entry(  # noqa: PLR0911,PLR0912  # pylint: disable=too-many-return-statements,too-many-branches
         self,
         room: models.Room,
         request,

@@ -1,5 +1,8 @@
 """Focused transcription-effect, fake-ASR and default-off proofs."""
 
+# Shared contract fixtures keep provider-free and recovery proofs coherent.
+# pylint: disable=too-many-lines
+
 # Test names alone carry the proof intent, matching neighbour test modules.
 # pylint: disable=missing-function-docstring
 

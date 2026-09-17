@@ -32,9 +32,10 @@ def _b64(value):
 
 
 @pytest.fixture(autouse=True)
-def recording_receipt_private_jwk(settings):
+def recording_receipt_private_jwk(request):
     """Use an isolated synthetic receipt key while exercising sidecar integrity."""
 
+    request.getfixturevalue("settings")
     private_key = Ed25519PrivateKey.generate()
     public_raw = private_key.public_key().public_bytes(
         serialization.Encoding.Raw,
