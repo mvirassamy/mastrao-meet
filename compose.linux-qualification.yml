@@ -1,4 +1,59 @@
 services:
+  # Qualification must be reproducible from a clean checkout.  The regular
+  # development env files are intentionally ignored by Git, so use the
+  # tracked, provider-free fixtures for every service Compose parses.
+  postgresql:
+    env_file: !override
+      - env.d/development/postgresql.dist
+
+  app-dev:
+    env_file: !override
+      - env.d/development/common.dist
+      - env.d/development/postgresql.dist
+
+  celery-dev:
+    env_file: !override
+      - env.d/development/common.dist
+      - env.d/development/postgresql.dist
+
+  app:
+    env_file: !override
+      - env.d/development/common.dist
+      - env.d/development/postgresql.dist
+
+  celery:
+    env_file: !override
+      - env.d/development/common.dist
+      - env.d/development/postgresql.dist
+
+  crowdin:
+    env_file: !override
+      - env.d/development/crowdin.dist
+
+  kc_postgresql:
+    env_file: !override
+      - env.d/development/kc_postgresql.dist
+
+  metadata-collector-dev:
+    env_file: !override
+      - env.d/development/metadata_collector.dist
+
+  multi-user-transcriber-dev:
+    env_file: !override
+      - env.d/development/multi_user_transcriber.dist
+
+  app-summary-dev:
+    env_file: !override
+      - env.d/development/summary.dist
+
+  celery-summary-transcribe:
+    env_file: !override
+      - env.d/development/summary.dist
+
+  celery-summary-summarize:
+    env_file: !override
+      - env.d/development/summary.dist
+
   # Linux qualification uses the production-recommended host network for
   # LiveKit's RTC plane. The default compose file keeps its Docker Desktop
   # loopback setup for local macOS development.
