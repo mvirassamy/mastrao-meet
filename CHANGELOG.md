@@ -4,6 +4,10 @@
   connections after their join grant expires; retain the exact bound session
   and grant authority checks and add a focused regression test.
 
+- 2026-09-19: Pin LiveKit Egress 1.13.0 for RoomComposite after 1.14.1's
+  Vite 8 default template aborted before `START_RECORDING`; remove its retired
+  SDK-source switch and guard the accepted image in CI.
+
 - 2026-09-17: Compose the accepted PR #19 Visio interface with the R5 native
   capture, transcription and source-transfer runtime on one local integration
   branch; no staging deployment or provider call is implied.

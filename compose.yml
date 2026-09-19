@@ -239,7 +239,9 @@ services:
       - redis
 
   livekit-egress:
-    image: livekit/egress:v1.14.1@sha256:bf2b648b947349c3e9ff7aa8c718f00378d5c06af7624652a3653318e00333ce
+    # v1.14.1 bundles a Vite 8 template that can abort RoomComposite before
+    # START_RECORDING (livekit/egress#1286). Keep the last Vite 7 release.
+    image: livekit/egress:v1.13.0@sha256:980ff439431df2c773573721ab6da19e15bdc1f049ab7cb80e87470bf174c12f
     cap_add:
       - SYS_ADMIN
     environment:
