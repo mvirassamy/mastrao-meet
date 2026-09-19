@@ -4,6 +4,9 @@
   connections after their join grant expires; retain the exact bound session
   and grant authority checks and add a focused regression test.
 
+- 2026-09-20: Wait for the host to publish a real LiveKit media track before
+  requesting RoomComposite recording activation.
+
 - 2026-09-19: Pin LiveKit Egress 1.13.0 for RoomComposite after 1.14.1's
   Vite 8 default template aborted before `START_RECORDING`; remove its retired
   SDK-source switch and guard the accepted image in CI.

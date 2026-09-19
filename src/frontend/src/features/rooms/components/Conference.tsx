@@ -9,6 +9,7 @@ import {
   DisconnectReason,
   MediaDeviceFailure,
   Room,
+  RoomEvent,
   type RoomOptions,
   VideoPresets,
 } from 'livekit-client'
@@ -85,6 +86,7 @@ export const Conference = ({
 
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)
   const [isLiveKitConnected, setIsLiveKitConnected] = useState(false)
+  const [hasPublishedMedia, setHasPublishedMedia] = useState(false)
   const [activationFailed, setActivationFailed] = useState(false)
   const [activationExhausted, setActivationExhausted] = useState(false)
   const [activationRetry, setActivationRetry] = useState(0)
@@ -324,10 +326,24 @@ export const Conference = ({
   const activationAttempts = useRef(0)
 
   useEffect(() => {
+    const refreshPublishedMedia = () => {
+      setHasPublishedMedia(room.localParticipant.trackPublications.size > 0)
+    }
+    refreshPublishedMedia()
+    room.on(RoomEvent.LocalTrackPublished, refreshPublishedMedia)
+    room.on(RoomEvent.LocalTrackUnpublished, refreshPublishedMedia)
+    return () => {
+      room.off(RoomEvent.LocalTrackPublished, refreshPublishedMedia)
+      room.off(RoomEvent.LocalTrackUnpublished, refreshPublishedMedia)
+    }
+  }, [room])
+
+  useEffect(() => {
     if (isEnding) return
     const recording = data?.recording
     const shouldActivate =
       isLiveKitConnected &&
+      hasPublishedMedia &&
       data?.can_end &&
       recording?.mode === 'recorded' &&
       recording.activation_available !== false &&
@@ -380,6 +396,7 @@ export const Conference = ({
     data?.can_end,
     data?.recording,
     isEnding,
+    hasPublishedMedia,
     isLiveKitConnected,
     refetchRoom,
     roomId,

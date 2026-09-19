@@ -12,6 +12,7 @@ const fetchRoom = vi.fn()
 const navigateTo = vi.fn()
 let liveKitOnDisconnected: ((reason: number) => void) | undefined
 let liveKitOnConnected: (() => Promise<void>) | undefined
+let localTrackPublished: (() => void) | undefined
 const refetchRoom = vi.fn().mockResolvedValue(undefined)
 const markActive = vi.fn()
 const markEnding = vi.fn()
@@ -63,10 +64,26 @@ vi.mock('livekit-client', () => ({
     PARTICIPANT_REMOVED: 3,
   },
   MediaDeviceFailure: { getFailure: () => undefined },
+  RoomEvent: {
+    LocalTrackPublished: 'localTrackPublished',
+    LocalTrackUnpublished: 'localTrackUnpublished',
+  },
   Room: class {
     numParticipants = 0
-    localParticipant = { setMicrophoneEnabled: vi.fn() }
+    localParticipant = {
+      setMicrophoneEnabled: vi.fn(),
+      trackPublications: new Map(),
+    }
     prepareConnection = vi.fn()
+    on = vi.fn((event: string, handler: () => void) => {
+      if (event === 'localTrackPublished') {
+        localTrackPublished = () => {
+          this.localParticipant.trackPublications.set('audio', {})
+          handler()
+        }
+      }
+    })
+    off = vi.fn()
   },
   VideoPresets: {},
 }))
@@ -170,6 +187,7 @@ describe('Conference room lookup', () => {
     vi.clearAllMocks()
     liveKitOnDisconnected = undefined
     liveKitOnConnected = undefined
+    localTrackPublished = undefined
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
     vi.mocked(activateRecording).mockResolvedValue(
@@ -198,6 +216,10 @@ describe('Conference room lookup', () => {
       render(<Conference roomId={room.id} initialRoomData={room} />)
       await act(async () => {
         await liveKitOnConnected?.()
+      })
+      expect(activateRecording).not.toHaveBeenCalled()
+      await act(async () => {
+        localTrackPublished?.()
       })
       expect(activateRecording).toHaveBeenCalledTimes(
         available === false ? 0 : 1
