@@ -652,6 +652,7 @@ class MastraoHostGrant(BaseModel):
     meeting_ref = models.CharField(max_length=160)
     room_ref = models.CharField(max_length=100)
     provider_binding_digest = models.CharField(max_length=64)
+    display_name = models.CharField(max_length=160, null=True, blank=True)
     identity = models.ForeignKey(
         MastraoHostIdentity,
         on_delete=models.PROTECT,
@@ -717,6 +718,7 @@ class MastraoGuestGrant(BaseModel):
     meeting_ref = models.CharField(max_length=160)
     room_ref = models.CharField(max_length=100)
     provider_binding_digest = models.CharField(max_length=64)
+    display_name = models.CharField(max_length=160, null=True, blank=True)
     room_binding = models.ForeignKey(
         MastraoRoomBinding,
         on_delete=models.PROTECT,
@@ -781,6 +783,191 @@ class MastraoGuestGrant(BaseModel):
 
     def __str__(self):
         return f"Mastrao guest grant {self.grant_ref}"
+
+
+class MastraoMediaTokenBinding(BaseModel):
+    """Receipt of token issuance, not proof of connection or recording consent."""
+
+    room_binding = models.ForeignKey(MastraoRoomBinding, on_delete=models.PROTECT)
+    host_grant = models.ForeignKey(
+        MastraoHostGrant, on_delete=models.PROTECT, null=True, blank=True
+    )
+    guest_grant = models.ForeignKey(
+        MastraoGuestGrant, on_delete=models.PROTECT, null=True, blank=True
+    )
+    rtc_identity = models.CharField(max_length=255)
+    grant_digest = models.CharField(max_length=64)
+    session_nonce_digest = models.CharField(max_length=64)
+    authorization_digest = models.CharField(max_length=64)
+    token_digest = models.CharField(max_length=64, unique=True)
+    issued_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "meet_mastrao_media_token_binding"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(host_grant__isnull=False, guest_grant__isnull=True)
+                    | models.Q(host_grant__isnull=True, guest_grant__isnull=False)
+                ),
+                name="mastrao_media_token_one_grant",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(expires_at__gt=models.F("issued_at")),
+                name="mastrao_media_token_lifetime",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(grant_digest__regex=r"^[a-f0-9]{64}$")
+                    & models.Q(session_nonce_digest__regex=r"^[a-f0-9]{64}$")
+                    & models.Q(authorization_digest__regex=r"^[a-f0-9]{64}$")
+                    & models.Q(token_digest__regex=r"^[a-f0-9]{64}$")  # noqa: S106 - digest format, not a secret
+                ),
+                name="mastrao_media_token_digest_formats",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao media token binding {self.pk}"
+
+
+class MastraoRtcObservation(BaseModel):
+    """Authenticated server facts, never media coverage or capture authorization."""
+
+    room_binding = models.ForeignKey(MastraoRoomBinding, on_delete=models.PROTECT)
+    event_id = models.CharField(max_length=128, unique=True)
+    payload_digest = models.CharField(max_length=64)
+    event_type = models.CharField(max_length=32)
+    event_time_seconds = models.PositiveBigIntegerField()
+    room_sid = models.CharField(max_length=128)
+    participant_sid = models.CharField(max_length=128)
+    rtc_identity = models.CharField(max_length=255)
+    # A public hint, deliberately not a grant/capture FK or authorization result.
+    token_binding_ref = models.UUIDField(null=True, blank=True)
+    track_sid = models.CharField(max_length=128, blank=True)
+    track_type = models.PositiveSmallIntegerField(null=True, blank=True)
+    track_source = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_rtc_observation"
+        indexes = [
+            models.Index(
+                fields=["room_binding", "room_sid", "participant_sid"],
+                name="mastrao_rtc_participant_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao RTC observation {self.event_id}"
+
+
+class MastraoRtcConnection(BaseModel):
+    """Conservative correlation candidate, not an authorization to capture."""
+
+    room_binding = models.ForeignKey(MastraoRoomBinding, on_delete=models.PROTECT)
+    room_sid = models.CharField(max_length=128)
+    participant_sid = models.CharField(max_length=128)
+    media_token_binding = models.ForeignKey(
+        MastraoMediaTokenBinding, on_delete=models.PROTECT, null=True, blank=True
+    )
+    correlation = models.CharField(max_length=32, default="missing_join")
+    ended = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "meet_mastrao_rtc_connection"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room_binding", "room_sid", "participant_sid"],
+                name="mastrao_rtc_connection_unique",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao RTC connection {self.pk}"
+
+
+class MastraoRtcTrackEpoch(BaseModel):
+    """Stable candidate epoch per connection and track SID; no media clock."""
+
+    connection = models.ForeignKey(MastraoRtcConnection, on_delete=models.PROTECT)
+    track_sid = models.CharField(max_length=128)
+    first_publication = models.OneToOneField(
+        MastraoRtcObservation, on_delete=models.PROTECT, null=True, blank=True
+    )
+    ended = models.BooleanField(default=False)
+    conflict = models.BooleanField(default=False)
+    native_admission_capture_ref = models.UUIDField(null=True, blank=True)
+    native_admission_blocked = models.BooleanField(default=False)
+    native_admission_next_at = models.DateTimeField(default=timezone.now, db_index=True)
+    native_admission_claim = models.UUIDField(null=True, blank=True)
+    native_admission_claim_until = models.DateTimeField(null=True, blank=True)
+    native_participant_label = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_rtc_track_epoch"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["connection", "track_sid"], name="mastrao_rtc_track_unique"
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao RTC track epoch {self.pk}"
+
+
+class MastraoNativeCaptureStart(BaseModel):
+    """One irreversible start attempt per RTC epoch, including ambiguous delivery.
+
+    Kept for reconciliation/drain even when new admission is disabled. This is
+    an execution receipt, never a durable-media or ASR-ready declaration.
+    """
+
+    epoch = models.OneToOneField(MastraoRtcTrackEpoch, on_delete=models.PROTECT)
+    capture_ref = models.UUIDField(unique=True)
+    effect_key = models.CharField(max_length=160, unique=True)
+    arguments_digest = models.CharField(max_length=64)
+    organization_external_id = models.CharField(max_length=160)
+    output_prefix = models.CharField(max_length=512)
+    provider_job_ref = models.CharField(
+        max_length=128, unique=True, null=True, blank=True
+    )
+    # No bearer retained. Claims are persisted before returning a signed receipt.
+    receipt_claims = models.JSONField(default=dict, blank=True)
+    retention_expires_at = models.DateTimeField(null=True, blank=True)
+    stop_requested_at = models.DateTimeField(null=True, blank=True)
+    stop_reason = models.CharField(max_length=32, blank=True, default="")
+    observed_status = models.IntegerField(null=True, blank=True)
+    drained_at = models.DateTimeField(null=True, blank=True)
+    next_check_at = models.DateTimeField(default=timezone.now, db_index=True)
+    drain_claim = models.UUIDField(null=True, blank=True)
+    drain_claim_until = models.DateTimeField(null=True, blank=True)
+    source_receipt = models.JSONField(null=True, blank=True)
+    source_claim = models.UUIDField(null=True, blank=True)
+    source_claim_until = models.DateTimeField(null=True, blank=True)
+    source_next_at = models.DateTimeField(default=timezone.now, db_index=True)
+    source_attempts = models.PositiveIntegerField(default=0)
+    source_error = models.CharField(max_length=64, blank=True, default="")
+    # Reconstructible Core receipt + delivery fence only; no transcript or grant.
+    asr_receipt = models.JSONField(null=True, blank=True)
+    asr_acknowledged = models.BooleanField(default=False)
+    asr_claim = models.UUIDField(null=True, blank=True)
+    asr_claim_until = models.DateTimeField(null=True, blank=True)
+    asr_next_at = models.DateTimeField(default=timezone.now, db_index=True)
+    asr_attempts = models.PositiveIntegerField(default=0)
+    asr_error = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "meet_mastrao_native_capture_start"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_native_start_digest",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao native capture start {self.pk}"
 
 
 class MastraoRecordingBinding(BaseModel):
@@ -873,10 +1060,14 @@ class MastraoRecordingDecision(BaseModel):
     """Append-only local receipt for a session-bound participant decision."""
 
     class ParticipantKind(models.TextChoices):
+        """Participant roles that can make a recording decision."""
+
         HOST = "host", _("Host")
         GUEST = "guest", _("Guest")
 
     class Decision(models.TextChoices):
+        """Immutable recording-decision outcomes persisted for a participant."""
+
         ACCEPTED = "accepted", _("Accepted")
         REFUSED = "refused", _("Refused")
         WITHDRAWN = "withdrawn", _("Withdrawn")
@@ -925,10 +1116,14 @@ class MastraoRecordingEffect(BaseModel):
     """Durable exact Core recording effect and replayable receipt."""
 
     class Operation(models.TextChoices):
+        """Provider operations represented by a durable recording effect."""
+
         START = "start", _("Start")
         STOP = "stop", _("Stop")
 
     class State(models.TextChoices):
+        """Execution states for a recording effect and its replayable receipt."""
+
         APPLYING = "applying", _("Applying")
         PENDING = "pending", _("Pending")
         APPLIED = "applied", _("Applied")
@@ -1171,12 +1366,16 @@ class MastraoTranscriptionEffect(BaseModel):
     """Durable exact Core transcribe effect and replayable receipt."""
 
     class State(models.TextChoices):
+        """Execution states for a transcription effect sent to a provider."""
+
         APPLYING = "applying", _("Applying")
         PENDING = "pending", _("Pending")
         APPLIED = "applied", _("Applied")
         FAILED = "failed", _("Failed")
 
     class DispatchState(models.TextChoices):
+        """Lifecycle states for dispatching transcription work and its artifact."""
+
         DISPATCH_PENDING = "dispatch_pending", _("Dispatch pending")
         QUEUED = "queued", _("Queued")
         RUNNING = "running", _("Running")
@@ -1251,6 +1450,8 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
     """Durable provider-call state for one transcription effect generation."""
 
     class State(models.TextChoices):
+        """Provider-attempt states retained for retry and recovery decisions."""
+
         PREPARED = "prepared", _("Prepared")
         SENDING = "sending", _("Sending")
         RESULT_RECEIVED = "result_received", _("Result received")
@@ -1262,15 +1463,21 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
         CANCELLED = "cancelled", _("Cancelled")
 
     class CleanupState(models.TextChoices):
+        """Cleanup progress after a transcription provider attempt terminates."""
+
         NONE = "none", _("None")
         PENDING = "pending", _("Pending")
         COMPLETED = "completed", _("Completed")
 
     class ExecutionMode(models.TextChoices):
+        """Whether an attempt may contact a provider or only recover state."""
+
         SEND_ALLOWED = "send_allowed", _("Send allowed")
         RECOVER_ONLY = "recover_only", _("Recover only")
 
     class TerminalOutcome(models.TextChoices):
+        """Terminal outcomes used to reconcile a transcription provider attempt."""
+
         FAILED_PRE_EGRESS = "failed_pre_egress", _("Failed before egress")
         REJECTED = "rejected", _("Rejected")
         UNKNOWN = "unknown", _("Unknown")

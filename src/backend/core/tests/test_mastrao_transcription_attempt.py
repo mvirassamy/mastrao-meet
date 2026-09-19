@@ -1,5 +1,8 @@
 """Provider-attempt durability, object recovery and queue isolation proofs."""
 
+# Shared attempt fixtures preserve recovery and retry contract continuity.
+# pylint: disable=too-many-lines
+
 # pylint: disable=missing-function-docstring
 
 import hashlib
@@ -185,6 +188,8 @@ def test_grant_refresh_only_downgrades_to_recover_only():
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class Extracted:
+        """Audio metadata supplied to the caller-attempt refresh test."""
+
         sha256 = "a" * 64
         duration_ms = 4_000
         codec = "flac"
@@ -224,6 +229,8 @@ def test_core_egress_authorization_refreshes_the_caller_attempt(settings):
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class Extracted:
+        """Audio metadata supplied to the Core egress-authorization refresh."""
+
         sha256 = "a" * 64
         duration_ms = 4_000
         codec = "flac"
@@ -273,6 +280,8 @@ def test_core_pre_send_refusal_is_persisted_without_a_grant(settings):
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class Extracted:
+        """Audio metadata used to verify pre-send Core refusal persistence."""
+
         sha256 = "a" * 64
         duration_ms = 4_000
         codec = "flac"
@@ -328,6 +337,8 @@ def test_local_rate_limit_retries_with_send_grant(settings, tmp_path):
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class Extracted:
+        """Audio metadata used to exercise local rate-limit retry handling."""
+
         sha256 = "c" * 64
         duration_ms = 4_000
         codec = "flac"
@@ -440,6 +451,8 @@ def test_lost_gateway_response_replays_recover_only_without_second_send(
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class Extracted:
+        """Audio metadata retained across a lost gateway-response recovery."""
+
         sha256 = "d" * 64
         duration_ms = 4_000
         codec = "flac"
@@ -546,6 +559,8 @@ def test_unreadable_post_response_is_unknown(settings, tmp_path, body, content_l
     audio_path.write_bytes(b"flac fixture")
 
     class Extracted:
+        """Audio metadata used for bounded unreadable-response validation."""
+
         path = audio_path
         sha256 = hashlib.sha256(b"flac fixture").hexdigest()
         duration_ms = 4_000
@@ -553,6 +568,8 @@ def test_unreadable_post_response_is_unknown(settings, tmp_path, body, content_l
         byte_size = len(b"flac fixture")
 
     class Attempt:
+        """Provider attempt shape used for unreadable-response classification."""
+
         attempt_ref = "attempt_unreadable_012345"
         provider_ref = "openai"
         requested_model_ref = "gpt-transcribe"
@@ -596,6 +613,8 @@ def test_gateway_429_ingests_bounded_provenance_and_retry_after(settings, tmp_pa
     audio_path.write_bytes(b"bounded flac fixture")
 
     class Extracted:
+        """Audio metadata used to validate bounded 429 provenance ingestion."""
+
         path = audio_path
         sha256 = hashlib.sha256(b"bounded flac fixture").hexdigest()
         duration_ms = 4_000
@@ -1119,6 +1138,8 @@ def test_fake_recovery_accepts_unprefixed_deterministic_engine():
 
 def _paid_attempt_with_recovery(local_effect):
     class Extracted:
+        """Audio metadata retained by the paid recovery attempt fixture."""
+
         sha256 = "c" * 64
         duration_ms = 4_000
         codec = "flac"

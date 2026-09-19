@@ -10,7 +10,14 @@ from django.utils import timezone
 from livekit import api as livekit_api
 
 from core import models
-from core.mastrao_recording_adapter import _exact_provider_egress
+from core.mastrao_native_admission import reconcile_native_admissions
+from core.mastrao_native_asr_worker import schedule_native_asr
+from core.mastrao_native_capture_drain import reconcile_native_captures
+from core.mastrao_native_source_transfer import schedule_native_source_transfer
+from core.mastrao_recording_adapter import (
+    _exact_provider_egress,
+    fail_stale_starting_provider_egress,
+)
 from core.mastrao_recording_artifact import finalize_mastrao_artifact
 from core.mastrao_recording_failure import (
     FAILURE_STATES,
@@ -36,12 +43,27 @@ def reconcile_mastrao_recording(binding):
         return False
     if egress.status in FAILURE_STATES:
         return report_mastrao_recording_failure(binding.recording, egress.status)
+    if (
+        egress.status == livekit_api.EgressStatus.EGRESS_STARTING
+        and fail_stale_starting_provider_egress(binding, binding.recording)
+    ):
+        return True
     if egress.status in COMPLETION_STATES:
         binding.state = binding.State.PROCESSING
         binding.save(update_fields=["state", "updated_at"])
         finalize_mastrao_artifact(binding.recording)
         return True
     return False
+
+
+def reconcile_native_recordings(limit=20):
+    """Advance native audio without invoking or waiting for video finalization."""
+    return (
+        reconcile_native_captures(limit=limit)
+        + reconcile_native_admissions(limit=limit)
+        + schedule_native_source_transfer()
+        + schedule_native_asr()
+    )
 
 
 def reconcile_mastrao_recordings(limit=20):
@@ -81,4 +103,8 @@ def reconcile_mastrao_recordings(limit=20):
             models.MastraoRecordingBinding.objects.filter(pk=binding.pk).update(
                 updated_at=timezone.now()
             )
-    return reconciled + reconcile_transcription_dispatches(limit=limit)
+    return (
+        reconciled
+        + reconcile_transcription_dispatches(limit=limit)
+        + reconcile_native_recordings(limit=limit)
+    )

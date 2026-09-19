@@ -47,6 +47,7 @@ load_dotenv()
 logger = logging.getLogger("metadata-collector")
 
 AGENT_NAME = os.getenv("METADATA_COLLECTOR_AGENT_NAME", "metadata-collector")
+ENABLE_VAD = os.getenv("METADATA_COLLECTOR_ENABLE_VAD", "true").lower() == "true"
 MAX_PARTICIPANTS = 500
 MAX_EVENTS = 200_000
 MAX_DECLARED_LABEL_LENGTH = 160
@@ -634,11 +635,12 @@ class MetadataCollector:
         self._record_display_name(participant_ref, participant.name or "")
 
         logger.info("New participant connected")
-        try:
-            session = await self._start_session(participant, participant_ref)
-            self._sessions[participant_key] = session
-        except Exception:
-            logger.exception("Failed to start VAD session")
+        if ENABLE_VAD:
+            try:
+                session = await self._start_session(participant, participant_ref)
+                self._sessions[participant_key] = session
+            except Exception:
+                logger.exception("Failed to start VAD session")
 
     def on_participant_disconnected(self, participant: rtc.RemoteParticipant):
         """Handle participant disconnection by closing VAD monitoring."""
@@ -813,7 +815,11 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_participant_entrypoint(metadata_collector.on_participant_entrypoint)
 
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+    await ctx.connect(
+        auto_subscribe=AutoSubscribe.AUDIO_ONLY
+        if ENABLE_VAD
+        else AutoSubscribe.SUBSCRIBE_NONE
+    )
 
     async def cleanup():
         logger.info("Shutting down metadata collector...")

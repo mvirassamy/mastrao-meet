@@ -40,6 +40,7 @@ from core.mastrao_guest_grant import (
     active_guest_grant,
 )
 from core.mastrao_host_grant import active_host_compact_grant, active_host_grant
+from core.mastrao_media_token_binding import generate_guest_media_config
 from core.mastrao_room_lifecycle import MastraoRoomClosed, assert_mastrao_room_open
 from core.services.room_management import ensure_livekit_room
 
@@ -303,7 +304,10 @@ def consume_mastrao_guest_invitation(request):
             r"redemption_[a-f0-9]{32}", redemption_id
         ):
             raise GuestHandoffRefused()
-        if not _GUEST_VERIFY_SLOTS.acquire(blocking=False):
+        # Nonblocking admission preserves immediate overload shedding; release is in finally.
+        if not _GUEST_VERIFY_SLOTS.acquire(  # pylint: disable=consider-using-with
+            blocking=False
+        ):
             raise GuestHandoffRefused(status=503)
         try:
             verify_guest_invitation(compact)
@@ -460,7 +464,9 @@ def guest_media_config(request, room, username, color, participant_id):
         ensure_livekit_room(str(room.id))
     except MastraoRoomClosed as error:
         raise GuestHandoffRefused() from error
-    return utils.generate_livekit_config(
+    return generate_guest_media_config(
+        guest,
+        compact_digest(body["media_grant"]),
         room_id=str(room.id),
         user=request.user,
         username=username,

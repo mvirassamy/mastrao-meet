@@ -290,6 +290,36 @@ def test_delete_dispatch_rule_partial_failure(mock_client_factory, mock_list_rul
 
 @mock.patch("core.services.sip_management.SIPManagement._list_dispatch_rules_ids")
 @mock.patch("core.utils.create_livekit_client")
+def test_delete_dispatch_rule_tolerates_already_deleted_rule(
+    mock_client_factory, mock_list_rules
+):
+    """Test deleting dispatch rules when LiveKit already removed one rule."""
+    sip_management = SIPManagement()
+    room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED, pin_code="1234")
+
+    mock_list_rules.return_value = ["rule-1", "rule-2"]
+    mock_api = create_mock_livekit_client()
+    mock_api.sip.delete_sip_dispatch_rule = mock.AsyncMock(
+        side_effect=[
+            TwirpError(
+                msg="requested sip dispatch rule does not exist",
+                code="not_found",
+                status=404,
+            ),
+            None,
+        ]
+    )
+    mock_client_factory.return_value = mock_api
+
+    result = sip_management.delete_dispatch_rule(room.id)
+
+    assert result is True
+    assert mock_api.sip.delete_sip_dispatch_rule.call_count == 2
+    mock_api.aclose.assert_called_once()
+
+
+@mock.patch("core.services.sip_management.SIPManagement._list_dispatch_rules_ids")
+@mock.patch("core.utils.create_livekit_client")
 def test_delete_dispatch_rule_api_failure(mock_client_factory, mock_list_rules):
     """Test deleting dispatch rules when API fails immediately."""
     sip_management = SIPManagement()

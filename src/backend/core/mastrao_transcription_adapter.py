@@ -15,6 +15,7 @@ from core.mastrao_recording_contract import compact_digest
 from core.mastrao_transcription_artifact import (
     extract_verified_audio_file,
     load_result_recovery,
+    load_speaker_evidence_for_recording,
     map_speakers,
     persist_result_recovery,
     persist_transcript,
@@ -283,7 +284,12 @@ def _produce_transcript(transcription_binding):
             return recovered
         transcript = _resume_or_transcribe(extracted, attempt, transcription_binding)
         _assert_transcription_authority(transcription_binding)
-        transcript = map_speakers(transcript)
+        transcript = map_speakers(
+            transcript,
+            speaker_evidence=load_speaker_evidence_for_recording(
+                recording_binding.recording_ref
+            ),
+        )
         object_ref = predeclare_object(attempt, transcription_binding.transcription_ref)
         if not transcription_binding.object_ref:
             transcription_binding.object_ref = object_ref

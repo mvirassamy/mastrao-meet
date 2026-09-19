@@ -18,8 +18,9 @@ from core.mastrao_guest_handoff import (
     guest_media_config,
     remember_guest_compact_grant,
 )
-from core.mastrao_host_grant import host_media_projection
+from core.mastrao_host_grant import host_media_projection, persist_host_display_name
 from core.mastrao_identity import is_mastrao_host_subject
+from core.mastrao_media_token_binding import generate_host_media_config
 from core.mastrao_room_lifecycle import (
     MastraoRoomClosed,
     assert_mastrao_room_open,
@@ -153,6 +154,7 @@ class LobbyService:
 
         participant_id = guest_grant.guest_ref
         remember_guest_compact_grant(request, guest_grant)
+        self._persist_guest_display_name(guest_grant, username)
         if participant is None:
             participant = self.enter(room.id, participant_id, username)
         if (
@@ -195,7 +197,14 @@ class LobbyService:
         )
         return participant, None
 
-    def request_entry(  # noqa: PLR0911,PLR0912
+    @staticmethod
+    def _persist_guest_display_name(guest_grant, username) -> None:
+        normalized_username = str(username or "").strip()[:160]
+        if normalized_username and guest_grant.display_name != normalized_username:
+            guest_grant.display_name = normalized_username
+            guest_grant.save(update_fields=["display_name", "updated_at"])
+
+    def request_entry(  # noqa: PLR0911,PLR0912  # pylint: disable=too-many-return-statements,too-many-branches
         self,
         room: models.Room,
         request,
@@ -264,7 +273,13 @@ class LobbyService:
                 ensure_livekit_room(room_id)
             except MastraoRoomClosed:
                 return participant, None
-            livekit_config = utils.generate_livekit_config(**livekit_arguments)
+            if host_role is not None:
+                persist_host_display_name(request, room, username)
+                livekit_config = generate_host_media_config(
+                    request, room, **livekit_arguments
+                )
+            else:
+                livekit_config = utils.generate_livekit_config(**livekit_arguments)
             return participant, livekit_config
 
         livekit_config = None
@@ -486,6 +501,13 @@ class LobbyService:
 
         participant.status = status
         cache.set(cache_key, participant.to_dict(), timeout=timeout)
+        guest_grant = (
+            models.MastraoGuestGrant.objects.filter(guest_ref=participant_id)
+            .order_by("-created_at")
+            .first()
+        )
+        if guest_grant is not None:
+            self._persist_guest_display_name(guest_grant, participant.username)
 
     def clear_room_cache(self, room_id: UUID) -> None:
         """Clear all participant entries from the cache for a specific room."""
