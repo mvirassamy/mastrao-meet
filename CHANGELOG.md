@@ -4,6 +4,9 @@
   connections after their join grant expires; retain the exact bound session
   and grant authority checks and add a focused regression test.
 
+- 2026-09-20: Publish meeting camera video as H.264, matching the recording
+  contract and avoiding VP9 transcoding overhead in RoomComposite Egress.
+
 - 2026-09-20: Consume the canonical in-memory prejoin media choices when
   connecting to LiveKit, so a camera enabled immediately before joining is
   published without racing a second persisted-choice hook.

@@ -14,6 +14,7 @@ let liveKitOnDisconnected: ((reason: number) => void) | undefined
 let liveKitOnConnected: (() => Promise<void>) | undefined
 let liveKitAudio: unknown
 let liveKitVideo: unknown
+let createdRoomOptions: unknown
 let localTrackPublished: (() => void) | undefined
 const refetchRoom = vi.fn().mockResolvedValue(undefined)
 const markActive = vi.fn()
@@ -76,6 +77,9 @@ vi.mock('livekit-client', () => ({
     LocalTrackUnpublished: 'localTrackUnpublished',
   },
   Room: class {
+    constructor(options?: unknown) {
+      createdRoomOptions = options
+    }
     numParticipants = 0
     localParticipant = {
       setMicrophoneEnabled: vi.fn(),
@@ -202,6 +206,7 @@ describe('Conference room lookup', () => {
     liveKitOnConnected = undefined
     liveKitAudio = undefined
     liveKitVideo = undefined
+    createdRoomOptions = undefined
     localTrackPublished = undefined
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
@@ -257,6 +262,11 @@ describe('Conference room lookup', () => {
 
     expect(liveKitAudio).toBe(true)
     expect(liveKitVideo).toEqual({ processor: undefined })
+    expect(createdRoomOptions).toEqual(
+      expect.objectContaining({
+        publishDefaults: { videoCodec: 'h264' },
+      })
+    )
   })
 
   it.each(['404', '410'])(

@@ -241,7 +241,7 @@ export const Conference = ({
       adaptiveStream: true,
       dynacast: true,
       publishDefaults: {
-        videoCodec: 'vp9',
+        videoCodec: 'h264',
       },
       videoCaptureDefaults: {
         deviceId: userConfig.videoDeviceId ?? undefined,
