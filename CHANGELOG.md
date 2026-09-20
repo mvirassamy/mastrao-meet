@@ -4,6 +4,10 @@
   connections after their join grant expires; retain the exact bound session
   and grant authority checks and add a focused regression test.
 
+- 2026-09-20: Consume the canonical in-memory prejoin media choices when
+  connecting to LiveKit, so a camera enabled immediately before joining is
+  published without racing a second persisted-choice hook.
+
 - 2026-09-20: Wait for the host to publish a real LiveKit media track before
   requesting RoomComposite recording activation.
 

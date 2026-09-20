@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import {
-  LiveKitRoom,
-  usePersistentUserChoices,
-} from '@livekit/components-react'
+import { LiveKitRoom } from '@livekit/components-react'
 import {
   DisconnectReason,
   MediaDeviceFailure,
@@ -25,7 +22,7 @@ import { InviteDialog } from './InviteDialog'
 import { VideoConference } from '../livekit/prefabs/VideoConference'
 import { css } from '@/styled-system/css'
 import { BackgroundProcessorFactory } from '../livekit/components/blur'
-import { LocalUserChoices } from '@/stores/userChoices'
+import { userChoicesStore } from '@/stores/userChoices'
 import { captureMediaEvent, reportError } from '@/features/analytics/telemetry'
 import { useConfig } from '@/api/useConfig'
 import { isFireFox } from '@/utils/livekit'
@@ -73,9 +70,7 @@ export const Conference = ({
   } = useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
 
-  const { userChoices: userConfig } = usePersistentUserChoices() as {
-    userChoices: LocalUserChoices
-  }
+  const userConfig = useSnapshot(userChoicesStore)
 
   const { username } = useSnapshot(userStore)
 

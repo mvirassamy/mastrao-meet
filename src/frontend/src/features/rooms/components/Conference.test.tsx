@@ -12,6 +12,8 @@ const fetchRoom = vi.fn()
 const navigateTo = vi.fn()
 let liveKitOnDisconnected: ((reason: number) => void) | undefined
 let liveKitOnConnected: (() => Promise<void>) | undefined
+let liveKitAudio: unknown
+let liveKitVideo: unknown
 let localTrackPublished: (() => void) | undefined
 const refetchRoom = vi.fn().mockResolvedValue(undefined)
 const markActive = vi.fn()
@@ -44,16 +46,21 @@ vi.mock('@livekit/components-react', () => ({
     children,
     onDisconnected,
     onConnected,
+    audio,
+    video,
   }: {
     children: ReactNode
     onDisconnected?: (reason: number) => void
     onConnected?: () => Promise<void>
+    audio?: unknown
+    video?: unknown
   }) => {
     liveKitOnDisconnected = onDisconnected
     liveKitOnConnected = onConnected
+    liveKitAudio = audio
+    liveKitVideo = video
     return <>{children}</>
   },
-  usePersistentUserChoices: () => ({ userChoices: {} }),
 }))
 
 vi.mock('livekit-client', () => ({
@@ -138,6 +145,12 @@ vi.mock('../api/createRoom', () => ({
 }))
 
 vi.mock('@/stores/user', () => ({ userStore: { username: 'Host' } }))
+vi.mock('@/stores/userChoices', () => ({
+  userChoicesStore: {
+    audioEnabled: true,
+    videoEnabled: true,
+  },
+}))
 vi.mock('@/stores/userPreferences', () => ({ userPreferencesStore: {} }))
 vi.mock('valtio', () => ({ useSnapshot: (value: unknown) => value }))
 vi.mock('@/stores/connectionObserver', () => ({
@@ -187,6 +200,8 @@ describe('Conference room lookup', () => {
     vi.clearAllMocks()
     liveKitOnDisconnected = undefined
     liveKitOnConnected = undefined
+    liveKitAudio = undefined
+    liveKitVideo = undefined
     localTrackPublished = undefined
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
@@ -226,6 +241,23 @@ describe('Conference room lookup', () => {
       )
     }
   )
+
+  it('publishes media from the canonical prejoin choices', () => {
+    const room: ApiRoom = {
+      id: 'room_0123456789abcdef0123456789abcdef',
+      name: 'Test',
+      slug: 'test',
+      access_level: ApiAccessLevel.RESTRICTED,
+      is_administrable: true,
+      can_end: true,
+    }
+    fetchRoom.mockResolvedValue(room)
+
+    render(<Conference roomId={room.id} initialRoomData={room} />)
+
+    expect(liveKitAudio).toBe(true)
+    expect(liveKitVideo).toEqual({ processor: undefined })
+  })
 
   it.each(['404', '410'])(
     'never tries to create a canonical room after a %s',
