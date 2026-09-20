@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import {
-  LiveKitRoom,
-  usePersistentUserChoices,
-} from '@livekit/components-react'
+import { LiveKitRoom } from '@livekit/components-react'
 import {
   DisconnectReason,
   MediaDeviceFailure,
   Room,
+  RoomEvent,
   type RoomOptions,
   VideoPresets,
 } from 'livekit-client'
@@ -24,7 +22,7 @@ import { InviteDialog } from './InviteDialog'
 import { VideoConference } from '../livekit/prefabs/VideoConference'
 import { css } from '@/styled-system/css'
 import { BackgroundProcessorFactory } from '../livekit/components/blur'
-import { LocalUserChoices } from '@/stores/userChoices'
+import { userChoicesStore } from '@/stores/userChoices'
 import { captureMediaEvent, reportError } from '@/features/analytics/telemetry'
 import { useConfig } from '@/api/useConfig'
 import { isFireFox } from '@/utils/livekit'
@@ -72,9 +70,7 @@ export const Conference = ({
   } = useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
 
-  const { userChoices: userConfig } = usePersistentUserChoices() as {
-    userChoices: LocalUserChoices
-  }
+  const userConfig = useSnapshot(userChoicesStore)
 
   const { username } = useSnapshot(userStore)
 
@@ -85,6 +81,7 @@ export const Conference = ({
 
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)
   const [isLiveKitConnected, setIsLiveKitConnected] = useState(false)
+  const [hasPublishedMedia, setHasPublishedMedia] = useState(false)
   const [activationFailed, setActivationFailed] = useState(false)
   const [activationExhausted, setActivationExhausted] = useState(false)
   const [activationRetry, setActivationRetry] = useState(0)
@@ -244,7 +241,7 @@ export const Conference = ({
       adaptiveStream: true,
       dynacast: true,
       publishDefaults: {
-        videoCodec: 'vp9',
+        videoCodec: 'h264',
       },
       videoCaptureDefaults: {
         deviceId: userConfig.videoDeviceId ?? undefined,
@@ -324,10 +321,24 @@ export const Conference = ({
   const activationAttempts = useRef(0)
 
   useEffect(() => {
+    const refreshPublishedMedia = () => {
+      setHasPublishedMedia(room.localParticipant.trackPublications.size > 0)
+    }
+    refreshPublishedMedia()
+    room.on(RoomEvent.LocalTrackPublished, refreshPublishedMedia)
+    room.on(RoomEvent.LocalTrackUnpublished, refreshPublishedMedia)
+    return () => {
+      room.off(RoomEvent.LocalTrackPublished, refreshPublishedMedia)
+      room.off(RoomEvent.LocalTrackUnpublished, refreshPublishedMedia)
+    }
+  }, [room])
+
+  useEffect(() => {
     if (isEnding) return
     const recording = data?.recording
     const shouldActivate =
       isLiveKitConnected &&
+      hasPublishedMedia &&
       data?.can_end &&
       recording?.mode === 'recorded' &&
       recording.activation_available !== false &&
@@ -380,6 +391,7 @@ export const Conference = ({
     data?.can_end,
     data?.recording,
     isEnding,
+    hasPublishedMedia,
     isLiveKitConnected,
     refetchRoom,
     roomId,
