@@ -115,7 +115,11 @@ def _observed(epoch):
     ):
         raise RecordingContractRefused()
     grant = issued.host_grant or issued.guest_grant
-    if grant is None or grant.expires_at <= timezone.now():
+    # The grant expiry bounds admission of the RTC join token. Once the
+    # connection and its track epoch are durably correlated, expiry alone does
+    # not revoke that established session; Core authorizes the fresh capture
+    # effect against the exact bound grant/session evidence below.
+    if grant is None:
         raise RecordingContractRefused()
     observed = {
         **native_envelope("mastrao.meet-native-observed-microphone"),

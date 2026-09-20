@@ -572,7 +572,6 @@ def test_invalid_in_memory_label_is_unknown(name):
         "ended",
         "conflict",
         "room_closed",
-        "expired",
         "rotated",
         "flag_off",
         "guest_pending",
@@ -591,11 +590,6 @@ def test_invalid_epochs_never_send(  # noqa: PLR0913,PLR0917
     elif case == "room_closed":
         models.MastraoRoomBinding.objects.filter(pk=grant.room_binding_id).update(
             closing_at=timezone.now()
-        )
-    elif case == "expired":
-        type(grant).objects.filter(pk=grant.pk).update(
-            expires_at=timezone.now() - timedelta(seconds=1),
-            issued_at=timezone.now() - timedelta(hours=1),
         )
     elif case == "rotated":
         type(grant).objects.filter(pk=grant.pk).update(session_nonce_digest="e" * 64)
@@ -617,6 +611,20 @@ def test_invalid_epochs_never_send(  # noqa: PLR0913,PLR0917
     with core_peer(native_settings) as (calls, _):
         assert reconcile_native_admissions() == 0
         assert calls == []
+
+
+def test_established_epoch_survives_join_grant_expiry(
+    client, native_settings, host, recording
+):
+    """Token expiry cannot revoke a connection already correlated by the server."""
+    epoch = epoch_for(client, native_settings, host)
+    type(host).objects.filter(pk=host.pk).update(
+        expires_at=timezone.now() - timedelta(seconds=1),
+        issued_at=timezone.now() - timedelta(hours=1),
+    )
+    with core_peer(native_settings) as (calls, _):
+        assert reconcile_native_admissions() == 1
+        assert [call[1]["epoch_ref"] for call in calls] == [str(epoch.pk)]
 
 
 def test_denied_core_is_not_retried_forever(client, native_settings, host, recording):
