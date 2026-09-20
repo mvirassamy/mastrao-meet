@@ -1,5 +1,8 @@
 """Test related to item upload ended API."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=no-name-in-module
+
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO

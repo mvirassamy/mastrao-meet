@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from core import models
 from core.mastrao_core_http import post_core_json
@@ -217,11 +217,19 @@ def _sync_binding(room, status):
         if changed_fields:
             binding.save(update_fields=[*changed_fields, "updated_at"])
     else:
-        binding = models.MastraoRecordingBinding.objects.create(
-            room_binding=room.mastrao_binding,
-            recording_ref=status["recording_ref"],
-            **defaults,
-        )
+        try:
+            binding = models.MastraoRecordingBinding.objects.create(
+                room_binding=room.mastrao_binding,
+                recording_ref=status["recording_ref"],
+                **defaults,
+            )
+        except IntegrityError:
+            binding = models.MastraoRecordingBinding.objects.filter(
+                room_binding=room.mastrao_binding,
+                recording_ref=status["recording_ref"],
+            ).first()
+            if not binding:
+                raise RecordingContractRefused(status=409) from None
     return binding
 
 
@@ -238,7 +246,12 @@ def recording_session_status(request, room):
         return None
     if not hasattr(room, "mastrao_binding"):
         return None
-    if not settings.MASTRAO_MEETING_RECORDING_ENABLED and not (
+    # Native preentry also needs the authoritative policy and technical binding.
+    # Reading/synchronizing it never enables the independently gated video Start.
+    if not (
+        settings.MASTRAO_MEETING_RECORDING_ENABLED
+        or settings.MASTRAO_NATIVE_PREENTRY_ENABLED
+    ) and not (
         models.MastraoRecordingBinding.objects.filter(
             room_binding=room.mastrao_binding
         ).exists()
@@ -302,6 +315,10 @@ def public_projection(status):
         )
     }
     projection["transcription_mode"] = status.get("transcription_mode", "disabled")
+    projection["activation_available"] = bool(
+        settings.MASTRAO_MEETING_RECORDING_ENABLED
+        and settings.MASTRAO_MEETING_RECORDING_START_ENABLED
+    )
     if projection["transcription_mode"] == "transcribed":
         projection.update(
             {

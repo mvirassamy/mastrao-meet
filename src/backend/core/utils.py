@@ -15,7 +15,7 @@ import string
 from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import List, Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
@@ -63,6 +63,15 @@ def generate_color(identity: str) -> str:
     return f"hsl({hue}, {saturation}%, {lightness}%)"
 
 
+def _media_token_attributes(attributes, reference):
+    """Attach only the server-issued opaque journal reference."""
+    if reference is None:
+        return attributes
+    if str(UUID(reference)) != reference:
+        raise ValueError("Invalid media token binding reference")
+    return {**attributes, "mastrao.media_token_binding_ref": reference}
+
+
 def generate_token(  # noqa: PLR0917
     room: str,
     user,
@@ -73,6 +82,7 @@ def generate_token(  # noqa: PLR0917
     participant_id: Optional[str] = None,
     ttl: Optional[timedelta] = None,
     expires_at: Optional[datetime] = None,
+    media_token_binding_ref: Optional[str] = None,
 ) -> str:
     """Generate a LiveKit access token for a user in a specific room.
 
@@ -126,6 +136,11 @@ def generate_token(  # noqa: PLR0917
     )
     display_name = (username or default_username) if can_edit else default_username
 
+    attributes = {
+        "color": color,
+        "room_role": role,
+        "is_authenticated": "true" if user.is_authenticated else "false",
+    }
     token = (
         AccessToken(
             api_key=settings.LIVEKIT_CONFIGURATION["api_key"],
@@ -134,13 +149,7 @@ def generate_token(  # noqa: PLR0917
         .with_grants(video_grants)
         .with_identity(identity)
         .with_name(display_name)
-        .with_attributes(
-            {
-                "color": color,
-                "room_role": role,
-                "is_authenticated": "true" if user.is_authenticated else "false",
-            }
-        )
+        .with_attributes(_media_token_attributes(attributes, media_token_binding_ref))
     )
     if ttl is not None and expires_at is not None:
         raise ValueError("ttl and expires_at are mutually exclusive")
@@ -169,6 +178,7 @@ def generate_livekit_config(  # noqa: PLR0917
     participant_id: Optional[str] = None,
     ttl: Optional[timedelta] = None,
     expires_at: Optional[datetime] = None,
+    media_token_binding_ref: Optional[str] = None,
 ) -> dict:
     """Generate LiveKit configuration for room access.
 
@@ -203,9 +213,11 @@ def generate_livekit_config(  # noqa: PLR0917
         token_arguments["ttl"] = ttl
     if expires_at is not None:
         token_arguments["expires_at"] = expires_at
+    if media_token_binding_ref is not None:
+        token_arguments["media_token_binding_ref"] = media_token_binding_ref
 
     return {
-        "url": settings.LIVEKIT_CONFIGURATION["url"],
+        "url": settings.LIVEKIT_PUBLIC_URL or settings.LIVEKIT_CONFIGURATION["url"],
         "room": room_id,
         "token": generate_token(**token_arguments),
     }

@@ -19,10 +19,12 @@ from core.mastrao_transcription_contract import TranscriptionContractRefused
 
 TRANSCRIPT_PREFIX = "mastrao-transcripts"
 RESULT_RECOVERY_PREFIX = "mastrao-transcript-results"
+SPEAKER_EVIDENCE_PREFIX = "mastrao-speaker-evidence"
 FFMPEG_TIMEOUT_SECONDS = 900
 MAX_AUDIO_BYTES = 2_000_000_000
 PROVIDER_EGRESS_BYTES = 25_000_000
 MAX_RECOVERY_BYTES = 5_000_000
+MAX_SPEAKER_EVIDENCE_BYTES = 5_000_000
 ARTIFACT_SCHEMA_VERSION = 1
 
 
@@ -182,17 +184,194 @@ def extract_verified_audio(object_ref, expected_size, expected_checksum):
         extracted.close()
 
 
-def map_speakers(transcript):
-    """Give every acoustic speaker a stable anonymous index.
+def speaker_evidence_ref_for_recording(recording_ref):
+    """Return the Core-compatible deterministic evidence ref for a recording."""
 
-    The LiveKit webhook stream exposes no active-speaker events today, so
-    participant mapping is out of scope; the anonymous fallback keeps the
-    citation contract stable until a real timeline producer exists.
+    digest = hashlib.sha256(
+        (
+            json.dumps(
+                {
+                    "purpose": "meeting_speaker_evidence",
+                    "recording_ref": recording_ref,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode()
+    ).hexdigest()
+    return f"evidence_{digest[:32]}"
+
+
+def load_speaker_evidence_for_recording(recording_ref):
+    """Load the optional speaker-evidence artifact produced during the room.
+
+    Missing or invalid evidence must not block transcription: it only prevents
+    participant-name attribution and keeps the anonymous speaker fallback.
+    """
+
+    evidence_ref = speaker_evidence_ref_for_recording(recording_ref)
+    object_ref = f"{SPEAKER_EVIDENCE_PREFIX}/{evidence_ref}.json"
+    try:
+        if not default_storage.exists(object_ref):
+            return None
+        with default_storage.open(object_ref, "rb") as stream:
+            raw = stream.read(MAX_SPEAKER_EVIDENCE_BYTES + 1)
+    except (BotoCoreError, ClientError, OSError, ValueError):
+        return None
+    if len(raw) > MAX_SPEAKER_EVIDENCE_BYTES:
+        return None
+    try:
+        evidence = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(evidence, dict) or evidence.get("evidence_ref") != evidence_ref:
+        return None
+    return evidence
+
+
+def _participant_labels(speaker_evidence):
+    labels = {}
+    for participant in speaker_evidence.get("participants", []):
+        if not isinstance(participant, dict):
+            continue
+        participant_ref = participant.get("participant_ref")
+        if not isinstance(participant_ref, str) or not participant_ref:
+            continue
+        events = participant.get("display_name_events", [])
+        if not isinstance(events, list):
+            continue
+        candidates = [
+            event
+            for event in events
+            if isinstance(event, dict)
+            and isinstance(event.get("label"), str)
+            and event["label"].strip()
+        ]
+        if not candidates:
+            continue
+        candidates.sort(
+            key=lambda event: (
+                event.get("effective_at_ms")
+                if isinstance(event.get("effective_at_ms"), int)
+                and not isinstance(event.get("effective_at_ms"), bool)
+                else -1
+            )
+        )
+        label = candidates[-1]["label"].strip()
+        if label and label.lower() != "anonymous":
+            labels[participant_ref] = label
+    return labels
+
+
+def _speech_intervals(speaker_evidence):
+    open_since = {}
+    intervals = {}
+    events = speaker_evidence.get("events", [])
+    if not isinstance(events, list):
+        return intervals
+    for event in sorted(
+        (event for event in events if isinstance(event, dict)),
+        key=lambda event: (
+            event.get("at_ms")
+            if isinstance(event.get("at_ms"), int)
+            and not isinstance(event.get("at_ms"), bool)
+            else -1
+        ),
+    ):
+        participant_ref = event.get("participant_ref")
+        at_ms = event.get("at_ms")
+        if not isinstance(participant_ref, str) or not isinstance(at_ms, int):
+            continue
+        if event.get("type") == "speech_start":
+            open_since[participant_ref] = at_ms
+        elif event.get("type") == "speech_end":
+            start_ms = open_since.pop(participant_ref, None)
+            if isinstance(start_ms, int) and at_ms > start_ms:
+                intervals.setdefault(participant_ref, []).append((start_ms, at_ms))
+    timeline_end = speaker_evidence.get("timeline_ended_at_ms")
+    if isinstance(timeline_end, int):
+        for participant_ref, start_ms in open_since.items():
+            if timeline_end > start_ms:
+                intervals.setdefault(participant_ref, []).append(
+                    (start_ms, timeline_end)
+                )
+    return intervals
+
+
+def _overlap_ms(segment, interval):
+    return max(
+        0, min(segment["end_ms"], interval[1]) - max(segment["start_ms"], interval[0])
+    )
+
+
+def _speaker_participant_mapping(transcript, speaker_evidence):
+    labels = _participant_labels(speaker_evidence)
+    if not labels:
+        return {}
+    acoustic_refs = {
+        segment["speaker"]["ref"]
+        for segment in transcript["segments"]
+        if segment.get("speaker", {}).get("kind") == "acoustic"
+    }
+    intervals = _speech_intervals(speaker_evidence)
+    if not intervals:
+        if len(acoustic_refs) == 1 and len(set(labels.values())) == 1:
+            speaker_ref = next(iter(acoustic_refs))
+            label = next(iter(labels.values()))
+            return {speaker_ref: label}
+        return {}
+
+    scores = {speaker_ref: {} for speaker_ref in acoustic_refs}
+    for segment in transcript["segments"]:
+        speaker_ref = segment.get("speaker", {}).get("ref")
+        if speaker_ref not in scores:
+            continue
+        for participant_ref, participant_intervals in intervals.items():
+            scores[speaker_ref][participant_ref] = scores[speaker_ref].get(
+                participant_ref, 0
+            ) + sum(
+                _overlap_ms(segment, interval) for interval in participant_intervals
+            )
+
+    mapping = {}
+    claimed_participants = set()
+    for speaker_ref, participant_scores in scores.items():
+        ranked = sorted(
+            participant_scores.items(), key=lambda item: item[1], reverse=True
+        )
+        if not ranked or ranked[0][1] <= 0:
+            continue
+        if len(ranked) > 1 and ranked[0][1] <= ranked[1][1]:
+            continue
+        participant_ref = ranked[0][0]
+        if participant_ref in claimed_participants or participant_ref not in labels:
+            continue
+        claimed_participants.add(participant_ref)
+        mapping[speaker_ref] = labels[participant_ref]
+    return mapping
+
+
+def map_speakers(transcript, speaker_evidence=None):
+    """Map acoustic speakers to participant labels when evidence is unambiguous.
+
+    Anonymous stable indexes remain the fallback when the room evidence is
+    missing, invalid, or ambiguous.
     """
 
     anonymous = {}
+    participant_mapping = (
+        _speaker_participant_mapping(transcript, speaker_evidence)
+        if speaker_evidence is not None
+        else {}
+    )
     for segment in transcript["segments"]:
         speaker = segment["speaker"]
+        label = participant_mapping.get(speaker["ref"])
+        if label is not None:
+            segment["speaker"] = {"kind": "participant", "label": label}
+            continue
         index = anonymous.setdefault(speaker["ref"], len(anonymous) + 1)
         segment["speaker"] = {"kind": "anonymous", "index": index}
     return transcript

@@ -113,6 +113,18 @@ def host_media_projection(request, room):
     return models.RoleChoices.ADMIN, grant.expires_at
 
 
+def persist_host_display_name(request, room, username) -> None:
+    """Remember the local host display name for late speaker-evidence fallbacks."""
+
+    grant = active_host_grant(request, room)
+    if not grant:
+        return
+    normalized_username = str(username or "").strip()[:160]
+    if normalized_username and grant.display_name != normalized_username:
+        grant.display_name = normalized_username
+        grant.save(update_fields=["display_name", "updated_at"])
+
+
 def active_host_compact_grant(request, grant):
     """Resolve the Core bearer retained only in the server-side host session."""
 
@@ -129,7 +141,8 @@ def _platform_return_origin():
     configured = settings.MASTRAO_PLATFORM_ORIGIN
     parsed = urlparse(configured if isinstance(configured, str) else "")
     local = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
-    if (
+    # Origin parts are jointly security-sensitive and must fail closed as one guard.
+    if (  # pylint: disable=too-many-boolean-expressions
         not parsed.hostname
         or parsed.scheme not in ({"http", "https"} if local else {"https"})
         or parsed.username
@@ -157,7 +170,8 @@ def host_platform_return_projection(request, room):
         claims = verify_host_grant(compact)
     except HostHandoffRefused:
         return None
-    if (
+    # Each claim must match the stored, session-bound grant before projection.
+    if (  # pylint: disable=too-many-boolean-expressions
         claims["grant_ref"] != grant.grant_ref
         or claims["meeting_ref"] != grant.meeting_ref
         or claims["room_ref"] != grant.room_ref

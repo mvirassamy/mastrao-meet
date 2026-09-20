@@ -1,5 +1,12 @@
 """Focused proofs for the browser host handoff and temporary media grant."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=no-name-in-module
+
+
+# Shared security fixtures and end-to-end grant contracts intentionally stay together.
+# pylint: disable=too-many-lines
+
 import base64
 import json
 import time
@@ -114,6 +121,8 @@ def _signed_host_grant(private_key, organization_external_id):
 
 @pytest.fixture(name="handoff_signing")
 def fixture_handoff_signing():
+    """Provide an isolated signing key and its matching host-handoff settings."""
+
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key().public_bytes(
         serialization.Encoding.Raw,
@@ -136,6 +145,8 @@ def fixture_handoff_signing():
 
 @pytest.fixture(name="local_handoff_verification", autouse=True)
 def fixture_local_handoff_verification():
+    """Stub public handoff verification unless a test explicitly selects it."""
+
     with mock.patch("core.mastrao_host_handoff.verify_host_handoff") as verifier:
         yield verifier
 
@@ -306,6 +317,8 @@ def test_valid_handoffs_share_global_capacity(
 
 
 def test_sentry_scrubs_host_handoff_credentials():
+    """Remove host-handoff credentials from structured Sentry request data."""
+
     event = {
         "request": {
             "data": {
@@ -332,6 +345,8 @@ def test_sentry_scrubs_host_handoff_credentials():
 
 
 def test_sentry_scrubs_raw_guest_confirmation_credentials():
+    """Remove raw guest-confirmation credentials from serialized Sentry data."""
+
     event = {
         "request": {
             "data": json.dumps(
@@ -349,6 +364,8 @@ def test_sentry_scrubs_raw_guest_confirmation_credentials():
 
 
 def test_sentry_scrubs_transcription_effects_and_receipts():
+    """Remove transcription contracts and receipts from Sentry request data."""
+
     event = {
         "request": {
             "data": {
@@ -418,6 +435,8 @@ def _assert_host_platform_return(client, binding, grant):
 
 @override_settings(MASTRAO_PLATFORM_ORIGIN="https://attacker.test/path")
 def test_host_platform_return_rejects_non_origin_configuration():
+    """Reject a configured Platform return URL that includes an unsafe path."""
+
     grant = mock.Mock()
     with mock.patch(
         "core.mastrao_host_grant.active_host_close_grant", return_value=grant
@@ -427,6 +446,8 @@ def test_host_platform_return_rejects_non_origin_configuration():
 
 @override_settings(MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test")
 def test_host_platform_return_rejects_a_grant_binding_mismatch():
+    """Reject a Platform return projection whose grant claims do not match storage."""
+
     expires_at = timezone.now() + timedelta(minutes=5)
     stored = mock.Mock(
         grant_ref="grant_0123456789abcdef",
@@ -480,7 +501,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
             content_type="application/x-www-form-urlencoded",
             HTTP_ORIGIN="https://platform.mastrao.test",
             HTTP_SEC_FETCH_SITE="cross-site",
-    )
+        )
     assert response.status_code == 303
     assert response["Location"] == f"https://meet.mastrao.test/{binding.room.slug}"
     assert response["Referrer-Policy"] == "no-referrer"
@@ -588,9 +609,7 @@ def test_exact_host_can_end_and_retry_after_tombstone(client):
             HTTP_SEC_FETCH_SITE="cross-site",
         )
     assert response.status_code == 303
-    with mock.patch(
-        "core.api.serializers.recording_session_status", return_value=None
-    ):
+    with mock.patch("core.api.serializers.recording_session_status", return_value=None):
         room_response = client.get(f"/api/v1.0/rooms/{binding.room.slug}/")
     assert room_response.status_code == 200
     assert room_response.json()["can_end"] is True
@@ -937,6 +956,8 @@ def test_same_host_keeps_grants_for_two_meetings_in_one_session(client):
     SESSION_ENGINE="django.contrib.sessions.backends.db",
 )
 def test_new_platform_session_invalidates_previous_grants(client):
+    """Invalidate prior temporary host grants when the Platform session changes."""
+
     binding = _room_binding()
     first_grant = _grant(binding)
     second_grant = {
@@ -994,6 +1015,8 @@ def test_new_platform_session_invalidates_previous_grants(client):
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_inactive_host_identity_is_refused(client):
+    """Refuse a handoff mapped to an inactive local host identity."""
+
     binding = _room_binding()
     grant = _grant(binding)
     first = models.User(sub=mastrao_host_subject(grant["host_ref"]), is_active=False)

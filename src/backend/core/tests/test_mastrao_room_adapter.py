@@ -1,5 +1,8 @@
 """Proofs for the opt-in Mastrao room adapter."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=no-name-in-module
+
 import base64
 import hashlib
 import json
@@ -102,6 +105,8 @@ def _effect(private_key, *, jti="claim_0123456789abcdef", owner_ref=None):
 
 @pytest.fixture(name="adapter_settings")
 def fixture_adapter_settings():
+    """Provide isolated room-adapter signing and receipt settings."""
+
     command_private, command_jwks = _jwk_pair()
     _receipt_private, receipt_jwks = _jwk_pair()
     settings_override = override_settings(

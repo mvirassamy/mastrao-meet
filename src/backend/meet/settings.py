@@ -89,7 +89,14 @@ def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creatio
 PAID_ASR_PROVIDERS = {"mistral", "openai"}
 
 
-def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
+def redis_url_with_database(redis_url, database):
+    """Return a Redis URL that keeps its endpoint and selects one database."""
+
+    parsed_url = urlparse(redis_url)
+    return parsed_url._replace(path=f"/{database}").geturl()
+
+
+def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917  # pylint: disable=too-many-arguments,too-many-positional-arguments
     transcription_enabled,
     asr_mode,
     asr_endpoint,
@@ -460,6 +467,49 @@ class Base(Configuration):
     )
     MASTRAO_HOST_HANDOFF_ENABLED = values.BooleanValue(
         False, environ_name="MASTRAO_HOST_HANDOFF_ENABLED", environ_prefix=None
+    )
+    MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_MEDIA_TOKEN_BINDING_ENABLED", environ_prefix=None
+    )
+    # Admission only. Disabling must not disable reconciliation of accepted starts.
+    MASTRAO_NATIVE_CAPTURE_START_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_NATIVE_CAPTURE_START_ENABLED", environ_prefix=None
+    )
+    MASTRAO_NATIVE_PREENTRY_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_NATIVE_PREENTRY_ENABLED", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED = values.BooleanValue(
+        False,
+        environ_name="MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_NATIVE_SOURCE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_SOURCE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_NATIVE_ASR_ENABLED", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_NATIVE_ASR_RESULT_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_NATIVE_ASR_RESULT_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN = values.Value(
+        "", environ_name="MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN", environ_prefix=None
+    )
+    # Requires a dedicated Egress volume/pool with NO default cloud destination.
+    MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT = values.Value(
+        "", environ_name="MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT", environ_prefix=None
     )
     MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE = values.PositiveIntegerValue(
         120,
@@ -1080,6 +1130,10 @@ class Base(Configuration):
         ),
         "url": values.Value(environ_name="LIVEKIT_API_URL", environ_prefix=None),
     }
+    # Browser signaling may use a published origin while server API stays private.
+    LIVEKIT_PUBLIC_URL = values.Value(
+        "", environ_name="LIVEKIT_PUBLIC_URL", environ_prefix=None
+    )
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
     )
@@ -1775,7 +1829,10 @@ class Test(Base):
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": f"redis://redis:6379/{_xdist_cache_db}",
+            "LOCATION": redis_url_with_database(
+                environ.get("REDIS_URL", "redis://redis:6379/1"),
+                _xdist_cache_db,
+            ),
             "KEY_PREFIX": f"meet-test-{_xdist_worker}",
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
