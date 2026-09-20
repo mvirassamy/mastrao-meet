@@ -1,5 +1,9 @@
 """End-of-epoch transfer through Core, independent of the composite video."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=broad-exception-caught,import-outside-toplevel,too-many-boolean-expressions
+# pylint: disable=unidiomatic-typecheck
+
 import base64
 import logging
 from datetime import timedelta
@@ -183,7 +187,9 @@ def schedule_native_source_transfer():
         return 0
     if not _eligible_sources(timezone.now()).exists():
         return 0
-    from core.tasks.native_capture import process_native_sources  # noqa: PLC0415
+    from core.tasks.native_capture import (  # noqa: PLC0415  # pylint: disable=cyclic-import
+        process_native_sources,
+    )
 
     try:
         process_native_sources.apply_async(args=[], queue="mastrao-transcription")

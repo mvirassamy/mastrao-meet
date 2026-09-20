@@ -4,6 +4,12 @@ No application activation, no VM, no ASR. The provider double inspects committed
 SQL from an independent connection before acknowledging or losing its response.
 """
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=broad-exception-caught,invalid-name,missing-class-docstring
+# pylint: disable=missing-function-docstring,no-member,no-name-in-module,redefined-outer-name
+# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-statements
+# pylint: disable=unused-argument,unused-import
+
 import copy
 import json
 import threading
@@ -503,7 +509,9 @@ def test_signed_start_commits_intent_before_send_and_receipt_before_ack(
     assert claims["media_durability_proven"] is False
     with psycopg.connect(**connection.get_connection_params()) as independent:
         row = independent.execute(
-            "SELECT receipt_claims::text FROM meet_mastrao_native_capture_start WHERE capture_ref = %s",
+            "SELECT receipt_claims::text "
+            "FROM meet_mastrao_native_capture_start "
+            "WHERE capture_ref = %s",
             [effect["capture_ref"]],
         ).fetchone()
     assert json.loads(row[0]) == claims

@@ -1,5 +1,8 @@
 """Actual ffmpeg AAC/HLS decoding, not a provider or microphone test."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=consider-using-with,missing-class-docstring,missing-function-docstring
+
 import hashlib
 import os
 import shutil

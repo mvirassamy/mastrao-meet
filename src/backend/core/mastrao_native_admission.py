@@ -4,6 +4,10 @@ No browser polling, bearer outbox or provider I/O. A lost response retries the
 same epoch. Core owns idempotence. The recording reconciler recovers broker loss.
 """
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=broad-exception-caught,import-outside-toplevel,no-member
+# pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
+
 import logging
 import unicodedata
 from datetime import timedelta
@@ -214,7 +218,9 @@ def wake_native_admissions(connection_id):
     """Never execute the synchronous task fallback in the webhook request."""
     if not admission_enabled() or not settings.CELERY_ENABLED:
         return
-    from core.tasks.native_capture import process_native_admissions  # noqa: PLC0415
+    from core.tasks.native_capture import (  # noqa: PLC0415  # pylint: disable=cyclic-import
+        process_native_admissions,
+    )
 
     try:
         process_native_admissions.delay(str(connection_id))

@@ -1,5 +1,8 @@
 """Versioned native-audio effects; neither room consent nor RTC facts authorize these."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
+
 import re
 from uuid import UUID
 

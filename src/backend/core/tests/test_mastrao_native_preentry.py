@@ -4,6 +4,12 @@ Core's canonical ledger/RLS is separately exercised by native-capture-runtime.
 No bearer is queued and no media provider is called by these tests.
 """
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=broad-exception-caught,invalid-name,missing-class-docstring
+# pylint: disable=missing-function-docstring,redefined-outer-name,too-many-arguments
+# pylint: disable=too-many-positional-arguments,too-many-statements,unused-argument
+# pylint: disable=unused-import,use-implicit-booleaness-not-comparison
+
 import json
 import threading
 import time
@@ -222,7 +228,8 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps(result).encode())
-            except Exception as error:  # noqa: BLE001  # Propagate peer assertion failures to the main test.
+            except Exception as error:  # noqa: BLE001
+                # Propagate peer assertion failures to the main test.
                 errors.append(str(error))
                 self.send_error(500)
 

@@ -1,5 +1,10 @@
 """Actual PostgreSQL drain, with synthetic Egress state (not media proof)."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,no-member,no-name-in-module,protected-access
+# pylint: disable=redefined-outer-name,too-many-arguments,too-many-positional-arguments
+# pylint: disable=unused-argument,unused-import
+
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -64,7 +69,8 @@ def test_real_http_start_stop_and_independent_terminal_observation(
         assert reconcile_native_captures() == 1, errors
         with psycopg.connect(**connection.get_connection_params()) as independent:
             row = independent.execute(
-                "SELECT provider_job_ref, observed_status, drained_at FROM meet_mastrao_native_capture_start"
+                "SELECT provider_job_ref, observed_status, drained_at "
+                "FROM meet_mastrao_native_capture_start"
             ).fetchone()
         assert (
             row[0] == "EG_nativehttp"

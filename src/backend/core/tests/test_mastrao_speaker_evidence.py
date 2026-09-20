@@ -1,5 +1,9 @@
 """Focused speaker-evidence capture proofs."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=protected-access
+
+
 # Test names carry the proof intent.
 # pylint: disable=missing-function-docstring
 

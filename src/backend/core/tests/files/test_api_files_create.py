@@ -2,6 +2,9 @@
 Tests for files API endpoint in meet's core app: create
 """
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=no-name-in-module
+
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4

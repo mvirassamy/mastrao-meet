@@ -1,5 +1,8 @@
 """Signed webhook HTTP requests and real PostgreSQL durable read-back."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,no-member,redefined-outer-name
+
 import base64
 import copy
 import hashlib

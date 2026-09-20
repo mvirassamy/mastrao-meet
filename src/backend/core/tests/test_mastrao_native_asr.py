@@ -1,5 +1,8 @@
 """Real Django/PostgreSQL delivery state; Core/gateway peers explicitly simulated."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,redefined-outer-name,unused-argument,unused-import
+
 import base64
 import hashlib
 import json

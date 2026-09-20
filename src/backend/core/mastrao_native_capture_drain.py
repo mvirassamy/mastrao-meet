@@ -4,6 +4,9 @@ Admission rollback must not disable this consumer. A terminal provider status
 proves termination only, not complete audio, durable fragments or ASR readiness.
 """
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=no-member
+
 import asyncio
 from datetime import timedelta
 from uuid import uuid4

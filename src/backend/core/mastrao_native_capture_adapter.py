@@ -5,6 +5,9 @@ A crash before/during/after sending leaves an uncertain intent. Only an exact
 provider observation can resolve it; absence never authorizes retransmission.
 """
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=no-member,too-many-boolean-expressions
+
 import asyncio
 import re
 from datetime import UTC, datetime

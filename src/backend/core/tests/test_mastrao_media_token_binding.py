@@ -1,5 +1,8 @@
 """Issuance journal proof; RTC connection and capture authority are separate."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,redefined-outer-name
+
 import hashlib
 from types import SimpleNamespace
 from unittest import mock

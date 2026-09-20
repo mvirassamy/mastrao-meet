@@ -1,5 +1,9 @@
 """Focused recording-consent media gate and native-regression proofs."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,no-member,unused-argument
+
+
 # Shared recording fixtures preserve cross-stage recovery contracts in one module.
 # pylint: disable=too-many-lines
 

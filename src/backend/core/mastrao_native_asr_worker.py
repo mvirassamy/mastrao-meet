@@ -1,5 +1,8 @@
 """Durable delivery of native sources, with Core-owned attempts and transcripts."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=broad-exception-caught,import-outside-toplevel,missing-function-docstring
+
 import logging
 from datetime import timedelta
 from uuid import uuid4
@@ -130,7 +133,7 @@ def schedule_native_asr():
         return 0
     if not _eligible(timezone.now()).exists():
         return 0
-    from core.tasks.native_capture import (  # noqa: PLC0415 - avoid task import cycle
+    from core.tasks.native_capture import (  # noqa: PLC0415  # pylint: disable=cyclic-import
         process_native_asr,
     )
 

@@ -1,5 +1,9 @@
 """Core stop envelope to durable Meet snapshot, no real media or cloud."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,no-member,redefined-outer-name,too-many-arguments
+# pylint: disable=too-many-positional-arguments,unused-argument,unused-import
+
 import json
 import os
 import subprocess

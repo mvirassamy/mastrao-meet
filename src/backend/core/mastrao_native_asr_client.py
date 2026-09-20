@@ -1,5 +1,8 @@
 """Native Core/gateway protocol. No direct provider, SQL or object-store access."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
+
 import base64
 import hashlib
 import json

@@ -822,7 +822,7 @@ class MastraoMediaTokenBinding(BaseModel):
                     models.Q(grant_digest__regex=r"^[a-f0-9]{64}$")
                     & models.Q(session_nonce_digest__regex=r"^[a-f0-9]{64}$")
                     & models.Q(authorization_digest__regex=r"^[a-f0-9]{64}$")
-                    & models.Q(token_digest__regex=r"^[a-f0-9]{64}$")  # noqa: S106 - digest format, not a secret
+                    & models.Q(token_digest__regex=r"^[a-f0-9]{64}$")  # noqa: S106  # pylint: disable=line-too-long
                 ),
                 name="mastrao_media_token_digest_formats",
             ),

@@ -1,5 +1,8 @@
 """Proofs for the opt-in Mastrao room adapter."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=no-name-in-module
+
 import base64
 import hashlib
 import json

@@ -1,5 +1,8 @@
 """Materialize a private, bounded native epoch; never publish an unverified path."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=consider-using-with,missing-function-docstring
+
 import hashlib
 import json
 import os

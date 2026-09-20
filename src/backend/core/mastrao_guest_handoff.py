@@ -18,7 +18,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from core import models, utils
+from core import models
 from core.mastrao_core_http import post_core_json
 from core.mastrao_guest_contract import (
     GuestHandoffRefused,

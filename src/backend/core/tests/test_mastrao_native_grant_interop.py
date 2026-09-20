@@ -6,6 +6,10 @@ separately tested with PostgreSQL/RLS in native-capture-runtime.test.ts.
 No browser, SFU, recorded media or actual consent UI is claimed.
 """
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,redefined-outer-name,too-many-arguments
+# pylint: disable=too-many-locals,too-many-positional-arguments,unused-import
+
 import json
 import os
 import subprocess

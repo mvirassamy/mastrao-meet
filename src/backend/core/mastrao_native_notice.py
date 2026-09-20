@@ -1,5 +1,8 @@
 """Session-bound native notice projection. Core remains the only decision owner."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
+
 import time
 from uuid import uuid4
 

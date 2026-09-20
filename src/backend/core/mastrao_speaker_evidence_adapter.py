@@ -1,5 +1,8 @@
 """Private adapter for signed Mastrao speaker evidence capture effects."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=no-member
+
 import hashlib
 import hmac
 import json

@@ -1,5 +1,9 @@
 """Actual Django/PostgreSQL + AAC/HLS/FLAC; Core response explicitly simulated."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,redefined-outer-name,too-many-arguments
+# pylint: disable=too-many-positional-arguments,unused-argument,unused-import
+
 import base64
 import hashlib
 import subprocess

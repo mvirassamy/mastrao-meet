@@ -1,5 +1,8 @@
 """Focused proofs for anonymous canonical guest admission."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
+
 import hashlib
 import json
 import time

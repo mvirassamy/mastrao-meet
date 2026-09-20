@@ -1,5 +1,8 @@
 """Core-signed stop demand; no provider calls and no new capture authority."""
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=missing-function-docstring,too-many-boolean-expressions,unidiomatic-typecheck
+
 import re
 from uuid import UUID
 

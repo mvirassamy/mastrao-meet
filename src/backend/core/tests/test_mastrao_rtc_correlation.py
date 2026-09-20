@@ -1,5 +1,8 @@
 """Exact issuance + signed webhook route + persisted connection/epoch fixtures."""
 
+# Imported pytest fixtures and generated LiveKit protobuf members are resolved dynamically.
+# pylint: disable=missing-function-docstring,redefined-outer-name,unused-import
+
 import copy
 from uuid import uuid4
 

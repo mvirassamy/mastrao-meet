@@ -5,6 +5,9 @@ bind trusted RTC connection/track observations and revalidate Core authority.
 Token expiry bounds new admission, not the lifetime of an established call.
 """
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=too-many-boolean-expressions
+
 import hashlib
 from datetime import UTC, datetime
 from uuid import uuid4

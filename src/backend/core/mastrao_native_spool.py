@@ -5,6 +5,9 @@ infer a speaker from a filename. This diagnostic does not upload or delete data.
 An immutable Core receipt is still required before source cleanup or ASR.
 """
 
+# Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
+# pylint: disable=too-many-branches
+
 import hashlib
 import math
 import os
