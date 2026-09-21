@@ -1851,6 +1851,15 @@ class Test(Base):
         self.INSTALLED_APPS += ["drf_spectacular_sidecar"]
 
 
+class Qualification(Base):
+    """Provider-free runtime configuration for isolated qualification runs."""
+
+    # Keep the real runtime defaults from Base. Only the two permissions needed
+    # by provider-free transcription qualification differ from deployable modes.
+    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
+    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
+
+
 class ContinuousIntegration(Test):
     """
     Continuous Integration environment settings
