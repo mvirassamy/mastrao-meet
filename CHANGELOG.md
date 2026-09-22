@@ -1,8 +1,8 @@
 # Changelog
 
-- 2026-09-22: Preserve the staging Redis ACL by scanning lobby keys when listing
-  waiting participants and clearing a room; keep other rooms and participant
-  filtering unchanged, with regression coverage for restricted caches.
+- 2026-09-22: Scan lobby keys within the staging Redis ACL when listing
+  participants and clearing rooms. Preserve room isolation and filtering,
+  with regression coverage for restricted caches.
 
 - 2026-09-21: Stabilize Platform return expiry assertions
 
