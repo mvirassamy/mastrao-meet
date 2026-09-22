@@ -883,7 +883,7 @@ def test_clear_room_cache(settings, lobby_service):
 
     lobby_service.clear_room_cache(room_id)
 
-    assert list(cache.iter_keys(f"test-lobby_{room_id!s}_*")) == []
+    assert not list(cache.iter_keys(f"test-lobby_{room_id!s}_*"))
 
 
 def test_clear_room_empty(settings, lobby_service):
@@ -892,9 +892,9 @@ def test_clear_room_empty(settings, lobby_service):
     settings.LOBBY_KEY_PREFIX = "test-lobby"
     room_id = uuid.uuid4()
 
-    assert list(cache.iter_keys(f"test-lobby_{room_id!s}_*")) == []
+    assert not list(cache.iter_keys(f"test-lobby_{room_id!s}_*"))
     lobby_service.clear_room_cache(room_id)
-    assert list(cache.iter_keys(f"test-lobby_{room_id!s}_*")) == []
+    assert not list(cache.iter_keys(f"test-lobby_{room_id!s}_*"))
 
 
 def test_clear_participant_cache(lobby_service):
