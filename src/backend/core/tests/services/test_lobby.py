@@ -14,6 +14,7 @@ from django.core.cache import cache
 from django.http import HttpResponse
 
 import pytest
+from redis.exceptions import NoPermissionError
 
 from core.factories import RoomFactory, UserFactory, UserResourceAccessFactory
 from core.models import RoleChoices, RoomAccessLevel
@@ -578,14 +579,14 @@ def test_get_participant_parsing_error(
 @mock.patch("core.services.lobby.cache")
 def test_list_waiting_participants_empty(mock_cache, lobby_service):
     """Test listing waiting participants when none exist."""
-    mock_cache.keys.return_value = []
+    mock_cache.iter_keys.return_value = []
 
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
     result = lobby_service.list_waiting_participants(room.id)
 
     assert result == []
     pattern = f"{settings.LOBBY_KEY_PREFIX}_{room.id!s}_*"
-    mock_cache.keys.assert_called_once_with(pattern)
+    mock_cache.iter_keys.assert_called_once_with(pattern)
     mock_cache.get_many.assert_not_called()
 
 
@@ -594,7 +595,7 @@ def test_list_waiting_participants(mock_cache, lobby_service, participant_dict):
     """Test listing waiting participants with valid data."""
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
     cache_key = f"{settings.LOBBY_KEY_PREFIX}_{room.id!s}_participant1"
-    mock_cache.keys.return_value = [cache_key]
+    mock_cache.iter_keys.return_value = [cache_key]
     mock_cache.get_many.return_value = {cache_key: participant_dict}
 
     result = lobby_service.list_waiting_participants(room.id)
@@ -603,7 +604,7 @@ def test_list_waiting_participants(mock_cache, lobby_service, participant_dict):
     assert result[0]["status"] == "waiting"
     assert result[0]["username"] == "test-username"
     pattern = f"{settings.LOBBY_KEY_PREFIX}_{room.id!s}_*"
-    mock_cache.keys.assert_called_once_with(pattern)
+    mock_cache.iter_keys.assert_called_once_with(pattern)
     mock_cache.get_many.assert_called_once_with([cache_key])
 
 
@@ -628,7 +629,7 @@ def test_list_waiting_participants_multiple(mock_cache, lobby_service):
         "color": "#654321",
     }
 
-    mock_cache.keys.return_value = [cache_key1, cache_key2]
+    mock_cache.iter_keys.return_value = [cache_key1, cache_key2]
     mock_cache.get_many.return_value = {
         cache_key1: participant1,
         cache_key2: participant2,
@@ -646,7 +647,7 @@ def test_list_waiting_participants_multiple(mock_cache, lobby_service):
     assert all(p["status"] == "waiting" for p in result)
 
     pattern = f"{settings.LOBBY_KEY_PREFIX}_{room.id!s}_*"
-    mock_cache.keys.assert_called_once_with(pattern)
+    mock_cache.iter_keys.assert_called_once_with(pattern)
     mock_cache.get_many.assert_called_once_with([cache_key1, cache_key2])
 
 
@@ -655,7 +656,7 @@ def test_list_waiting_participants_corrupted_data(mock_cache, lobby_service):
     """Test listing waiting participants with corrupted data."""
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
     cache_key = f"{settings.LOBBY_KEY_PREFIX}_{room.id!s}_participant1"
-    mock_cache.keys.return_value = [cache_key]
+    mock_cache.iter_keys.return_value = [cache_key]
     mock_cache.get_many.return_value = {cache_key: {"invalid": "data"}}
 
     result = lobby_service.list_waiting_participants(room.id)
@@ -680,7 +681,7 @@ def test_list_waiting_participants_partially_corrupted(mock_cache, lobby_service
 
     corrupted_participant = {"invalid": "data"}
 
-    mock_cache.keys.return_value = [cache_key1, cache_key2]
+    mock_cache.iter_keys.return_value = [cache_key1, cache_key2]
     mock_cache.get_many.return_value = {
         cache_key1: corrupted_participant,
         cache_key2: valid_participant,
@@ -699,7 +700,7 @@ def test_list_waiting_participants_partially_corrupted(mock_cache, lobby_service
 
     # Verify both cache keys were queried
     pattern = f"{settings.LOBBY_KEY_PREFIX}_{room.id!s}_*"
-    mock_cache.keys.assert_called_once_with(pattern)
+    mock_cache.iter_keys.assert_called_once_with(pattern)
     mock_cache.get_many.assert_called_once_with([cache_key1, cache_key2])
 
 
@@ -723,7 +724,7 @@ def test_list_waiting_participants_non_waiting(mock_cache, lobby_service):
         "color": "#654321",
     }
 
-    mock_cache.keys.return_value = [cache_key1, cache_key2]
+    mock_cache.iter_keys.return_value = [cache_key1, cache_key2]
     mock_cache.get_many.return_value = {
         cache_key1: participant1,
         cache_key2: participant2,
@@ -882,7 +883,7 @@ def test_clear_room_cache(settings, lobby_service):
 
     lobby_service.clear_room_cache(room_id)
 
-    assert cache.keys(f"test-lobby_{room_id!s}_*") == []
+    assert list(cache.iter_keys(f"test-lobby_{room_id!s}_*")) == []
 
 
 def test_clear_room_empty(settings, lobby_service):
@@ -891,9 +892,9 @@ def test_clear_room_empty(settings, lobby_service):
     settings.LOBBY_KEY_PREFIX = "test-lobby"
     room_id = uuid.uuid4()
 
-    assert cache.keys(f"test-lobby_{room_id!s}_*") == []
+    assert list(cache.iter_keys(f"test-lobby_{room_id!s}_*")) == []
     lobby_service.clear_room_cache(room_id)
-    assert cache.keys(f"test-lobby_{room_id!s}_*") == []
+    assert list(cache.iter_keys(f"test-lobby_{room_id!s}_*")) == []
 
 
 def test_clear_participant_cache(lobby_service):
@@ -926,3 +927,60 @@ def test_clear_participant_cache_nonexistent(lobby_service):
     lobby_service.clear_participant_cache(room_id, participant_id)
 
     assert cache.get(cache_key) is None
+
+
+@mock.patch.object(cache, "keys", side_effect=NoPermissionError("KEYS is forbidden"))
+def test_clear_room_cache_with_restricted_cache(_forbidden_keys, lobby_service):
+    """Cleanup spans scan pages without deleting another room or requiring KEYS."""
+    room_id = uuid.uuid4()
+    other_room_id = uuid.uuid4()
+    room_keys = [lobby_service._get_cache_key(room_id, str(i)) for i in range(301)]
+    other_key = lobby_service._get_cache_key(other_room_id, "preserved")
+    cache.set_many(dict.fromkeys(room_keys, "synthetic"), timeout=60)
+    cache.set(other_key, "preserved", timeout=60)
+
+    try:
+        lobby_service.clear_room_cache(room_id)
+        assert cache.get_many(room_keys) == {}
+        assert cache.get(other_key) == "preserved"
+        lobby_service.clear_room_cache(room_id)
+    finally:
+        cache.delete_many([*room_keys, other_key])
+
+
+@mock.patch.object(cache, "keys", side_effect=NoPermissionError("KEYS is forbidden"))
+def test_list_waiting_with_restricted_cache(_forbidden_keys, lobby_service):
+    """Scanning preserves waiting-only filtering, corrupt cleanup and room scope."""
+    room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
+    participants = [
+        LobbyParticipant(
+            status=LobbyParticipantStatus.WAITING,
+            username=f"participant-{index}",
+            id=f"participant-{index}",
+            color="#123456",
+        ).to_dict()
+        for index in range(301)
+    ]
+    entries = {
+        lobby_service._get_cache_key(room.id, participant["id"]): participant
+        for participant in participants
+    }
+    accepted_key = lobby_service._get_cache_key(room.id, "accepted")
+    corrupted_key = lobby_service._get_cache_key(room.id, "corrupted")
+    other_key = lobby_service._get_cache_key(uuid.uuid4(), "other-room")
+    entries[accepted_key] = {**participants[0], "id": "accepted", "status": "accepted"}
+    entries[corrupted_key] = {"invalid": "data"}
+    entries[other_key] = {**participants[0], "id": "other-room"}
+    cache.set_many(entries, timeout=60)
+
+    try:
+        result = lobby_service.list_waiting_participants(room.id)
+        assert {participant["id"] for participant in result} == {
+            participant["id"] for participant in participants
+        }
+        assert len(result) == len(participants)
+        assert cache.get(corrupted_key) is None
+        assert cache.get(accepted_key) == entries[accepted_key]
+        assert cache.get(other_key) == entries[other_key]
+    finally:
+        cache.delete_many(list(entries))

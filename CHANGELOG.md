@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-22: Preserve the staging Redis ACL by scanning lobby keys when listing
+  waiting participants and clearing a room; keep other rooms and participant
+  filtering unchanged, with regression coverage for restricted caches.
+
 - 2026-09-21: Stabilize Platform return expiry assertions
 
 - 2026-09-20: Preserve native capture admission for already-correlated RTC
