@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
 from django.utils.translation import gettext_lazy as _
 
+import jwt
 from lasuite.oidc_login.backends import (
     OIDCAuthenticationBackend as LaSuiteOIDCAuthenticationBackend,
 )
@@ -26,6 +27,78 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
     This class overrides the default OIDC Authentication Backend to accommodate differences
     in the User and Identity models, and handles signed and/or encrypted UserInfo response.
     """
+
+    def _get_id_token_algorithm(self, token):
+        """Read and constrain the algorithm before any remote key lookup."""
+        try:
+            algorithm = jwt.get_unverified_header(token)["alg"]
+        except (KeyError, jwt.InvalidTokenError) as exc:
+            raise SuspiciousOperation(
+                "OIDC token algorithm is missing or invalid."
+            ) from exc
+
+        if algorithm != self.OIDC_RP_SIGN_ALGO:
+            raise SuspiciousOperation(
+                "OIDC token algorithm does not match the configured algorithm."
+            )
+        return algorithm
+
+    def _verify_id_token_jws(self, token, key, algorithm):
+        """Verify an ID token in the exact configured Meet trust context."""
+        issuer = self.get_settings("OIDC_OP_URL", None)
+        if not issuer:
+            raise ImproperlyConfigured(
+                "OIDC_OP_URL is required for strict ID token issuer validation."
+            )
+
+        try:
+            claims = jwt.decode(
+                token,
+                key,
+                algorithms=[algorithm],
+                audience=self.OIDC_RP_CLIENT_ID,
+                issuer=issuer,
+                options={"require": ["iss", "sub", "aud", "exp", "iat"]},
+            )
+        except jwt.InvalidTokenError as exc:
+            raise SuspiciousOperation("OIDC ID token verification failed.") from exc
+
+        audiences = claims["aud"]
+        authorized_party = claims.get("azp")
+        has_multiple_audiences = isinstance(audiences, list) and len(audiences) > 1
+        if (has_multiple_audiences and authorized_party is None) or (
+            authorized_party is not None and authorized_party != self.OIDC_RP_CLIENT_ID
+        ):
+            raise SuspiciousOperation(
+                "OIDC token authorized party does not match the Meet client."
+            )
+
+        return claims
+
+    def verify_token(self, token, **kwargs):
+        """Apply strict OIDC checks to ID tokens and retain signed UserInfo support."""
+        if "nonce" not in kwargs:
+            return super().verify_token(token, **kwargs)
+
+        algorithm = self._get_id_token_algorithm(token)
+        if self.OIDC_RP_SIGN_ALGO.startswith(("RS", "ES")):
+            key = self.OIDC_RP_IDP_SIGN_KEY or self.retrieve_matching_jwk(token)
+        else:
+            key = self.OIDC_RP_CLIENT_SECRET
+
+        claims = self._verify_id_token_jws(token, key, algorithm)
+        if self.get_settings("OIDC_USE_NONCE", True):
+            expected_nonce = kwargs["nonce"]
+            token_nonce = claims.get("nonce")
+            if (
+                not isinstance(expected_nonce, str)
+                or not expected_nonce
+                or not isinstance(token_nonce, str)
+                or not token_nonce
+                or expected_nonce != token_nonce
+            ):
+                raise SuspiciousOperation("JWT Nonce verification failed.")
+        return claims
 
     def get_extra_claims(self, user_info):
         """
