@@ -1,5 +1,5 @@
 name: Publish one Meet staging candidate
-run-name: Candidate ${{ inputs.target }} @ ${{ github.sha }}
+run-name: Candidate ${{ inputs.target }} @ ${{ inputs.source_sha }}
 
 on:
   workflow_dispatch:
@@ -11,9 +11,13 @@ on:
         options:
           - meet-frontend
           - meet-backend
+      source_sha:
+        description: Full commit SHA to publish; it must be reachable from develop
+        required: true
+        type: string
 
 concurrency:
-  group: meet-staging-candidate-${{ inputs.target }}-${{ github.sha }}
+  group: meet-staging-candidate-${{ inputs.target }}-${{ inputs.source_sha }}
   cancel-in-progress: false
 
 permissions:
@@ -25,10 +29,30 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging-candidates
     steps:
-      - name: Checkout the selected develop commit
+      - name: Validate the selected source shape
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: test "$(printf '%s' "$SOURCE_SHA" | sed -nE '/^[0-9a-f]{40}$/p')" = "$SOURCE_SHA"
+
+      - name: Checkout the selected source commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Bind the source to develop and record its immutable tree
+        id: source
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags origin develop
+          git merge-base --is-ancestor "$SOURCE_SHA" refs/remotes/origin/develop
+          test -z "$(git status --porcelain)"
+          source_tree="$(git rev-parse "${SOURCE_SHA}^{tree}")"
+          archive_sha256="$(git archive --format=tar "$SOURCE_SHA" | sha256sum | awk '{print $1}')"
+          echo "tree=$source_tree" >> "$GITHUB_OUTPUT"
+          echo "archive_sha256=$archive_sha256" >> "$GITHUB_OUTPUT"
 
       - name: Select the closed build recipe
         id: recipe
@@ -86,16 +110,30 @@ jobs:
           platforms: linux/amd64
           build-args: ${{ steps.recipe.outputs.build_args }}
           push: true
-          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ github.sha }}
+          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}
           provenance: mode=max
           sbom: true
+
+      - name: Read back the exact candidate from the registry
+        env:
+          REPOSITORY: ${{ steps.recipe.outputs.repository }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools inspect "$REPOSITORY@$DIGEST" --raw > candidate-remote-index.json
+          python scripts/ci/staging_candidate_readback.py \
+            --manifest candidate-remote-index.json \
+            --expected-digest "$DIGEST" \
+            --output candidate-readback.json
 
       - name: Render the immutable candidate receipt
         run: |
           python scripts/ci/staging_candidate_receipt.py \
             --target '${{ inputs.target }}' \
-            --source-sha '${{ github.sha }}' \
+            --source-sha '${{ inputs.source_sha }}' \
+            --source-tree '${{ steps.source.outputs.tree }}' \
+            --source-archive-sha256 '${{ steps.source.outputs.archive_sha256 }}' \
             --digest '${{ steps.build.outputs.digest }}' \
+            --readback candidate-readback.json \
             --run-id '${{ github.run_id }}' \
             --run-attempt '${{ github.run_attempt }}' \
             --output candidate-receipt.json
@@ -103,7 +141,7 @@ jobs:
       - name: Upload the candidate receipt
         uses: actions/upload-artifact@v6
         with:
-          name: meet-${{ inputs.target }}-${{ github.sha }}-candidate-receipt
+          name: meet-${{ inputs.target }}-${{ inputs.source_sha }}-candidate-receipt
           path: candidate-receipt.json
           if-no-files-found: error
           retention-days: 14
