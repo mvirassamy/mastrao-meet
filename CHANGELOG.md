@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-23: Add separate, digest-receipted staging candidate publication
+  for the Meet frontend and backend images without applying either candidate.
+
 - 2026-09-22: Scan lobby keys within the staging Redis ACL when listing
   participants and clearing rooms. Preserve room isolation and filtering,
   with regression coverage for restricted caches.

@@ -1,0 +1,109 @@
+name: Publish one Meet staging candidate
+run-name: Candidate ${{ inputs.target }} @ ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Image to build and publish without deploying it
+        required: true
+        type: choice
+        options:
+          - meet-frontend
+          - meet-backend
+
+concurrency:
+  group: meet-staging-candidate-${{ inputs.target }}-${{ github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish-candidate:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging-candidates
+    steps:
+      - name: Checkout the selected develop commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Select the closed build recipe
+        id: recipe
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          case "$TARGET" in
+            meet-frontend)
+              echo 'dockerfile=src/frontend/Dockerfile' >> "$GITHUB_OUTPUT"
+              echo 'build_target=frontend-production' >> "$GITHUB_OUTPUT"
+              echo 'repository=rg.fr-par.scw.cloud/mastrao-staging/meet-frontend' >> "$GITHUB_OUTPUT"
+              {
+                echo 'build_args<<EOF'
+                echo 'DOCKER_USER=101:101'
+                echo 'VITE_API_BASE_URL=https://meet.mastrao-staging.com'
+                echo 'VITE_APP_TITLE=Mastrao Visio'
+                echo 'EOF'
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            meet-backend)
+              echo 'dockerfile=Dockerfile' >> "$GITHUB_OUTPUT"
+              echo 'build_target=backend-production' >> "$GITHUB_OUTPUT"
+              echo 'repository=rg.fr-par.scw.cloud/mastrao-staging/meet-backend' >> "$GITHUB_OUTPUT"
+              {
+                echo 'build_args<<EOF'
+                echo 'DOCKER_USER=10001:10001'
+                echo 'EOF'
+              } >> "$GITHUB_OUTPUT"
+              ;;
+            *) exit 64 ;;
+          esac
+
+      - name: Require the dedicated registry publisher
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.MEET_STAGING_REGISTRY_PASSWORD }}
+        run: test -n "$REGISTRY_PASSWORD"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to the staging registry
+        uses: docker/login-action@v3
+        with:
+          registry: rg.fr-par.scw.cloud/mastrao-staging
+          username: nologin
+          password: ${{ secrets.MEET_STAGING_REGISTRY_PASSWORD }}
+
+      - name: Build and publish the selected candidate
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ steps.recipe.outputs.dockerfile }}
+          target: ${{ steps.recipe.outputs.build_target }}
+          platforms: linux/amd64
+          build-args: ${{ steps.recipe.outputs.build_args }}
+          push: true
+          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Render the immutable candidate receipt
+        run: |
+          python scripts/ci/staging_candidate_receipt.py \
+            --target '${{ inputs.target }}' \
+            --source-sha '${{ github.sha }}' \
+            --digest '${{ steps.build.outputs.digest }}' \
+            --run-id '${{ github.run_id }}' \
+            --run-attempt '${{ github.run_attempt }}' \
+            --output candidate-receipt.json
+
+      - name: Upload the candidate receipt
+        uses: actions/upload-artifact@v6
+        with:
+          name: meet-${{ inputs.target }}-${{ github.sha }}-candidate-receipt
+          path: candidate-receipt.json
+          if-no-files-found: error
+          retention-days: 14
