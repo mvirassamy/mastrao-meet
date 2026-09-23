@@ -18,8 +18,12 @@ digest-pinned receipt. It never deploys: every receipt records
   and `git archive` SHA-256 are recorded.
 - The build recipe (Dockerfile, target, repository and every build argument)
   comes from the closed table in `scripts/ci/staging_candidate_recipe.py`.
-  The receipt rejects any built recipe that differs from it and records the
-  build arguments.
+  The build step's inputs are fixed to that recipe (a unit test pins them),
+  and the receipt rejects any recipe passed to the build that differs from
+  the table. The receipt records the recipe passed to the build; what
+  BuildKit actually used remains inspectable in the `mode=max` provenance.
+- Every shell step runs with `bash -eo pipefail`, so a failing `git`
+  command cannot yield an empty status or the hash of an empty archive.
 - The registry readback hashes the raw index returned for
   `repository@digest` and rejects it unless the bytes match the digest, the
   index holds exactly one `linux/amd64` image, and an attestation manifest

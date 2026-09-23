@@ -28,6 +28,9 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     environment: staging-candidates
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Validate the selected source shape
         env:
@@ -68,7 +71,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           git fetch --no-tags origin develop
           git merge-base --is-ancestor "$SOURCE_SHA" refs/remotes/origin/develop
-          test -z "$(git status --porcelain)"
+          worktree_status="$(git status --porcelain)"
+          test -z "$worktree_status"
           source_tree="$(git rev-parse "${SOURCE_SHA}^{tree}")"
           archive_sha256="$(git archive --format=tar "$SOURCE_SHA" | sha256sum | awk '{print $1}')"
           echo "tree=$source_tree" >> "$GITHUB_OUTPUT"

@@ -146,7 +146,7 @@ class StagingCandidateReceiptTests(unittest.TestCase):
                 "--dockerfile",
                 recipe.dockerfile,
                 "--build-target",
-                recipe.target,
+                recipe.build_target,
                 "--repository",
                 recipe.repository,
                 "--build-args",

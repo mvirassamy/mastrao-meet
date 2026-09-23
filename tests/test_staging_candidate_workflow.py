@@ -20,12 +20,16 @@ def steps(workflow):
 
 
 def run_scripts(workflow):
-    """Return every run: value, one-line or block, with its continuation."""
+    """Return every step run: value, one-line or block, with its continuation.
+
+    Handles both `run:` and `- run:`; a bare `run:` mapping such as
+    `defaults.run` is not a script and is skipped.
+    """
     scripts = []
     lines = workflow.splitlines()
     for index, line in enumerate(lines):
-        match = re.match(r"^(\s*)run:(.*)$", line)
-        if match is None:
+        match = re.match(r"^(\s*(?:-\s+)?)run:(.*)$", line)
+        if match is None or not match.group(2).strip():
             continue
         indent = len(match.group(1))
         script = [match.group(2)]
@@ -54,9 +58,15 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         self.assertRegex(
             self.workflow,
             r"(?m)^  publish-candidate:\n    if: github\.ref == 'refs/heads/develop'\n"
-            r"    runs-on: ubuntu-latest\n    environment: staging-candidates\n",
+            r"    runs-on: ubuntu-latest\n    environment: staging-candidates\n"
+            r"    defaults:\n      run:\n        shell: bash\n",
         )
         self.assertRegex(self.workflow, r"(?m)^permissions:\n  contents: read\n")
+
+    def test_every_step_is_named(self):
+        self.assertEqual(
+            len(re.findall(r"(?m)^      - ", self.workflow)), len(self.steps)
+        )
 
     def test_tooling_comes_from_the_trusted_workflow_commit(self):
         checkout = self.steps["Checkout the trusted candidate tooling"]
@@ -87,12 +97,27 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("working-directory: source", bind)
         self.assertIn('git merge-base --is-ancestor "$SOURCE_SHA"', bind)
         self.assertIn('test "$(git rev-parse HEAD)" = "$SOURCE_SHA"', bind)
+        self.assertIn('worktree_status="$(git status --porcelain)"', bind)
+
+    def test_build_inputs_are_exactly_the_closed_recipe(self):
         build = self.steps["Build and publish the selected candidate"]
-        self.assertIn("context: source\n", build)
-        self.assertIn("file: source/${{ steps.recipe.outputs.dockerfile }}", build)
-        self.assertIn("build-args: ${{ steps.recipe.outputs.build_args }}", build)
-        self.assertIn("platforms: linux/amd64", build)
-        self.assertNotIn("github.sha", build)
+        self.assertEqual(
+            build.split("        with:\n", 1)[1].rstrip("\n"),
+            "\n".join(
+                (
+                    "          context: source",
+                    "          file: source/${{ steps.recipe.outputs.dockerfile }}",
+                    "          target: ${{ steps.recipe.outputs.build_target }}",
+                    "          platforms: linux/amd64",
+                    "          build-args: ${{ steps.recipe.outputs.build_args }}",
+                    "          push: true",
+                    "          tags: ${{ steps.recipe.outputs.repository }}"
+                    ":sha-${{ inputs.source_sha }}",
+                    "          provenance: mode=max",
+                    "          sbom: true",
+                )
+            ),
+        )
 
     def test_candidate_is_read_back_and_receipted_with_its_recipe(self):
         readback = self.steps["Read back the exact candidate from the registry"]
@@ -110,11 +135,15 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
                 self.assertNotIn("${{", script)
 
     def test_every_action_is_pinned_to_a_commit(self):
-        uses = re.findall(r"uses: ([\w./-]+)@(\S+)", self.workflow)
+        uses = re.findall(r"uses:\s*(\S+)", self.workflow)
         self.assertEqual(len(uses), 6)
-        for action, ref in uses:
-            with self.subTest(action=action):
-                self.assertRegex(ref, r"^[0-9a-f]{40}$")
+        for reference in uses:
+            with self.subTest(reference=reference):
+                self.assertRegex(
+                    reference,
+                    r"^(?:[\w.-]+/[\w./-]+@[0-9a-f]{40}"
+                    r"|docker://[^@\s]+@sha256:[0-9a-f]{64})$",
+                )
 
     def test_workflow_cannot_apply_a_candidate(self):
         lowered = self.workflow.lower()

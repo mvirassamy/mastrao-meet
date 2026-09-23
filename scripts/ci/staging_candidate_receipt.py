@@ -101,7 +101,7 @@ def build_receipt(
         },
         "recipe": {
             "dockerfile": built.dockerfile,
-            "target": built.target,
+            "buildTarget": built.build_target,
             "buildArgs": list(built.build_args),
             "platform": PLATFORM,
         },
@@ -151,7 +151,7 @@ def main() -> None:
         ),
         built=Recipe(
             dockerfile=args.dockerfile,
-            target=args.build_target,
+            build_target=args.build_target,
             repository=args.repository,
             build_args=tuple(args.build_args.splitlines()),
         ),

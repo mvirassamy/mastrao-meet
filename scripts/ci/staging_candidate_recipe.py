@@ -19,7 +19,7 @@ class Recipe:
     """How one candidate image is built and where it is pushed."""
 
     dockerfile: str
-    target: str
+    build_target: str
     repository: str
     build_args: tuple[str, ...]
 
@@ -27,7 +27,7 @@ class Recipe:
 TARGETS = {
     "meet-frontend": Recipe(
         dockerfile="src/frontend/Dockerfile",
-        target="frontend-production",
+        build_target="frontend-production",
         repository="rg.fr-par.scw.cloud/mastrao-staging/meet-frontend",
         build_args=(
             "DOCKER_USER=101:101",
@@ -37,7 +37,7 @@ TARGETS = {
     ),
     "meet-backend": Recipe(
         dockerfile="Dockerfile",
-        target="backend-production",
+        build_target="backend-production",
         repository="rg.fr-par.scw.cloud/mastrao-staging/meet-backend",
         build_args=("DOCKER_USER=10001:10001",),
     ),
@@ -56,7 +56,7 @@ def github_outputs(recipe: Recipe) -> str:
     return "".join(
         (
             f"dockerfile={recipe.dockerfile}\n",
-            f"build_target={recipe.target}\n",
+            f"build_target={recipe.build_target}\n",
             f"repository={recipe.repository}\n",
             f"build_args<<{OUTPUT_DELIMITER}\n",
             *(f"{build_arg}\n" for build_arg in recipe.build_args),
