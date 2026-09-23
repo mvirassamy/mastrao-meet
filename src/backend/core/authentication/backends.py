@@ -28,10 +28,18 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
     in the User and Identity models, and handles signed and/or encrypted UserInfo response.
     """
 
-    def _get_id_token_algorithm(self, token):
-        """Read and constrain the algorithm before any remote key lookup."""
+    def _uses_jwks_signing_key(self):
+        """Return whether the ID token key comes from the provider JWKS."""
+        return (
+            self.OIDC_RP_SIGN_ALGO.startswith(("RS", "ES"))
+            and self.OIDC_RP_IDP_SIGN_KEY is None
+        )
+
+    def _preflight_id_token(self, token):
+        """Check the token structure and algorithm before any remote key lookup."""
         try:
-            algorithm = jwt.get_unverified_header(token)["alg"]
+            header = jwt.get_unverified_header(token)
+            algorithm = header["alg"]
         except (KeyError, jwt.InvalidTokenError) as exc:
             raise SuspiciousOperation(
                 "OIDC token algorithm is missing or invalid."
@@ -41,6 +49,19 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
             raise SuspiciousOperation(
                 "OIDC token algorithm does not match the configured algorithm."
             )
+
+        key_id = header.get("kid")
+        if (
+            self._uses_jwks_signing_key()
+            and self.get_settings("OIDC_VERIFY_KID", True)
+            and (not isinstance(key_id, str) or not key_id)
+        ):
+            raise SuspiciousOperation("OIDC token key identifier is missing.")
+
+        try:
+            jwt.decode(token, options={"verify_signature": False})
+        except jwt.InvalidTokenError as exc:
+            raise SuspiciousOperation("OIDC token payload is malformed.") from exc
         return algorithm
 
     def _verify_id_token_jws(self, token, key, algorithm):
@@ -63,6 +84,9 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         except jwt.InvalidTokenError as exc:
             raise SuspiciousOperation("OIDC ID token verification failed.") from exc
 
+        if not isinstance(claims["sub"], str) or not claims["sub"]:
+            raise SuspiciousOperation("OIDC ID token subject is missing.")
+
         audiences = claims["aud"]
         authorized_party = claims.get("azp")
         has_multiple_audiences = isinstance(audiences, list) and len(audiences) > 1
@@ -80,9 +104,11 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         if "nonce" not in kwargs:
             return super().verify_token(token, **kwargs)
 
-        algorithm = self._get_id_token_algorithm(token)
-        if self.OIDC_RP_SIGN_ALGO.startswith(("RS", "ES")):
-            key = self.OIDC_RP_IDP_SIGN_KEY or self.retrieve_matching_jwk(token)
+        algorithm = self._preflight_id_token(token)
+        if self._uses_jwks_signing_key():
+            key = self.retrieve_matching_jwk(token)
+        elif self.OIDC_RP_SIGN_ALGO.startswith(("RS", "ES")):
+            key = self.OIDC_RP_IDP_SIGN_KEY
         else:
             key = self.OIDC_RP_CLIENT_SECRET
 
