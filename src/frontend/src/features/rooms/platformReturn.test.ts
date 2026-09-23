@@ -19,9 +19,9 @@ describe('Platform return descriptor', () => {
   afterEach(() => vi.restoreAllMocks())
 
   it('accepts only the fixed resolver contract', () => {
-    expect(validatePlatformReturn(descriptor(), platformOrigin)).toEqual(
-      descriptor()
-    )
+    const value = descriptor()
+
+    expect(validatePlatformReturn(value, platformOrigin)).toEqual(value)
     expect(
       validatePlatformReturn(
         {
@@ -58,7 +58,9 @@ describe('Platform return descriptor', () => {
   })
 
   it('keeps short-lived room caches isolated and clears only the chosen room', () => {
-    cachePlatformReturn('room_first_01234567', descriptor(), platformOrigin)
+    const firstValue = descriptor()
+
+    cachePlatformReturn('room_first_01234567', firstValue, platformOrigin)
     cachePlatformReturn(
       'room_second_01234567',
       descriptor('meeting_second_01234567'),
@@ -67,7 +69,7 @@ describe('Platform return descriptor', () => {
 
     expect(
       readCachedPlatformReturn('room_first_01234567', platformOrigin)
-    ).toEqual(descriptor())
+    ).toEqual(firstValue)
     clearCachedPlatformReturn('room_first_01234567')
     expect(
       readCachedPlatformReturn('room_first_01234567', platformOrigin)

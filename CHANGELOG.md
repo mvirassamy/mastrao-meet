@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-09-22: Scan lobby keys within the staging Redis ACL when listing
+  participants and clearing rooms. Preserve room isolation and filtering,
+  with regression coverage for restricted caches.
+
+- 2026-09-21: Stabilize Platform return expiry assertions
+
 - 2026-09-20: Preserve native capture admission for already-correlated RTC
   connections after their join grant expires; retain the exact bound session
   and grant authority checks and add a focused regression test.

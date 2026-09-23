@@ -384,7 +384,7 @@ class LobbyService:
         """List all waiting participants for a room."""
 
         pattern = self._get_cache_key(room_id, "*")
-        keys = cache.keys(pattern)
+        keys = list(cache.iter_keys(pattern))
 
         data = cache.get_many(keys) if keys else {}
 
@@ -513,7 +513,7 @@ class LobbyService:
         """Clear all participant entries from the cache for a specific room."""
 
         pattern = self._get_cache_key(room_id, "*")
-        keys = cache.keys(pattern)
+        keys = list(cache.iter_keys(pattern))
 
         if not keys:
             return

@@ -125,6 +125,92 @@ def test_non_deployable_configurations_may_select_the_deterministic_fake():
     )
 
 
+def test_qualification_profile_allows_fake_without_test_runtime_defaults():
+    """Qualification keeps production runtime behavior while allowing fake ASR."""
+
+    configuration = meet_settings.Qualification
+    assert configuration.DEBUG is False
+    assert configuration.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED is True
+    assert configuration.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED is False
+    assert not configuration.CELERY_TASK_ALWAYS_EAGER
+    validate_mastrao_transcription_configuration(
+        True,
+        "fake",
+        "",
+        fake_asr_allowed=configuration.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
+        celery_required=configuration.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
+    )
+
+
+def test_qualification_real_mode_keeps_provider_requirements():
+    """Qualification must not make an unconfigured real provider bootable."""
+
+    with pytest.raises(ImproperlyConfigured, match="ASR_ENDPOINT"):
+        validate_mastrao_transcription_configuration(
+            True,
+            "real",
+            "",
+            fake_asr_allowed=meet_settings.Qualification.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
+            celery_required=meet_settings.Qualification.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
+        )
+
+
+def test_qualification_runtime_values_remain_environment_driven():
+    """Qualification must not replace env-controlled Celery or LiveKit values."""
+
+    environment = {
+        key: value for key, value in os.environ.items() if not key.endswith("_FILE")
+    }
+    environment.update(
+        {
+            "DJANGO_CONFIGURATION": "Qualification",
+            "DJANGO_SETTINGS_MODULE": "meet.settings",
+            "CELERY_TASK_ALWAYS_EAGER": "false",
+            "LIVEKIT_API_KEY": "qualification-key",
+            "LIVEKIT_API_SECRET": "qualification-secret",
+            "LIVEKIT_API_URL": "http://livekit.qualification.test:7880",
+        }
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; importer.install(); "
+                "from django.conf import settings; "
+                "import json, sys; "
+                "sys.stdout.write(json.dumps({"
+                "'debug': settings.DEBUG, "
+                "'eager': settings.CELERY_TASK_ALWAYS_EAGER, "
+                "'fake_allowed': settings.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED, "
+                "'celery_required': settings.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED, "
+                "'apps': settings.INSTALLED_APPS, "
+                "'livekit_matches': ("
+                "settings.LIVEKIT_CONFIGURATION['api_key'] == 'qualification-key' "
+                "and settings.LIVEKIT_CONFIGURATION['api_secret'] == 'qualification-secret' "
+                "and settings.LIVEKIT_CONFIGURATION['url'] == "
+                "'http://livekit.qualification.test:7880'"
+                ")"
+                "}))"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env=environment,
+        text=True,
+    )
+
+    values = json.loads(result.stdout.strip())
+    assert values["debug"] is False
+    assert values["eager"] is False
+    assert values["fake_allowed"] is True
+    assert values["celery_required"] is False
+    assert "django_extensions" not in values["apps"]
+    assert "drf_spectacular_sidecar" not in values["apps"]
+    assert values["livekit_matches"] is True
+
+
 def test_production_transcription_refuses_the_fake_engine():
     """The fixture engine must never answer as a real transcription."""
 
