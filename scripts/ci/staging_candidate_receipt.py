@@ -6,11 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
+
+from scripts.ci.staging_candidate_readback import DIGEST, PLATFORM, readback_proof
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
-DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+SOURCE_REPOSITORY = "mvirassamy/mastrao-meet"
 TARGETS = {
     "meet-backend": {
         "dockerfile": "Dockerfile",
@@ -25,58 +28,73 @@ TARGETS = {
 }
 
 
+@dataclass(frozen=True)
+class SourceIdentity:
+    """The exact Git source a candidate was built from."""
+
+    sha: str
+    tree: str
+    archive_sha256: str
+
+    def validate(self) -> None:
+        if not SHA.fullmatch(self.sha):
+            raise ValueError("source SHA must be a lowercase full commit SHA")
+        if not SHA.fullmatch(self.tree):
+            raise ValueError("source tree must be a lowercase full Git tree SHA")
+        if not SHA256.fullmatch(self.archive_sha256):
+            raise ValueError("source archive digest must be lowercase sha256 hex")
+
+
+@dataclass(frozen=True)
+class BuiltRecipe:
+    """The recipe the workflow actually used to build and push."""
+
+    dockerfile: str
+    target: str
+    repository: str
+
+
 def build_receipt(
     *,
     target: str,
-    source_sha: str,
-    source_tree: str,
-    source_archive_sha256: str,
+    source: SourceIdentity,
+    built: BuiltRecipe,
     digest: str,
     readback: object,
     run_id: str,
     run_attempt: str,
-):
-    if target not in TARGETS:
+) -> dict[str, object]:
+    recipe = TARGETS.get(target)
+    if recipe is None:
         raise ValueError("unsupported candidate target")
-    if not SHA.fullmatch(source_sha):
-        raise ValueError("source SHA must be a lowercase full commit SHA")
-    if not SHA.fullmatch(source_tree):
-        raise ValueError("source tree must be a lowercase full Git tree SHA")
-    if not SHA256.fullmatch(source_archive_sha256):
-        raise ValueError("source archive digest must be lowercase sha256 hex")
+    if built != BuiltRecipe(**recipe):
+        raise ValueError("built recipe does not match the closed target recipe")
+    source.validate()
     if not DIGEST.fullmatch(digest):
         raise ValueError("candidate digest must be a sha256 OCI digest")
-    if readback != {
-        "schema": "mastrao.meet.staging-candidate-readback.v1",
-        "status": "VERIFIED",
-        "digest": digest,
-        "platform": "linux/amd64",
-    }:
-        raise ValueError("registry readback is missing or does not match the candidate")
+    _require_matching_readback(readback, repository=built.repository, digest=digest)
     if not run_id.isdecimal() or not run_attempt.isdecimal():
         raise ValueError("workflow identity must be numeric")
 
-    recipe = TARGETS[target]
-    repository = recipe["repository"]
     return {
         "schema": "mastrao.meet.staging-candidate-receipt.v1",
         "status": "PUBLISHED_NOT_DEPLOYED",
         "target": target,
         "source": {
-            "repository": "mvirassamy/mastrao-meet",
-            "sha": source_sha,
-            "tree": source_tree,
-            "archiveSha256": source_archive_sha256,
+            "repository": SOURCE_REPOSITORY,
+            "sha": source.sha,
+            "tree": source.tree,
+            "archiveSha256": source.archive_sha256,
         },
         "recipe": {
-            "dockerfile": recipe["dockerfile"],
-            "target": recipe["target"],
-            "platform": "linux/amd64",
+            "dockerfile": built.dockerfile,
+            "target": built.target,
+            "platform": PLATFORM,
         },
         "image": {
-            "repository": repository,
+            "repository": built.repository,
             "digest": digest,
-            "reference": f"{repository}@{digest}",
+            "reference": f"{built.repository}@{digest}",
         },
         "registryReadback": readback,
         "workflow": {
@@ -87,12 +105,37 @@ def build_receipt(
     }
 
 
+def _require_matching_readback(
+    readback: object, *, repository: str, digest: str
+) -> None:
+    image_digest = readback.get("imageDigest") if isinstance(readback, dict) else None
+    if (
+        not isinstance(image_digest, str)
+        or not DIGEST.fullmatch(image_digest)
+        or readback
+        != readback_proof(
+            repository=repository, index_digest=digest, image_digest=image_digest
+        )
+    ):
+        raise ValueError("registry readback is missing or does not match the candidate")
+
+
+def _load_readback(path: Path) -> object:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("registry readback is unreadable") from error
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--source-tree", required=True)
     parser.add_argument("--source-archive-sha256", required=True)
+    parser.add_argument("--dockerfile", required=True)
+    parser.add_argument("--build-target", required=True)
+    parser.add_argument("--repository", required=True)
     parser.add_argument("--digest", required=True)
     parser.add_argument("--readback", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
@@ -101,11 +144,18 @@ def main() -> None:
     args = parser.parse_args()
     receipt = build_receipt(
         target=args.target,
-        source_sha=args.source_sha,
-        source_tree=args.source_tree,
-        source_archive_sha256=args.source_archive_sha256,
+        source=SourceIdentity(
+            sha=args.source_sha,
+            tree=args.source_tree,
+            archive_sha256=args.source_archive_sha256,
+        ),
+        built=BuiltRecipe(
+            dockerfile=args.dockerfile,
+            target=args.build_target,
+            repository=args.repository,
+        ),
         digest=args.digest,
-        readback=json.loads(args.readback.read_text()),
+        readback=_load_readback(args.readback),
         run_id=args.run_id,
         run_attempt=args.run_attempt,
     )
