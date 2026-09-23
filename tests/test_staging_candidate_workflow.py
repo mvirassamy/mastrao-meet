@@ -68,6 +68,11 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             len(re.findall(r"(?m)^      - ", self.workflow)), len(self.steps)
         )
 
+    def test_steps_cannot_override_the_job_guarantees(self):
+        self.assertEqual(re.findall(r"(?m)^\s+shell:\s*(.*)$", self.workflow), ["bash"])
+        self.assertEqual(re.findall(r"(?m)^\s+if:", self.workflow), ["    if:"])
+        self.assertNotIn("continue-on-error", self.workflow)
+
     def test_tooling_comes_from_the_trusted_workflow_commit(self):
         checkout = self.steps["Checkout the trusted candidate tooling"]
         self.assertIn("ref: ${{ github.sha }}", checkout)
@@ -95,9 +100,14 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("persist-credentials: false", checkout)
         bind = self.steps["Bind the source to develop and record its immutable tree"]
         self.assertIn("working-directory: source", bind)
-        self.assertIn('git merge-base --is-ancestor "$SOURCE_SHA"', bind)
-        self.assertIn('test "$(git rev-parse HEAD)" = "$SOURCE_SHA"', bind)
-        self.assertIn('worktree_status="$(git status --porcelain)"', bind)
+        for line in (
+            'test "$(git rev-parse HEAD)" = "$SOURCE_SHA"',
+            'git merge-base --is-ancestor "$SOURCE_SHA" refs/remotes/origin/develop',
+            'worktree_status="$(git status --porcelain)"',
+            'test -z "$worktree_status"',
+        ):
+            with self.subTest(line=line):
+                self.assertRegex(bind, rf"(?m)^ +{re.escape(line)}$")
 
     def test_build_inputs_are_exactly_the_closed_recipe(self):
         build = self.steps["Build and publish the selected candidate"]
