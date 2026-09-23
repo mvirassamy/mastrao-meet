@@ -34,14 +34,34 @@ jobs:
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: test "$(printf '%s' "$SOURCE_SHA" | sed -nE '/^[0-9a-f]{40}$/p')" = "$SOURCE_SHA"
 
+      - name: Checkout the trusted candidate tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: ci-tools
+          sparse-checkout: scripts/ci
+          persist-credentials: false
+
+      - name: Select the closed build recipe
+        id: recipe
+        working-directory: ci-tools
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          python -c 'import scripts.ci.staging_candidate_readback, scripts.ci.staging_candidate_receipt'
+          python -m scripts.ci.staging_candidate_recipe --target "$TARGET" >> "$GITHUB_OUTPUT"
+
       - name: Checkout the selected source commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.source_sha }}
+          path: source
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Bind the source to develop and record its immutable tree
         id: source
+        working-directory: source
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
@@ -53,37 +73,6 @@ jobs:
           archive_sha256="$(git archive --format=tar "$SOURCE_SHA" | sha256sum | awk '{print $1}')"
           echo "tree=$source_tree" >> "$GITHUB_OUTPUT"
           echo "archive_sha256=$archive_sha256" >> "$GITHUB_OUTPUT"
-
-      - name: Select the closed build recipe
-        id: recipe
-        env:
-          TARGET: ${{ inputs.target }}
-        run: |
-          case "$TARGET" in
-            meet-frontend)
-              echo 'dockerfile=src/frontend/Dockerfile' >> "$GITHUB_OUTPUT"
-              echo 'build_target=frontend-production' >> "$GITHUB_OUTPUT"
-              echo 'repository=rg.fr-par.scw.cloud/mastrao-staging/meet-frontend' >> "$GITHUB_OUTPUT"
-              {
-                echo 'build_args<<EOF'
-                echo 'DOCKER_USER=101:101'
-                echo 'VITE_API_BASE_URL=https://meet.mastrao-staging.com'
-                echo 'VITE_APP_TITLE=Mastrao Visio'
-                echo 'EOF'
-              } >> "$GITHUB_OUTPUT"
-              ;;
-            meet-backend)
-              echo 'dockerfile=Dockerfile' >> "$GITHUB_OUTPUT"
-              echo 'build_target=backend-production' >> "$GITHUB_OUTPUT"
-              echo 'repository=rg.fr-par.scw.cloud/mastrao-staging/meet-backend' >> "$GITHUB_OUTPUT"
-              {
-                echo 'build_args<<EOF'
-                echo 'DOCKER_USER=10001:10001'
-                echo 'EOF'
-              } >> "$GITHUB_OUTPUT"
-              ;;
-            *) exit 64 ;;
-          esac
 
       - name: Require the dedicated registry publisher
         env:
@@ -104,8 +93,8 @@ jobs:
         id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
-          context: .
-          file: ${{ steps.recipe.outputs.dockerfile }}
+          context: source
+          file: source/${{ steps.recipe.outputs.dockerfile }}
           target: ${{ steps.recipe.outputs.build_target }}
           platforms: linux/amd64
           build-args: ${{ steps.recipe.outputs.build_args }}
@@ -115,18 +104,20 @@ jobs:
           sbom: true
 
       - name: Read back the exact candidate from the registry
+        working-directory: ci-tools
         env:
           REPOSITORY: ${{ steps.recipe.outputs.repository }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          docker buildx imagetools inspect "$REPOSITORY@$DIGEST" --raw > candidate-remote-index.json
+          docker buildx imagetools inspect "$REPOSITORY@$DIGEST" --raw > "$RUNNER_TEMP/candidate-remote-index.json"
           python -m scripts.ci.staging_candidate_readback \
-            --manifest candidate-remote-index.json \
+            --manifest "$RUNNER_TEMP/candidate-remote-index.json" \
             --repository "$REPOSITORY" \
             --expected-digest "$DIGEST" \
-            --output candidate-readback.json
+            --output "$RUNNER_TEMP/candidate-readback.json"
 
       - name: Render the immutable candidate receipt
+        working-directory: ci-tools
         env:
           TARGET: ${{ inputs.target }}
           SOURCE_SHA: ${{ inputs.source_sha }}
@@ -135,6 +126,7 @@ jobs:
           DOCKERFILE: ${{ steps.recipe.outputs.dockerfile }}
           BUILD_TARGET: ${{ steps.recipe.outputs.build_target }}
           REPOSITORY: ${{ steps.recipe.outputs.repository }}
+          BUILD_ARGS: ${{ steps.recipe.outputs.build_args }}
           DIGEST: ${{ steps.build.outputs.digest }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -147,16 +139,17 @@ jobs:
             --dockerfile "$DOCKERFILE" \
             --build-target "$BUILD_TARGET" \
             --repository "$REPOSITORY" \
+            --build-args "$BUILD_ARGS" \
             --digest "$DIGEST" \
-            --readback candidate-readback.json \
+            --readback "$RUNNER_TEMP/candidate-readback.json" \
             --run-id "$RUN_ID" \
             --run-attempt "$RUN_ATTEMPT" \
-            --output candidate-receipt.json
+            --output "$RUNNER_TEMP/candidate-receipt.json"
 
       - name: Upload the candidate receipt
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: meet-${{ inputs.target }}-${{ inputs.source_sha }}-candidate-receipt
-          path: candidate-receipt.json
+          path: ${{ runner.temp }}/candidate-receipt.json
           if-no-files-found: error
           retention-days: 14

@@ -1,6 +1,10 @@
 import hashlib
 import json
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 from scripts.ci.staging_candidate_readback import (
     MAX_MANIFEST_BYTES,
@@ -150,6 +154,50 @@ class StagingCandidateReadbackTests(unittest.TestCase):
                 verify_readback(
                     raw=raw, repository=REPOSITORY, expected_digest=digest_of(raw)
                 )
+
+
+class StagingCandidateReadbackCliTests(unittest.TestCase):
+    def run_cli(self, directory, raw, digest):
+        manifest = Path(directory) / "index.json"
+        output = Path(directory) / "readback.json"
+        manifest.write_bytes(raw)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "scripts.ci.staging_candidate_readback",
+                "--manifest",
+                str(manifest),
+                "--repository",
+                REPOSITORY,
+                "--expected-digest",
+                digest,
+                "--output",
+                str(output),
+            ],
+            capture_output=True,
+            check=False,
+        )
+        return result, output
+
+    def test_cli_writes_the_verified_proof(self):
+        raw = index(image(), attestation())
+        with tempfile.TemporaryDirectory() as directory:
+            result, output = self.run_cli(directory, raw, digest_of(raw))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                json.loads(output.read_text()),
+                verify_readback(
+                    raw=raw, repository=REPOSITORY, expected_digest=digest_of(raw)
+                ),
+            )
+
+    def test_cli_fails_without_output_on_a_digest_mismatch(self):
+        raw = index(image(), attestation())
+        with tempfile.TemporaryDirectory() as directory:
+            result, output = self.run_cli(directory, raw, "sha256:" + "c" * 64)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

@@ -9,12 +9,17 @@ digest-pinned receipt. It never deploys: every receipt records
 
 ## What the workflow proves
 
-- The source SHA is 40 lowercase hex characters, is the checked-out `HEAD`,
-  is an ancestor of a freshly fetched `origin/develop` and leaves a clean
-  worktree. Its Git tree and `git archive` SHA-256 are recorded.
-- The build recipe (Dockerfile, target, repository) must equal the closed
-  table in `scripts/ci/staging_candidate_receipt.py`; a unit test also keeps
-  the workflow `case` block in sync with that table.
+- The verification tooling (`scripts/ci`) is checked out from the workflow's
+  own commit into `ci-tools/`, never from the candidate source, and is
+  imported before anything is pushed.
+- The candidate source is checked out alone into `source/`. Its SHA is 40
+  lowercase hex characters, is the checked-out `HEAD`, is an ancestor of a
+  freshly fetched `origin/develop` and leaves a clean worktree. Its Git tree
+  and `git archive` SHA-256 are recorded.
+- The build recipe (Dockerfile, target, repository and every build argument)
+  comes from the closed table in `scripts/ci/staging_candidate_recipe.py`.
+  The receipt rejects any built recipe that differs from it and records the
+  build arguments.
 - The registry readback hashes the raw index returned for
   `repository@digest` and rejects it unless the bytes match the digest, the
   index holds exactly one `linux/amd64` image, and an attestation manifest
@@ -25,11 +30,15 @@ digest-pinned receipt. It never deploys: every receipt records
 The job-level `if: github.ref == 'refs/heads/develop'` only protects the
 copy of the workflow stored on `develop`. A workflow edited on another
 branch could request the same environment, so the credential boundary must be
-enforced by GitHub itself. Before storing any registry credential:
+enforced by GitHub itself. In this order:
 
 1. Create the `staging-candidates` environment with:
    - deployment branches restricted to `develop` only;
    - at least one required reviewer, with "Prevent self-review" enabled.
+
+   GitHub creates a missing environment **without** protection rules the
+   first time a job references it, so do this before step 2 and check the
+   rules again if the environment already exists.
 2. Store `MEET_STAGING_REGISTRY_PASSWORD` **only** as a secret of that
    environment. Never define it as a repository or organisation secret: the
    workflow cannot tell where the secret came from.
@@ -37,8 +46,10 @@ enforced by GitHub itself. Before storing any registry credential:
    workflows present on the default branch (currently `main`), so either
    switch the default branch to `develop` or sync this workflow to `main`.
 
-Until all three are done, the workflow fails closed at
-"Require the dedicated registry publisher".
+The "Require the dedicated registry publisher" step only fails closed while
+no `MEET_STAGING_REGISTRY_PASSWORD` is visible to the job. It does not check
+reviewers, branch rules or where the secret is stored: steps 1 and 2 are the
+actual security boundary.
 
 ## Running it
 

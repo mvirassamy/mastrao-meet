@@ -68,7 +68,7 @@ jobs:
             exit 1
           fi
 
-  livekit-egress-contract:
+  ci-contracts:
     runs-on: ubuntu-latest
     permissions:
       contents: read

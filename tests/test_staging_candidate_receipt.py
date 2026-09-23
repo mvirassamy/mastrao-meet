@@ -8,24 +8,22 @@ from pathlib import Path
 
 from scripts.ci.staging_candidate_readback import readback_proof
 from scripts.ci.staging_candidate_receipt import (
-    TARGETS,
-    BuiltRecipe,
+    Publication,
     SourceIdentity,
+    WorkflowRun,
     build_receipt,
 )
+from scripts.ci.staging_candidate_recipe import TARGETS
 
 SOURCE = SourceIdentity(sha="a" * 40, tree="c" * 40, archive_sha256="d" * 64)
 DIGEST = "sha256:" + "b" * 64
 IMAGE = "sha256:" + "f" * 64
-
-
-def built_for(target):
-    return BuiltRecipe(**TARGETS[target])
+RUN = WorkflowRun(run_id="123", run_attempt="1")
 
 
 def readback_for(target, digest=DIGEST):
     return readback_proof(
-        repository=TARGETS[target]["repository"],
+        repository=TARGETS[target].repository,
         index_digest=digest,
         image_digest=IMAGE,
     )
@@ -35,65 +33,91 @@ def valid_values(target="meet-frontend"):
     return {
         "target": target,
         "source": SOURCE,
-        "built": built_for(target),
-        "digest": DIGEST,
-        "readback": readback_for(target),
-        "run_id": "123",
-        "run_attempt": "1",
+        "built": TARGETS[target],
+        "publication": Publication(digest=DIGEST, readback=readback_for(target)),
+        "run": RUN,
     }
+
+
+def publication(readback):
+    return Publication(digest=DIGEST, readback=readback)
 
 
 class StagingCandidateReceiptTests(unittest.TestCase):
     def test_receipt_is_digest_pinned_and_never_claims_a_deployment(self):
-        for target in TARGETS:
+        for target, recipe in TARGETS.items():
             with self.subTest(target=target):
                 receipt = build_receipt(**valid_values(target))
-                repository = TARGETS[target]["repository"]
                 self.assertEqual(receipt["target"], target)
                 self.assertEqual(
-                    receipt["image"]["reference"], f"{repository}@{DIGEST}"
+                    receipt["image"]["reference"], f"{recipe.repository}@{DIGEST}"
                 )
                 self.assertEqual(receipt["status"], "PUBLISHED_NOT_DEPLOYED")
                 self.assertEqual(receipt["source"]["tree"], SOURCE.tree)
-                self.assertEqual(receipt["registryReadback"]["repository"], repository)
+                self.assertEqual(
+                    receipt["recipe"]["buildArgs"], list(recipe.build_args)
+                )
+                self.assertEqual(
+                    receipt["registryReadback"]["repository"], recipe.repository
+                )
                 self.assertIs(receipt["deploymentApplied"], False)
                 self.assertNotIn("secret", json.dumps(receipt).lower())
 
     def test_receipt_rejects_open_or_unpinned_values(self):
-        frontend = readback_for("meet-frontend")
+        frontend = TARGETS["meet-frontend"]
+        readback = readback_for("meet-frontend")
         cases = (
             ("target", "all", "unsupported candidate target"),
             ("source", replace(SOURCE, sha="abc"), "source SHA"),
             ("source", replace(SOURCE, sha="A" * 40), "source SHA"),
             ("source", replace(SOURCE, tree="z" * 40), "source tree"),
             ("source", replace(SOURCE, archive_sha256="d" * 63), "archive digest"),
-            ("digest", "latest", "sha256 OCI digest"),
+            ("built", replace(frontend, repository="docker.io/x"), "built recipe"),
+            ("built", replace(frontend, dockerfile="Dockerfile"), "built recipe"),
             (
                 "built",
-                replace(built_for("meet-frontend"), repository="docker.io/x"),
+                replace(frontend, build_args=("DOCKER_USER=0:0",)),
                 "built recipe",
             ),
-            ("built", built_for("meet-backend"), "built recipe"),
             (
-                "readback",
-                readback_for("meet-frontend", "sha256:" + "e" * 64),
+                "built",
+                replace(frontend, build_args=frontend.build_args[:-1]),
+                "built recipe",
+            ),
+            ("built", TARGETS["meet-backend"], "built recipe"),
+            (
+                "publication",
+                Publication(digest="latest", readback=readback),
+                "sha256 OCI digest",
+            ),
+            (
+                "publication",
+                publication(readback_for("meet-frontend", "sha256:" + "e" * 64)),
                 "registry readback",
             ),
             (
-                "readback",
-                {**frontend, "repository": "docker.io/x"},
+                "publication",
+                publication({**readback, "repository": "docker.io/x"}),
                 "registry readback",
             ),
-            ("readback", {**frontend, "status": "FAILED"}, "registry readback"),
-            ("readback", {**frontend, "imageDigest": "latest"}, "registry readback"),
             (
-                "readback",
-                {k: v for k, v in frontend.items() if k != "imageDigest"},
+                "publication",
+                publication({**readback, "status": "FAILED"}),
                 "registry readback",
             ),
-            ("readback", None, "registry readback"),
-            ("run_id", "private", "numeric"),
-            ("run_attempt", "1.5", "numeric"),
+            (
+                "publication",
+                publication({**readback, "imageDigest": "latest"}),
+                "registry readback",
+            ),
+            (
+                "publication",
+                publication({k: v for k, v in readback.items() if k != "imageDigest"}),
+                "registry readback",
+            ),
+            ("publication", publication(None), "registry readback"),
+            ("run", replace(RUN, run_id="private"), "numeric"),
+            ("run", replace(RUN, run_attempt="1.5"), "numeric"),
         )
         for field, value, message in cases:
             with self.subTest(field=field, value=value):
@@ -101,7 +125,7 @@ class StagingCandidateReceiptTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message):
                     build_receipt(**values)
 
-    def run_cli(self, directory, readback_text, repository):
+    def run_cli(self, directory, readback_text, build_args):
         output = Path(directory) / "receipt.json"
         readback = Path(directory) / "readback.json"
         readback.write_text(readback_text)
@@ -120,11 +144,13 @@ class StagingCandidateReceiptTests(unittest.TestCase):
                 "--source-archive-sha256",
                 SOURCE.archive_sha256,
                 "--dockerfile",
-                recipe["dockerfile"],
+                recipe.dockerfile,
                 "--build-target",
-                recipe["target"],
+                recipe.target,
                 "--repository",
-                repository,
+                recipe.repository,
+                "--build-args",
+                build_args,
                 "--digest",
                 DIGEST,
                 "--readback",
@@ -142,26 +168,29 @@ class StagingCandidateReceiptTests(unittest.TestCase):
         return result, output
 
     def test_cli_writes_only_the_closed_receipt(self):
+        build_args = "\n".join(TARGETS["meet-backend"].build_args) + "\n"
         with tempfile.TemporaryDirectory() as directory:
             result, output = self.run_cli(
-                directory,
-                json.dumps(readback_for("meet-backend")),
-                TARGETS["meet-backend"]["repository"],
+                directory, json.dumps(readback_for("meet-backend")), build_args
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIs(json.loads(output.read_text())["deploymentApplied"], False)
+            receipt = json.loads(output.read_text())
+            self.assertIs(receipt["deploymentApplied"], False)
+            self.assertEqual(
+                receipt["recipe"]["buildArgs"],
+                list(TARGETS["meet-backend"].build_args),
+            )
 
     def test_cli_fails_without_output_on_bad_inputs(self):
+        valid_readback = json.dumps(readback_for("meet-backend"))
+        build_args = "\n".join(TARGETS["meet-backend"].build_args)
         cases = {
-            "unreadable readback": ("{not json", TARGETS["meet-backend"]["repository"]),
-            "drifted repository": (
-                json.dumps(readback_for("meet-backend")),
-                "rg.fr-par.scw.cloud/mastrao-staging/other",
-            ),
+            "unreadable readback": ("{not json", build_args),
+            "drifted build args": (valid_readback, "DOCKER_USER=0:0"),
         }
-        for name, (readback_text, repository) in cases.items():
+        for name, (readback_text, args) in cases.items():
             with self.subTest(name), tempfile.TemporaryDirectory() as directory:
-                result, output = self.run_cli(directory, readback_text, repository)
+                result, output = self.run_cli(directory, readback_text, args)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(output.exists())
 

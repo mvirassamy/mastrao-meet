@@ -10,22 +10,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.ci.staging_candidate_readback import DIGEST, PLATFORM, readback_proof
+from scripts.ci.staging_candidate_recipe import Recipe, recipe_for
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SOURCE_REPOSITORY = "mvirassamy/mastrao-meet"
-TARGETS = {
-    "meet-backend": {
-        "dockerfile": "Dockerfile",
-        "target": "backend-production",
-        "repository": "rg.fr-par.scw.cloud/mastrao-staging/meet-backend",
-    },
-    "meet-frontend": {
-        "dockerfile": "src/frontend/Dockerfile",
-        "target": "frontend-production",
-        "repository": "rg.fr-par.scw.cloud/mastrao-staging/meet-frontend",
-    },
-}
 
 
 @dataclass(frozen=True)
@@ -46,35 +35,59 @@ class SourceIdentity:
 
 
 @dataclass(frozen=True)
-class BuiltRecipe:
-    """The recipe the workflow actually used to build and push."""
+class Publication:
+    """The pushed index digest and its registry readback proof."""
 
-    dockerfile: str
-    target: str
-    repository: str
+    digest: str
+    readback: object
+
+    def validate(self, repository: str) -> None:
+        if not DIGEST.fullmatch(self.digest):
+            raise ValueError("candidate digest must be a sha256 OCI digest")
+        readback = self.readback
+        image_digest = (
+            readback.get("imageDigest") if isinstance(readback, dict) else None
+        )
+        if (
+            not isinstance(image_digest, str)
+            or not DIGEST.fullmatch(image_digest)
+            or readback
+            != readback_proof(
+                repository=repository,
+                index_digest=self.digest,
+                image_digest=image_digest,
+            )
+        ):
+            raise ValueError(
+                "registry readback is missing or does not match the candidate"
+            )
+
+
+@dataclass(frozen=True)
+class WorkflowRun:
+    """The GitHub Actions run that produced the candidate."""
+
+    run_id: str
+    run_attempt: str
+
+    def validate(self) -> None:
+        if not self.run_id.isdecimal() or not self.run_attempt.isdecimal():
+            raise ValueError("workflow identity must be numeric")
 
 
 def build_receipt(
     *,
     target: str,
     source: SourceIdentity,
-    built: BuiltRecipe,
-    digest: str,
-    readback: object,
-    run_id: str,
-    run_attempt: str,
+    built: Recipe,
+    publication: Publication,
+    run: WorkflowRun,
 ) -> dict[str, object]:
-    recipe = TARGETS.get(target)
-    if recipe is None:
-        raise ValueError("unsupported candidate target")
-    if built != BuiltRecipe(**recipe):
+    if built != recipe_for(target):
         raise ValueError("built recipe does not match the closed target recipe")
     source.validate()
-    if not DIGEST.fullmatch(digest):
-        raise ValueError("candidate digest must be a sha256 OCI digest")
-    _require_matching_readback(readback, repository=built.repository, digest=digest)
-    if not run_id.isdecimal() or not run_attempt.isdecimal():
-        raise ValueError("workflow identity must be numeric")
+    publication.validate(built.repository)
+    run.validate()
 
     return {
         "schema": "mastrao.meet.staging-candidate-receipt.v1",
@@ -89,35 +102,21 @@ def build_receipt(
         "recipe": {
             "dockerfile": built.dockerfile,
             "target": built.target,
+            "buildArgs": list(built.build_args),
             "platform": PLATFORM,
         },
         "image": {
             "repository": built.repository,
-            "digest": digest,
-            "reference": f"{built.repository}@{digest}",
+            "digest": publication.digest,
+            "reference": f"{built.repository}@{publication.digest}",
         },
-        "registryReadback": readback,
+        "registryReadback": publication.readback,
         "workflow": {
-            "runId": int(run_id),
-            "runAttempt": int(run_attempt),
+            "runId": int(run.run_id),
+            "runAttempt": int(run.run_attempt),
         },
         "deploymentApplied": False,
     }
-
-
-def _require_matching_readback(
-    readback: object, *, repository: str, digest: str
-) -> None:
-    image_digest = readback.get("imageDigest") if isinstance(readback, dict) else None
-    if (
-        not isinstance(image_digest, str)
-        or not DIGEST.fullmatch(image_digest)
-        or readback
-        != readback_proof(
-            repository=repository, index_digest=digest, image_digest=image_digest
-        )
-    ):
-        raise ValueError("registry readback is missing or does not match the candidate")
 
 
 def _load_readback(path: Path) -> object:
@@ -136,6 +135,7 @@ def main() -> None:
     parser.add_argument("--dockerfile", required=True)
     parser.add_argument("--build-target", required=True)
     parser.add_argument("--repository", required=True)
+    parser.add_argument("--build-args", required=True)
     parser.add_argument("--digest", required=True)
     parser.add_argument("--readback", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
@@ -149,15 +149,16 @@ def main() -> None:
             tree=args.source_tree,
             archive_sha256=args.source_archive_sha256,
         ),
-        built=BuiltRecipe(
+        built=Recipe(
             dockerfile=args.dockerfile,
             target=args.build_target,
             repository=args.repository,
+            build_args=tuple(args.build_args.splitlines()),
         ),
-        digest=args.digest,
-        readback=_load_readback(args.readback),
-        run_id=args.run_id,
-        run_attempt=args.run_attempt,
+        publication=Publication(
+            digest=args.digest, readback=_load_readback(args.readback)
+        ),
+        run=WorkflowRun(run_id=args.run_id, run_attempt=args.run_attempt),
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
