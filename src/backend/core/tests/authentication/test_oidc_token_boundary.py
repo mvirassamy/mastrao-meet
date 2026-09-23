@@ -87,12 +87,13 @@ def claims_for(**overrides):
     return claims
 
 
-def make_token(signing_key, algorithm="RS256", without=(), **overrides):
+def make_token(signing_key, algorithm="RS256", without=(), kid="s0", **overrides):
     """Sign a Meet ID token, allowing focused claim changes or removals."""
     claims = claims_for(**overrides)
     for name in without:
         del claims[name]
-    return jwt.encode(claims, signing_key, algorithm=algorithm, headers={"kid": "s0"})
+    headers = {"kid": kid} if kid is not None else None
+    return jwt.encode(claims, signing_key, algorithm=algorithm, headers=headers)
 
 
 def segment(value):
@@ -254,15 +255,9 @@ def test_rejects_wrong_signing_algorithm(backend):
 
 def test_uses_the_configured_static_provider_key(settings, signing_key):
     """A configured provider key is used instead of a JWKS lookup."""
-    public_pem = (
-        signing_key.public_key()
-        .public_bytes(
-            serialization.Encoding.PEM,
-            serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-        .decode()
+    instance = build_backend(
+        settings, OIDC_RP_IDP_SIGN_KEY=static_public_pem(signing_key)
     )
-    instance = build_backend(settings, OIDC_RP_IDP_SIGN_KEY=public_pem)
     instance.retrieve_matching_jwk = mock.Mock()
 
     payload = instance.verify_token(make_token(signing_key), nonce=NONCE)
@@ -470,3 +465,56 @@ def test_callback_rejects_unknown_or_replayed_state():
     request.session.save()
     with pytest.raises(SuspiciousOperation, match="state not found"):
         OIDCAuthenticationCallbackView.as_view()(request)
+
+
+def test_accepts_single_element_audience_list_without_authorized_party(
+    backend, signing_key
+):
+    """A one-element audience list naming Meet needs no authorized party."""
+    payload = backend.verify_token(
+        make_token(signing_key, aud=[CLIENT_ID]), nonce=NONCE
+    )
+
+    assert payload["aud"] == [CLIENT_ID]
+
+
+def static_public_pem(signing_key):
+    """Return the PEM form used for a configured static provider key."""
+    return (
+        signing_key.public_key()
+        .public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+    )
+
+
+@pytest.mark.parametrize(
+    "case", ["hmac", "static-key", "jwks-without-kid-verification"]
+)
+def test_accepts_token_without_key_id_when_no_kid_lookup_applies(
+    settings, signing_key, case
+):
+    """A key identifier is required only for a kid-verified JWKS lookup."""
+    if case == "hmac":
+        instance = build_backend(settings, algorithm="HS256")
+        token = make_token(CLIENT_SECRET, algorithm="HS256", kid=None)
+    elif case == "static-key":
+        instance = build_backend(
+            settings, OIDC_RP_IDP_SIGN_KEY=static_public_pem(signing_key)
+        )
+        token = make_token(signing_key, kid=None)
+    else:
+        instance = build_backend(settings, OIDC_VERIFY_KID=False)
+        token = make_token(signing_key, kid=None)
+    instance.retrieve_matching_jwk = mock.Mock(
+        return_value=public_jwk(signing_key, "RS256")
+    )
+
+    payload = instance.verify_token(token, nonce=NONCE)
+
+    assert payload["sub"] == "account-123"
+    assert instance.retrieve_matching_jwk.call_count == (
+        1 if case == "jwks-without-kid-verification" else 0
+    )
