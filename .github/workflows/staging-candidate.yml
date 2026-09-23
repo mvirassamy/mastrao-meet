@@ -1,0 +1,159 @@
+name: Publish one Meet staging candidate
+run-name: Candidate ${{ inputs.target }} @ ${{ inputs.source_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Image to build and publish without deploying it
+        required: true
+        type: choice
+        options:
+          - meet-frontend
+          - meet-backend
+      source_sha:
+        description: Full commit SHA to publish; it must be reachable from develop
+        required: true
+        type: string
+
+concurrency:
+  group: meet-staging-candidate-${{ inputs.target }}-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish-candidate:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging-candidates
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Validate the selected source shape
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: test "$(printf '%s' "$SOURCE_SHA" | sed -nE '/^[0-9a-f]{40}$/p')" = "$SOURCE_SHA"
+
+      - name: Checkout the trusted candidate tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          path: ci-tools
+          sparse-checkout: scripts/ci
+          persist-credentials: false
+
+      - name: Select the closed build recipe
+        id: recipe
+        working-directory: ci-tools
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          python -c 'import scripts.ci.staging_candidate_readback, scripts.ci.staging_candidate_receipt'
+          python -m scripts.ci.staging_candidate_recipe --target "$TARGET" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the selected source commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind the source to develop and record its immutable tree
+        id: source
+        working-directory: source
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git fetch --no-tags origin develop
+          git merge-base --is-ancestor "$SOURCE_SHA" refs/remotes/origin/develop
+          worktree_status="$(git status --porcelain)"
+          test -z "$worktree_status"
+          source_tree="$(git rev-parse "${SOURCE_SHA}^{tree}")"
+          archive_sha256="$(git archive --format=tar "$SOURCE_SHA" | sha256sum | awk '{print $1}')"
+          echo "tree=$source_tree" >> "$GITHUB_OUTPUT"
+          echo "archive_sha256=$archive_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Require the dedicated registry publisher
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.MEET_STAGING_REGISTRY_PASSWORD }}
+        run: test -n "$REGISTRY_PASSWORD"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Authenticate to the staging registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: rg.fr-par.scw.cloud/mastrao-staging
+          username: nologin
+          password: ${{ secrets.MEET_STAGING_REGISTRY_PASSWORD }}
+
+      - name: Build and publish the selected candidate
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: source
+          file: source/${{ steps.recipe.outputs.dockerfile }}
+          target: ${{ steps.recipe.outputs.build_target }}
+          platforms: linux/amd64
+          build-args: ${{ steps.recipe.outputs.build_args }}
+          push: true
+          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Read back the exact candidate from the registry
+        working-directory: ci-tools
+        env:
+          REPOSITORY: ${{ steps.recipe.outputs.repository }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools inspect "$REPOSITORY@$DIGEST" --raw > "$RUNNER_TEMP/candidate-remote-index.json"
+          python -m scripts.ci.staging_candidate_readback \
+            --manifest "$RUNNER_TEMP/candidate-remote-index.json" \
+            --repository "$REPOSITORY" \
+            --expected-digest "$DIGEST" \
+            --output "$RUNNER_TEMP/candidate-readback.json"
+
+      - name: Render the immutable candidate receipt
+        working-directory: ci-tools
+        env:
+          TARGET: ${{ inputs.target }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_TREE: ${{ steps.source.outputs.tree }}
+          SOURCE_ARCHIVE_SHA256: ${{ steps.source.outputs.archive_sha256 }}
+          DOCKERFILE: ${{ steps.recipe.outputs.dockerfile }}
+          BUILD_TARGET: ${{ steps.recipe.outputs.build_target }}
+          REPOSITORY: ${{ steps.recipe.outputs.repository }}
+          BUILD_ARGS: ${{ steps.recipe.outputs.build_args }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python -m scripts.ci.staging_candidate_receipt \
+            --target "$TARGET" \
+            --source-sha "$SOURCE_SHA" \
+            --source-tree "$SOURCE_TREE" \
+            --source-archive-sha256 "$SOURCE_ARCHIVE_SHA256" \
+            --dockerfile "$DOCKERFILE" \
+            --build-target "$BUILD_TARGET" \
+            --repository "$REPOSITORY" \
+            --build-args "$BUILD_ARGS" \
+            --digest "$DIGEST" \
+            --readback "$RUNNER_TEMP/candidate-readback.json" \
+            --run-id "$RUN_ID" \
+            --run-attempt "$RUN_ATTEMPT" \
+            --output "$RUNNER_TEMP/candidate-receipt.json"
+
+      - name: Upload the candidate receipt
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: meet-${{ inputs.target }}-${{ inputs.source_sha }}-candidate-receipt
+          path: ${{ runner.temp }}/candidate-receipt.json
+          if-no-files-found: error
+          retention-days: 14
