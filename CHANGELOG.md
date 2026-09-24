@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-24: Replace inaccessible MinIO images in backend CI with the official
+  Moto S3 emulator pinned to its multi-architecture index, and smoke a real S3
+  create/put/get/delete cycle through boto3 before backend tests.
+
 - 2026-09-23: Add separate, digest-receipted staging candidate publication
   for the Meet frontend and backend images without applying either candidate.
 
