@@ -314,6 +314,8 @@ and this project adheres to
 
 ### Added
 
+- 🔒️(ci) scope the Meet OIDC staging plan to the web API #32
+
 - ⚗️(agent) durably mirror shadow microphone batches to isolated
   S3-compatible
   storage
