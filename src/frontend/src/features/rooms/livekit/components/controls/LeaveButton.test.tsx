@@ -26,6 +26,9 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/navigation/navigateTo', () => ({
   navigateTo: (...args: unknown[]) => navigateTo(...args),
 }))
+vi.mock('wouter', () => ({
+  useParams: () => ({ roomId: 'abc-defg-hij' }),
+}))
 vi.mock('@/features/analytics/telemetry', () => ({
   reportError: (...args: unknown[]) => reportError(...args),
 }))
@@ -58,7 +61,10 @@ describe('LeaveButton after connection loss', () => {
     render(<LeaveButton />)
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }))
     await waitFor(() =>
-      expect(navigateTo).toHaveBeenCalledWith('feedback', { outcome: 'left' })
+      expect(navigateTo).toHaveBeenCalledWith('feedback', {
+        outcome: 'left',
+        roomId: 'abc-defg-hij',
+      })
     )
     expect(disconnect).toHaveBeenCalledWith(true)
   })
