@@ -14,6 +14,8 @@ import { ConnectionState, RemoteParticipant, Room } from 'livekit-client'
 import { queryClient } from '@/api/queryClient'
 import { Layout } from '@/layout/Layout'
 import { Screen } from '@/layout/Screen'
+import { ErrorScreen } from '@/components/ErrorScreen'
+import { LoadingScreen } from '@/components/LoadingScreen'
 import Home from '@/features/home/routes/Home'
 import GuestInvitation from '@/features/rooms/routes/GuestInvitation'
 import Feedback from '@/features/rooms/routes/Feedback'
@@ -25,25 +27,7 @@ import { VideoConference } from '@/features/rooms/livekit/prefabs/VideoConferenc
 import { userChoicesStore } from '@/stores/userChoices'
 import { useWatchDeviceAvailability } from '@/features/rooms/hooks/useWatchDeviceAvailability'
 import { previewRoomId, previewScenario } from './previewFixtures'
-
-const screens = [
-  ['components', 'Composants et états'],
-  ['accessibility', 'Réunion · paramètres d’accessibilité'],
-  ['join', 'Avant la réunion'],
-  ['devices-off', 'Micro et caméra coupés'],
-  ['reconnecting', 'Reconnexion (état visuel)'],
-  ['recording-starting', 'Enregistrement en démarrage (état visuel)'],
-  ['recording-active', 'Enregistrement actif (état visuel)'],
-  ['recording-stopping', 'Enregistrement en arrêt (état visuel)'],
-  ['room', 'Salle'],
-  ['notifications', 'Notification de démonstration'],
-  ['consent', 'Consentement'],
-  ['invitation', 'Invitation'],
-  ['feedback', 'Après la réunion'],
-  ['error', 'Erreur d’accès'],
-  ['loading', 'Chargement'],
-  ['home', 'Accueil'],
-] as const
+import { getPreviewContent, previewScreens } from './previewScenarioRoute'
 
 const PreviewRoom = () => {
   useEffect(() => {
@@ -109,19 +93,14 @@ const PreviewScreen = () => {
     userChoicesStore.audioEnabled = false
     userChoicesStore.videoEnabled = false
   }, [])
-  if (
-    previewScenario === 'accessibility' ||
-    previewScenario === 'room' ||
-    previewScenario === 'notifications' ||
-    previewScenario === 'reconnecting' ||
-    previewScenario.startsWith('recording-')
-  )
-    return <PreviewRoom />
-  if (previewScenario === 'components') return <SemanticGallery />
-  if (previewScenario === 'home') return <Home />
-  if (previewScenario === 'invitation') return <GuestInvitation />
-  if (previewScenario === 'feedback') return <Feedback />
-  if (previewScenario === 'consent')
+  const content = getPreviewContent(previewScenario)
+
+  if (content === 'room') return <PreviewRoom />
+  if (content === 'gallery') return <SemanticGallery />
+  if (content === 'home') return <Home />
+  if (content === 'invitation') return <GuestInvitation />
+  if (content === 'feedback') return <Feedback />
+  if (content === 'consent')
     return (
       <Screen layout="centered" footer={false}>
         <section>
@@ -137,6 +116,8 @@ const PreviewScreen = () => {
         </section>
       </Screen>
     )
+  if (content === 'error') return <ErrorScreen />
+  if (content === 'loading') return <LoadingScreen delay={0} />
   return <Join roomId={previewRoomId} enterRoom={() => undefined} />
 }
 
@@ -160,7 +141,7 @@ export const Preview = () => {
                 )
               }
             >
-              {screens.map(([value, label]) => (
+              {previewScreens.map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

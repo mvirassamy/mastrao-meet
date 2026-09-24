@@ -114,6 +114,9 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(frontend) render the dedicated error and loading states in the local
+  preview gallery
+
 - 🐛(docker) pin public MinIO server and client registry references
 
 - 🐛(frontend) preserve share glyphs and compact host toolbar visibility
