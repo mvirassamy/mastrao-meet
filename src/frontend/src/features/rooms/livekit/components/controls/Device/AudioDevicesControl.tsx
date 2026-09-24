@@ -12,7 +12,6 @@ import { ToggleDevice } from './ToggleDevice'
 import { css } from '@/styled-system/css'
 import { useCanPublishTrack } from '../../../hooks/useCanPublishTrack'
 import { useCannotUseDevice } from '../../../hooks/useCannotUseDevice'
-import * as React from 'react'
 import { SelectDevice } from './SelectDevice'
 import { SettingsButton } from './SettingsButton'
 import { SettingsDialogExtendedKey } from '@/features/settings/type'
@@ -43,15 +42,8 @@ export const AudioDevicesControl = ({
 
   const { audioDeviceId, audioOutputDeviceId } = useSnapshot(userChoicesStore)
 
-  const onChange = React.useCallback(
-    (enabled: boolean, isUserInitiated: boolean) =>
-      isUserInitiated ? saveAudioInputEnabled(enabled) : null,
-    []
-  )
-
   const trackProps = useTrackToggle({
     source: Source.Microphone,
-    onChange,
     ...props,
   })
 
@@ -74,11 +66,12 @@ export const AudioDevicesControl = ({
         gap: '6px',
       })}
     >
-      <ToggleDevice
+      <ToggleDevice<Source.Microphone>
         {...trackProps}
         isDisabled={!canPublishTrack}
         kind={kind}
-        toggle={trackProps.toggle as () => Promise<void>}
+        toggle={trackProps.toggle}
+        onUserChange={saveAudioInputEnabled}
         overrideToggleButtonProps={{
           ...(hideMenu
             ? {

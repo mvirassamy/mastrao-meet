@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Conference } from './Conference'
 import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
 import { activateRecording } from '../api/recordingConsent'
+import { userChoicesStore } from '@/stores/userChoices'
 
 const createRoom = vi.fn()
 const fetchRoomLifecycle = vi.fn()
@@ -15,6 +16,7 @@ let liveKitOnConnected: (() => Promise<void>) | undefined
 let liveKitAudio: unknown
 let liveKitVideo: unknown
 let createdRoomOptions: unknown
+const roomInstances: unknown[] = []
 let localTrackPublished: (() => void) | undefined
 const refetchRoom = vi.fn().mockResolvedValue(undefined)
 const markActive = vi.fn()
@@ -79,6 +81,7 @@ vi.mock('livekit-client', () => ({
   Room: class {
     constructor(options?: unknown) {
       createdRoomOptions = options
+      roomInstances.push(this)
     }
     numParticipants = 0
     localParticipant = {
@@ -96,7 +99,7 @@ vi.mock('livekit-client', () => ({
     })
     off = vi.fn()
   },
-  VideoPresets: {},
+  VideoPresets: { h360: { resolution: { width: 640, height: 360 } } },
 }))
 
 vi.mock('react-i18next', () => ({
@@ -153,6 +156,10 @@ vi.mock('@/stores/userChoices', () => ({
   userChoicesStore: {
     audioEnabled: true,
     videoEnabled: true,
+    audioDeviceId: 'microphone-initial',
+    videoDeviceId: 'camera-initial',
+    audioOutputDeviceId: 'speaker-initial',
+    videoPublishResolution: undefined,
   },
 }))
 vi.mock('@/stores/userPreferences', () => ({ userPreferencesStore: {} }))
@@ -207,6 +214,11 @@ describe('Conference room lookup', () => {
     liveKitAudio = undefined
     liveKitVideo = undefined
     createdRoomOptions = undefined
+    roomInstances.length = 0
+    userChoicesStore.audioDeviceId = 'microphone-initial'
+    userChoicesStore.videoDeviceId = 'camera-initial'
+    userChoicesStore.audioOutputDeviceId = 'speaker-initial'
+    userChoicesStore.videoPublishResolution = undefined
     localTrackPublished = undefined
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
@@ -267,6 +279,20 @@ describe('Conference room lookup', () => {
         publishDefaults: { videoCodec: 'h264' },
       })
     )
+  })
+
+  it('preserves the joined Room when device and resolution preferences change', () => {
+    fetchRoom.mockResolvedValue({})
+    const { rerender } = render(<Conference roomId="abc-defg-hij" />)
+    const joinedRoom = roomInstances[0]
+
+    userChoicesStore.audioDeviceId = 'microphone-next'
+    userChoicesStore.videoDeviceId = 'camera-next'
+    userChoicesStore.audioOutputDeviceId = 'speaker-next'
+    userChoicesStore.videoPublishResolution = 'h360'
+    rerender(<Conference roomId="abc-defg-hij" />)
+
+    expect(roomInstances).toEqual([joinedRoom])
   })
 
   it.each(['404', '410'])(

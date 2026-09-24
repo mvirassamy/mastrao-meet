@@ -4,6 +4,7 @@ import { RiPhoneFill } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionState } from 'livekit-client'
 import { reportError } from '@/features/analytics/telemetry'
+import { navigateTo } from '@/navigation/navigateTo'
 
 export const LeaveButton = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'controls' })
@@ -12,7 +13,6 @@ export const LeaveButton = () => {
   return (
     <Button
       shape="circle"
-      isDisabled={connectionState === ConnectionState.Disconnected}
       variant="destructive"
       tooltip={t('leave')}
       aria-label={t('leave')}
@@ -22,6 +22,10 @@ export const LeaveButton = () => {
             context: 'An error occurred while disconnecting:',
           })
         )
+        // An already disconnected Room emits no new disconnection event.
+        if (connectionState === ConnectionState.Disconnected) {
+          navigateTo('feedback', { outcome: 'left' })
+        }
       }}
       data-attr="controls-leave"
     >
