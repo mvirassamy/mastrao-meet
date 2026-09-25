@@ -283,6 +283,42 @@ describe('media control regressions', () => {
     }
   )
 
+  it('keeps the microphone on when V is pressed again before a stale release mutes', async () => {
+    vi.useFakeTimers()
+    userChoicesStore.audioEnabled = false
+    const media = setup('audio', false)
+    const setEnabled = media.setEnabled.getMockImplementation()!
+    let completeFirstActivation!: () => void
+    media.setEnabled.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          completeFirstActivation = () => {
+            void setEnabled(true).then(resolve)
+          }
+        })
+    )
+    fireEvent.keyDown(window, { code: 'KeyV' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350)
+    })
+    await act(async () => {
+      fireEvent.keyUp(window, { code: 'KeyV' })
+    })
+    fireEvent.keyDown(window, { code: 'KeyV' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350)
+    })
+    await act(async () => {
+      completeFirstActivation()
+    })
+    expect(media.isEnabled()).toBe(true)
+    await act(async () => {
+      fireEvent.keyUp(window, { code: 'KeyV' })
+    })
+    expect(media.isEnabled()).toBe(false)
+    expect(userChoicesStore.audioEnabled).toBe(false)
+  })
+
   it('does not activate for a short press or a timer cancelled by unmount', async () => {
     vi.useFakeTimers()
     const media = setup('audio', false)

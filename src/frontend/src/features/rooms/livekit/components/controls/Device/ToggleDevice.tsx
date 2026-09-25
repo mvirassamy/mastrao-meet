@@ -86,9 +86,15 @@ export const ToggleDevice = <T extends ToggleSource>({
 
   const [pushToTalk, setPushToTalk] = useState(false)
   const pushToTalkActivation = useRef<ReturnType<typeof toggle> | null>(null)
+  // Each press owns a generation; a stale release must not mute a newer press.
+  const pushToTalkGeneration = useRef(0)
+  const pushToTalkReleasing = useRef(false)
 
   const onKeyDown = () => {
-    if (pushToTalkActivation.current || enabled) return
+    if (pushToTalkActivation.current) return
+    if (enabled && !pushToTalkReleasing.current) return
+    pushToTalkGeneration.current += 1
+    pushToTalkReleasing.current = false
     const activation = toggle(true)
     pushToTalkActivation.current = activation
     void activation.catch(() => undefined)
@@ -98,8 +104,16 @@ export const ToggleDevice = <T extends ToggleSource>({
     const activation = pushToTalkActivation.current
     if (!activation) return
     pushToTalkActivation.current = null
+    const generation = pushToTalkGeneration.current
+    const isCurrent = () => pushToTalkGeneration.current === generation
+    pushToTalkReleasing.current = true
     // Capture may finish after release or unmount. Mute after it settles.
-    void activation.then(() => toggle(false)).catch(() => undefined)
+    void activation
+      .then(() => (isCurrent() ? toggle(false) : undefined))
+      .catch(() => undefined)
+      .finally(() => {
+        if (isCurrent()) pushToTalkReleasing.current = false
+      })
     setPushToTalk(false)
   }
 
