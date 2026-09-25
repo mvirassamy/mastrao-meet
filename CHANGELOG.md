@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-09-25: Keep the call Room stable across device changes and allow
+  participants to leave after terminal disconnection, keeping the room id
+  that restores their platform return link.
+- 2026-09-25: Persist explicit microphone/camera choices, safely release
+  push-to-talk, and stop late camera previews after settings close.
+
 - 2026-09-24: Replace inaccessible MinIO images in backend CI with the official
   Moto S3 emulator pinned to its multi-architecture index, and smoke a real S3
   create/put/get/delete cycle through boto3 before backend tests.

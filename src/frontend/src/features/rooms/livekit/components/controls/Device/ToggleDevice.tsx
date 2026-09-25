@@ -29,6 +29,7 @@ import type {
   CaptureOptionsBySource,
 } from '@livekit/components-core'
 import { getShortcutDescriptorById } from '@/features/shortcuts/catalog'
+import { reportError } from '@/features/analytics/telemetry'
 
 type ToggleDeviceStyleProps = {
   variant?: NonNullable<ButtonRecipeProps>['variant']
@@ -43,6 +44,7 @@ export type ToggleDeviceProps<T extends ToggleSource> = {
     forceState?: boolean,
     captureOptions?: CaptureOptionsBySource<T>
   ) => Promise<void | boolean | undefined>
+  onUserChange?: (enabled: boolean) => void
   context?: 'room' | 'join'
   kind: 'audioinput' | 'videoinput'
   overrideToggleButtonProps?: Partial<ToggleButtonProps>
@@ -53,6 +55,7 @@ export const ToggleDevice = <T extends ToggleSource>({
   enabled,
   isDisabled,
   toggle,
+  onUserChange,
   context = 'room',
   overrideToggleButtonProps,
 }: ToggleDeviceProps<T>) => {
@@ -82,15 +85,35 @@ export const ToggleDevice = <T extends ToggleSource>({
   }, [context])
 
   const [pushToTalk, setPushToTalk] = useState(false)
+  const pushToTalkActivation = useRef<ReturnType<typeof toggle> | null>(null)
+  // Each press owns a generation; a stale release must not mute a newer press.
+  const pushToTalkGeneration = useRef(0)
+  const pushToTalkReleasing = useRef(false)
 
   const onKeyDown = () => {
-    if (pushToTalk || enabled) return
-    toggle()
+    if (pushToTalkActivation.current) return
+    if (enabled && !pushToTalkReleasing.current) return
+    pushToTalkGeneration.current += 1
+    pushToTalkReleasing.current = false
+    const activation = toggle(true)
+    pushToTalkActivation.current = activation
+    void activation.catch(() => undefined)
     setPushToTalk(true)
   }
   const onKeyUp = () => {
-    if (!pushToTalk) return
-    toggle()
+    const activation = pushToTalkActivation.current
+    if (!activation) return
+    pushToTalkActivation.current = null
+    const generation = pushToTalkGeneration.current
+    const isCurrent = () => pushToTalkGeneration.current === generation
+    pushToTalkReleasing.current = true
+    // Capture may finish after release or unmount. Mute after it settles.
+    void activation
+      .then(() => (isCurrent() ? toggle(false) : undefined))
+      .catch(() => undefined)
+      .finally(() => {
+        if (isCurrent()) pushToTalkReleasing.current = false
+      })
     setPushToTalk(false)
   }
 
@@ -109,27 +132,38 @@ export const ToggleDevice = <T extends ToggleSource>({
   const isRequestingPermission = useRef(false)
   const [showDeviceNotFound, setShowDeviceNotFound] = useState(false)
 
+  const toggleByUser = async (forceState?: boolean) => {
+    const result = await toggle(forceState)
+    if (typeof result === 'boolean') onUserChange?.(result)
+    return result
+  }
+
   const onPress = async () => {
-    if (!enabled && deviceMissing) {
-      setShowDeviceNotFound(true)
-      return
-    }
-    if (!cannotUseDevice) {
-      toggle()
-      return
-    }
     if (isRequestingPermission.current) return
-    isRequestingPermission.current = true
     try {
+      if (!enabled && deviceMissing) {
+        setShowDeviceNotFound(true)
+        return
+      }
+      if (!cannotUseDevice) {
+        await toggleByUser()
+        return
+      }
+      isRequestingPermission.current = true
       const granted = await requestDevicePermission(
         kind,
         context === 'join' ? 'join_preview' : 'room'
       )
       if (granted) {
-        toggle()
+        await toggleByUser()
       } else {
         openPermissionsDialog(kind)
       }
+    } catch (error) {
+      reportError('device_switch_failure', error, {
+        at: 'ToggleDevice.onPress',
+        kind,
+      })
     } finally {
       isRequestingPermission.current = false
     }
@@ -140,7 +174,7 @@ export const ToggleDevice = <T extends ToggleSource>({
     handler: async () => {
       const nextState = !enabled
       try {
-        const didChange = await toggle(nextState)
+        const didChange = await toggleByUser(nextState)
         if (didChange === false) return
 
         const message = t(nextState ? 'turnedOn' : 'turnedOff', {
@@ -159,7 +193,8 @@ export const ToggleDevice = <T extends ToggleSource>({
     keyCode: kind === 'audioinput' ? pushToTalkShortcut?.code : undefined,
     onKeyDown,
     onKeyUp,
-    isDisabled: cannotUseDevice,
+    // Prejoin toggles persist choices themselves and cannot temporarily unmute.
+    isDisabled: cannotUseDevice || context === 'join',
   })
 
   const toggleLabel = useMemo(() => {

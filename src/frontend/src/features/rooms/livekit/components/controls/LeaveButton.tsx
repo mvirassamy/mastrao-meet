@@ -3,16 +3,19 @@ import { Button } from '@/primitives'
 import { RiPhoneFill } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionState } from 'livekit-client'
+import { useParams } from 'wouter'
 import { reportError } from '@/features/analytics/telemetry'
+import { navigateTo } from '@/navigation/navigateTo'
 
 export const LeaveButton = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'controls' })
   const room = useRoomContext()
   const connectionState = useConnectionState(room)
+  // Feedback needs the room id to restore the cached platform return link.
+  const { roomId } = useParams()
   return (
     <Button
       shape="circle"
-      isDisabled={connectionState === ConnectionState.Disconnected}
       variant="destructive"
       tooltip={t('leave')}
       aria-label={t('leave')}
@@ -22,6 +25,10 @@ export const LeaveButton = () => {
             context: 'An error occurred while disconnecting:',
           })
         )
+        // An already disconnected Room emits no new disconnection event.
+        if (connectionState === ConnectionState.Disconnected) {
+          navigateTo('feedback', { outcome: 'left', roomId })
+        }
       }}
       data-attr="controls-leave"
     >

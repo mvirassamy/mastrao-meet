@@ -236,8 +236,10 @@ export const Conference = ({
     roomId,
   ])
 
-  const roomOptions = useMemo((): RoomOptions => {
-    return {
+  // Device controls update active tracks themselves. Replacing Room when a
+  // preference changes makes LiveKitRoom disconnect the ongoing conference.
+  const [room] = useState(() => {
+    const roomOptions: RoomOptions = {
       adaptiveStream: true,
       dynacast: true,
       publishDefaults: {
@@ -256,15 +258,8 @@ export const Conference = ({
         deviceId: userConfig.audioOutputDeviceId ?? undefined,
       },
     }
-    // do not rely on the userConfig object directly as its reference may change on every render
-  }, [
-    userConfig.videoDeviceId,
-    userConfig.videoPublishResolution,
-    userConfig.audioDeviceId,
-    userConfig.audioOutputDeviceId,
-  ])
-
-  const room = useMemo(() => new Room(roomOptions), [roomOptions])
+    return new Room(roomOptions)
+  })
 
   useEffect(() => {
     /**

@@ -22,6 +22,7 @@ import {
 } from '@/stores/userChoices'
 import { RowWrapper } from './layout/RowWrapper'
 import { useSnapshot } from 'valtio'
+import { reportError } from '@/features/analytics/telemetry'
 
 export type VideoTabProps = Pick<DialogProps, 'onOpenChange'> &
   Pick<TabPanelProps, 'id'>
@@ -103,17 +104,29 @@ export const VideoTab = ({ id }: VideoTabProps) => {
 
   useEffect(() => {
     let videoTrack: LocalVideoTrack | null = null
+    let cancelled = false
 
     const setUpVideoTrack = async () => {
       if (videoElement) {
         videoTrack = await createLocalVideoTrack({ deviceId: videoDeviceId })
+        if (cancelled) {
+          videoTrack.stop()
+          return
+        }
         videoTrack.attach(videoElement)
       }
     }
 
-    setUpVideoTrack()
+    void setUpVideoTrack().catch((error) => {
+      videoTrack?.stop()
+      videoTrack = null
+      if (!cancelled) {
+        reportError('device_switch_failure', error, { at: 'VideoTab.preview' })
+      }
+    })
 
     return () => {
+      cancelled = true
       if (videoElement && videoTrack) {
         videoTrack.detach()
         videoTrack.stop()

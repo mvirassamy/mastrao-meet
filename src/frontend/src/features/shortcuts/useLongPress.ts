@@ -16,6 +16,11 @@ export const useLongPress = ({
   isDisabled = false,
 }: useLongPressProps) => {
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const callbacksRef = useRef({ onKeyDown, onKeyUp })
+
+  useEffect(() => {
+    callbacksRef.current = { onKeyDown, onKeyUp }
+  }, [onKeyDown, onKeyUp])
 
   useEffect(() => {
     if (isDisabled) {
@@ -28,31 +33,34 @@ export const useLongPress = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code != keyCode || timeoutIdRef.current) return
       timeoutIdRef.current = setTimeout(() => {
-        onKeyDown()
+        callbacksRef.current.onKeyDown()
       }, longPressThreshold)
     }
 
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.code != keyCode || !timeoutIdRef.current) return
+    const release = () => {
+      if (!timeoutIdRef.current) return
       clearTimeout(timeoutIdRef.current)
       timeoutIdRef.current = null
-      onKeyUp()
+      callbacksRef.current.onKeyUp()
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === keyCode) release()
     }
 
     if (!keyCode) return
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', release)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current)
-        timeoutIdRef.current = null
-      }
+      window.removeEventListener('blur', release)
+      release()
     }
-  }, [keyCode, onKeyDown, onKeyUp, longPressThreshold, isDisabled])
+  }, [keyCode, longPressThreshold, isDisabled])
 
   return
 }

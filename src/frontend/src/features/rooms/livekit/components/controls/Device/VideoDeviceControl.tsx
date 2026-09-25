@@ -11,7 +11,6 @@ import { useCannotUseDevice } from '../../../hooks/useCannotUseDevice'
 import { useSidePanel } from '../../../hooks/useSidePanel'
 import { BackgroundProcessorFactory } from '../../blur'
 import Source = Track.Source
-import * as React from 'react'
 import { SelectDevice } from './SelectDevice'
 import { SettingsButton } from './SettingsButton'
 import { SettingsDialogExtendedKey } from '@/features/settings/type'
@@ -59,22 +58,15 @@ export const VideoDeviceControl = ({
 
   const { videoDeviceId, processorConfig } = useSnapshot(userChoicesStore)
 
-  const onChange = React.useCallback(
-    (enabled: boolean, isUserInitiated: boolean) =>
-      isUserInitiated ? saveVideoInputEnabled(enabled) : null,
-    []
-  )
-
   const trackProps = useTrackToggle({
     source: Source.Camera,
-    onChange,
     ...props,
   })
 
   const kind = 'videoinput'
   const cannotUseDevice = useCannotUseDevice(kind)
 
-  const toggleWithProcessor = async () => {
+  const toggleWithProcessor = async (forceState?: boolean) => {
     /**
      * We need to make sure that we apply the in-memory processor when re-enabling the camera.
      * Before, we had the following bug:
@@ -93,9 +85,9 @@ export const VideoDeviceControl = ({
     const toggle = trackProps.toggle as (
       forceState: boolean,
       captureOptions: VideoCaptureOptions
-    ) => Promise<void>
+    ) => Promise<boolean | undefined>
 
-    await toggle(!trackProps.enabled, {
+    return toggle(forceState ?? !trackProps.enabled, {
       processor: processor,
     } as VideoCaptureOptions)
   }
@@ -115,6 +107,7 @@ export const VideoDeviceControl = ({
         isDisabled={!canPublishTrack}
         kind={kind}
         toggle={toggleWithProcessor}
+        onUserChange={saveVideoInputEnabled}
         overrideToggleButtonProps={{
           ...(hideMenu
             ? {
