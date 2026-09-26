@@ -25,6 +25,7 @@ import {
 import { RecordingConsent } from './RecordingConsent'
 import { NativeRecordingConsent } from './NativeRecordingConsent'
 import { fetchRoomLifecycle } from '../api/fetchRoomLifecycle'
+import { isMissingRoomLifecycle } from '../api/isMissingRoomLifecycle'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 
@@ -125,7 +126,11 @@ export const Lobby = ({
           navigateToEndedMeeting(roomId)
           return
         }
-      } catch {
+      } catch (error) {
+        if (isMissingRoomLifecycle(error)) {
+          navigateToEndedMeeting(roomId)
+          return
+        }
         // Keep the non-terminal copy until authority can be reached.
       }
       if (!cancelled) timer = setTimeout(reconcile, 1000)
@@ -160,7 +165,12 @@ export const Lobby = ({
           return
         }
         markEnding()
-      } catch {
+      } catch (error) {
+        if (isMissingRoomLifecycle(error)) {
+          markEnded()
+          navigateToEndedMeeting(roomId)
+          return
+        }
         // Keep the safe non-joinable state until authority can be reached.
       }
       if (!cancelled) timer = setTimeout(reconcile, 1000)
@@ -192,7 +202,11 @@ export const Lobby = ({
               navigateToEndedMeeting(roomId)
               return
             }
-          } catch {
+          } catch (lifecycleError) {
+            if (isMissingRoomLifecycle(lifecycleError)) {
+              navigateToEndedMeeting(roomId)
+              return
+            }
             // Preserve the safe waiting state while authority is unavailable.
           }
           if (!cancelled) timer = setTimeout(reconcile, 1000)
@@ -223,7 +237,14 @@ export const Lobby = ({
       ['404', '410'].includes(String(roomError?.statusCode)) &&
       isMastraoRoomId(roomId)
     ) {
-      const lifecycle = await fetchRoomLifecycle(roomId).catch(() => null)
+      const lifecycle = await fetchRoomLifecycle(roomId).catch(
+        (lifecycleError) => {
+          if (isMissingRoomLifecycle(lifecycleError)) {
+            navigateToEndedMeeting(roomId)
+          }
+          return null
+        }
+      )
       if (lifecycle?.state === 'ended') {
         navigateToEndedMeeting(roomId)
       } else if (lifecycle) {

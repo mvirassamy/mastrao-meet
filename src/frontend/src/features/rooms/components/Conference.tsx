@@ -44,6 +44,7 @@ import {
 } from '../platformReturn'
 import { isMastraoRoomId } from '../utils/isRoomValid'
 import { fetchRoomLifecycle } from '../api/fetchRoomLifecycle'
+import { isMissingRoomLifecycle } from '../api/isMissingRoomLifecycle'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -216,7 +217,11 @@ export const Conference = ({
           return
         }
         markEnding()
-      } catch {
+      } catch (error) {
+        if (isMissingRoomLifecycle(error)) {
+          navigateToEndedMeeting()
+          return
+        }
         // Keep the durable uncertain state and retry without creating the room.
       }
       if (!cancelled) timer = setTimeout(reconcile, 1000)
