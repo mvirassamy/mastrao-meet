@@ -68,6 +68,30 @@ class StagingNetworkPolicyTests(unittest.TestCase):
         ]
         self.assertEqual(cidrs, [ip_network("172.16.8.8/32")])
         self.assertTrue(all(network.is_private for network in cidrs))
+        self.assertNotIn("toCIDRSet", serialized)
+
+    def test_has_no_open_entity_or_unexpected_fqdn_egress(self):
+        # "world" or "all" entities would open the Internet without any CIDR.
+        entities = {
+            entity
+            for rule in self.spec["egress"]
+            for entity in rule.get("toEntities", [])
+        }
+        self.assertEqual(entities, {"remote-node", "host"})
+
+        fqdns = sorted(
+            entry["matchName"]
+            for rule in self.spec["egress"]
+            for entry in rule.get("toFQDNs", [])
+        )
+        self.assertEqual(
+            fqdns,
+            sorted([
+                "s3.fr-par.scw.cloud",
+                "mastrao-staging-meet-egress-captures.s3.fr-par.scw.cloud",
+                PLATFORM_HOST,
+            ]),
+        )
 
 
 if __name__ == "__main__":
