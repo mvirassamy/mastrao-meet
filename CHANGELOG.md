@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-26: Track the staging Meet API network policy and allow only the
+  Platform OIDC host over HTTPS.
+
 - 2026-09-25: Keep the call Room stable across device changes and allow
   participants to leave after terminal disconnection, keeping the room id
   that restores their platform return link.
