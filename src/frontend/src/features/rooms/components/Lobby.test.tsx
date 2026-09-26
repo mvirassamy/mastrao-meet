@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiLobbyStatus } from '../api/requestEntry'
+import { ApiError } from '@/api/ApiError'
 import { Lobby } from './Lobby'
 
 const fetchRoomLifecycle = vi.fn()
@@ -17,6 +18,7 @@ let lobbyStatus = ApiLobbyStatus.IDLE
 let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
   'active'
 let lifecycleCloseRequestId: string | undefined
+let roomQueryError: unknown
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -28,8 +30,8 @@ vi.mock('@tanstack/react-query', () => ({
       livekit: { token: 'token', url: 'wss://livekit.test' },
       recording: { mode: 'unrecorded' },
     },
-    error: undefined,
-    isError: false,
+    error: roomQueryError,
+    isError: roomQueryError !== undefined,
     isPending: false,
     refetch: refetchRoom,
   }),
@@ -122,6 +124,7 @@ describe('Lobby lifecycle reconciliation', () => {
     lobbyStatus = ApiLobbyStatus.IDLE
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
+    roomQueryError = undefined
     refetchRoom.mockResolvedValue({
       data: {
         livekit: { token: 'token', url: 'wss://livekit.test' },
@@ -206,5 +209,57 @@ describe('Lobby lifecycle reconciliation', () => {
     await vi.waitFor(() => expect(fetchRoomLifecycle).toHaveBeenCalled())
     expect(markActive).not.toHaveBeenCalled()
     expect(markEnding).not.toHaveBeenCalled()
+  })
+
+  it('stops lifecycle polling when a missing canonical room has no lifecycle', async () => {
+    vi.useFakeTimers()
+    roomQueryError = new ApiError(404, { message: 'not found' })
+    fetchRoomLifecycle.mockRejectedValueOnce(
+      new ApiError(404, { message: 'not found' })
+    )
+
+    render(
+      <Lobby
+        roomId="room_ffffffffffffffffffffffffffffffff"
+        enterRoom={vi.fn()}
+      />
+    )
+
+    await act(async () => undefined)
+    expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
+    expect(navigateTo).toHaveBeenCalledWith(
+      'feedback',
+      {
+        outcome: 'ended',
+        roomId: 'room_ffffffffffffffffffffffffffffffff',
+      },
+      expect.objectContaining({ replace: true })
+    )
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_000))
+    expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it('retries lifecycle reconciliation after a transient server error', async () => {
+    vi.useFakeTimers()
+    roomQueryError = new ApiError(404, { message: 'not found' })
+    fetchRoomLifecycle
+      .mockRejectedValueOnce(new ApiError(503, { message: 'unavailable' }))
+      .mockResolvedValueOnce({ state: 'ended' })
+
+    render(
+      <Lobby
+        roomId="room_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        enterRoom={vi.fn()}
+      />
+    )
+
+    await act(async () => undefined)
+    expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(fetchRoomLifecycle).toHaveBeenCalledTimes(2)
+    expect(navigateTo).toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })

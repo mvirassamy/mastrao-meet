@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-26: Stop canonical lifecycle polling when a missing or closed room
+  has no lifecycle projection, while retaining retries for transient failures.
+
 - 2026-09-26: Track the staging Meet API network policy and allow only the
   Platform OIDC host over HTTPS.
 

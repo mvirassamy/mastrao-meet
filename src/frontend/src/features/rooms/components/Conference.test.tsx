@@ -6,6 +6,7 @@ import { Conference } from './Conference'
 import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
 import { activateRecording } from '../api/recordingConsent'
 import { userChoicesStore } from '@/stores/userChoices'
+import { ApiError } from '@/api/ApiError'
 
 const createRoom = vi.fn()
 const fetchRoomLifecycle = vi.fn()
@@ -333,5 +334,27 @@ describe('Conference room lookup', () => {
     await waitFor(() => expect(fetchRoomLifecycle).toHaveBeenCalled())
     expect(markActive).not.toHaveBeenCalled()
     expect(markEnding).not.toHaveBeenCalled()
+  })
+
+  it('finishes reconciliation when a closing room lifecycle is gone', async () => {
+    lifecyclePhase = 'uncertain'
+    lifecycleCloseRequestId = 'close_existing'
+    fetchRoom.mockResolvedValue({})
+    fetchRoomLifecycle.mockRejectedValueOnce(
+      new ApiError(410, { message: 'gone' })
+    )
+
+    render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
+
+    await waitFor(() =>
+      expect(navigateTo).toHaveBeenCalledWith(
+        'feedback',
+        {
+          outcome: 'ended',
+          roomId: 'room_0123456789abcdef0123456789abcdef',
+        },
+        expect.objectContaining({ replace: true })
+      )
+    )
   })
 })
