@@ -16,7 +16,8 @@
   "connectionTestLink": "Tester votre configuration",
   "createMenu": {
     "laterOption": "Créer une réunion pour une date ultérieure",
-    "instantOption": "Démarrer une réunion instantanée"
+    "instantOption": "Démarrer une réunion instantanée",
+    "error": "Impossible de créer la réunion. Réessayez."
   },
   "laterMeetingDialog": {
     "heading": "Vos informations de connexion",
@@ -58,6 +59,35 @@
     "slide3": {
       "title": "Retrouvez l’essentiel grâce à l’IA.",
       "body": "Avec l’accord des participants, retrouvez l’essentiel de vos échanges dans une transcription et un compte rendu faciles à consulter."
+    }
+  },
+  "dashboard": {
+    "newMeeting": "Nouveau",
+    "sidebar": {
+      "label": "Navigation Visio",
+      "meetings": "Réunions",
+      "history": "Historique",
+      "open": "Ouvrir la navigation",
+      "close": "Fermer la navigation",
+      "collapse": "Réduire la navigation",
+      "expand": "Développer la navigation"
+    },
+    "join": {
+      "label": "Code ou lien de réunion",
+      "placeholder": "Saisir un code ou un lien",
+      "submit": "Participer",
+      "error": "Saisissez un lien ou un code de réunion valide."
+    },
+    "calendar": {
+      "label": "Calendrier des réunions",
+      "previousWeek": "Semaine précédente",
+      "nextWeek": "Semaine suivante",
+      "today": "Aujourd’hui"
+    },
+    "empty": {
+      "todayTitle": "Aucune réunion programmée pour aujourd’hui",
+      "dateTitle": "Aucune réunion programmée pour cette date",
+      "description": "Créez une réunion maintenant ou préparez un lien à partager pour plus tard."
     }
   }
 }

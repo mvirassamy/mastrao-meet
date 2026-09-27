@@ -69,6 +69,22 @@ export const menuRecipe = sva({
         },
       },
     },
+    density: {
+      app: {
+        item: {
+          gap: '0.375rem',
+          paddingX: '0.375rem',
+          paddingY: '0.25rem',
+          borderRadius: '6px',
+          fontSize: '0.875rem',
+          lineHeight: '1.25rem',
+          '& svg': {
+            width: '16px',
+            height: '16px',
+          },
+        },
+      },
+    },
   },
   defaultVariants: {
     variant: 'light',

@@ -1,0 +1,87 @@
+{
+  "description": "Past meetings you have access to, from most recent to oldest.",
+  "detail": {
+    "back": "Back to history",
+    "error": {
+      "description": "The service is not responding right now. Check your connection, then try again.",
+      "title": "Unable to display this meeting"
+    },
+    "loading": "Loading meeting…",
+    "notFound": {
+      "description": "This meeting does not exist or you no longer have access to it.",
+      "title": "Meeting not found"
+    }
+  },
+  "empty": {
+    "description": "Finished meetings you have access to will appear here, with their summary and transcript.",
+    "title": "No past meetings yet"
+  },
+  "error": {
+    "description": "The service is not responding right now. Check your connection, then try again.",
+    "retry": "Try again",
+    "title": "Unable to display history"
+  },
+  "loadMore": "Show more",
+  "loadMoreError": "Older meetings could not be loaded.",
+  "loading": "Loading history…",
+  "loadingMore": "Loading…",
+  "participants_one": "{{count}} participant",
+  "participants_other": "{{count}} participants",
+  "status": {
+    "summary": {
+      "absent": "No summary",
+      "available": "Summary available",
+      "failed": "Summary unavailable",
+      "processing": "Summary in progress"
+    },
+    "transcript": {
+      "absent": "No transcript",
+      "available": "Transcript available",
+      "failed": "Transcript unavailable",
+      "processing": "Transcript in progress"
+    }
+  },
+  "summary": {
+    "absent": {
+      "description": "No summary was produced for this meeting.",
+      "title": "No summary"
+    },
+    "automatic": "Summary generated automatically from the transcript, not reviewed by a person.",
+    "failed": {
+      "description": "The summary could not be produced for this meeting.",
+      "title": "Summary unavailable"
+    },
+    "processing": {
+      "description": "It will appear here as soon as it is ready. This page updates automatically.",
+      "title": "Summary in progress"
+    },
+    "requestFailed": {
+      "description": "The summary request did not go through. You can try again.",
+      "title": "Summary not started"
+    },
+    "title": "Summary",
+    "waitingTranscript": {
+      "description": "It will be prepared as soon as the transcript is available. This page updates automatically.",
+      "title": "Summary pending"
+    }
+  },
+  "title": "History",
+  "transcript": {
+    "absent": {
+      "description": "No transcript was produced for this meeting.",
+      "title": "No transcript"
+    },
+    "failed": {
+      "description": "The transcript could not be produced for this meeting.",
+      "title": "Transcript unavailable"
+    },
+    "processing": {
+      "description": "It will appear here as soon as it is ready. This page updates automatically.",
+      "title": "Transcript in progress"
+    },
+    "title": "Transcript",
+    "truncated": "Only part of the transcript is displayed.",
+    "unknownSpeaker": "Speaker"
+  },
+  "untitled": "Untitled meeting"
+}

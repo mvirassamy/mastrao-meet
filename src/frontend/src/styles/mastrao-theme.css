@@ -1,6 +1,7 @@
 /* Mastrao semantic palette. Components consume roles, never palette values. */
 :root {
   --font-ui: Arial, Helvetica, sans-serif;
+  --fonts-sans: Arial, Helvetica, sans-serif;
   --radius-control: 10px;
   --radius-surface: 16px;
   --radius-dialog: 20px;
@@ -59,4 +60,87 @@
   --shadow-color: #14213a1a;
   --shadow-strong: #14213a33;
   --shadow-soft: #14213a05;
+}
+
+/*
+ * The authenticated workspace mirrors the Mastrao application palette without
+ * changing the public home, lobby, conference, or media overlays.
+ */
+.authenticated-meet-workspace {
+  --font-ui: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --fonts-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --background: #ffffff;
+  --foreground: #08142e;
+  --card: #ffffff;
+  --card-foreground: #08142e;
+  --popover: #ffffff;
+  --popover-foreground: #08142e;
+  --muted: #f3f5f8;
+  --muted-foreground: #667085;
+  --secondary: #f3f5f8;
+  --secondary-foreground: #08142e;
+  --accent: #edf2ff;
+  --accent-foreground: #08142e;
+  --selected: #edf2ff;
+  --selected-foreground: #2d5be3;
+  --border: #e4e8ee;
+  --input: #d6dce6;
+  --media-foreground: #3d485e;
+  --overlay: #08142e2e;
+  --shadow-color: #08142e1a;
+  --shadow-strong: #08142e33;
+  --shadow-soft: #08142e05;
+  --workspace-paper: #fafbfc;
+  --workspace-ink-soft: #3d485e;
+  --workspace-line-strong: #d6dce6;
+
+  /* Panda resolves semantic tokens through generated --colors-* variables. */
+  --colors-background: var(--background);
+  --colors-foreground: var(--foreground);
+  --colors-card: var(--card);
+  --colors-card-foreground: var(--card-foreground);
+  --colors-popover: var(--popover);
+  --colors-popover-foreground: var(--popover-foreground);
+  --colors-muted: var(--muted);
+  --colors-muted-foreground: var(--muted-foreground);
+  --colors-secondary: var(--secondary);
+  --colors-secondary-foreground: var(--secondary-foreground);
+  --colors-accent: var(--accent);
+  --colors-accent-foreground: var(--accent-foreground);
+  --colors-selected: var(--selected);
+  --colors-selected-foreground: var(--selected-foreground);
+  --colors-border: var(--border);
+  --colors-input: var(--input);
+  --colors-media-foreground: var(--media-foreground);
+  --colors-overlay: var(--overlay);
+  --colors-default-text: var(--foreground);
+  --colors-default-bg: var(--background);
+  --colors-default-subtle: var(--muted);
+  --colors-default-subtle-text: var(--muted-foreground);
+  --colors-box-text: var(--card-foreground);
+  --colors-box-bg: var(--card);
+  --colors-box-border: var(--border);
+  --colors-control: var(--card);
+  --colors-control-hover: var(--accent);
+  --colors-control-active: var(--selected);
+  --colors-control-text: var(--card-foreground);
+  --colors-control-border: var(--input);
+  --colors-control-subtle: var(--muted-foreground);
+  color: var(--foreground);
+  font-family: var(--fonts-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html.font-lexend .authenticated-meet-workspace {
+  --fonts-sans: 'Lexend Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+html.font-atkinson-hyperlegible .authenticated-meet-workspace {
+  --fonts-sans:
+    'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+html.font-opendyslexic .authenticated-meet-workspace {
+  --fonts-sans: OpenDyslexic, ui-sans-serif, system-ui, sans-serif;
 }

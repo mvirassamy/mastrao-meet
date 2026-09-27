@@ -1,8 +1,18 @@
 import { flexibleRoomIdPattern } from '@/features/rooms'
 import { ComponentType, lazy, LazyExoticComponent } from 'react'
 import { buildPostMeetingPath } from '@/features/rooms/postMeetingRoute'
+import {
+  MEETING_HISTORY_PATH,
+  meetingHistoryDetailPath,
+} from '@/features/meetingHistory/paths'
 
 const HomeRoute = lazy(() => import('@/features/home/routes/Home'))
+const MeetingHistoryRoute = lazy(
+  () => import('@/features/meetingHistory/routes/MeetingHistory')
+)
+const MeetingHistoryMeetingRoute = lazy(
+  () => import('@/features/meetingHistory/routes/MeetingHistoryMeeting')
+)
 const RecordingDownloadRoute = lazy(
   () => import('@/features/recording/routes/RecordingDownload')
 )
@@ -33,6 +43,8 @@ const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
 export const routes: Record<
   | 'home'
+  | 'meetingHistory'
+  | 'meetingHistoryMeeting'
   | 'room'
   | 'guestInvitation'
   | 'feedback'
@@ -56,6 +68,17 @@ export const routes: Record<
     name: 'home',
     path: '/',
     Component: HomeRoute,
+  },
+  meetingHistory: {
+    name: 'meetingHistory',
+    path: MEETING_HISTORY_PATH,
+    Component: MeetingHistoryRoute,
+  },
+  meetingHistoryMeeting: {
+    name: 'meetingHistoryMeeting',
+    path: `${MEETING_HISTORY_PATH}/:meetingId`,
+    to: meetingHistoryDetailPath,
+    Component: MeetingHistoryMeetingRoute,
   },
   room: {
     name: 'room',

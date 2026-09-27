@@ -15,6 +15,7 @@ import { VerticallyOffCenter } from './VerticallyOffCenter'
 import { text } from './Text'
 import { MutableRefObject } from 'react'
 import { css } from '@/styled-system/css'
+import { AppDialog } from './AppDialog'
 
 const StyledModalOverlay = styled(ModalOverlay, {
   base: {
@@ -86,6 +87,11 @@ export type DialogProps = RACDialogProps & {
   type?: 'flex' | 'alert'
   innerRef?: MutableRefObject<HTMLDivElement | null>
   size?: 'full' | 'large'
+  /**
+   * 'app' renders the Mastrao application dialog (authenticated workspace).
+   * Room dialogs keep the default appearance.
+   */
+  appearance?: 'default' | 'app'
 }
 
 export const Dialog = ({
@@ -96,8 +102,29 @@ export const Dialog = ({
   onOpenChange,
   innerRef,
   size = 'full',
+  appearance = 'default',
   ...dialogProps
 }: DialogProps) => {
+  if (appearance === 'app') {
+    // Settings, join and "for later" dialogs share the AppDialog standard.
+    const { type: _type, ...appDialogProps } = dialogProps
+    void _type
+    void innerRef
+    return (
+      <AppDialog
+        {...appDialogProps}
+        title={title ?? ''}
+        size={size === 'large' ? 'lg' : 'md'}
+        isOpen={isOpen}
+        onOpenChange={(open) => {
+          onOpenChange?.(open)
+          if (!open) onClose?.()
+        }}
+      >
+        {children}
+      </AppDialog>
+    )
+  }
   const isAlert = dialogProps['role'] === 'alertdialog'
   const boxType =
     dialogProps['type'] === 'alert'

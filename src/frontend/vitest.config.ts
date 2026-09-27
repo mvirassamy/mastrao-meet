@@ -12,6 +12,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['src/features/rooms/**/*.test.{ts,tsx}'],
+    include: [
+      'src/features/{rooms,home,meetingHistory,settings}/**/*.test.{ts,tsx}',
+      'src/primitives/**/*.test.{ts,tsx}',
+    ],
   },
 })

@@ -27,6 +27,17 @@ describe('getPreviewContent', () => {
       error: 'error',
       loading: 'loading',
       home: 'home',
+      'authenticated-home': 'authenticated-home',
+      'later-meeting-dialog': 'authenticated-home',
+      history: 'meeting-history',
+      'history-loading': 'meeting-history',
+      'history-empty': 'meeting-history',
+      'history-error': 'meeting-history',
+      'history-detail': 'meeting-history',
+      'history-detail-processing': 'meeting-history',
+      'history-detail-absent': 'meeting-history',
+      'history-detail-summary-request': 'meeting-history',
+      'history-detail-error': 'meeting-history',
     })
   })
 })
