@@ -173,6 +173,28 @@ def test_oidc_host_lobby_uses_the_authenticated_oidc_identity(host):
     assert row.rtc_identity == claims["sub"] == str(oidc_user.sub)
 
 
+def test_oidc_host_grant_never_issues_media_for_another_user(host):
+    """The retained OIDC subject only authorizes that exact user."""
+    oidc_user = UserFactory(sub="oidc-user-media-owner")
+    request = _request(host)
+    request.user = oidc_user
+    request.session.update(
+        {
+            "oidc_access_token": "opaque-access-token",
+            SESSION_OIDC_SUBJECT_KEY: str(oidc_user.sub),
+            SESSION_COMPACT_GRANTS_KEY: {
+                host.grant_ref: "synthetic.compact.host.grant"
+            },
+        }
+    )
+
+    with pytest.raises(PermissionDenied, match="Media identity mismatch"):
+        _host_config(
+            host, request=request, user=UserFactory(sub="oidc-user-media-other")
+        )
+    assert not models.MastraoMediaTokenBinding.objects.exists()
+
+
 def test_repeated_issuance_has_distinct_receipts_for_same_grant(host):
     first, second = _host_config(host), _host_config(host)
     assert first["token"] != second["token"]
