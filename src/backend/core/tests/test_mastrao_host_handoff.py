@@ -477,9 +477,13 @@ def test_oidc_session_resolves_only_its_server_bound_host_grant():
     ):
         assert active_host_grant(request, room) is grant
 
-    filter_kwargs = queryset.filter.call_args_list[0].kwargs
-    assert filter_kwargs["grant_ref__in"] == ("grant_0123456789abcdef",)
-    assert "identity__user" not in filter_kwargs
+    assert any(
+        call.kwargs.get("grant_ref__in") == ("grant_0123456789abcdef",)
+        for call in queryset.filter.call_args_list
+    )
+    assert all(
+        "identity__user" not in call.kwargs for call in queryset.filter.call_args_list
+    )
 
     request.session[SESSION_OIDC_SUBJECT_KEY] = "another-user"
     with mock.patch.object(

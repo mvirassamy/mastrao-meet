@@ -34,24 +34,28 @@ def _session_bound_host_grant(request, room, *, observed_at=None, include_closed
     if digest is None or not isinstance(platform_session_ref, str):
         return None
     observed_at = observed_at or timezone.now()
+    dedicated_host = is_mastrao_host_subject(user.sub)
     compact_grants = request.session.get(SESSION_COMPACT_GRANTS_KEY, {})
-    if not isinstance(compact_grants, dict) or not compact_grants:
+    if not dedicated_host and (
+        not isinstance(compact_grants, dict) or not compact_grants
+    ):
         return None
     queryset = models.MastraoHostGrant.objects.select_related(
         "identity", "room_binding"
     ).filter(
-        grant_ref__in=tuple(compact_grants),
         room_binding__room=room,
         session_nonce_digest=digest,
         platform_session_ref=platform_session_ref,
         expires_at__gt=observed_at,
     )
-    if is_mastrao_host_subject(user.sub):
+    if dedicated_host:
         queryset = queryset.filter(identity__user=user)
     elif request.session.get(SESSION_OIDC_SUBJECT_KEY) != str(
         user.sub
     ) or not isinstance(request.session.get("oidc_access_token"), str):
         return None
+    else:
+        queryset = queryset.filter(grant_ref__in=tuple(compact_grants))
     if not include_closed:
         queryset = queryset.filter(
             room_binding__closing_at__isnull=True,
@@ -85,8 +89,11 @@ def active_host_close_grant_for_room_ref(request, room_ref, *, observed_at=None)
     if digest is None or not isinstance(platform_session_ref, str):
         return None
     observed_at = observed_at or timezone.now()
+    dedicated_host = is_mastrao_host_subject(user.sub)
     compact_grants = request.session.get(SESSION_COMPACT_GRANTS_KEY, {})
-    if not isinstance(compact_grants, dict) or not compact_grants:
+    if not dedicated_host and (
+        not isinstance(compact_grants, dict) or not compact_grants
+    ):
         return None
     queryset = models.MastraoHostGrant.objects.select_related(
         "identity",
@@ -94,18 +101,19 @@ def active_host_close_grant_for_room_ref(request, room_ref, *, observed_at=None)
         "room_binding__room",
         "room_binding__closure",
     ).filter(
-        grant_ref__in=tuple(compact_grants),
         room_binding__room_ref=room_ref,
         session_nonce_digest=digest,
         platform_session_ref=platform_session_ref,
         expires_at__gt=observed_at,
     )
-    if is_mastrao_host_subject(user.sub):
+    if dedicated_host:
         queryset = queryset.filter(identity__user=user)
     elif request.session.get(SESSION_OIDC_SUBJECT_KEY) != str(
         user.sub
     ) or not isinstance(request.session.get("oidc_access_token"), str):
         return None
+    else:
+        queryset = queryset.filter(grant_ref__in=tuple(compact_grants))
     return queryset.order_by("-expires_at").first()
 
 
