@@ -25,7 +25,7 @@ export const MeetSidebarUserMenu = ({
   onLogout,
 }: MeetSidebarUserMenuProps) => {
   const { t } = useTranslation()
-  const fullName = user.full_name.trim()
+  const fullName = user.full_name?.trim() ?? ''
   const label = fullName || user.email
   const accessibleLabel = `${t('loggedInUserTooltip')} ${label}`
 
