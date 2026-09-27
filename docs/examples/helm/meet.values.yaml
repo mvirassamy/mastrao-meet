@@ -25,6 +25,8 @@ backend:
     OIDC_RP_CLIENT_SECRET: ThisIsAnExampleKeyForDevPurposeOnly
     OIDC_RP_SIGN_ALGO: RS256
     OIDC_RP_SCOPES: "openid email"
+    OIDC_STORE_ACCESS_TOKEN: True
+    MASTRAO_PLATFORM_API_BASE_URL: https://app.127.0.0.1.nip.io
     OIDC_REDIRECT_ALLOWED_HOSTS: https://meet.127.0.0.1.nip.io
     OIDC_AUTH_REQUEST_EXTRA_PARAMS: "{'acr_values': 'eidas1'}"
     LOGIN_REDIRECT_URL: https://meet.127.0.0.1.nip.io

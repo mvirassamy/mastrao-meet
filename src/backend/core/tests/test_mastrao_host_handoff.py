@@ -13,6 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
+from types import SimpleNamespace
 from unittest import mock
 
 from django.contrib.sessions.backends.cache import SessionStore
@@ -39,7 +40,9 @@ from core.mastrao_host_contract import (
     verify_host_handoff as verify_host_handoff_contract,
 )
 from core.mastrao_host_grant import (
+    SESSION_COMPACT_GRANTS_KEY,
     SESSION_NONCE_KEY,
+    SESSION_OIDC_SUBJECT_KEY,
     SESSION_PLATFORM_REF_KEY,
     active_host_close_grant,
     active_host_grant,
@@ -442,6 +445,53 @@ def test_host_platform_return_rejects_non_origin_configuration():
         "core.mastrao_host_grant.active_host_close_grant", return_value=grant
     ):
         assert host_platform_return_projection(mock.Mock(), mock.Mock()) is None
+
+
+def test_oidc_session_resolves_only_its_server_bound_host_grant():
+    """Resolve only a host grant bound to the current OIDC subject."""
+
+    room = SimpleNamespace()
+    grant = SimpleNamespace(grant_ref="grant_0123456789abcdef")
+    request = SimpleNamespace(
+        user=SimpleNamespace(
+            is_authenticated=True,
+            is_active=True,
+            sub="oidc-user-123",
+        ),
+        session={
+            "oidc_access_token": "opaque-access-token-123",
+            SESSION_OIDC_SUBJECT_KEY: "oidc-user-123",
+            SESSION_NONCE_KEY: "n" * 32,
+            SESSION_PLATFORM_REF_KEY: "platformsession_0123456789abcdef",
+            SESSION_COMPACT_GRANTS_KEY: {"grant_0123456789abcdef": "compact-grant"},
+        },
+    )
+    queryset = mock.MagicMock()
+    queryset.filter.return_value = queryset
+    queryset.order_by.return_value.first.return_value = grant
+
+    with mock.patch.object(
+        models.MastraoHostGrant.objects,
+        "select_related",
+        return_value=queryset,
+    ):
+        assert active_host_grant(request, room) is grant
+
+    assert any(
+        call.kwargs.get("grant_ref__in") == ("grant_0123456789abcdef",)
+        for call in queryset.filter.call_args_list
+    )
+    assert all(
+        "identity__user" not in call.kwargs for call in queryset.filter.call_args_list
+    )
+
+    request.session[SESSION_OIDC_SUBJECT_KEY] = "another-user"
+    with mock.patch.object(
+        models.MastraoHostGrant.objects,
+        "select_related",
+        return_value=queryset,
+    ):
+        assert active_host_grant(request, room) is None
 
 
 @override_settings(MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test")

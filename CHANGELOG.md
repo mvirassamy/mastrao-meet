@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-27: Add the authenticated, same-origin Platform bridge for canonical
+  Meet room creation, creator-scoped history, transcripts and summaries while
+  keeping the OIDC access token in the server-side session.
+
 - 2026-09-27: Add the authenticated Mastrao Meet home, canonical idempotent
   meeting creation, and creator-scoped history with transcript and summary
   states, without changing the LiveKit conference runtime.

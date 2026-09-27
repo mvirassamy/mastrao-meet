@@ -15,6 +15,7 @@ from core.mastrao_identity import is_mastrao_host_subject
 SESSION_NONCE_KEY = "mastrao_host_session_nonce"
 SESSION_PLATFORM_REF_KEY = "mastrao_host_platform_session_ref"
 SESSION_COMPACT_GRANTS_KEY = "mastrao_host_compact_grants"
+SESSION_OIDC_SUBJECT_KEY = "mastrao_host_oidc_subject"
 
 
 def _nonce_digest(nonce):
@@ -26,27 +27,35 @@ def _nonce_digest(nonce):
 def _session_bound_host_grant(request, room, *, observed_at=None, include_closed=False):
     """Resolve the current session-bound grant for this exact room."""
     user = getattr(request, "user", None)
-    if (
-        not user
-        or not user.is_authenticated
-        or not user.is_active
-        or not is_mastrao_host_subject(user.sub)
-    ):
+    if not user or not user.is_authenticated or not user.is_active:
         return None
     digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
     platform_session_ref = request.session.get(SESSION_PLATFORM_REF_KEY)
     if digest is None or not isinstance(platform_session_ref, str):
         return None
     observed_at = observed_at or timezone.now()
+    dedicated_host = is_mastrao_host_subject(user.sub)
+    compact_grants = request.session.get(SESSION_COMPACT_GRANTS_KEY, {})
+    if not dedicated_host and (
+        not isinstance(compact_grants, dict) or not compact_grants
+    ):
+        return None
     queryset = models.MastraoHostGrant.objects.select_related(
         "identity", "room_binding"
     ).filter(
-        identity__user=user,
         room_binding__room=room,
         session_nonce_digest=digest,
         platform_session_ref=platform_session_ref,
         expires_at__gt=observed_at,
     )
+    if dedicated_host:
+        queryset = queryset.filter(identity__user=user)
+    elif request.session.get(SESSION_OIDC_SUBJECT_KEY) != str(
+        user.sub
+    ) or not isinstance(request.session.get("oidc_access_token"), str):
+        return None
+    else:
+        queryset = queryset.filter(grant_ref__in=tuple(compact_grants))
     if not include_closed:
         queryset = queryset.filter(
             room_binding__closing_at__isnull=True,
@@ -73,32 +82,39 @@ def active_host_close_grant_for_room_ref(request, room_ref, *, observed_at=None)
     """Resolve a closed/open host grant by canonical room ref before room disclosure."""
 
     user = getattr(request, "user", None)
-    if (
-        not user
-        or not user.is_authenticated
-        or not user.is_active
-        or not is_mastrao_host_subject(user.sub)
-    ):
+    if not user or not user.is_authenticated or not user.is_active:
         return None
     digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
     platform_session_ref = request.session.get(SESSION_PLATFORM_REF_KEY)
     if digest is None or not isinstance(platform_session_ref, str):
         return None
     observed_at = observed_at or timezone.now()
-    return (
-        models.MastraoHostGrant.objects.select_related(
-            "identity", "room_binding", "room_binding__room", "room_binding__closure"
-        )
-        .filter(
-            identity__user=user,
-            room_binding__room_ref=room_ref,
-            session_nonce_digest=digest,
-            platform_session_ref=platform_session_ref,
-            expires_at__gt=observed_at,
-        )
-        .order_by("-expires_at")
-        .first()
+    dedicated_host = is_mastrao_host_subject(user.sub)
+    compact_grants = request.session.get(SESSION_COMPACT_GRANTS_KEY, {})
+    if not dedicated_host and (
+        not isinstance(compact_grants, dict) or not compact_grants
+    ):
+        return None
+    queryset = models.MastraoHostGrant.objects.select_related(
+        "identity",
+        "room_binding",
+        "room_binding__room",
+        "room_binding__closure",
+    ).filter(
+        room_binding__room_ref=room_ref,
+        session_nonce_digest=digest,
+        platform_session_ref=platform_session_ref,
+        expires_at__gt=observed_at,
     )
+    if dedicated_host:
+        queryset = queryset.filter(identity__user=user)
+    elif request.session.get(SESSION_OIDC_SUBJECT_KEY) != str(
+        user.sub
+    ) or not isinstance(request.session.get("oidc_access_token"), str):
+        return None
+    else:
+        queryset = queryset.filter(grant_ref__in=tuple(compact_grants))
+    return queryset.order_by("-expires_at").first()
 
 
 def host_media_projection(request, room):
