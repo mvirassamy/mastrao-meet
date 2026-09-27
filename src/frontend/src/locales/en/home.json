@@ -89,5 +89,16 @@
       "dateTitle": "No meetings scheduled for this date",
       "description": "Start a meeting now or prepare a link to share for later."
     }
+  },
+  "homeV2": {
+    "eyebrows": {
+      "slide1": "Sovereignty",
+      "slide2": "Simplicity",
+      "slide3": "Artificial intelligence"
+    },
+    "cta": {
+      "title": "Ready to meet?",
+      "body": "Sign in to create a meeting, or join the one you were invited to."
+    }
   }
 }

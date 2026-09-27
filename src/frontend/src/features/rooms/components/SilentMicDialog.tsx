@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
-import { Button, Dialog, H, P } from '@/primitives'
+import { Button, Dialog, DialogActions, P } from '@/primitives'
 import {
   closeSilentMicDialog,
   discardSilentMicDetection,
@@ -22,16 +22,11 @@ export const SilentMicDialog = () => {
       isOpen={isDialogOpen}
       role="dialog"
       type="flex"
-      title=""
+      title={t('title')}
       aria-label={t('title')}
       onClose={closeSilentMicDialog}
     >
-      <div
-        className={css({
-          maxWidth: '500px',
-        })}
-      >
-        <H lvl={1}>{t('title')}</H>
+      <div>
         <P>{t('intro')}</P>
         <ul className={css({ listStyle: 'disc', paddingLeft: '24px' })}>
           <li>{t('causes.system')}</li>
@@ -39,25 +34,14 @@ export const SilentMicDialog = () => {
           <li>{t('causes.wrongDevice')}</li>
         </ul>
         <P>{t('hint')}</P>
-        <div
-          className={css({
-            marginTop: '1.5rem',
-            display: 'flex',
-            gap: '1rem',
-            flexWrap: 'wrap',
-          })}
-        >
-          <Button variant="primary" size="sm" onPress={closeSilentMicDialog}>
-            {t('close')}
-          </Button>
-          <Button
-            variant="tertiary"
-            size="sm"
-            onPress={discardSilentMicDetection}
-          >
+        <DialogActions>
+          <Button variant="outline" onPress={discardSilentMicDetection}>
             {t('discard')}
           </Button>
-        </div>
+          <Button variant="default" onPress={closeSilentMicDialog}>
+            {t('close')}
+          </Button>
+        </DialogActions>
       </div>
     </Dialog>
   )

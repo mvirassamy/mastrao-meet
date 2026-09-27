@@ -7,7 +7,7 @@ import {
   ModalOverlay,
   type DialogProps as RACDialogProps,
 } from 'react-aria-components'
-import { RiCloseFill } from '@remixicon/react'
+import { CloseIcon } from '@/icons'
 import { css, cva, cx } from '@/styled-system/css'
 import { Button } from './Button'
 import { AppAppearanceProvider } from './appAppearance'
@@ -15,12 +15,18 @@ import { AppAppearanceProvider } from './appAppearance'
 type RenderProp = ReactNode | ((opts: { close: () => void }) => ReactNode)
 
 export type AppDialogProps = Omit<RACDialogProps, 'children'> & {
-  title: string
+  /** Omit when the content renders its own title (then set aria-label). */
+  title?: string
   description?: ReactNode
   children: RenderProp
   /** Actions shown in the muted footer, aligned to the right on desktop. */
   footer?: RenderProp
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  /**
+   * 'blur' (default) mirrors the Platform dialog. 'dim' avoids a backdrop
+   * blur, which would be recomputed on every frame of live video in rooms.
+   */
+  backdrop?: 'blur' | 'dim'
   /** Controlled mode; omit inside a DialogTrigger. */
   isOpen?: boolean
   onOpenChange?: (isOpen: boolean) => void
@@ -28,19 +34,28 @@ export type AppDialogProps = Omit<RACDialogProps, 'children'> & {
   bodyClassName?: string
 }
 
-const overlay = css({
-  position: 'fixed',
-  inset: 0,
-  zIndex: 1000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '1rem',
-  backgroundColor: 'rgb(0 0 0 / 0.1)',
-  backdropFilter: 'blur(4px)',
-  transition: 'opacity 100ms ease',
-  '&[data-entering], &[data-exiting]': { opacity: 0 },
-  _motionReduce: { transition: 'none' },
+const overlay = cva({
+  base: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '1rem',
+    transition: 'opacity 100ms ease',
+    '&[data-entering], &[data-exiting]': { opacity: 0 },
+    _motionReduce: { transition: 'none' },
+  },
+  variants: {
+    backdrop: {
+      blur: {
+        backgroundColor: 'rgb(0 0 0 / 0.1)',
+        backdropFilter: 'blur(4px)',
+      },
+      dim: { backgroundColor: 'rgb(8 20 46 / 0.35)' },
+    },
+  },
 })
 
 const panel = cva({
@@ -68,6 +83,7 @@ const panel = cva({
       sm: { maxWidth: '24rem' },
       md: { maxWidth: '32rem' },
       lg: { maxWidth: '46rem' },
+      xl: { maxWidth: '72rem' },
     },
   },
 })
@@ -84,7 +100,7 @@ const dialog = css({
 
 /**
  * Mastrao application dialog: the Platform dialog translated to React Aria.
- * Scoped to the authenticated workspace palette; room dialogs keep Dialog.
+ * Every dialog of the application uses it, through Dialog or directly.
  */
 export const AppDialog = ({
   title,
@@ -92,6 +108,7 @@ export const AppDialog = ({
   children,
   footer,
   size = 'sm',
+  backdrop = 'blur',
   isOpen,
   onOpenChange,
   bodyClassName,
@@ -99,6 +116,7 @@ export const AppDialog = ({
 }: AppDialogProps) => {
   const { t } = useTranslation()
   const isAlert = dialogProps.role === 'alertdialog'
+  const hasHeader = !!title || !!description
   const render = (value: RenderProp | undefined, close: () => void) =>
     typeof value === 'function' ? value({ close }) : value
 
@@ -108,45 +126,49 @@ export const AppDialog = ({
       onOpenChange={onOpenChange}
       isDismissable={!isAlert}
       isKeyboardDismissDisabled={isAlert}
-      className={`authenticated-meet-workspace ${overlay}`}
+      className={`authenticated-meet-workspace ${overlay({ backdrop })}`}
     >
       <Modal className={panel({ size })}>
         <RACDialog {...dialogProps} className={dialog}>
           {({ close }) => (
             <AppAppearanceProvider>
-              <div
-                className={css({
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                  padding: '1rem',
-                  paddingRight: isAlert ? '1rem' : '3rem',
-                })}
-              >
-                <Heading
-                  slot="title"
+              {hasHeader && (
+                <div
                   className={css({
-                    margin: 0,
-                    fontSize: '1rem',
-                    lineHeight: 1,
-                    fontWeight: 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    padding: '1rem',
+                    paddingRight: isAlert ? '1rem' : '3rem',
                   })}
                 >
-                  {title}
-                </Heading>
-                {description && (
-                  <p
-                    className={css({
-                      margin: 0,
-                      color: 'muted-foreground',
-                      fontSize: '0.875rem',
-                      lineHeight: '1.25rem',
-                    })}
-                  >
-                    {description}
-                  </p>
-                )}
-              </div>
+                  {title && (
+                    <Heading
+                      slot="title"
+                      className={css({
+                        margin: 0,
+                        fontSize: '1rem',
+                        lineHeight: 1.25,
+                        fontWeight: 500,
+                      })}
+                    >
+                      {title}
+                    </Heading>
+                  )}
+                  {description && (
+                    <p
+                      className={css({
+                        margin: 0,
+                        color: 'muted-foreground',
+                        fontSize: '0.875rem',
+                        lineHeight: '1.25rem',
+                      })}
+                    >
+                      {description}
+                    </p>
+                  )}
+                </div>
+              )}
               <div
                 className={cx(
                   css({
@@ -156,13 +178,26 @@ export const AppDialog = ({
                     paddingX: '1rem',
                     paddingBottom: '1rem',
                     // Normalise the typography of reused content.
+                    '& h1': {
+                      marginTop: 0,
+                      marginBottom: '0.5rem',
+                      fontSize: '1rem',
+                      lineHeight: '1.5rem',
+                      fontWeight: 500,
+                    },
                     '& :is(h2, h3)': {
                       fontSize: '0.875rem',
                       lineHeight: '1.25rem',
                       fontWeight: 600,
                     },
-                    '& p': { fontSize: '0.875rem', lineHeight: '1.25rem' },
+                    '& :is(p, li)': {
+                      fontSize: '0.875rem',
+                      lineHeight: '1.25rem',
+                    },
                   }),
+                  !hasHeader && css({ paddingTop: '1rem' }),
+                  // Keep the content clear of the close button.
+                  !hasHeader && !isAlert && css({ paddingRight: '2.75rem' }),
                   bodyClassName
                 )}
               >
@@ -186,8 +221,7 @@ export const AppDialog = ({
               )}
               {!isAlert && (
                 <Button
-                  square
-                  size="appIcon"
+                  size="icon"
                   variant="ghost"
                   aria-label={t('closeDialog')}
                   onPress={close}
@@ -201,7 +235,7 @@ export const AppDialog = ({
                     _hover: { color: 'foreground' },
                   })}
                 >
-                  <RiCloseFill aria-hidden="true" />
+                  <CloseIcon aria-hidden="true" />
                 </Button>
               )}
             </AppAppearanceProvider>

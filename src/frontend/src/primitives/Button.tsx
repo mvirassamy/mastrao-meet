@@ -7,6 +7,7 @@ import { buttonRecipe, type ButtonRecipe } from './buttonRecipe'
 import { TooltipWrapper, type TooltipWrapperProps } from './TooltipWrapper'
 import { ReactNode, forwardRef } from 'react'
 import { Loader } from './Loader'
+import { callControlAttribute } from './callControl'
 
 export type ButtonProps = RecipeVariantProps<ButtonRecipe> &
   RACButtonsProps &
@@ -27,6 +28,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         <RACButton
           ref={ref}
           className={[buttonRecipe(variantProps), className].join(' ')}
+          data-call-control={callControlAttribute(variantProps)}
           {...(remainingComponentProps as RACButtonsProps)}
         >
           {!props.loading && props.icon}

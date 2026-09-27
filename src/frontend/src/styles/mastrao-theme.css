@@ -6,13 +6,40 @@
   --radius-surface: 16px;
   --radius-dialog: 20px;
   --call-control-size: 44px;
+  /*
+   * Button palette, fixed to the Platform "mastrao-workspace" theme so buttons
+   * are identical on every screen (public pages, workspace, room).
+   */
+  --button-primary: #2d5be3;
+  --button-primary-foreground: #ffffff;
+  --button-secondary: #f3f5f8;
+  --button-secondary-foreground: #08142e;
+  --button-muted: #f3f5f8;
+  --button-foreground: #08142e;
+  --button-background: #ffffff;
+  --button-accent: #edf2ff;
+  --button-ink-soft: #3d485e;
+  --button-destructive: #e7000b;
+  --button-ring: #2d5be3;
+  /* Call controls needing an action (camera/micro permissions): "Orange Mastrao". */
+  --call-attention: #ffedd5;
+  --call-attention-hover: #fed7aa;
+  --call-attention-foreground: #c2410c;
+  --call-attention-border: #fdba74;
+  --call-attention-badge: #ea580c;
+  --call-separator: #e4e8ee;
   color-scheme: light;
   --background: #f5f7fb;
-  --foreground: #14213a;
+  /*
+   * Text inks, as on the Platform (mastrao-palette): body text and icons use
+   * the soft ink, titles keep the strong ink.
+   */
+  --heading-foreground: #08142e;
+  --foreground: #3d485e;
   --card: #ffffff;
-  --card-foreground: #14213a;
+  --card-foreground: #3d485e;
   --popover: #ffffff;
-  --popover-foreground: #14213a;
+  --popover-foreground: #3d485e;
   --muted: #eef2f7;
   --muted-foreground: #56637a;
   --primary: #2d5be3;
@@ -70,11 +97,12 @@
   --font-ui: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --fonts-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --background: #ffffff;
-  --foreground: #08142e;
+  --heading-foreground: #08142e;
+  --foreground: #3d485e;
   --card: #ffffff;
-  --card-foreground: #08142e;
+  --card-foreground: #3d485e;
   --popover: #ffffff;
-  --popover-foreground: #08142e;
+  --popover-foreground: #3d485e;
   --muted: #f3f5f8;
   --muted-foreground: #667085;
   --secondary: #f3f5f8;

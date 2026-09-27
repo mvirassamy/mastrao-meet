@@ -5,6 +5,7 @@ import {
 } from 'react-aria-components'
 import { type ButtonRecipeProps, buttonRecipe } from './buttonRecipe'
 import { TooltipWrapper, type TooltipWrapperProps } from './TooltipWrapper'
+import { callControlAttribute } from './callControl'
 
 export type ToggleButtonProps = RACToggleButtonProps &
   ButtonRecipeProps &
@@ -26,6 +27,7 @@ export const ToggleButton = forwardRef<HTMLButtonElement, ToggleButtonProps>(
           ref={ref}
           {...componentProps}
           className={[buttonRecipe(variantProps), props.className].join(' ')}
+          data-call-control={callControlAttribute(variantProps)}
         >
           <>
             {componentProps.children as ReactNode}

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useMemo } from 'react'
 import { VStack } from '@/styled-system/jsx'
 import { css } from '@/styled-system/css'
-import { RiCheckFill, RiFileCopyFill } from '@remixicon/react'
+import { CheckIcon, CopyIcon } from '@/icons'
 import { Bold, Button, Div, Text } from '@/primitives'
 import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { useRoomData } from '../hooks/useRoomData'
@@ -28,7 +28,7 @@ export const Info = () => {
     <Div
       display="flex"
       overflowY="scroll"
-      padding="0 1.5rem"
+      padding="0 1.25rem"
       flexGrow={1}
       flexDirection="column"
       alignItems="start"
@@ -36,9 +36,13 @@ export const Info = () => {
       <VStack alignItems="start">
         <Text
           as="h3"
+          variant="inherits"
           className={css({
             display: 'flex',
             alignItems: 'center',
+            fontSize: '0.875rem',
+            lineHeight: '1.25rem',
+            fontWeight: 600,
           })}
         >
           {t('roomInformation.title')}
@@ -68,7 +72,7 @@ export const Info = () => {
         </div>
         <Button
           size="sm"
-          variant={isCopied ? 'success' : 'tertiaryText'}
+          variant={isCopied ? 'secondary' : 'ghost'}
           aria-label={t('roomInformation.button.ariaLabel')}
           onPress={copyRoomToClipboard}
           data-attr="copy-info-sidepannel"
@@ -78,20 +82,12 @@ export const Info = () => {
         >
           {isCopied ? (
             <>
-              <RiCheckFill
-                size={24}
-                style={{ marginRight: '6px' }}
-                aria-hidden="true"
-              />
+              <CheckIcon aria-hidden="true" />
               {t('roomInformation.button.copied')}
             </>
           ) : (
             <>
-              <RiFileCopyFill
-                size={24}
-                style={{ marginRight: '6px' }}
-                aria-hidden="true"
-              />
+              <CopyIcon aria-hidden="true" />
               {t('roomInformation.button.copy')}
             </>
           )}

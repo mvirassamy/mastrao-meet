@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RiMoreFill } from '@remixicon/react'
+import { MoreHorizontalIcon } from '@/icons'
 import { FocusScope } from 'react-aria'
 import { Box, Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -94,17 +94,17 @@ export const PipOptionsMenu = ({ overflowControls }: PipOptionsMenuProps) => {
       })}
     >
       <Button
+        size="icon"
         ref={triggerRef}
         id="room-options-trigger"
-        square
-        variant="primaryDark"
+        variant="outline"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         tooltip={label}
         onPress={() => setIsOpen(!isOpen)}
       >
-        <RiMoreFill />
+        <MoreHorizontalIcon />
       </Button>
       {isOpen && (
         <div

@@ -4,7 +4,7 @@ import { Link } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { HStack, VStack } from '@/styled-system/jsx'
 import { css } from '@/styled-system/css'
-import { RiCloseFill, RiFileCopyFill, RiSettings3Fill } from '@remixicon/react'
+import { CloseIcon, CopyIcon, SettingsIcon } from '@/icons'
 import { Text } from '@/primitives'
 import { Spinner } from '@/primitives/Spinner'
 import { buttonRecipe } from '@/primitives/buttonRecipe'
@@ -128,9 +128,9 @@ const CreateMeetingButton = () => {
         >
           <Spinner size={34} />
           <Button
-            variant="quaternaryText"
-            square
-            icon={<RiCloseFill />}
+            size="icon"
+            variant="ghost"
+            icon={<CloseIcon />}
             onPress={resetState}
             aria-label={t('resetLabel')}
           />
@@ -168,9 +168,9 @@ const CreateMeetingButton = () => {
             <HStack gap={0}>
               {showSettingsButton && (
                 <Button
-                  variant="quaternaryText"
-                  square
-                  icon={<RiSettings3Fill />}
+                  size="icon"
+                  variant="ghost"
+                  icon={<SettingsIcon />}
                   aria-label={t('settingsTooltip')}
                   onPress={() => {
                     popupManager.createSettingsPopupWindow(room.slug, () => {})
@@ -178,9 +178,9 @@ const CreateMeetingButton = () => {
                 />
               )}
               <Button
-                variant="quaternaryText"
-                square
-                icon={<RiFileCopyFill />}
+                size="icon"
+                variant="ghost"
+                icon={<CopyIcon />}
                 onPress={() => {
                   navigator.clipboard.writeText(roomUrl)
                 }}
@@ -188,9 +188,9 @@ const CreateMeetingButton = () => {
               />
               {searchParams.get('readOnly') === 'false' && (
                 <Button
-                  variant="quaternaryText"
-                  square
-                  icon={<RiCloseFill />}
+                  size="icon"
+                  variant="ghost"
+                  icon={<CloseIcon />}
                   onPress={resetState}
                   aria-label={t('resetLabel')}
                 />

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Text } from '@/primitives'
 import { Screen } from '@/layout/Screen'
 import { Center, HStack, styled, VStack } from '@/styled-system/jsx'
+import { css } from '@/styled-system/css'
 import { Rating } from '@/features/rooms/components/Rating.tsx'
 import { useLocation } from 'wouter'
 import { useEffect, useMemo, useRef } from 'react'
@@ -110,6 +111,23 @@ const FeedbackRoute = () => {
     <Screen layout="centered" footer={false}>
       <Center>
         <VStack>
+          {reasonKey === DisconnectReasonKey.MeetingEnded && (
+            <img
+              src="/assets/illustrations/reunion-terminee.webp"
+              alt=""
+              width={768}
+              height={512}
+              decoding="async"
+              className={css({
+                display: 'block',
+                width: { base: '220px', md: '300px' },
+                height: 'auto',
+                marginBottom: '0.5rem',
+                userSelect: 'none',
+                pointerEvents: 'none',
+              })}
+            />
+          )}
           <Heading ref={headingRef} tabIndex={-1}>
             {t(`feedback.heading.${reasonKey || 'normal'}`)}
           </Heading>
@@ -121,7 +139,7 @@ const FeedbackRoute = () => {
           <HStack>
             {showPlatformReturn && (
               <Button
-                variant="primary"
+                variant="default"
                 onPress={() => {
                   window.open(
                     platformReturn as string,
@@ -139,7 +157,7 @@ const FeedbackRoute = () => {
               </Button>
             )}
             <Button
-              variant={showPlatformReturn ? 'outline' : 'primary'}
+              variant={showPlatformReturn ? 'outline' : 'default'}
               onPress={() => setLocation('/')}
             >
               {t('feedback.home')}

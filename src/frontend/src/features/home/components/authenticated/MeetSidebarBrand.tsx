@@ -1,4 +1,4 @@
-import { RiCloseFill } from '@remixicon/react'
+import { CloseIcon } from '@/icons'
 import { Link } from 'wouter'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -85,9 +85,8 @@ export const MeetSidebarBrand = ({
       </Link>
     )}
     <Button
-      square
-      size="appIcon"
-      variant="secondaryText"
+      size="icon"
+      variant="ghost"
       aria-label={toggleLabel}
       tooltip={toggleLabel}
       onPress={onToggle}
@@ -101,7 +100,7 @@ export const MeetSidebarBrand = ({
         '& svg': { width: '19px', height: '19px' },
       })}
     >
-      {mobile ? <RiCloseFill aria-hidden="true" /> : <MastraoSidebarIcon />}
+      {mobile ? <CloseIcon aria-hidden="true" /> : <MastraoSidebarIcon />}
     </Button>
   </div>
 )

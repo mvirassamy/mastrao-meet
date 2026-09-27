@@ -3,6 +3,7 @@ import { type RecipeVariantProps } from '@/styled-system/css'
 import { buttonRecipe, type ButtonRecipe } from './buttonRecipe'
 import { TooltipWrapper, type TooltipWrapperProps } from './TooltipWrapper'
 import { ReactNode } from 'react'
+import { callControlAttribute } from './callControl'
 
 type LinkButtonProps = RecipeVariantProps<ButtonRecipe> &
   LinkProps &
@@ -21,7 +22,11 @@ export const LinkButton = ({
 
   return (
     <TooltipWrapper tooltip={tooltip} tooltipType={tooltipType}>
-      <Link className={buttonRecipe(variantProps)} {...componentProps}>
+      <Link
+        className={buttonRecipe(variantProps)}
+        data-call-control={callControlAttribute(variantProps)}
+        {...componentProps}
+      >
         <>
           {componentProps.children as ReactNode}
           {props.description && <span>{tooltip}</span>}

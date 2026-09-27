@@ -74,7 +74,7 @@ export function ToastRecordingRequest({
           >
             <Button
               size="sm"
-              variant="text"
+              variant="link"
               className={css({
                 color: 'primary',
               })}

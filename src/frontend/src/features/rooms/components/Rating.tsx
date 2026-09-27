@@ -115,7 +115,7 @@ const OpenFeedback = ({
       />
       <VStack gap="0.5">
         <Button
-          variant="primary"
+          variant="default"
           size="sm"
           fullWidth
           isDisabled={!feedback}
@@ -123,13 +123,7 @@ const OpenFeedback = ({
         >
           {t('submit')}
         </Button>
-        <Button
-          invisible
-          variant="outline"
-          size="sm"
-          fullWidth
-          onPress={onNext}
-        >
+        <Button variant="outline" size="sm" fullWidth onPress={onNext}>
           {t('skip')}
         </Button>
       </VStack>
@@ -199,7 +193,7 @@ const RateQuality = ({
         </Text>
       </div>
       <Button
-        variant="primary"
+        variant="default"
         size="sm"
         fullWidth
         isDisabled={!selectedRating}

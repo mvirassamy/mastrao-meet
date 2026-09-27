@@ -3,7 +3,7 @@ import { HStack, VStack } from '@/styled-system/jsx'
 import { Avatar } from '@/components/Avatar'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { RiInfinityFill } from '@remixicon/react'
+import { InfinityIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
 import { usePrevious } from '@/hooks/usePrevious'
@@ -123,7 +123,7 @@ export const WaitingParticipantNotification = () => {
             <HStack gap="0.25rem" marginLeft="auto">
               <Button
                 size="sm"
-                variant="text"
+                variant="link"
                 className={css({
                   color: 'primary',
                 })}
@@ -136,7 +136,7 @@ export const WaitingParticipantNotification = () => {
               </Button>
               <Button
                 size="sm"
-                variant="text"
+                variant="link"
                 className={css({
                   color: 'primary',
                 })}
@@ -188,7 +188,7 @@ export const WaitingParticipantNotification = () => {
                   {waitingParticipants.length < 102 ? (
                     <p>+{waitingParticipants.length - 2}</p>
                   ) : (
-                    <RiInfinityFill size={20} />
+                    <InfinityIcon size={20} />
                   )}
                 </span>
               )}
@@ -206,7 +206,7 @@ export const WaitingParticipantNotification = () => {
             {!isParticipantsOpen && (
               <Button
                 size="sm"
-                variant="text"
+                variant="link"
                 className={css({
                   color: 'primary',
                 })}

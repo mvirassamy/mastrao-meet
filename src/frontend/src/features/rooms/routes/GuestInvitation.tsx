@@ -46,6 +46,20 @@ const GuestInvitation = () => {
         textAlign="center"
         className={css({ maxWidth: '32rem', paddingX: '1.5rem' })}
       >
+        <img
+          src="/assets/illustrations/invitation.webp"
+          alt=""
+          width={768}
+          height={328}
+          decoding="async"
+          className={css({
+            display: 'block',
+            width: { base: '240px', md: '320px' },
+            height: 'auto',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          })}
+        />
         <H lvl={1} margin={false} centered>
           {t('guestInvitation.title')}
         </H>

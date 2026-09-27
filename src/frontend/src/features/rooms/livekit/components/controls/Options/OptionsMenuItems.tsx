@@ -1,5 +1,6 @@
 import { Menu as RACMenu, MenuSection } from 'react-aria-components'
 import { Separator } from '@/primitives/Separator'
+import { menuRecipe } from '@/primitives/menuRecipe'
 import { FullScreenMenuItem } from './FullScreenMenuItem'
 import { SettingsMenuItem } from './SettingsMenuItem'
 import { FeedbackMenuItem } from './FeedbackMenuItem'
@@ -10,13 +11,13 @@ import { TranscriptMenuItem } from './TranscriptMenuItem'
 import { ScreenRecordingMenuItem } from './ScreenRecordingMenuItem'
 import { PictureInPictureMenuItem } from '@/features/rooms/livekit/components/controls/Options/PictureInPictureMenuItem'
 
-// @todo try refactoring it to use MenuList component
 export const OptionsMenuItems = () => {
   return (
     <RACMenu
+      className={menuRecipe({ density: 'app' }).root}
       style={{
-        minWidth: '150px',
-        width: '300px',
+        minWidth: '13rem',
+        width: '15rem',
       }}
     >
       <MenuSection>

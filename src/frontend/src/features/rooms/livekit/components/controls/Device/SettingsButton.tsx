@@ -1,5 +1,5 @@
 import { Button } from '@/primitives'
-import { RiSettings3Fill } from '@remixicon/react'
+import { SettingsIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { SettingsDialogExtendedKey } from '@/features/settings/type'
 import { openSettingsDialog } from '@/stores/settings'
@@ -15,18 +15,16 @@ export const SettingsButton = ({
 
   return (
     <Button
-      shape="circle"
-      size="sm"
-      square
+      size="icon-lg"
       tooltip={t(`settings.${settingTab}`)}
       aria-label={t(`settings.${settingTab}`)}
-      variant="primaryDark"
+      variant="ghost"
       onPress={() => {
         openSettingsDialog(settingTab)
         onPress?.()
       }}
     >
-      <RiSettings3Fill size={24} />
+      <SettingsIcon aria-hidden="true" />
     </Button>
   )
 }

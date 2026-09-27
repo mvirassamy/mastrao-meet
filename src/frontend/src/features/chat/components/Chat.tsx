@@ -7,7 +7,7 @@ import { styled } from '@/styled-system/jsx'
 const ChatContainer = styled('div', {
   base: {
     display: 'flex',
-    padding: '0 1.5rem',
+    padding: '0 1.25rem',
     flexGrow: 1,
     flexDirection: 'column',
     minHeight: 0,
@@ -26,9 +26,12 @@ const ChatMessagesContainer = styled('div', {
 const TextContainer = styled('div', {
   base: {
     display: 'flex',
-    padding: '0.75rem',
+    padding: '0.625rem 0.75rem',
     backgroundColor: 'muted',
-    borderRadius: 4,
+    borderRadius: '8px',
+    color: 'muted-foreground',
+    fontSize: '0.8125rem',
+    lineHeight: '1.25rem',
     marginBottom: '0.75rem',
   },
 })
@@ -39,7 +42,7 @@ export const Chat = () => {
   return (
     <ChatContainer>
       <TextContainer>
-        <Text variant="sm">{t('disclaimer')}</Text>
+        <Text variant="inherits">{t('disclaimer')}</Text>
       </TextContainer>
       <ChatMessagesContainer>
         <ChatMessages />

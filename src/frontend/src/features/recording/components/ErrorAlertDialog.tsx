@@ -1,4 +1,4 @@
-import { Button, Dialog, P } from '@/primitives'
+import { Button, Dialog, DialogActions, P } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
 import { recordingStore } from '@/stores/recording'
@@ -17,13 +17,14 @@ export const ErrorAlertDialog = () => {
       aria-label={t('title')}
     >
       <P>{t(`body.${recordingSnap.isErrorDialogOpen}`)}</P>
-      <Button
-        variant="text"
-        size="sm"
-        onPress={() => (recordingStore.isErrorDialogOpen = '')}
-      >
-        {t('button')}
-      </Button>
+      <DialogActions>
+        <Button
+          variant="default"
+          onPress={() => (recordingStore.isErrorDialogOpen = '')}
+        >
+          {t('button')}
+        </Button>
+      </DialogActions>
     </Dialog>
   )
 }

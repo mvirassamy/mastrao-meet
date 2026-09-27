@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-09-27: Align the Meet frontend with the Mastrao Platform look: shared
+  dialogs, platform buttons and Heroicons, softer text inks, compact room
+  menus and side panels, orange permission state in the call bar, a new public
+  home, and illustrated loading, error and empty states. No change to the
+  LiveKit audio and video runtime.
+
 - 2026-09-27: Prevent the authenticated Meet workspace from crashing when an
   OIDC profile has no full name, falling back to the user email.
 

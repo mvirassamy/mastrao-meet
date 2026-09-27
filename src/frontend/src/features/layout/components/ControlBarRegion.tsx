@@ -7,7 +7,7 @@ const controlBarRegion = cva({
     alignItems: 'center',
     flex: '1 1 33%',
     justifyContent: 'center',
-    gap: '0.65rem',
+    gap: '10px',
   },
   variants: {
     mobile: {

@@ -32,7 +32,7 @@ export function ToastLowerHand({ state, ...props }: Readonly<ToastProps>) {
         <p>{t('auto')}</p>
         <Button
           size="sm"
-          variant="text"
+          variant="link"
           className={css({
             color: 'primary',
             marginLeft: '0.5rem',

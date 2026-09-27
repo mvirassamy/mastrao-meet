@@ -89,5 +89,16 @@
       "dateTitle": "Für dieses Datum sind keine Meetings geplant",
       "description": "Starte jetzt ein Meeting oder erstelle einen Link zum späteren Teilen."
     }
+  },
+  "homeV2": {
+    "eyebrows": {
+      "slide1": "Souveränität",
+      "slide2": "Einfachheit",
+      "slide3": "Künstliche Intelligenz"
+    },
+    "cta": {
+      "title": "Bereit für Ihr Treffen?",
+      "body": "Melde dich an, um ein Meeting zu erstellen, oder tritt dem Meeting bei, zu dem du eingeladen wurdest."
+    }
   }
 }

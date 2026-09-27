@@ -2,8 +2,7 @@ import { TrackReferenceOrPlaceholder } from '@livekit/components-core'
 import { useTranslation } from 'react-i18next'
 import { useFullScreen } from '@/features/rooms/livekit/hooks/useFullScreen'
 import { Button } from '@/primitives'
-import { RiFullscreenFill } from '@remixicon/react'
-
+import { FullscreenIcon } from '@/icons'
 export const ZoomButton = ({
   trackRef,
 }: {
@@ -20,13 +19,12 @@ export const ZoomButton = ({
 
   return (
     <Button
-      size="sm"
-      variant="primaryTextDark"
-      square
+      size="icon-sm"
+      variant="ghost"
       tooltip={t('fullScreen')}
       onPress={() => toggleFullScreen()}
     >
-      <RiFullscreenFill />
+      <FullscreenIcon />
     </Button>
   )
 }

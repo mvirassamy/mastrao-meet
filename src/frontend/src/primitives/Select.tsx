@@ -1,11 +1,11 @@
 import { type ReactNode } from 'react'
 import { styled, VisuallyHidden } from '@/styled-system/jsx'
 import {
-  RemixiconComponentType,
-  RiArrowDownSFill,
-  RiArrowDropDownFill,
-  RiCheckFill,
-} from '@remixicon/react'
+  type AppIconComponent,
+  ChevronDownIcon,
+  DropdownIcon,
+  CheckIcon,
+} from '@/icons'
 import {
   Button,
   ListBox,
@@ -100,7 +100,7 @@ export type SelectProps<T> = Omit<
   RACSelectProps<object>,
   'items' | 'label' | 'errors'
 > & {
-  iconComponent?: RemixiconComponentType
+  iconComponent?: AppIconComponent
   label: ReactNode
   items: Array<{ value: T; label: ReactNode }>
   errors?: ReactNode
@@ -146,7 +146,7 @@ export const Select = <T extends string | number>({
               </StyledIcon>
             )}
             <StyledSelectValue />
-            <RiArrowDropDownFill
+            <DropdownIcon
               aria-hidden="true"
               className={css({ flexShrink: 0 })}
             />
@@ -195,7 +195,6 @@ const appTrigger = css({
   gap: '0.5rem',
   width: '100%',
   minHeight: { base: '40px', md: '36px' },
-  marginTop: '0.375rem',
   paddingX: '0.75rem',
   border: '1px solid token(colors.border)',
   borderRadius: '8px',
@@ -226,6 +225,9 @@ const appTrigger = css({
     transition: 'transform 150ms',
   },
 })
+
+// Space under a visible label only; bare selects align with their siblings.
+const appTriggerLabelled = css({ marginTop: '0.375rem' })
 
 const appValue = css({
   minWidth: 0,
@@ -294,7 +296,7 @@ const AppSelect = <T extends string | number>({
       {({ isOpen }) => (
         <>
           {label}
-          <Button className={appTrigger}>
+          <Button className={cx(appTrigger, !!label && appTriggerLabelled)}>
             {!!IconComponent && (
               <IconComponent
                 size={16}
@@ -303,11 +305,7 @@ const AppSelect = <T extends string | number>({
               />
             )}
             <SelectValue className={appValue} />
-            <RiArrowDownSFill
-              size={16}
-              aria-hidden="true"
-              className="chevron"
-            />
+            <ChevronDownIcon size={16} aria-hidden="true" className="chevron" />
           </Button>
           <Popover
             placement={placement}
@@ -330,7 +328,7 @@ const AppSelect = <T extends string | number>({
                       {item.label}
                       {isSelected && (
                         <>
-                          <RiCheckFill
+                          <CheckIcon
                             size={16}
                             aria-hidden="true"
                             className="check"

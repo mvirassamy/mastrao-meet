@@ -1,8 +1,4 @@
-import {
-  RiCalendarEventFill,
-  RiHistoryFill,
-  type RemixiconComponentType,
-} from '@remixicon/react'
+import { CalendarEventIcon, HistoryIcon, type AppIconComponent } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'wouter'
 import {
@@ -21,7 +17,7 @@ type MeetSidebarNavProps = {
 type NavItem = {
   to: string
   label: string
-  Icon: RemixiconComponentType
+  Icon: AppIconComponent
   isActive: boolean
 }
 
@@ -36,13 +32,13 @@ export const MeetSidebarNav = ({
     {
       to: '/',
       label: t('dashboard.sidebar.meetings'),
-      Icon: RiCalendarEventFill,
+      Icon: CalendarEventIcon,
       isActive: location === '/',
     },
     {
       to: MEETING_HISTORY_PATH,
       label: t('dashboard.sidebar.history'),
-      Icon: RiHistoryFill,
+      Icon: HistoryIcon,
       isActive: isMeetingHistoryPath(location),
     },
   ]

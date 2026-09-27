@@ -1,4 +1,4 @@
-import { RiSettings3Fill } from '@remixicon/react'
+import { SettingsIcon } from '@/icons'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -9,10 +9,12 @@ export const SettingsMenuItem = () => {
 
   return (
     <MenuItem
-      className={menuRecipe({ icon: true, variant: 'dark' }).item}
+      className={
+        menuRecipe({ icon: true, variant: 'dark', density: 'app' }).item
+      }
       onAction={() => openSettingsDialog()}
     >
-      <RiSettings3Fill size={20} />
+      <SettingsIcon size={20} />
       {t('settings')}
     </MenuItem>
   )

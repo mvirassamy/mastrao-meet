@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button, Dialog, P } from '@/primitives'
-import { HStack } from '@/styled-system/jsx'
+import { Button, Dialog, DialogActions, P } from '@/primitives'
 
 export const MuteAlertDialog = ({
   isOpen,
@@ -23,14 +22,14 @@ export const MuteAlertDialog = ({
       aria-label={t('heading', { name })}
     >
       <P>{t('description', { name })}</P>
-      <HStack gap={1}>
-        <Button variant="text" size="sm" onPress={onClose}>
+      <DialogActions>
+        <Button variant="outline" onPress={onClose}>
           {t('cancel')}
         </Button>
-        <Button variant="text" size="sm" onPress={onSubmit}>
+        <Button variant="default" onPress={onSubmit}>
           {t('confirm')}
         </Button>
-      </HStack>
+      </DialogActions>
     </Dialog>
   )
 }

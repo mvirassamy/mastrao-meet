@@ -131,7 +131,7 @@ export const FullScreenShareWarning = ({
               <Button
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
-                variant="tertiary"
+                variant="secondary"
                 size="sm"
                 style={{
                   height: 'fit-content',

@@ -8,9 +8,17 @@ import {
   ProcessorType,
 } from '../blur'
 import { css } from '@/styled-system/css'
-import { Button, Dialog, H, P, Text, ToggleButton } from '@/primitives'
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  H,
+  P,
+  Text,
+  ToggleButton,
+} from '@/primitives'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
-import { HStack, styled } from '@/styled-system/jsx'
+import { styled } from '@/styled-system/jsx'
 import { BlurOn } from '@/components/icons/BlurOn'
 import { BlurOnStrong } from '@/components/icons/BlurOnStrong'
 import { useTrackToggle } from '@livekit/components-react'
@@ -25,7 +33,7 @@ import {
 } from '@/features/files/api/listFiles.ts'
 import { useCreateFile } from '@/features/files/api/createFile.ts'
 import { FileTrigger } from 'react-aria-components'
-import { RiDeleteBinFill, RiImageAddFill } from '@remixicon/react'
+import { DeleteIcon, ImageAddIcon } from '@/icons'
 import { useDeleteFile } from '@/features/files/api/deleteFile.ts'
 import { useUser } from '@/features/auth/api/useUser'
 import { ApiFileItem } from '@/features/files/api/types.ts'
@@ -773,8 +781,8 @@ export const EffectsConfiguration = ({
                                 })
                               }
                               aria-label={option.ariaDeleteLabel}
-                              size={'xs'}
-                              variant={'tertiary'}
+                              size="xs"
+                              variant={'secondary'}
                               onClick={() => {
                                 if (option.isSelected) {
                                   // we remove the current effect
@@ -786,7 +794,7 @@ export const EffectsConfiguration = ({
                               }}
                               isDisabled={deleteFileMutation.isPending}
                             >
-                              <RiDeleteBinFill size={16} />
+                              <DeleteIcon size={16} />
                             </Button>
                           </div>
                         </div>
@@ -861,7 +869,7 @@ export const EffectsConfiguration = ({
                       }
                       data-attr="input-file-select-personal-background"
                     >
-                      <RiImageAddFill />
+                      <ImageAddIcon />
                     </Button>
                   </FileTrigger>
                 </div>
@@ -950,15 +958,14 @@ export const EffectsConfiguration = ({
             filePickerErrorContext
           )}
         </P>
-        <HStack justifyContent="end" direction="row">
+        <DialogActions>
           <Button
-            variant="text"
-            size="sm"
+            variant="default"
             onPress={() => setPersonalBackgroundHasError(false)}
           >
             {t('virtual.personal.errors.close')}
           </Button>
-        </HStack>
+        </DialogActions>
       </Dialog>
     </div>
   )

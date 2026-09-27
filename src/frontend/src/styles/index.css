@@ -107,3 +107,13 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/*
+ * Titles keep the strong Mastrao ink. Declared in the base layer so any
+ * explicit colour set by a component (utilities layer) still wins.
+ */
+@layer base {
+  :where(h1, h2, h3, h4) {
+    color: var(--heading-foreground, currentColor);
+  }
+}

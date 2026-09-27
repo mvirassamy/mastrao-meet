@@ -1,4 +1,4 @@
-import { RiImageCircleAiFill } from '@remixicon/react'
+import { EffectsIcon } from '@/icons'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -11,9 +11,11 @@ export const EffectsMenuItem = () => {
   return (
     <MenuItem
       onAction={() => toggleEffects()}
-      className={menuRecipe({ icon: true, variant: 'dark' }).item}
+      className={
+        menuRecipe({ icon: true, variant: 'dark', density: 'app' }).item
+      }
     >
-      <RiImageCircleAiFill size={20} />
+      <EffectsIcon size={20} />
       {t('effects')}
     </MenuItem>
   )

@@ -1,3 +1,2 @@
-import { RiVideoOnFill } from '@remixicon/react'
-
-export const CameraIcon = () => <RiVideoOnFill size={24} aria-hidden="true" />
+import { VideoOnIcon } from '@/icons'
+export const CameraIcon = () => <VideoOnIcon size={24} aria-hidden="true" />

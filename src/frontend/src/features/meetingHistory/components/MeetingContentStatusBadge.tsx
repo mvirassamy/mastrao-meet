@@ -1,9 +1,4 @@
-import {
-  RiCheckboxCircleFill,
-  RiErrorWarningFill,
-  RiIndeterminateCircleFill,
-  RiTimeFill,
-} from '@remixicon/react'
+import { CheckCircleIcon, ErrorIcon, MinusCircleIcon, TimeIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { cva } from '@/styled-system/css'
 import type { MeetingContentStatus } from '../api/types'
@@ -35,10 +30,10 @@ const badge = cva({
 })
 
 const icons = {
-  available: RiCheckboxCircleFill,
-  processing: RiTimeFill,
-  absent: RiIndeterminateCircleFill,
-  failed: RiErrorWarningFill,
+  available: CheckCircleIcon,
+  processing: TimeIcon,
+  absent: MinusCircleIcon,
+  failed: ErrorIcon,
 } as const
 
 export const MeetingContentStatusBadge = ({

@@ -24,7 +24,7 @@ const LowerAllHandsButtonInner = ({
       aria-label={t('participants.lowerParticipantsHand')}
       size="sm"
       fullWidth
-      variant="tertiary"
+      variant="secondary"
       onPress={() => lowerHandParticipants(participants)}
       data-attr="participants-lower-hands"
       className={css({

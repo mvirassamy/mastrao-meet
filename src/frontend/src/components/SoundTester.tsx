@@ -31,7 +31,7 @@ export const SoundTester = () => {
   return (
     <>
       <Button
-        variant="secondaryText"
+        variant="outline"
         onPress={() => {
           audioRef?.current?.play()
           setIsPlaying(true)

@@ -1,4 +1,4 @@
-import { RiFullscreenExitFill, RiFullscreenFill } from '@remixicon/react'
+import { FullscreenExitIcon, FullscreenIcon } from '@/icons'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -16,16 +16,18 @@ export const FullScreenMenuItem = () => {
   return (
     <MenuItem
       onAction={() => toggleFullScreen()}
-      className={menuRecipe({ icon: true, variant: 'dark' }).item}
+      className={
+        menuRecipe({ icon: true, variant: 'dark', density: 'app' }).item
+      }
     >
       {isCurrentlyFullscreen ? (
         <>
-          <RiFullscreenExitFill size={20} />
+          <FullscreenExitIcon size={20} />
           {t('fullscreen.exit')}
         </>
       ) : (
         <>
-          <RiFullscreenFill size={20} />
+          <FullscreenIcon size={20} />
           {t('fullscreen.enter')}
         </>
       )}

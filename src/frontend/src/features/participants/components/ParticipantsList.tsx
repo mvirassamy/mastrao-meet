@@ -87,11 +87,13 @@ export const ParticipantsList = () => {
       <H
         lvl={2}
         className={css({
-          fontSize: '0.875rem',
-          fontWeight: 'bold',
+          fontSize: '0.75rem',
+          lineHeight: '1rem',
+          fontWeight: 500,
+          letterSpacing: '0.04em',
           color: 'muted-foreground',
-          padding: '0 1.5rem',
-          marginBottom: '0.83em',
+          padding: '0.25rem 1.25rem 0',
+          marginBottom: '0.5rem',
         })}
       >
         {t('subheading').toUpperCase()}

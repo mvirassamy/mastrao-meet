@@ -104,7 +104,7 @@ export const ControlsButton = ({
     return (
       <Layout>
         <Button
-          variant="tertiary"
+          variant="secondary"
           fullWidth
           onPress={handle}
           isDisabled={isDisabled}
@@ -161,11 +161,10 @@ export const ControlsButton = ({
         </RACButton>
       )}
       <Button
-        variant={isDisabled ? 'primary' : 'tertiary'}
+        variant={isDisabled ? 'default' : 'secondary'}
         fullWidth
         onPress={handle}
         isDisabled={isDisabled}
-        size="compact"
         ref={primaryActionRef}
       >
         {t('button.start')}

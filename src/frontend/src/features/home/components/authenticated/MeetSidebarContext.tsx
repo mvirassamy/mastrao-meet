@@ -1,4 +1,4 @@
-import { RiVideoChatFill } from '@remixicon/react'
+import { VideoChatIcon } from '@/icons'
 import { SettingsButton } from '@/features/settings'
 import { css } from '@/styled-system/css'
 
@@ -17,7 +17,7 @@ export const MeetSidebarContext = ({
         <SettingsButton
           dialogAppearance="app"
           buttonProps={{
-            size: 'appIcon',
+            size: 'icon',
             className: css({
               width: '44px',
               height: '44px',
@@ -64,7 +64,7 @@ export const MeetSidebarContext = ({
           fontWeight: 400,
         })}
       >
-        <RiVideoChatFill
+        <VideoChatIcon
           size={19}
           aria-hidden="true"
           className={css({ flexShrink: 0, color: 'primary' })}
@@ -90,7 +90,7 @@ export const MeetSidebarContext = ({
       <SettingsButton
         dialogAppearance="app"
         buttonProps={{
-          size: 'appIcon',
+          size: 'icon',
           className: css({
             width: mobile ? '44px' : '40px',
             height: mobile ? '44px' : '40px',

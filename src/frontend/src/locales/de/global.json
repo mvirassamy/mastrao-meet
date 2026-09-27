@@ -3,7 +3,9 @@
   "cancel": "Abbrechen",
   "closeDialog": "Dialogfenster schließen",
   "error": {
-    "heading": "Beim Laden der Seite ist ein Fehler aufgetreten"
+    "body": "Die Seite konnte nicht angezeigt werden. Versuchen Sie es gleich noch einmal oder kehren Sie zur Startseite zurück.",
+    "heading": "Beim Laden der Seite ist ein Fehler aufgetreten",
+    "retry": "Erneut versuchen"
   },
   "feedback": {
     "context": "Dein Feedback gestaltet das Produkt!",

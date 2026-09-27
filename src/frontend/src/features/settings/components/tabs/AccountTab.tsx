@@ -1,10 +1,18 @@
-import { A, Badge, Button, DialogProps, Field, H, P } from '@/primitives'
+import {
+  A,
+  Badge,
+  Button,
+  DialogActions,
+  DialogProps,
+  Field,
+  H,
+  P,
+} from '@/primitives'
 import { Trans, useTranslation } from 'react-i18next'
 import { useRoomContext } from '@livekit/components-react'
 import { useUser } from '@/features/auth/api/useUser'
 import { css } from '@/styled-system/css'
 import { TabPanel, TabPanelProps } from '@/primitives/Tabs'
-import { HStack } from '@/styled-system/jsx'
 import { useState } from 'react'
 import { LoginButton } from '@/components/LoginButton'
 import { useRenameParticipant } from '@/features/rooms/api/renameParticipant'
@@ -76,22 +84,19 @@ export const AccountTab = ({ id, onOpenChange }: AccountTabProps) => {
       ) : (
         <>
           <P>{t('account.youAreNotLoggedIn')}</P>
-          <LoginButton />
+          <div className={css({ display: 'flex' })}>
+            <LoginButton size="sm" />
+          </div>
         </>
       )}
-      <HStack
-        className={css({
-          marginTop: 'auto',
-          marginLeft: 'auto',
-        })}
-      >
+      <DialogActions>
         <Button variant="outline" onPress={handleOnCancel}>
           {t('cancel', { ns: 'global' })}
         </Button>
-        <Button variant={'primary'} onPress={handleOnSubmit}>
+        <Button variant="default" onPress={handleOnSubmit}>
           {t('submit', { ns: 'global' })}
         </Button>
-      </HStack>
+      </DialogActions>
     </TabPanel>
   )
 }

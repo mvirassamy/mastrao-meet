@@ -3,7 +3,9 @@
   "cancel": "Annuleren",
   "closeDialog": "Sluit het dialoogvenster",
   "error": {
-    "heading": "Er is een fout opgetreden bij het laden van de pagina"
+    "body": "De pagina kon niet worden weergegeven. Probeer het zo meteen opnieuw of ga terug naar het hoofdscherm.",
+    "heading": "Er is een fout opgetreden bij het laden van de pagina",
+    "retry": "Opnieuw proberen"
   },
   "feedback": {
     "context": "Uw feedback vormt het product!",

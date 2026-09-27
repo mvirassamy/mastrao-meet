@@ -1,5 +1,5 @@
 import { Participant, Track } from 'livekit-client'
-import { RiPushpin2Fill } from '@remixicon/react'
+import { PinIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 import { useMemo } from 'react'
 import { useSnapshot } from 'valtio'
@@ -46,7 +46,7 @@ export const PinBadge = ({ participant }: { participant: Participant }) => {
         right: '-4px',
       })}
     >
-      <RiPushpin2Fill size={14} aria-hidden />
+      <PinIcon size={14} aria-hidden />
     </div>
   )
 }

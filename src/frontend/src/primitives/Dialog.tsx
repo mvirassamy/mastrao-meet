@@ -1,78 +1,10 @@
-import { styled } from '@/styled-system/jsx'
-import { RiCloseFill } from '@remixicon/react'
-import { t } from 'i18next'
-import {
-  Dialog as RACDialog,
-  ModalOverlay,
-  Modal,
-  type DialogProps as RACDialogProps,
-  Heading,
-} from 'react-aria-components'
-import { Div } from './Div'
-import { Button } from './Button'
-import { Box } from './Box'
-import { VerticallyOffCenter } from './VerticallyOffCenter'
-import { text } from './Text'
-import { MutableRefObject } from 'react'
-import { css } from '@/styled-system/css'
+import { type ReactNode } from 'react'
+import { type DialogProps as RACDialogProps } from 'react-aria-components'
 import { AppDialog } from './AppDialog'
 
-const StyledModalOverlay = styled(ModalOverlay, {
-  base: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'overlay',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-    '&[data-entering]': { animation: 'fade 200ms' },
-    '&[data-exiting]': { animation: 'fade 150ms reverse ease-in' },
-  },
-})
-
-// disabled pointerEvents on the stuff surrounding the overlay is there so that clicking on the overlay to close the modal still works
-const StyledModal = styled(Modal, {
-  base: {
-    width: 'full',
-    height: 'full',
-    pointerEvents: 'none',
-    '--origin': 'translateY(32px)',
-    '&[data-entering]': { animation: 'slide 300ms' },
-  },
-})
-
-const StyledRACDialog = styled(RACDialog, {
-  base: {
-    width: 'full',
-    height: 'full',
-    pointerEvents: 'none',
-  },
-})
-
-const ModalContent = styled('div', {
-  base: {
-    margin: 'auto',
-  },
-  variants: {
-    size: {
-      full: {
-        width: 'fit-content',
-        maxWidth: '100%',
-      },
-      large: {
-        width: '100%',
-        xl: { width: '1200px' },
-      },
-    },
-  },
-})
-
-export type DialogProps = RACDialogProps & {
+export type DialogProps = Omit<RACDialogProps, 'children'> & {
   title?: string
+  children: ReactNode | ((opts: { close: () => void }) => ReactNode)
   onClose?: () => void
   /**
    * use the Dialog as a controlled component
@@ -84,115 +16,49 @@ export type DialogProps = RACDialogProps & {
    * after user interaction
    */
   onOpenChange?: (isOpen: boolean) => void
+  /** Kept for existing call sites; the layout no longer depends on it. */
   type?: 'flex' | 'alert'
-  innerRef?: MutableRefObject<HTMLDivElement | null>
-  size?: 'full' | 'large'
+  /** 'full' (default) fits forms and alerts, 'wide' illustrated content. */
+  size?: 'full' | 'wide' | 'large'
   /**
-   * 'app' renders the Mastrao application dialog (authenticated workspace).
-   * Room dialogs keep the default appearance.
+   * 'app' is the authenticated workspace (home, history): Platform backdrop
+   * with blur. Elsewhere, including rooms, the backdrop is a plain dim layer:
+   * a blur would be recomputed on every frame of the live video behind it.
    */
   appearance?: 'default' | 'app'
 }
 
+/**
+ * Application dialog. Every dialog shares the Mastrao AppDialog standard.
+ */
 export const Dialog = ({
   title,
   children,
   onClose,
   isOpen,
   onOpenChange,
-  innerRef,
   size = 'full',
   appearance = 'default',
+  type: _type,
   ...dialogProps
 }: DialogProps) => {
-  if (appearance === 'app') {
-    // Settings, join and "for later" dialogs share the AppDialog standard.
-    const { type: _type, ...appDialogProps } = dialogProps
-    void _type
-    void innerRef
-    return (
-      <AppDialog
-        {...appDialogProps}
-        title={title ?? ''}
-        size={size === 'large' ? 'lg' : 'md'}
-        isOpen={isOpen}
-        onOpenChange={(open) => {
-          onOpenChange?.(open)
-          if (!open) onClose?.()
-        }}
-      >
-        {children}
-      </AppDialog>
-    )
-  }
-  const isAlert = dialogProps['role'] === 'alertdialog'
-  const boxType =
-    dialogProps['type'] === 'alert'
-      ? 'alert'
-      : dialogProps['type'] !== 'flex'
-        ? 'dialog'
-        : undefined
+  void _type
+  const isApp = appearance === 'app'
   return (
-    <StyledModalOverlay
-      isKeyboardDismissDisabled={isAlert}
-      isDismissable={!isAlert}
+    <AppDialog
+      {...dialogProps}
+      title={title || undefined}
+      size={
+        size === 'large' ? (isApp ? 'lg' : 'xl') : size === 'wide' ? 'lg' : 'md'
+      }
+      backdrop={isApp ? 'blur' : 'dim'}
       isOpen={isOpen}
-      onOpenChange={(isOpen) => {
-        if (onOpenChange) {
-          onOpenChange(isOpen)
-        }
-        if (!isOpen && onClose) {
-          onClose()
-        }
+      onOpenChange={(open) => {
+        onOpenChange?.(open)
+        if (!open) onClose?.()
       }}
     >
-      <StyledModal>
-        <StyledRACDialog {...dialogProps}>
-          {({ close }) => (
-            <VerticallyOffCenter>
-              <ModalContent size={size}>
-                <Div margin="1rem" pointerEvents="auto">
-                  <Box
-                    size="sm"
-                    type={boxType}
-                    ref={innerRef}
-                    className={css({
-                      padding: '1.5rem',
-                      borderRadius: 'dialog',
-                    })}
-                  >
-                    {!!title && (
-                      <Heading
-                        slot="title"
-                        level={1}
-                        className={text({ variant: 'h1' })}
-                      >
-                        {title}
-                      </Heading>
-                    )}
-                    {typeof children === 'function'
-                      ? children({ close })
-                      : children}
-                    {!isAlert && (
-                      <Div position="absolute" top="5" right="5">
-                        <Button
-                          variant="tertiaryText"
-                          invisible
-                          size="xs"
-                          onPress={() => close()}
-                          aria-label={t('closeDialog')}
-                        >
-                          <RiCloseFill />
-                        </Button>
-                      </Div>
-                    )}
-                  </Box>
-                </Div>
-              </ModalContent>
-            </VerticallyOffCenter>
-          )}
-        </StyledRACDialog>
-      </StyledModal>
-    </StyledModalOverlay>
+      {children}
+    </AppDialog>
   )
 }

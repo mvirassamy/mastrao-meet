@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { DialogTrigger } from 'react-aria-components'
-import { RiSettings3Fill } from '@remixicon/react'
+import { SettingsIcon } from '@/icons'
 import { Button } from '@/primitives'
 import type { ButtonProps } from '@/primitives'
 import type { DialogProps } from '@/primitives'
@@ -17,13 +17,13 @@ export const SettingsButton = ({
   return (
     <DialogTrigger>
       <Button
-        square
-        variant="secondaryText"
+        size="icon"
+        variant="ghost"
         aria-label={t('settingsButtonLabel')}
         tooltip={t('settingsButtonLabel')}
         {...buttonProps}
       >
-        <RiSettings3Fill />
+        <SettingsIcon />
       </Button>
       <SettingsDialog appearance={dialogAppearance} />
     </DialogTrigger>

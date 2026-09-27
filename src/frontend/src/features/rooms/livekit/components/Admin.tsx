@@ -56,7 +56,7 @@ export const Admin = () => {
     <Div
       display="flex"
       overflowY="scroll"
-      padding="0 1.5rem"
+      padding="0 1.25rem"
       flexGrow={1}
       flexDirection="column"
       alignItems="start"
@@ -65,7 +65,8 @@ export const Admin = () => {
         variant="note"
         wrap="pretty"
         className={css({
-          textStyle: 'sm',
+          fontSize: '0.8125rem',
+          lineHeight: '1.25rem',
         })}
         margin={'md'}
       >
@@ -88,7 +89,10 @@ export const Admin = () => {
         <H
           lvl={2}
           className={css({
-            fontWeight: 500,
+            fontSize: '0.875rem',
+            lineHeight: '1.25rem',
+            fontWeight: 600,
+            paddingTop: '0.75rem!',
           })}
           margin="sm"
         >
@@ -98,7 +102,8 @@ export const Admin = () => {
           variant="note"
           wrap="balance"
           className={css({
-            textStyle: 'sm',
+            fontSize: '0.8125rem',
+            lineHeight: '1.25rem',
           })}
           margin={'md'}
         >
@@ -175,7 +180,10 @@ export const Admin = () => {
         <H
           lvl={2}
           className={css({
-            fontWeight: 500,
+            fontSize: '0.875rem',
+            lineHeight: '1.25rem',
+            fontWeight: 600,
+            paddingTop: '0.75rem!',
           })}
           margin="sm"
         >
@@ -185,7 +193,8 @@ export const Admin = () => {
           variant="note"
           wrap="balance"
           className={css({
-            textStyle: 'sm',
+            fontSize: '0.8125rem',
+            lineHeight: '1.25rem',
           })}
           margin={'md'}
         >
@@ -197,8 +206,9 @@ export const Admin = () => {
           aria-label={t('access.type')}
           labelProps={{
             className: css({
-              fontSize: '1rem',
-              paddingBottom: '1rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              paddingBottom: '0.5rem',
             }),
           }}
           value={readOnlyData?.access_level}

@@ -1,9 +1,9 @@
 import { closeSidePanel, layoutStore } from '@/stores/layout'
 import { css } from '@/styled-system/css'
 import { Heading } from 'react-aria-components'
-import { text } from '@/primitives/Text'
-import { Button, Div } from '@/primitives'
-import { RiArrowLeftFill, RiCloseFill } from '@remixicon/react'
+import { Button } from '@/primitives'
+import { AppAppearanceProvider } from '@/primitives/appAppearance'
+import { ArrowLeftIcon, CloseIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { ParticipantsList } from '@/features/participants/components/ParticipantsList'
 import { PanelId, useSidePanel } from '../hooks/useSidePanel'
@@ -13,7 +13,6 @@ import { Effects } from './effects/Effects'
 import { Admin } from './Admin'
 import { Tools } from './Tools'
 import { Info } from './Info'
-import { HStack } from '@/styled-system/jsx'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
 import { useRestoreFocus } from '@/hooks/useRestoreFocus'
 
@@ -49,13 +48,17 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
     <aside
       ref={ref}
       tabIndex={-1}
-      className={css({
+      // Mastrao application look (Inter, palette); pure CSS, no media impact.
+      className={`authenticated-meet-workspace ${css({
         borderWidth: '1px',
         borderStyle: 'solid',
         borderColor: 'box.border',
         backgroundColor: 'box.bg',
         color: 'box.text',
-        borderRadius: 'surface',
+        borderRadius: '12px',
+        boxShadow: '0 1px 2px rgb(0 0 0 / 0.05)',
+        fontSize: '0.875rem',
+        lineHeight: '1.25rem',
         flex: 1,
         position: 'absolute',
         overflow: 'hidden',
@@ -73,7 +76,7 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
         '&:focus': {
           outline: 'none',
         },
-      })}
+      })}`}
       style={{
         transform: isClosed
           ? 'translateX(calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin)))'
@@ -85,54 +88,58 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
       aria-hidden={isClosed}
       aria-label={ariaLabel}
     >
-      <HStack alignItems="center">
+      <div
+        className={css({
+          display: isClosed ? 'none' : 'flex',
+          alignItems: 'center',
+          gap: '0.25rem',
+          minHeight: '3.25rem',
+          paddingTop: '0.625rem',
+          paddingBottom: '0.375rem',
+          paddingLeft: '1.25rem',
+          paddingRight: '0.75rem',
+        })}
+        style={isSubmenu ? { paddingLeft: '0.75rem' } : undefined}
+      >
         {isSubmenu && (
           <Button
-            variant="secondaryText"
-            size="sm"
-            square
-            className={css({ marginRight: '0.5rem', marginLeft: '1rem' })}
+            variant="ghost"
+            size="icon-sm"
             aria-label={backButtonLabel}
             onPress={onBack}
           >
-            <RiArrowLeftFill size={20} aria-hidden="true" />
+            <ArrowLeftIcon aria-hidden="true" />
           </Button>
         )}
         <Heading
           slot="title"
           level={1}
-          className={text({ variant: 'h2' })}
-          style={{
-            paddingLeft: isSubmenu ? 0 : '1.5rem',
-            paddingTop: '1rem',
-            display: isClosed ? 'none' : 'flex',
-            justifyContent: 'start',
-            alignItems: 'center',
-          }}
+          className={css({
+            flex: 1,
+            minWidth: 0,
+            margin: 0,
+            fontSize: '1rem',
+            lineHeight: '1.5rem',
+            fontWeight: 600,
+            letterSpacing: '-0.01em',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          })}
         >
           {title}
         </Heading>
-      </HStack>
-      <Div
-        position="absolute"
-        top="5"
-        right="5"
-        style={{
-          display: isClosed ? 'none' : undefined,
-        }}
-      >
         <Button
-          invisible
-          variant="tertiaryText"
-          size="xs"
+          variant="ghost"
+          size="icon-sm"
           onPress={onClose}
           aria-label={closeButtonTooltip}
           tooltip={closeButtonTooltip}
         >
-          <RiCloseFill />
+          <CloseIcon aria-hidden="true" />
         </Button>
-      </Div>
-      {children}
+      </div>
+      <AppAppearanceProvider>{children}</AppAppearanceProvider>
     </aside>
   )
 )

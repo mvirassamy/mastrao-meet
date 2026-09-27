@@ -15,6 +15,8 @@ import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { useLoginHint } from '@/hooks/useLoginHint'
 import { logout } from '@/features/auth/utils/logout'
 import { useMemo } from 'react'
+import { useSnapshot } from 'valtio'
+import { layoutStore } from '@/stores/layout'
 
 const Logo = () => (
   <span
@@ -130,6 +132,8 @@ export const Header = () => {
   const isTermsOfService = useMatchesRoute('termsOfService')
   const isRoom = useMatchesRoute('room')
   const { user, isLoggedIn } = useUser()
+  const { headerAppearance } = useSnapshot(layoutStore)
+  const isGlass = headerAppearance === 'glass'
 
   const loginButtonDisabledByUrl = useMemo(() => isLoginButtonHidden(), [])
 
@@ -143,13 +147,32 @@ export const Header = () => {
     <>
       <FeedbackBanner />
       <div
-        className={css({
-          backgroundColor: 'card',
-          color: 'card-foreground',
-          paddingY: '0.5rem',
-          paddingX: '1rem',
-          flexShrink: 0,
-        })}
+        className={
+          isGlass
+            ? // Platform vitrine navigation: sticky, translucent, blurred.
+              `authenticated-meet-workspace ${css({
+                position: 'sticky',
+                top: 0,
+                zIndex: 60,
+                display: 'flex',
+                alignItems: 'center',
+                minHeight: '62px',
+                paddingY: '0.5rem',
+                paddingX: { base: '1rem', md: '1.5rem' },
+                flexShrink: 0,
+                backgroundColor: 'rgb(255 255 255 / 0.82)!',
+                backdropFilter: 'blur(20px)',
+                borderBottom: '1px solid token(colors.border)',
+                '& > *': { width: '100%' },
+              })}`
+            : css({
+                backgroundColor: 'card',
+                color: 'card-foreground',
+                paddingY: '0.5rem',
+                paddingX: '1rem',
+                flexShrink: 0,
+              })
+        }
       >
         <HStack gap={0} justify="space-between" alignItems="center">
           <header>
@@ -202,14 +225,14 @@ export const Header = () => {
                         display: { base: 'none', xsm: 'block' },
                       })}
                     >
-                      <LoginButton proConnectHint={false} size="sm" />
+                      <LoginButton proConnectHint={false} />
                     </div>
                     <LoginHint />
                   </>
                 )}
               {!!user && (
                 <Menu>
-                  <Button size="sm" variant="secondaryText">
+                  <Button size="sm" variant="ghost">
                     <VisualOnlyTooltip
                       tooltip={loggedInTooltip}
                       ariaLabel={loggedInAriaLabel}

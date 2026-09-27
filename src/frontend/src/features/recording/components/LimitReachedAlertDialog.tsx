@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Button, Dialog, P } from '@/primitives'
-import { HStack } from '@/styled-system/jsx'
+import { Button, Dialog, DialogActions, P } from '@/primitives'
 import { useEffect, useMemo, useState } from 'react'
 import { NotificationType } from '@/features/notifications'
 import { AdminOrOwnerOnly } from '@/features/rooms/components/AdminOrOwnerOnly'
@@ -65,11 +64,11 @@ const LimitReachedAlertDialogContent = () => {
   return (
     <Dialog isOpen={isOpen} role="alertdialog" title={t('title')}>
       <LimitDescription />
-      <HStack gap={1}>
-        <Button variant="text" size="sm" onPress={() => setIsOpen(false)}>
+      <DialogActions>
+        <Button variant="default" onPress={() => setIsOpen(false)}>
           {t('button')}
         </Button>
-      </HStack>
+      </DialogActions>
     </Dialog>
   )
 }

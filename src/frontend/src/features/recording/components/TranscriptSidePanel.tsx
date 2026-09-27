@@ -224,7 +224,7 @@ export const TranscriptSidePanel = () => {
           <Text variant="sm">{t('details.language')}</Text>
           <Text variant="sm">
             <Button
-              variant="text"
+              variant="link"
               size="xs"
               onPress={() =>
                 openSettingsDialog(SettingsDialogExtendedKey.TRANSCRIPTION)

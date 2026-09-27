@@ -32,8 +32,7 @@ export const MeetSidebarUserMenu = ({
   return (
     <Menu placement={collapsed ? 'right' : 'top'} density="app">
       <Button
-        square={collapsed}
-        size="app"
+        size={collapsed ? 'icon' : 'default'}
         variant="outline"
         aria-label={accessibleLabel}
         tooltip={collapsed ? accessibleLabel : undefined}

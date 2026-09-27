@@ -2,7 +2,7 @@ import { Button } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import type { Participant } from 'livekit-client'
 import { useMuteParticipants } from '@/features/rooms/api/muteParticipants'
-import { RiMicOffFill } from '@remixicon/react'
+import { MicrophoneOffIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 import { AdminOrOwnerOnly } from '@/features/rooms/components/AdminOrOwnerOnly'
 
@@ -21,14 +21,14 @@ const MuteEveryoneButtonInner = ({ participants }: MuteEveryoneButtonProps) => {
       aria-label={t('participants.muteParticipants')}
       size="sm"
       fullWidth
-      variant="tertiary"
+      variant="secondary"
       onPress={() => muteParticipants(participants)}
       data-attr="participants-mute"
       className={css({
         marginBottom: '0.5rem',
       })}
     >
-      <RiMicOffFill size={16} />
+      <MicrophoneOffIcon size={16} />
       {t('participants.muteParticipants')}
     </Button>
   )

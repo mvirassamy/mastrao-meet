@@ -1,5 +1,5 @@
 import { Button, Menu } from '@/primitives'
-import { RiMore2Fill } from '@remixicon/react'
+import { MoreVerticalIcon } from '@/icons'
 import { ParticipantMenu } from './ParticipantMenu'
 import type { Participant } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
@@ -11,15 +11,14 @@ export const ParticipantMenuButton = ({
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'participants' })
   return (
-    <Menu>
+    <Menu density="app">
       <Button
-        square
-        variant="tertiaryText"
-        size="sm"
+        variant="ghost"
+        size="icon-sm"
         aria-label={t('moreOptions')}
         tooltip={t('moreOptions')}
       >
-        <RiMore2Fill />
+        <MoreVerticalIcon />
       </Button>
       <ParticipantMenu participant={participant} />
     </Menu>

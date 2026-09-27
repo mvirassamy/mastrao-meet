@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { RiChat1Fill } from '@remixicon/react'
+import { ChatIcon } from '@/icons'
 import { useSnapshot } from 'valtio'
 import { css } from '@/styled-system/css'
 import { ToggleButton } from '@/primitives'
@@ -33,8 +33,7 @@ export const ChatToggle = ({
     >
       <ToggleButton
         shape="circle"
-        square
-        variant="primaryTextDark"
+        variant="ghost"
         aria-label={t(tooltipLabel)}
         tooltip={t(tooltipLabel)}
         isSelected={isChatOpen}
@@ -46,7 +45,7 @@ export const ChatToggle = ({
         data-attr={`controls-chat-${tooltipLabel}`}
         {...props}
       >
-        <RiChat1Fill />
+        <ChatIcon />
       </ToggleButton>
       {!!chatSnap.unreadMessages && (
         <div

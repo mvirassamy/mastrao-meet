@@ -1,4 +1,4 @@
-import { RiFileTextFill } from '@remixicon/react'
+import { FileTextIcon } from '@/icons'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -19,10 +19,12 @@ export const TranscriptMenuItem = () => {
 
   return (
     <MenuItem
-      className={menuRecipe({ icon: true, variant: 'dark' }).item}
+      className={
+        menuRecipe({ icon: true, variant: 'dark', density: 'app' }).item
+      }
       onAction={() => (!isTranscriptOpen ? openTranscript() : toggleTools())}
     >
-      <RiFileTextFill size={20} />
+      <FileTextIcon size={20} />
       {t('transcript')}
     </MenuItem>
   )

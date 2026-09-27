@@ -1,19 +1,16 @@
-import { Dialog, type DialogProps } from '@/primitives'
-import { Tab, Tabs, TabList } from '@/primitives/Tabs.tsx'
-import { css } from '@/styled-system/css'
-import { text } from '@/primitives/Text.tsx'
+import { type DialogProps } from '@/primitives'
+import { AppDialog } from '@/primitives/AppDialog'
 import { Icon } from '@/primitives/Icon'
-import { Heading } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import {
-  RiAccountCircleFill,
-  RiNotification3Fill,
-  RiSettings3Fill,
-  RiSpeakerFill,
-  RiVideoOnFill,
-  RiEyeFill,
-  RiKeyboardBoxFill,
-} from '@remixicon/react'
+  AccountIcon,
+  NotificationIcon,
+  SettingsIcon,
+  SpeakerIcon,
+  VideoOnIcon,
+  EyeIcon,
+  KeyboardIcon,
+} from '@/icons'
 import { AccountTab } from './tabs/AccountTab'
 import { NotificationsTab } from './tabs/NotificationsTab'
 import { GeneralTab } from './tabs/GeneralTab'
@@ -21,36 +18,11 @@ import { AudioTab } from './tabs/AudioTab'
 import { VideoTab } from './tabs/VideoTab'
 import { TranscriptionTab } from './tabs/TranscriptionTab'
 import { ShortcutTab } from './tabs/ShortcutTab'
-import { useRef } from 'react'
-import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { SettingsDialogExtendedKey } from '@/features/settings/type'
 import { useIsAdminOrOwner } from '@/features/rooms/livekit/hooks/useIsAdminOrOwner'
 import { AccessibilityTab } from './tabs/AccessibilityTab'
-
-const tabsStyle = css({
-  maxHeight: '40.625rem', // fixme size copied from meet settings modal
-  width: '50rem', // fixme size copied from meet settings modal
-  marginY: '-1rem', // fixme hacky solution to cancel modal padding
-  maxWidth: '100%',
-  overflow: 'hidden',
-  height: 'calc(100vh - 2rem)',
-})
-
-const tabListContainerStyle = css({
-  display: 'flex',
-  flexDirection: 'column',
-  borderRight: '1px solid lightGray', // fixme poor color management
-  paddingY: '1rem',
-  paddingLeft: '0.2rem',
-  paddingRight: '1.5rem',
-})
-
-const tabPanelContainerStyle = css({
-  display: 'flex',
-  flexGrow: '1',
-  marginTop: '3.5rem',
-  minWidth: 0,
-})
+import { SettingsTabsLayout, type SettingsTabItem } from './SettingsTabsLayout'
+import { settingsDialogBodyClass } from './settingsDialogStyles'
 
 export type SettingsDialogExtended = Pick<
   DialogProps,
@@ -59,90 +31,76 @@ export type SettingsDialogExtended = Pick<
   defaultSelectedTab?: SettingsDialogExtendedKey
 }
 
+/**
+ * In-room settings. Same dialog and tab layout as the workspace settings; the
+ * backdrop is a plain dim layer so live video is not blurred on every frame.
+ */
 export const SettingsDialogExtended = (props: SettingsDialogExtended) => {
-  // display only icon on small screen
   const { t } = useTranslation('settings')
-
-  const dialogEl = useRef<HTMLDivElement>(null)
-  const isWideScreen = useMediaQuery('(min-width: 800px)') // fixme - hardcoded 50rem in pixel
-
   const isAdminOrOwner = useIsAdminOrOwner()
+  const tab = (
+    id: SettingsDialogExtendedKey,
+    icon: SettingsTabItem['icon']
+  ) => ({
+    id,
+    label: t(`tabs.${id}`),
+    icon,
+  })
+
+  const tabs: SettingsTabItem[] = [
+    tab(SettingsDialogExtendedKey.ACCOUNT, <AccountIcon aria-hidden="true" />),
+    tab(SettingsDialogExtendedKey.AUDIO, <SpeakerIcon aria-hidden="true" />),
+    tab(SettingsDialogExtendedKey.VIDEO, <VideoOnIcon aria-hidden="true" />),
+    tab(SettingsDialogExtendedKey.GENERAL, <SettingsIcon aria-hidden="true" />),
+    tab(
+      SettingsDialogExtendedKey.NOTIFICATIONS,
+      <NotificationIcon aria-hidden="true" />
+    ),
+    tab(
+      SettingsDialogExtendedKey.SHORTCUTS,
+      <KeyboardIcon aria-hidden="true" />
+    ),
+    ...(isAdminOrOwner
+      ? [
+          tab(
+            SettingsDialogExtendedKey.TRANSCRIPTION,
+            <Icon name="speech_to_text" />
+          ),
+        ]
+      : []),
+    tab(
+      SettingsDialogExtendedKey.ACCESSIBILITY,
+      <EyeIcon aria-hidden="true" />
+    ),
+  ]
 
   return (
-    <Dialog innerRef={dialogEl} {...props} role="dialog" type="flex">
-      <Tabs
-        orientation="vertical"
-        className={tabsStyle}
+    <AppDialog
+      title={t('dialog.heading')}
+      size="lg"
+      backdrop="dim"
+      isOpen={props.isOpen}
+      onOpenChange={props.onOpenChange}
+      bodyClassName={settingsDialogBodyClass}
+    >
+      <SettingsTabsLayout
+        label={t('dialog.heading')}
+        tabs={tabs}
         defaultSelectedKey={props.defaultSelectedTab}
       >
-        <div
-          className={tabListContainerStyle}
-          style={{
-            flex: isWideScreen ? '0 0 16rem' : undefined,
-            paddingTop: !isWideScreen ? '64px' : undefined,
-            paddingRight: !isWideScreen ? '1rem' : undefined,
-          }}
-        >
-          {isWideScreen && (
-            <Heading slot="title" level={1} className={text({ variant: 'h1' })}>
-              {t('dialog.heading')}
-            </Heading>
-          )}
-          <TabList border={false}>
-            <Tab icon highlight id={SettingsDialogExtendedKey.ACCOUNT}>
-              <RiAccountCircleFill />
-              {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.ACCOUNT}`)}
-            </Tab>
-            <Tab icon highlight id={SettingsDialogExtendedKey.AUDIO}>
-              <RiSpeakerFill />
-              {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.AUDIO}`)}
-            </Tab>
-            <Tab icon highlight id={SettingsDialogExtendedKey.VIDEO}>
-              <RiVideoOnFill />
-              {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.VIDEO}`)}
-            </Tab>
-            <Tab icon highlight id={SettingsDialogExtendedKey.GENERAL}>
-              <RiSettings3Fill />
-              {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.GENERAL}`)}
-            </Tab>
-            <Tab icon highlight id={SettingsDialogExtendedKey.NOTIFICATIONS}>
-              <RiNotification3Fill />
-              {isWideScreen &&
-                t(`tabs.${SettingsDialogExtendedKey.NOTIFICATIONS}`)}
-            </Tab>
-            <Tab icon highlight id={SettingsDialogExtendedKey.SHORTCUTS}>
-              <RiKeyboardBoxFill />
-              {isWideScreen && t(`tabs.${SettingsDialogExtendedKey.SHORTCUTS}`)}
-            </Tab>
-            {isAdminOrOwner && (
-              <Tab icon highlight id={SettingsDialogExtendedKey.TRANSCRIPTION}>
-                <Icon name="speech_to_text" />
-                {isWideScreen &&
-                  t(`tabs.${SettingsDialogExtendedKey.TRANSCRIPTION}`)}
-              </Tab>
-            )}
-            <Tab icon highlight id={SettingsDialogExtendedKey.ACCESSIBILITY}>
-              <RiEyeFill />
-              {isWideScreen &&
-                t(`tabs.${SettingsDialogExtendedKey.ACCESSIBILITY}`)}
-            </Tab>
-          </TabList>
-        </div>
-        <div className={tabPanelContainerStyle}>
-          <AccountTab
-            id={SettingsDialogExtendedKey.ACCOUNT}
-            onOpenChange={props.onOpenChange}
-          />
-          <AudioTab id={SettingsDialogExtendedKey.AUDIO} />
-          <VideoTab id={SettingsDialogExtendedKey.VIDEO} />
-          <GeneralTab id={SettingsDialogExtendedKey.GENERAL} />
-          <NotificationsTab id={SettingsDialogExtendedKey.NOTIFICATIONS} />
-          <ShortcutTab id={SettingsDialogExtendedKey.SHORTCUTS} />
-          {/* Transcription tab won't be accessible if the tab is not active in the tab list */}
-          <TranscriptionTab id={SettingsDialogExtendedKey.TRANSCRIPTION} />
-          <AccessibilityTab id={SettingsDialogExtendedKey.ACCESSIBILITY} />
-        </div>
-      </Tabs>
-    </Dialog>
+        <AccountTab
+          id={SettingsDialogExtendedKey.ACCOUNT}
+          onOpenChange={props.onOpenChange}
+        />
+        <AudioTab id={SettingsDialogExtendedKey.AUDIO} />
+        <VideoTab id={SettingsDialogExtendedKey.VIDEO} />
+        <GeneralTab id={SettingsDialogExtendedKey.GENERAL} />
+        <NotificationsTab id={SettingsDialogExtendedKey.NOTIFICATIONS} />
+        <ShortcutTab id={SettingsDialogExtendedKey.SHORTCUTS} />
+        {/* Transcription tab won't be accessible if the tab is not active in the tab list */}
+        <TranscriptionTab id={SettingsDialogExtendedKey.TRANSCRIPTION} />
+        <AccessibilityTab id={SettingsDialogExtendedKey.ACCESSIBILITY} />
+      </SettingsTabsLayout>
+    </AppDialog>
   )
 }

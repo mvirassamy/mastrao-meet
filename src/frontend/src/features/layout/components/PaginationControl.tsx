@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createInteractingObservable } from '@livekit/components-core'
-import { RiArrowLeftSFill, RiArrowRightSFill } from '@remixicon/react'
+import { ChevronLeftIcon, ChevronRightIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,10 +69,10 @@ export function PaginationControl({
         isDisabled={currentPage == 1}
         onPress={prevPage}
         size="xs"
-        variant="quaternaryText"
+        variant="ghost"
         aria-label={t('previous')}
       >
-        <RiArrowLeftSFill />
+        <ChevronLeftIcon />
       </Button>
       <span
         role="status"
@@ -89,10 +89,10 @@ export function PaginationControl({
         isDisabled={currentPage == totalPageCount}
         onPress={nextPage}
         size="xs"
-        variant="quaternaryText"
+        variant="ghost"
         aria-label={t('next')}
       >
-        <RiArrowRightSFill />
+        <ChevronRightIcon />
       </Button>
     </nav>
   )

@@ -1,9 +1,16 @@
-import { A, Button, Dialog, H, P, ScreenReaderAnnouncer } from '@/primitives'
+import {
+  A,
+  Button,
+  Dialog,
+  DialogActions,
+  H,
+  P,
+  ScreenReaderAnnouncer,
+} from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { useSnapshot } from 'valtio'
 import { connectionObserverStore } from '@/stores/connectionObserver'
-import { HStack } from '@/styled-system/jsx'
 import { useEffect, useRef, useState } from 'react'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useScreenReaderAnnounce } from '@/hooks/useScreenReaderAnnounce'
@@ -134,21 +141,20 @@ export const IsIdleDisconnectModal = () => {
             </H>
             <Description />
             <Settings />
-            <HStack marginTop="2rem">
+            <DialogActions>
               <Button
                 onPress={() => {
                   connectionObserverStore.isIdleDisconnectModalOpen = false
                   navigateTo('feedback', { duplicateIdentity: false })
                 }}
-                size="sm"
                 variant="outline"
               >
                 {t('leaveButton')}
               </Button>
-              <Button onPress={close} size="sm" variant="primary">
+              <Button onPress={close} variant="default">
                 {t('stayButton')}
               </Button>
-            </HStack>
+            </DialogActions>
           </div>
         )
       }}

@@ -25,9 +25,8 @@ const ActionButton = ({
 
   return (
     <Button
-      square
-      variant="greyscale"
-      size="sm"
+      variant="ghost"
+      size="icon-sm"
       onPress={() => lowerHandParticipant(participant)}
       aria-label={t('participants.lowerParticipantHand', { name })}
       tooltip={t('participants.lowerParticipantHand', { name })}

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { RiClosedCaptioningFill } from '@remixicon/react'
+import { CaptionsIcon } from '@/icons'
 import { ToggleButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useSubtitles } from '@/features/subtitle/hooks/useSubtitles'
@@ -23,8 +23,7 @@ export const SubtitlesToggle = () => {
     >
       <ToggleButton
         shape="circle"
-        square
-        variant="primaryDark"
+        variant="outline"
         aria-label={t(tooltipLabel)}
         tooltip={t(tooltipLabel)}
         isSelected={areSubtitlesOpen}
@@ -32,7 +31,7 @@ export const SubtitlesToggle = () => {
         onPress={toggleSubtitles}
         data-attr={`controls-subtitles-${tooltipLabel}`}
       >
-        <RiClosedCaptioningFill />
+        <CaptionsIcon />
       </ToggleButton>
     </div>
   )

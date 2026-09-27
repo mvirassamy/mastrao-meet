@@ -2,17 +2,17 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 import {
-  RiArrowLeftSFill,
-  RiCalendarFill,
-  RiChatQuoteFill,
-  RiErrorWarningFill,
-  RiFileList3Fill,
-  RiFileSearchFill,
-  RiIndeterminateCircleFill,
-  RiInformationFill,
-  RiResetRightFill,
-  RiTimeFill,
-} from '@remixicon/react'
+  ChevronLeftIcon,
+  CalendarIcon,
+  TranscriptIcon,
+  ErrorIcon,
+  SummaryIcon,
+  FileSearchIcon,
+  MinusCircleIcon,
+  InformationIcon,
+  RetryIcon,
+  TimeIcon,
+} from '@/icons'
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -107,12 +107,11 @@ export const MeetingHistoryDetailView = ({
         headingLevel={1}
         headingRef={headingRef}
         tone={notFound ? 'neutral' : 'danger'}
-        icon={
-          notFound ? (
-            <RiFileSearchFill size={22} />
-          ) : (
-            <RiErrorWarningFill size={22} />
-          )
+        icon={notFound ? <FileSearchIcon size={22} /> : undefined}
+        illustration={
+          notFound
+            ? undefined
+            : '/assets/illustrations/reunion-detail-erreur.webp'
         }
         title={t(notFound ? 'detail.notFound.title' : 'detail.error.title')}
         description={t(
@@ -121,9 +120,8 @@ export const MeetingHistoryDetailView = ({
         action={
           notFound ? undefined : (
             <Button
-              size="app"
               variant="secondary"
-              icon={<RiResetRightFill aria-hidden="true" />}
+              icon={<RetryIcon aria-hidden="true" />}
               onPress={() => void query.refetch()}
             >
               {t('error.retry')}
@@ -176,7 +174,7 @@ export const MeetingHistoryDetailView = ({
           },
         })}
       >
-        <RiArrowLeftSFill size={18} aria-hidden="true" />
+        <ChevronLeftIcon size={18} aria-hidden="true" />
         {t('detail.back')}
       </Link>
       {content}
@@ -242,11 +240,11 @@ const MeetingDetailContent = ({
           })}
         >
           <span className={metaItemClass}>
-            <RiCalendarFill size={15} aria-hidden="true" />
+            <CalendarIcon size={15} aria-hidden="true" />
             {formatMeetingDay(meeting.startedAt, locale, timeZone)}
           </span>
           <span className={metaItemClass}>
-            <RiTimeFill size={15} aria-hidden="true" />
+            <TimeIcon size={15} aria-hidden="true" />
             {[
               formatMeetingTimeRange(
                 meeting.startedAt,
@@ -281,7 +279,7 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="summary"
           status={meeting.summary.status}
-          icon={<RiFileList3Fill size={18} aria-hidden="true" />}
+          icon={<SummaryIcon size={18} aria-hidden="true" />}
         >
           <SummaryBody
             summary={meeting.summary}
@@ -293,7 +291,7 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="transcript"
           status={meeting.transcript.status}
-          icon={<RiChatQuoteFill size={18} aria-hidden="true" />}
+          icon={<TranscriptIcon size={18} aria-hidden="true" />}
         >
           <TranscriptBody transcript={meeting.transcript} />
         </MeetingContentSection>
@@ -367,12 +365,12 @@ const UnavailableContent = ({
 }) => {
   const { t } = useTranslation('meetingHistory')
   const visual = {
-    processing: { tone: 'info', icon: <RiTimeFill size={18} /> },
+    processing: { tone: 'info', icon: <TimeIcon size={18} /> },
     absent: {
       tone: 'neutral',
-      icon: <RiIndeterminateCircleFill size={18} />,
+      icon: <MinusCircleIcon size={18} />,
     },
-    failed: { tone: 'danger', icon: <RiErrorWarningFill size={18} /> },
+    failed: { tone: 'danger', icon: <ErrorIcon size={18} /> },
   } as const
   return (
     <MeetingSectionState
@@ -411,14 +409,14 @@ const SummaryBody = ({
       return (
         <MeetingSectionState
           tone="danger"
-          icon={<RiErrorWarningFill size={18} />}
+          icon={<ErrorIcon size={18} />}
           title={t('summary.requestFailed.title')}
           description={t('summary.requestFailed.description')}
           action={
             <Button
-              size="appSm"
+              size="sm"
               variant="secondary"
-              icon={<RiResetRightFill aria-hidden="true" />}
+              icon={<RetryIcon aria-hidden="true" />}
               onPress={onRetry}
             >
               {t('error.retry')}
@@ -430,7 +428,7 @@ const SummaryBody = ({
       return (
         <MeetingSectionState
           tone="info"
-          icon={<RiTimeFill size={18} />}
+          icon={<TimeIcon size={18} />}
           title={t('summary.waitingTranscript.title')}
           description={t('summary.waitingTranscript.description')}
         />
@@ -459,7 +457,7 @@ const SummaryBody = ({
           '& svg': { flexShrink: 0, marginTop: '0.125rem' },
         })}
       >
-        <RiInformationFill size={15} aria-hidden="true" />
+        <InformationIcon size={15} aria-hidden="true" />
         {t('summary.automatic')}
       </p>
       {summary.paragraphs.map((paragraph, index) => (

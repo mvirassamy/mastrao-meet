@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiKeyboardBoxFill } from '@remixicon/react'
+import { KeyboardIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { navigateTo } from '@/navigation/navigateTo'
@@ -55,18 +55,26 @@ export const MeetingJoinField = () => {
             gap: '0.5rem',
             minHeight: { base: '44px', md: '38px' },
             paddingX: '0.625rem',
-            border: '1px solid',
-            borderColor: showError ? 'danger' : 'input',
-            borderRadius: 'control',
+            // Same field look as the meeting chat input.
+            border: '1px solid token(colors.border)',
+            borderRadius: '8px',
             backgroundColor: 'card',
+            boxShadow: '0 1px 2px rgb(0 0 0 / 0.05)',
             color: 'muted-foreground',
+            transition: 'border-color 150ms, box-shadow 150ms',
+            _hover: { borderColor: 'input' },
             _focusWithin: {
-              borderColor: 'primary',
-              boxShadow: '0 0 0 2px token(colors.ring)',
+              borderColor: 'ring',
+              boxShadow: '0 0 0 3px rgb(45 91 227 / 0.2)',
+            },
+            '&[data-invalid=true]': {
+              borderColor: 'danger',
+              boxShadow: '0 0 0 3px rgb(169 46 54 / 0.15)',
             },
           })}
+          data-invalid={showError}
         >
-          <RiKeyboardBoxFill size={16} aria-hidden="true" />
+          <KeyboardIcon size={16} aria-hidden="true" />
           <input
             id="authenticated-meeting-code"
             value={value}
@@ -108,8 +116,7 @@ export const MeetingJoinField = () => {
       </div>
       <Button
         type="submit"
-        size="app"
-        variant="secondaryText"
+        variant="ghost"
         isDisabled={!valid}
         className={css({ minHeight: { base: '44px', md: '38px' } })}
       >

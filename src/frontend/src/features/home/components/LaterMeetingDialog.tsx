@@ -2,12 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { Bold, Button, Dialog, type DialogProps, P, Text } from '@/primitives'
-import {
-  RiCheckFill,
-  RiFileCopyFill,
-  RiLinksFill,
-  RiSpam2Fill,
-} from '@remixicon/react'
+import { CheckIcon, CopyIcon, LinkIcon, WarningIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 import { ApiAccessLevel, ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { useTelephony } from '@/features/rooms/livekit/hooks/useTelephony'
@@ -18,7 +13,7 @@ import { useCopyRoomToClipboard } from '@/features/rooms/livekit/hooks/useCopyRo
 export const LaterMeetingDialog = ({
   room,
   ...dialogProps
-}: { room: null | ApiRoom } & Omit<DialogProps, 'title'>) => {
+}: { room: null | ApiRoom } & Omit<DialogProps, 'title' | 'children'>) => {
   const { t } = useTranslation('home', { keyPrefix: 'laterMeetingDialog' })
 
   const roomUrl = room && getRouteUrl('room', room?.slug)
@@ -71,17 +66,16 @@ export const LaterMeetingDialog = ({
                 </Text>
                 {isTelephonyReadyForUse && (
                   <Button
-                    variant={isRoomUrlCopied ? 'success' : 'tertiaryText'}
-                    square
-                    size={'sm'}
+                    variant={isRoomUrlCopied ? 'secondary' : 'ghost'}
+                    size="icon-sm"
                     onPress={copyRoomUrlToClipboard}
                     aria-label={t('copyUrl')}
                     tooltip={t('copyUrl')}
                   >
                     {isRoomUrlCopied ? (
-                      <RiCheckFill aria-hidden="true" />
+                      <CheckIcon aria-hidden="true" />
                     ) : (
-                      <RiFileCopyFill aria-hidden="true" />
+                      <CopyIcon aria-hidden="true" />
                     )}
                   </Button>
                 )}
@@ -102,7 +96,7 @@ export const LaterMeetingDialog = ({
                 </Text>
               </div>
               <Button
-                variant={isCopied ? 'success' : 'tertiaryText'}
+                variant={isCopied ? 'secondary' : 'ghost'}
                 size="sm"
                 fullWidth
                 aria-label={t('copy')}
@@ -114,7 +108,7 @@ export const LaterMeetingDialog = ({
               >
                 {isCopied ? (
                   <>
-                    <RiCheckFill
+                    <CheckIcon
                       size={18}
                       style={{ marginRight: '8px' }}
                       aria-hidden="true"
@@ -123,7 +117,7 @@ export const LaterMeetingDialog = ({
                   </>
                 ) : (
                   <>
-                    <RiFileCopyFill
+                    <CopyIcon
                       style={{ marginRight: '6px', minWidth: '18px' }}
                       aria-hidden="true"
                     />
@@ -146,7 +140,7 @@ export const LaterMeetingDialog = ({
                   'color-mix(in srgb, var(--muted) 50%, transparent)',
               })}
             >
-              <RiLinksFill
+              <LinkIcon
                 size={16}
                 aria-hidden="true"
                 className={css({ flexShrink: 0, color: 'muted-foreground' })}
@@ -165,15 +159,15 @@ export const LaterMeetingDialog = ({
                 {roomUrl?.replace(/^https?:\/\//, '')}
               </span>
               <Button
-                size="appSm"
-                variant={isCopied ? 'success' : 'primary'}
+                size="sm"
+                variant={isCopied ? 'secondary' : 'default'}
                 onPress={copyRoomToClipboard}
                 data-attr="later-dialog-copy"
                 icon={
                   isCopied ? (
-                    <RiCheckFill aria-hidden="true" />
+                    <CheckIcon aria-hidden="true" />
                   ) : (
-                    <RiFileCopyFill aria-hidden="true" />
+                    <CopyIcon aria-hidden="true" />
                   )
                 }
                 className={css({
@@ -199,7 +193,7 @@ export const LaterMeetingDialog = ({
                 lineHeight: '1.25rem',
               })}
             >
-              <RiSpam2Fill
+              <WarningIcon
                 size={16}
                 aria-hidden="true"
                 className={css({

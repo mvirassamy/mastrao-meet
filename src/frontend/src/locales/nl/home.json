@@ -89,5 +89,16 @@
       "dateTitle": "Geen vergaderingen gepland voor deze datum",
       "description": "Start nu een vergadering of maak een link om later te delen."
     }
+  },
+  "homeV2": {
+    "eyebrows": {
+      "slide1": "Soevereiniteit",
+      "slide2": "Eenvoud",
+      "slide3": "Kunstmatige intelligentie"
+    },
+    "cta": {
+      "title": "Klaar om samen te komen?",
+      "body": "Log in om een vergadering te maken, of neem deel aan de vergadering waarvoor je bent uitgenodigd."
+    }
   }
 }

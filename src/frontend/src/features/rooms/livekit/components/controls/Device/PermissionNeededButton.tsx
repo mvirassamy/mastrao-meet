@@ -1,5 +1,5 @@
 import { Button } from '@/primitives'
-import { RiErrorWarningFill } from '@remixicon/react'
+import { ErrorIcon } from '@/icons'
 import { openPermissionsDialog } from '@/stores/permissions'
 import { css } from '@/styled-system/css'
 import { useTranslation } from 'react-i18next'
@@ -19,9 +19,9 @@ export const PermissionNeededButton = ({
     <div
       className={css({
         position: 'absolute',
-        bottom: 'auto',
-        left: '-.55rem',
-        top: '-.55rem',
+        // The 22px badge sits 7px outside the control, like a notification dot.
+        left: '-8px',
+        top: '-8px',
         zIndex: 1,
       })}
     >
@@ -30,26 +30,29 @@ export const PermissionNeededButton = ({
         tooltip={label}
         onPress={onPress ?? (() => openPermissionsDialog())}
         variant="permission"
+        className={css({
+          // 24px hit area around the 22px badge.
+          width: '24px!',
+          height: '24px!',
+          display: 'grid!',
+          placeItems: 'center',
+        })}
       >
-        <div
+        {/* White disc behind the cut-out "!" + ring matching the room. */}
+        <span
+          aria-hidden="true"
           className={css({
-            position: 'relative',
-            zIndex: 2,
+            display: 'grid',
+            placeItems: 'center',
+            width: '22px',
+            height: '22px',
+            borderRadius: '100%',
+            backgroundColor: '#ffffff',
+            boxShadow: '0 0 0 2px var(--background)',
           })}
         >
-          <RiErrorWarningFill size={28} />
-        </div>
-        <div
-          className={css({
-            width: '18px',
-            height: '18px',
-            position: 'absolute',
-            top: '4px',
-            left: '4px',
-            backgroundColor: 'warning',
-            borderRadius: '100%',
-          })}
-        />
+          <ErrorIcon size={22} />
+        </span>
       </Button>
     </div>
   )
