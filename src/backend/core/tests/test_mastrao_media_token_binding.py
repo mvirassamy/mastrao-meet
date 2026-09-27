@@ -21,7 +21,12 @@ from core import models
 from core.factories import RoomFactory, UserFactory
 from core.mastrao_guest_contract import GuestHandoffRefused
 from core.mastrao_guest_handoff import guest_media_config
-from core.mastrao_host_grant import SESSION_NONCE_KEY, SESSION_PLATFORM_REF_KEY
+from core.mastrao_host_grant import (
+    SESSION_COMPACT_GRANTS_KEY,
+    SESSION_NONCE_KEY,
+    SESSION_OIDC_SUBJECT_KEY,
+    SESSION_PLATFORM_REF_KEY,
+)
 from core.mastrao_identity import mastrao_host_subject
 from core.mastrao_media_token_binding import generate_host_media_config
 from core.mastrao_room_lifecycle import MastraoRoomClosed
@@ -138,6 +143,34 @@ def test_host_lobby_returns_token_only_with_persisted_exact_binding(host):
     assert row.expires_at <= host.expires_at
     assert claims["video"]["canUpdateOwnMetadata"] is False
     assert host.grant_ref not in str(claims["attributes"])
+
+
+def test_oidc_host_lobby_uses_the_authenticated_oidc_identity(host):
+    """An OIDC session retaining a host grant can issue its own media token."""
+    oidc_user = UserFactory(sub="oidc-user-media-fixture")
+    request = _request(host)
+    request.user = oidc_user
+    request.session.update(
+        {
+            "oidc_access_token": "opaque-access-token",
+            SESSION_OIDC_SUBJECT_KEY: str(oidc_user.sub),
+            SESSION_COMPACT_GRANTS_KEY: {
+                host.grant_ref: "synthetic.compact.host.grant"
+            },
+        }
+    )
+
+    with mock.patch("core.services.lobby.ensure_livekit_room"):
+        _, result = LobbyService().request_entry(
+            host.room_binding.room, request, "Matt"
+        )
+
+    claims = _claims(result)
+    row = models.MastraoMediaTokenBinding.objects.get(
+        pk=claims["attributes"]["mastrao.media_token_binding_ref"]
+    )
+    assert row.host_grant_id == host.pk
+    assert row.rtc_identity == claims["sub"] == str(oidc_user.sub)
 
 
 def test_repeated_issuance_has_distinct_receipts_for_same_grant(host):

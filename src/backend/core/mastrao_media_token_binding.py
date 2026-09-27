@@ -20,7 +20,7 @@ from django.utils import timezone
 import jwt
 
 from core import models, utils
-from core.mastrao_host_grant import active_host_grant
+from core.mastrao_host_grant import SESSION_OIDC_SUBJECT_KEY, active_host_grant
 from core.mastrao_room_lifecycle import assert_mastrao_room_open
 
 
@@ -31,7 +31,12 @@ def generate_host_media_config(request, room, **configuration):
     grant = active_host_grant(request, room)
     if grant is None:
         raise PermissionDenied("Media grant unavailable")
-    return _issue_bound_config(grant, grant.grant_digest, configuration)
+    return _issue_bound_config(
+        grant,
+        grant.grant_digest,
+        configuration,
+        oidc_subject=request.session.get(SESSION_OIDC_SUBJECT_KEY),
+    )
 
 
 def generate_guest_media_config(grant, authorization_digest, **configuration):
@@ -41,17 +46,16 @@ def generate_guest_media_config(grant, authorization_digest, **configuration):
     return _issue_bound_config(grant, authorization_digest, configuration)
 
 
-def _validate_identity(grant, configuration):
+def _validate_identity(grant, configuration, oidc_subject=None):
     user = configuration["user"]
     if isinstance(grant, models.MastraoHostGrant):
-        if (
-            not user.is_authenticated
-            or not user.is_active
-            or user.pk != grant.identity.user_id
-            or not grant.identity.user.is_active
-        ):
+        if not user.is_authenticated or not user.is_active:
             raise PermissionDenied("Media identity mismatch")
-        return str(grant.identity.user.sub)
+        if user.pk == grant.identity.user_id and grant.identity.user.is_active:
+            return str(grant.identity.user.sub)
+        if oidc_subject == str(user.sub):
+            return str(user.sub)
+        raise PermissionDenied("Media identity mismatch")
     if (
         user.is_authenticated
         or configuration.get("participant_id") != grant.guest_ref
@@ -65,7 +69,9 @@ def _validate_identity(grant, configuration):
 
 
 @transaction.atomic
-def _issue_bound_config(grant, authorization_digest, configuration):
+def _issue_bound_config(
+    grant, authorization_digest, configuration, *, oidc_subject=None
+):
     # Serialize issuance with room closure and grant updates. No remote work here.
     binding = models.MastraoRoomBinding.objects.select_for_update().get(
         pk=grant.room_binding_id
@@ -89,7 +95,7 @@ def _issue_bound_config(grant, authorization_digest, configuration):
         != (grant.grant_digest, grant.session_nonce_digest, grant.credential_digest)
     ):
         raise PermissionDenied("Media binding mismatch")
-    identity = _validate_identity(grant, configuration)
+    identity = _validate_identity(grant, configuration, oidc_subject)
     reference = uuid4()
     configuration = {
         **configuration,
