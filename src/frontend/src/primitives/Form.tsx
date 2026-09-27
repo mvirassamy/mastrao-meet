@@ -2,8 +2,10 @@ import { type FormEvent } from 'react'
 import { Form as RACForm, type FormProps } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { HStack } from '@/styled-system/jsx'
+import { css } from '@/styled-system/css'
 import { useCloseDialog } from './useCloseDialog'
 import { type ButtonProps, Button } from './Button'
+import { useAppAppearance } from './useAppAppearance'
 
 /**
  * From wrapper that exposes form data on submit and adds submit/cancel buttons
@@ -33,6 +35,7 @@ export const Form = ({
 }) => {
   const { t } = useTranslation()
   const closeDialog = useCloseDialog()
+  const isApp = useAppAppearance()
   const onCancel = withCancelButton
     ? onCancelButtonPress || closeDialog
     : undefined
@@ -49,16 +52,43 @@ export const Form = ({
       }}
     >
       {children}
-      <HStack gap="gutter">
-        <Button type="submit" variant="primary" {...submitButtonProps}>
-          {submitLabel}
-        </Button>
-        {!!onCancel && (
-          <Button variant="outline" onPress={() => onCancel()}>
-            {t('cancel')}
+      {isApp ? (
+        // Mastrao application actions: right-aligned, cancel before submit.
+        <div
+          className={css({
+            display: 'flex',
+            flexDirection: { base: 'column-reverse', sm: 'row' },
+            justifyContent: 'flex-end',
+            gap: '0.5rem',
+            marginTop: '1rem',
+          })}
+        >
+          {!!onCancel && (
+            <Button size="app" variant="outline" onPress={() => onCancel()}>
+              {t('cancel')}
+            </Button>
+          )}
+          <Button
+            size="app"
+            type="submit"
+            variant="primary"
+            {...submitButtonProps}
+          >
+            {submitLabel}
           </Button>
-        )}
-      </HStack>
+        </div>
+      ) : (
+        <HStack gap="gutter">
+          <Button type="submit" variant="primary" {...submitButtonProps}>
+            {submitLabel}
+          </Button>
+          {!!onCancel && (
+            <Button variant="outline" onPress={() => onCancel()}>
+              {t('cancel')}
+            </Button>
+          )}
+        </HStack>
+      )}
     </RACForm>
   )
 }

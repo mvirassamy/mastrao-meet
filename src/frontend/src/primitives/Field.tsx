@@ -15,13 +15,29 @@ import {
 import { FieldDescription } from './FieldDescription'
 import { FieldErrors } from './FieldErrors'
 import { Input } from './Input'
+import { AppInput } from './AppInput'
 import { Radio } from './Radio'
 import { Checkbox } from './Checkbox'
 import { Select } from './Select'
 import { Text } from './Text'
 import { Div } from './Div'
 import { Switch, type SwitchProps } from './Switch'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { useAppAppearance } from './useAppAppearance'
+
+// Mastrao application labels: medium weight, compact, one size everywhere.
+const appLabel = css({
+  fontSize: '0.875rem!',
+  lineHeight: '1.25rem!',
+  fontWeight: '500!',
+  paddingBottom: '0!',
+})
+const appDescription = css({
+  marginTop: '0.125rem',
+  color: 'muted-foreground!',
+  fontSize: '0.8125rem!',
+  lineHeight: '1.25rem!',
+})
 
 const FieldWrapper = styled('div', {
   base: {
@@ -135,11 +151,22 @@ export const Field = <T extends object>({
   validate,
   ...props
 }: FieldProps<T>) => {
+  const isApp = useAppAppearance()
   const LabelAndDescription = (
     <>
-      <StyledLabel {...props.labelProps}>{label}</StyledLabel>
+      <StyledLabel
+        {...props.labelProps}
+        className={cx(props.labelProps?.className, isApp && appLabel)}
+      >
+        {label}
+      </StyledLabel>
       {description ? (
-        <FieldDescription slot="description">{description}</FieldDescription>
+        <FieldDescription
+          slot="description"
+          className={isApp ? appDescription : undefined}
+        >
+          {description}
+        </FieldDescription>
       ) : null}
     </>
   )
@@ -159,7 +186,7 @@ export const Field = <T extends object>({
           {...(props as PartialTextFieldProps)}
         >
           {LabelAndDescription}
-          <Input />
+          {isApp ? <AppInput /> : <Input />}
           {RACFieldErrors}
         </RACTextField>
       </FieldWrapper>
