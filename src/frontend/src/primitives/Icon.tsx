@@ -3,32 +3,31 @@ import { cva, RecipeVariantProps } from '@/styled-system/css'
 import { ComponentPropsWithoutRef } from 'react'
 
 import {
-  RiArrowRightSFill,
-  RiRecordCircleFill,
-  RiSpeakFill,
-  RiTranslate2,
-  RiArticleFill,
-  RiLoginBoxFill,
-  RiMailFill,
-  RiDownloadCloudFill,
-  RiVideoFill,
-  RiInformationFill,
-} from '@remixicon/react'
-
+  ChevronRightIcon,
+  RecordIcon,
+  SpeakIcon,
+  TranslateIcon,
+  ArticleIcon,
+  LoginIcon,
+  MailIcon,
+  DownloadCloudIcon,
+  VideoIcon,
+  InformationIcon,
+} from '@/icons'
 // Explicit native solid glyphs; do not fill outline SVGs through CSS.
 const icons = {
-  chevron_forward: RiArrowRightSFill,
-  chevron_right: RiArrowRightSFill,
-  mode_standby: RiRecordCircleFill,
-  speech_to_text: RiSpeakFill,
-  language: RiTranslate2,
-  article: RiArticleFill,
+  chevron_forward: ChevronRightIcon,
+  chevron_right: ChevronRightIcon,
+  mode_standby: RecordIcon,
+  speech_to_text: SpeakIcon,
+  language: TranslateIcon,
+  article: ArticleIcon,
   person_raised_hand: HandRaisedFill,
-  login: RiLoginBoxFill,
-  mail: RiMailFill,
-  cloud_download: RiDownloadCloudFill,
-  screen_record: RiVideoFill,
-  info: RiInformationFill,
+  login: LoginIcon,
+  mail: MailIcon,
+  cloud_download: DownloadCloudIcon,
+  screen_record: VideoIcon,
+  info: InformationIcon,
 }
 
 export type IconName = keyof typeof icons

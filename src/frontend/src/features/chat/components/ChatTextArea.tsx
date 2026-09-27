@@ -1,5 +1,6 @@
 import { TextArea } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
+import { css } from '@/styled-system/css'
 import React, { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
@@ -13,11 +14,29 @@ import { ChatSubmitButton } from './ChatSubmitButton'
 const StyledContainer = styled('div', {
   base: {
     display: 'flex',
+    alignItems: 'flex-end',
+    gap: '0.25rem',
     margin: '0.75rem 0 1.5rem',
-    padding: '0.5rem',
-    backgroundColor: 'muted',
-    borderRadius: 4,
+    padding: '0.25rem 0.25rem 0.25rem 0.125rem',
+    border: '1px solid token(colors.border)',
+    borderRadius: '8px',
+    backgroundColor: 'card',
+    boxShadow: '0 1px 2px rgb(0 0 0 / 0.05)',
+    transition: 'border-color 150ms, box-shadow 150ms',
+    _hover: { borderColor: 'input' },
+    _focusWithin: {
+      borderColor: 'ring',
+      boxShadow: '0 0 0 3px rgb(45 91 227 / 0.2)',
+    },
   },
+})
+
+const textAreaClassName = css({
+  backgroundColor: 'transparent',
+  color: 'foreground',
+  fontSize: '0.875rem',
+  outline: 'none',
+  _placeholder: { color: 'muted-foreground', opacity: 1 },
 })
 
 export const ChatTextArea = () => {
@@ -71,16 +90,16 @@ export const ChatTextArea = () => {
           persistTextAreaValue(e.target.value)
         }}
         fieldSizing={'content'}
+        className={textAreaClassName}
         style={{
           border: 'none',
           resize: 'none',
           height: 'auto',
           maxHeight: '240px',
-          minHeight: `34px`,
-          lineHeight: 1.25,
-          padding: '7px 10px',
+          minHeight: '36px',
+          lineHeight: '1.25rem',
+          padding: '8px 10px',
         }}
-        placeholderStyle="strong"
         spellCheck={false}
         maxLength={2000}
         placeholder={t('textArea.placeholder')}

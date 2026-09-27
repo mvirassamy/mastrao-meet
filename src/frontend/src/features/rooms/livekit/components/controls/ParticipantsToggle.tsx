@@ -1,6 +1,6 @@
 import { useCallback, useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiGroupFill } from '@remixicon/react'
+import { GroupIcon } from '@/icons'
 import { ToggleButton, type ToggleButtonProps } from '@/primitives/ToggleButton'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
@@ -38,8 +38,7 @@ export const ParticipantsToggle = ({
       <VisualOnlyTooltip tooltip={t(tooltipLabel)}>
         <ToggleButton
           shape="circle"
-          square
-          variant="primaryTextDark"
+          variant="ghost"
           aria-label={t(tooltipLabel)}
           aria-describedby={countId}
           isSelected={isParticipantsOpen}
@@ -48,7 +47,7 @@ export const ParticipantsToggle = ({
           data-attr={`controls-participants-${tooltipLabel}`}
           {...props}
         >
-          <RiGroupFill />
+          <GroupIcon />
         </ToggleButton>
       </VisualOnlyTooltip>
       <ParticipantsCount describedById={countId} />

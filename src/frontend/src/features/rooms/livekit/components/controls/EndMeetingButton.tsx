@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiStopCircleFill } from '@remixicon/react'
-
-import { Button, Dialog, P } from '@/primitives'
-import { HStack } from '@/styled-system/jsx'
+import { StopCircleIcon } from '@/icons'
+import { Button, Dialog, DialogActions, P } from '@/primitives'
 import {
   endMeeting,
   isRetryableEndMeetingError,
@@ -68,7 +66,7 @@ export const EndMeetingButton = ({
     <>
       <Button
         shape="circle"
-        variant="danger"
+        variant="hangup"
         tooltip={t('label')}
         aria-label={t('label')}
         description={description}
@@ -76,7 +74,7 @@ export const EndMeetingButton = ({
         onPress={() => setIsOpen(true)}
         data-attr="controls-end-meeting"
       >
-        <RiStopCircleFill />
+        <StopCircleIcon />
       </Button>
       <Dialog
         isOpen={isOpen}
@@ -86,7 +84,7 @@ export const EndMeetingButton = ({
       >
         <P>{t('dialog.body')}</P>
         {hasFailed && <P role="alert">{t('dialog.error')}</P>}
-        <HStack gap={2}>
+        <DialogActions>
           <Button
             variant="outline"
             isDisabled={isSubmitting}
@@ -94,10 +92,14 @@ export const EndMeetingButton = ({
           >
             {t('dialog.cancel')}
           </Button>
-          <Button variant="danger" isDisabled={isSubmitting} onPress={confirm}>
+          <Button
+            variant="destructive"
+            isDisabled={isSubmitting}
+            onPress={confirm}
+          >
             {isSubmitting ? t('dialog.ending') : t('dialog.confirm')}
           </Button>
-        </HStack>
+        </DialogActions>
       </Dialog>
     </>
   )

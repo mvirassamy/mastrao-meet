@@ -1,6 +1,6 @@
 import { useConnectionState, useRoomContext } from '@livekit/components-react'
 import { Button } from '@/primitives'
-import { RiPhoneFill } from '@remixicon/react'
+import { PhoneIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { ConnectionState } from 'livekit-client'
 import { useParams } from 'wouter'
@@ -16,7 +16,7 @@ export const LeaveButton = () => {
   return (
     <Button
       shape="circle"
-      variant="destructive"
+      variant="hangup"
       tooltip={t('leave')}
       aria-label={t('leave')}
       onPress={() => {
@@ -32,7 +32,7 @@ export const LeaveButton = () => {
       }}
       data-attr="controls-leave"
     >
-      <RiPhoneFill
+      <PhoneIcon
         style={{
           transform: 'rotate(135deg)',
         }}

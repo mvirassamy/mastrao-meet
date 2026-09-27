@@ -4,12 +4,7 @@ import { Div, Button, P, Bold } from '@/primitives'
 import { HStack, styled, VStack } from '@/styled-system/jsx'
 import { Heading, Dialog } from 'react-aria-components'
 import { Text, text } from '@/primitives/Text'
-import {
-  RiCheckFill,
-  RiCloseFill,
-  RiFileCopyFill,
-  RiSpam2Fill,
-} from '@remixicon/react'
+import { CheckIcon, CloseIcon, CopyIcon, WarningIcon } from '@/icons'
 import { useMemo, useState } from 'react'
 import { css } from '@/styled-system/css'
 import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
@@ -74,15 +69,14 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
         </Heading>
         <Div position="absolute" top="5" right="5">
           <Button
-            invisible
-            variant="tertiaryText"
+            variant="ghost"
             size="xs"
             onPress={() => {
               setShowInviteDialog(false)
             }}
             aria-label={t('closeDialog')}
           >
-            <RiCloseFill />
+            <CloseIcon />
           </Button>
         </Div>
         <P>{t('description')}</P>
@@ -109,17 +103,16 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
               </Text>
               {isTelephonyReadyForUse && roomUrl && (
                 <Button
-                  variant={isRoomUrlCopied ? 'success' : 'tertiaryText'}
-                  square
-                  size={'sm'}
+                  variant={isRoomUrlCopied ? 'secondary' : 'ghost'}
+                  size="icon-sm"
                   onPress={copyRoomUrlToClipboard}
                   aria-label={isRoomUrlCopied ? t('copied') : t('copyUrl')}
                   tooltip={isRoomUrlCopied ? t('copied') : t('copyUrl')}
                 >
                   {isRoomUrlCopied ? (
-                    <RiCheckFill aria-hidden="true" />
+                    <CheckIcon aria-hidden="true" />
                   ) : (
-                    <RiFileCopyFill aria-hidden="true" />
+                    <CopyIcon aria-hidden="true" />
                   )}
                 </Button>
               )}
@@ -141,7 +134,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
             </div>
 
             <Button
-              variant={isCopied ? 'success' : 'secondaryText'}
+              variant={isCopied ? 'secondary' : 'ghost'}
               size="sm"
               fullWidth
               aria-label={isCopied ? t('copied') : t('copy')}
@@ -153,7 +146,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
             >
               {isCopied ? (
                 <>
-                  <RiCheckFill
+                  <CheckIcon
                     size={18}
                     style={{ marginRight: '8px' }}
                     aria-hidden="true"
@@ -162,7 +155,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
                 </>
               ) : (
                 <>
-                  <RiFileCopyFill
+                  <CopyIcon
                     style={{ marginRight: '6px', minWidth: '18px' }}
                     aria-hidden="true"
                   />
@@ -173,7 +166,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
           </div>
         ) : (
           <Button
-            variant={isCopied ? 'success' : 'tertiary'}
+            variant="secondary"
             fullWidth
             aria-label={isCopied ? t('copied') : t('copy')}
             onPress={copyRoomToClipboard}
@@ -181,12 +174,12 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
           >
             {isCopied ? (
               <>
-                <RiCheckFill size={24} style={{ marginRight: '8px' }} />
+                <CheckIcon size={24} style={{ marginRight: '8px' }} />
                 {t('copied')}
               </>
             ) : (
               <>
-                <RiFileCopyFill size={24} style={{ marginRight: '8px' }} />
+                <CopyIcon size={24} style={{ marginRight: '8px' }} />
                 {t('copyUrl')}
               </>
             )}
@@ -202,7 +195,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
                 marginTop: '1rem',
               })}
             >
-              <RiSpam2Fill
+              <WarningIcon
                 size={22}
                 className={css({
                   fill: 'primary',

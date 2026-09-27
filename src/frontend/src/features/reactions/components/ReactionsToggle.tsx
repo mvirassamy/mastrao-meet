@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiEmotionFill } from '@remixicon/react'
+import { EmojiIcon } from '@/icons'
 import { ToggleButton } from '@/primitives'
 
 import { useRegisterKeyboardShortcut } from '@/features/shortcuts/useRegisterKeyboardShortcut'
@@ -40,15 +40,14 @@ export const ReactionsToggle = () => {
       shape="circle"
       id={REACTIONS_TOGGLE_ID}
       data-attr="reactions-toggle"
-      square
-      variant="primaryDark"
+      variant="outline"
       aria-label={t('button')}
       aria-expanded={isOpen}
       tooltip={t('button')}
       isSelected={isOpen}
       onChange={toggle}
     >
-      <RiEmotionFill />
+      <EmojiIcon />
     </ToggleButton>
   )
 }

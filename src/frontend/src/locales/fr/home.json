@@ -89,5 +89,16 @@
       "dateTitle": "Aucune réunion programmée pour cette date",
       "description": "Créez une réunion maintenant ou préparez un lien à partager pour plus tard."
     }
+  },
+  "homeV2": {
+    "eyebrows": {
+      "slide1": "Souveraineté",
+      "slide2": "Simplicité",
+      "slide3": "Intelligence artificielle"
+    },
+    "cta": {
+      "title": "Prêt à vous retrouver ?",
+      "body": "Connectez-vous pour créer une réunion, ou rejoignez celle à laquelle vous êtes invité."
+    }
   }
 }

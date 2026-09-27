@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
-import { RiAdminFill, RiUserMinusFill } from '@remixicon/react'
+import { AdminIcon, UserMinusIcon } from '@/icons'
 import { useParticipantRole } from '@/features/participants/api/updateParticipantRole'
 import { menuRecipe } from '@/primitives/menuRecipe'
 import { HStack } from '@/styled-system/jsx'
@@ -19,7 +19,7 @@ export const PromoteMenuItem = React.memo(
     const { updateParticipantRole } = useParticipantRole()
 
     const label = isAdmin ? 'demote' : 'promote'
-    const Icon = isAdmin ? RiUserMinusFill : RiAdminFill
+    const Icon = isAdmin ? UserMinusIcon : AdminIcon
 
     const toggleRole = useCallback(
       () =>
@@ -32,10 +32,10 @@ export const PromoteMenuItem = React.memo(
         aria-label={t(`${label}.ariaLabel`, {
           name: displayedName || identity,
         })}
-        className={menuRecipe({ icon: true }).item}
+        className={menuRecipe({ icon: true, density: 'app' }).item}
         onAction={toggleRole}
       >
-        <HStack gap={0.25} minWidth={280}>
+        <HStack gap={0.25} minWidth={200}>
           <Icon size={20} aria-hidden />
           {t(`${label}.label`)}
         </HStack>

@@ -1,11 +1,7 @@
 import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Tab, TabList, TabPanel, Tabs } from 'react-aria-components'
-import {
-  RiDoorOpenFill,
-  RiLogoutBoxRFill,
-  RiSettings3Fill,
-} from '@remixicon/react'
+import { TabPanel } from 'react-aria-components'
+import { RoomsIcon, LogoutIcon, SettingsIcon } from '@/icons'
 import { useLanguageLabels } from '@/i18n/useLanguageLabels'
 import { AppDialog, type AppDialogProps } from '@/primitives/AppDialog'
 import { Button, Field } from '@/primitives'
@@ -14,10 +10,14 @@ import { useUser } from '@/features/auth/api/useUser'
 import { logout } from '@/features/auth/utils/logout'
 import { LoginButton } from '@/components/LoginButton'
 import { MeetUserAvatar } from '@/features/home/components/authenticated/MeetUserAvatar'
-import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { RoomsTab } from './tabs/RoomsTab'
+import { SettingsTabsLayout } from './SettingsTabsLayout'
+import { settingsDialogBodyClass } from './settingsDialogStyles'
 
-type AppSettingsDialogProps = Pick<AppDialogProps, 'isOpen' | 'onOpenChange'>
+type AppSettingsDialogProps = Pick<
+  AppDialogProps,
+  'isOpen' | 'onOpenChange' | 'backdrop'
+>
 
 const GENERAL = 'general'
 const ROOMS = 'rooms'
@@ -118,9 +118,9 @@ const GeneralSettings = () => {
               )}
             </div>
             <Button
-              size="appSm"
+              size="sm"
               variant="outline"
-              icon={<RiLogoutBoxRFill aria-hidden="true" />}
+              icon={<LogoutIcon aria-hidden="true" />}
               onPress={() => void logout()}
               className={css({ minHeight: { base: '40px', md: '32px' } })}
             >
@@ -153,35 +153,13 @@ const GeneralSettings = () => {
   )
 }
 
-const tabClass = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '9px',
-  minHeight: { base: '40px', md: '36px' },
-  paddingX: '10px',
-  borderRadius: '9px',
-  color: 'var(--workspace-ink-soft, var(--foreground))',
-  fontSize: '0.875rem',
-  whiteSpace: 'nowrap',
-  cursor: 'pointer',
-  outline: 'none',
-  '& svg': { width: '17px', height: '17px', flexShrink: 0 },
-  '&[data-hovered]': { backgroundColor: 'muted', color: 'foreground' },
-  '&[data-selected]': { backgroundColor: 'accent', color: 'primary' },
-  '&[data-focus-visible]': {
-    outline: '2px solid token(colors.ring)',
-    outlineOffset: '2px',
-  },
-})
-
 /**
- * Settings opened from the authenticated workspace, drawn with AppDialog.
- * Room settings keep their own dialogs and styles.
+ * Settings dialog (home, history, public pages and room device menus).
+ * The in-room settings use SettingsDialogExtended with the same layout.
  */
 export const AppSettingsDialog = (props: AppSettingsDialogProps) => {
   const { t } = useTranslation('settings')
   const { isLoggedIn } = useUser()
-  const isWide = useMediaQuery('(min-width: 640px)')
 
   if (!isLoggedIn) {
     return (
@@ -196,78 +174,29 @@ export const AppSettingsDialog = (props: AppSettingsDialogProps) => {
       title={t('dialog.heading')}
       size="lg"
       {...props}
-      bodyClassName={css({
-        display: 'flex',
-        overflowY: 'hidden',
-        paddingBottom: 0,
-      })}
+      bodyClassName={settingsDialogBodyClass}
     >
-      <Tabs
-        orientation={isWide ? 'vertical' : 'horizontal'}
+      <SettingsTabsLayout
+        label={t('dialog.heading')}
         defaultSelectedKey={GENERAL}
-        className={css({
-          display: 'flex',
-          flexDirection: { base: 'column', sm: 'row' },
-          gap: { base: '0.75rem', sm: '1.25rem' },
-          width: '100%',
-          minHeight: 0,
-          height: { base: 'auto', sm: 'min(32rem, calc(100dvh - 7rem))' },
-        })}
+        tabs={[
+          {
+            id: GENERAL,
+            label: t(`tabs.${GENERAL}`),
+            icon: <SettingsIcon aria-hidden="true" />,
+          },
+          {
+            id: ROOMS,
+            label: t(`tabs.${ROOMS}`),
+            icon: <RoomsIcon aria-hidden="true" />,
+          },
+        ]}
       >
-        <TabList
-          aria-label={t('dialog.heading')}
-          className={css({
-            display: 'flex',
-            flexDirection: { base: 'row', sm: 'column' },
-            flexShrink: 0,
-            gap: '5px',
-            width: { base: 'auto', sm: '10.5rem' },
-            paddingBottom: { base: '0.75rem', sm: '1rem' },
-            paddingRight: { base: 0, sm: '1.25rem' },
-            borderBottom: {
-              base: '1px solid token(colors.border)',
-              sm: 'none',
-            },
-            borderRight: {
-              base: 'none',
-              sm: '1px solid token(colors.border)',
-            },
-            overflowX: { base: 'auto', sm: 'visible' },
-          })}
-        >
-          <Tab id={GENERAL} className={tabClass}>
-            <RiSettings3Fill aria-hidden="true" />
-            {t(`tabs.${GENERAL}`)}
-          </Tab>
-          <Tab id={ROOMS} className={tabClass}>
-            <RiDoorOpenFill aria-hidden="true" />
-            {t(`tabs.${ROOMS}`)}
-          </Tab>
-        </TabList>
-        <div
-          className={css({
-            minWidth: 0,
-            minHeight: 0,
-            flex: 1,
-            overflowY: 'auto',
-            paddingBottom: '1rem',
-            // Room defaults reuse their existing panel; align its typography.
-            '& [role=tabpanel]': { padding: 0, outline: 'none' },
-            '& :is(h2, h3)': {
-              marginTop: 0,
-              fontSize: '0.875rem',
-              lineHeight: '1.25rem',
-              fontWeight: 600,
-            },
-            '& p': { fontSize: '0.875rem', lineHeight: '1.25rem' },
-          })}
-        >
-          <TabPanel id={GENERAL}>
-            <GeneralSettings />
-          </TabPanel>
-          <RoomsTab id={ROOMS} />
-        </div>
-      </Tabs>
+        <TabPanel id={GENERAL}>
+          <GeneralSettings />
+        </TabPanel>
+        <RoomsTab id={ROOMS} />
+      </SettingsTabsLayout>
     </AppDialog>
   )
 }

@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
-import {
-  RiArrowRightSFill,
-  RiErrorWarningFill,
-  RiResetRightFill,
-} from '@remixicon/react'
+import { ChevronRightIcon, RetryIcon } from '@/icons'
 import { CreateMeetingMenu } from '@/features/home/components/CreateMeetingMenu'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -122,15 +118,13 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
       ) : !query.data ? (
         <MeetingHistoryStatePanel
           role="alert"
-          tone="danger"
-          icon={<RiErrorWarningFill size={22} />}
+          illustration="/assets/illustrations/historique-erreur.webp"
           title={t('error.title')}
           description={t('error.description')}
           action={
             <Button
-              size="app"
               variant="secondary"
-              icon={<RiResetRightFill aria-hidden="true" />}
+              icon={<RetryIcon aria-hidden="true" />}
               onPress={() => void query.refetch()}
             >
               {t('error.retry')}
@@ -147,7 +141,7 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
               label={t('dashboard.newMeeting', { ns: 'home' })}
               showIcon
               buttonProps={{
-                size: 'app',
+                size: 'default',
                 className: css({
                   minHeight: { base: '44px', md: '38px' },
                   paddingX: '1rem',
@@ -224,7 +218,6 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
                 </p>
               )}
               <Button
-                size="app"
                 variant="secondary"
                 isDisabled={query.isFetchingNextPage}
                 onPress={() => void query.fetchNextPage()}
@@ -345,7 +338,7 @@ const MeetingHistoryRow = ({
           status={item.transcriptStatus}
         />
       </div>
-      <RiArrowRightSFill
+      <ChevronRightIcon
         size={18}
         aria-hidden="true"
         className={css({

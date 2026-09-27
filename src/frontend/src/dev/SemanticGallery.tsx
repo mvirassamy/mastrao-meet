@@ -5,11 +5,13 @@ import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 
 const variants = [
-  'primary',
-  'secondary',
+  'default',
   'outline',
+  'secondary',
   'ghost',
   'destructive',
+  'invert',
+  'link',
 ] as const
 
 /** Development-only gallery of the actual product primitives. */

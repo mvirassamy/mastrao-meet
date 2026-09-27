@@ -1,7 +1,7 @@
 import { Participant } from 'livekit-client'
 import { css } from '@/styled-system/css'
 import { useParticipantAttribute } from '@livekit/components-react'
-import { RiErrorWarningFill } from '@remixicon/react'
+import { ErrorIcon } from '@/icons'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { useTranslation } from 'react-i18next'
 
@@ -36,7 +36,7 @@ export const UnauthenticatedBadge = ({
       })}
     >
       <VisualOnlyTooltip tooltip={t('badge')}>
-        <RiErrorWarningFill size={14} aria-hidden />
+        <ErrorIcon size={14} aria-hidden />
       </VisualOnlyTooltip>
     </div>
   )

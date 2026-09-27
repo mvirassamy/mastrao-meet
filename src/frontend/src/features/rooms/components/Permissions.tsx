@@ -1,7 +1,7 @@
 import { useWatchPermissions } from '@/features/rooms/hooks/useWatchPermissions'
 import { css } from '@/styled-system/css'
-import { Button, Dialog, H, P } from '@/primitives'
-import { RiEqualizer2Fill } from '@remixicon/react'
+import { Button, Dialog, DialogActions, H, P } from '@/primitives'
+import { AdjustmentsIcon } from '@/icons'
 import { useEffect, useMemo } from 'react'
 import { useSnapshot } from 'valtio'
 import {
@@ -74,16 +74,11 @@ const SystemPermissions = () => {
       isOpen={isOpen}
       role="dialog"
       type="flex"
-      title=""
+      title={t(`heading.${label}`)}
       aria-label={t(`heading.${label}`)}
       onClose={closeSystemPermissionsDialog}
     >
-      <div
-        className={css({
-          maxWidth: '500px',
-        })}
-      >
-        <H lvl={1}>{t(`heading.${label}`)}</H>
+      <div>
         <P>{t('intro', { device })}</P>
         <ol className={css({ listStyle: 'decimal', paddingLeft: '24px' })}>
           {Array.from({ length: 2 }, (_, index) => (
@@ -93,17 +88,16 @@ const SystemPermissions = () => {
           ))}
         </ol>
         {settingsUrl && (
-          <div className={css({ marginTop: '2rem' })}>
+          <DialogActions>
             <Button
-              variant="primary"
-              size="sm"
+              variant="default"
               onPress={() => {
                 window.open(settingsUrl, '_blank')
               }}
             >
               {t('openSettings')}
             </Button>
-          </div>
+          </DialogActions>
         )}
       </div>
     </Dialog>
@@ -172,6 +166,7 @@ export const Permissions = () => {
         isOpen={permissions.isPermissionDialogOpen}
         role="dialog"
         type="flex"
+        size="wide"
         title=""
         aria-label={t(`heading.${permissionLabel}`, {
           appTitle,
@@ -223,7 +218,7 @@ export const Permissions = () => {
                         verticalAlign: 'middle',
                       }}
                     >
-                      <RiEqualizer2Fill />
+                      <AdjustmentsIcon />
                     </span>
                     {descriptionAfterIcon}
                   </>

@@ -1,4 +1,4 @@
-import { RiRecordCircleFill } from '@remixicon/react'
+import { RecordIcon } from '@/icons'
 import { MenuItem } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
@@ -20,12 +20,14 @@ export const ScreenRecordingMenuItem = () => {
 
   return (
     <MenuItem
-      className={menuRecipe({ icon: true, variant: 'dark' }).item}
+      className={
+        menuRecipe({ icon: true, variant: 'dark', density: 'app' }).item
+      }
       onAction={() =>
         !isScreenRecordingOpen ? openScreenRecording() : toggleTools()
       }
     >
-      <RiRecordCircleFill size={20} />
+      <RecordIcon size={20} />
       {t('screenRecording')}
     </MenuItem>
   )

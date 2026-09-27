@@ -5,11 +5,13 @@ import {
   UseTrackToggleProps,
 } from '@livekit/components-react'
 import { Button, Popover } from '@/primitives'
-import { RiArrowUpSFill } from '@remixicon/react'
+import { ChevronUpIcon } from '@/icons'
 import { LocalAudioTrack, Track } from 'livekit-client'
 
 import { ToggleDevice } from './ToggleDevice'
 import { css } from '@/styled-system/css'
+import { AppAppearanceProvider } from '@/primitives/appAppearance'
+import { devicePanel, deviceSelect } from './devicePanelStyles'
 import { useCanPublishTrack } from '../../../hooks/useCanPublishTrack'
 import { useCannotUseDevice } from '../../../hooks/useCannotUseDevice'
 import { SelectDevice } from './SelectDevice'
@@ -63,7 +65,7 @@ export const AudioDevicesControl = ({
     <div
       className={css({
         display: 'flex',
-        gap: '6px',
+        gap: '10px',
       })}
     >
       <ToggleDevice<Source.Microphone>
@@ -81,59 +83,43 @@ export const AudioDevicesControl = ({
         }}
       />
       {!hideMenu && (
-        <Popover variant="dark" withArrow={false}>
+        <Popover variant="dark" density="app" withArrow={false}>
           <Button
             tooltip={selectLabel}
             aria-label={selectLabel}
             shape="circle"
-            square
-            variant={cannotUseDevice ? 'error2' : 'primaryDark'}
+            variant={cannotUseDevice ? 'warning' : 'outline'}
           >
-            <RiArrowUpSFill />
+            <ChevronUpIcon />
           </Button>
           {({ close }) => (
-            <div
-              className={css({
-                maxWidth: '36rem',
-                padding: '0.15rem',
-                display: 'flex',
-                gap: '0.5rem',
-              })}
-            >
-              <div
-                style={{
-                  flex: '1 1 0',
-                  minWidth: 0,
-                }}
-              >
-                <SelectDevice
-                  context="room"
-                  kind={kind}
-                  id={audioDeviceId}
-                  track={localAudioTrack}
-                  onSubmit={saveAudioInputDeviceId}
-                />
-              </div>
-              {!isSafari() && (
-                <div
-                  style={{
-                    flex: '1 1 0',
-                    minWidth: 0,
-                  }}
-                >
+            <AppAppearanceProvider>
+              <div className={devicePanel}>
+                <div className={deviceSelect}>
                   <SelectDevice
                     context="room"
-                    kind="audiooutput"
-                    id={audioOutputDeviceId}
-                    onSubmit={saveAudioOutputDeviceId}
+                    kind={kind}
+                    id={audioDeviceId}
+                    track={localAudioTrack}
+                    onSubmit={saveAudioInputDeviceId}
                   />
                 </div>
-              )}
-              <SettingsButton
-                settingTab={SettingsDialogExtendedKey.AUDIO}
-                onPress={close}
-              />
-            </div>
+                {!isSafari() && (
+                  <div className={deviceSelect}>
+                    <SelectDevice
+                      context="room"
+                      kind="audiooutput"
+                      id={audioOutputDeviceId}
+                      onSubmit={saveAudioOutputDeviceId}
+                    />
+                  </div>
+                )}
+                <SettingsButton
+                  settingTab={SettingsDialogExtendedKey.AUDIO}
+                  onPress={close}
+                />
+              </div>
+            </AppAppearanceProvider>
           )}
         </Popover>
       )}

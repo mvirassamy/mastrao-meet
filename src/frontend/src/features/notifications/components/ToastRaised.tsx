@@ -6,7 +6,7 @@ import { type ToastProps } from './Toast'
 import { HStack } from '@/styled-system/jsx'
 import { Button, Div } from '@/primitives'
 import { useTranslation } from 'react-i18next'
-import { RiCloseFill } from '@remixicon/react'
+import { CloseIcon } from '@/icons'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 import { css } from '@/styled-system/css'
 import { StyledToastContainer } from './StyledToastContainer'
@@ -50,7 +50,7 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
         {!isParticipantsOpen && (
           <Button
             size="sm"
-            variant="text"
+            variant="link"
             className={css({
               color: 'primary',
             })}
@@ -62,14 +62,8 @@ export function ToastRaised({ state, ...props }: Readonly<ToastProps>) {
             {t('raised.cta')}
           </Button>
         )}
-        <Button
-          square
-          size="sm"
-          variant="ghost"
-          invisible
-          {...closeButtonProps}
-        >
-          <RiCloseFill size={18} color="currentColor" />
+        <Button size="icon-sm" variant="ghost" {...closeButtonProps}>
+          <CloseIcon size={18} color="currentColor" />
         </Button>
       </HStack>
     </StyledToastContainer>

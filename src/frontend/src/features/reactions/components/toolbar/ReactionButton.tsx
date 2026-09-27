@@ -11,7 +11,7 @@ export const ReactionButton = ({ emoji }: { emoji: Emoji }) => {
     <Button
       onPress={() => sendReaction(emoji)}
       aria-label={t(`emojis.${emoji}`)}
-      variant="primaryTextDark"
+      variant="ghost"
       size="sm"
       round
       data-attr={`send-reaction-${emoji}`}

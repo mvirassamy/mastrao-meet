@@ -33,48 +33,64 @@ const ToolButton = ({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'start',
-        paddingY: '0.5rem',
-        paddingX: '0.75rem 1.5rem',
-        borderRadius: '30px',
+        gap: '0.75rem',
+        padding: '0.625rem 0.75rem',
+        borderRadius: '10px',
+        border: '1px solid token(colors.border)',
         width: 'full',
-        backgroundColor: 'muted',
+        backgroundColor: 'card',
         textAlign: 'start',
+        outline: 'none',
+        transition: 'background 150ms, border-color 150ms',
         '&[data-hovered]': {
-          backgroundColor: 'info',
+          backgroundColor: 'accent',
+          borderColor: 'input',
           cursor: 'pointer',
+        },
+        '&[data-focus-visible]': {
+          borderColor: 'ring',
+          boxShadow: '0 0 0 3px rgb(45 91 227 / 0.2)',
         },
       })}
       onPress={onPress}
     >
       <div
         className={css({
-          height: '40px',
-          minWidth: '40px',
-          borderRadius: '25px',
-          marginRight: '0.75rem',
+          height: '32px',
+          minWidth: '32px',
+          borderRadius: '8px',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           position: 'relative',
-          background: 'primary',
-          color: 'primary-foreground',
+          background: 'accent',
+          color: 'primary',
+          '& svg': { width: '16px', height: '16px' },
         })}
       >
         {icon}
       </div>
-      <div>
+      <div className={css({ minWidth: 0 })}>
         <Text
           margin={false}
           as="h2"
+          variant="inherits"
           className={css({
             display: 'flex',
             gap: 0.25,
-            fontWeight: 'semibold',
+            fontSize: '0.875rem',
+            lineHeight: '1.25rem',
+            fontWeight: 500,
           })}
         >
           {title}
         </Text>
-        <Text as="p" variant="smNote" wrap="pretty">
+        <Text
+          as="p"
+          variant="note"
+          wrap="pretty"
+          className={css({ fontSize: '0.8125rem', lineHeight: '1.125rem' })}
+        >
           {description}
         </Text>
       </div>
@@ -85,6 +101,8 @@ const ToolButton = ({
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
+          color: 'muted-foreground',
+          '& svg': { width: '16px', height: '16px' },
         })}
       >
         <Icon name="chevron_forward" />
@@ -142,7 +160,7 @@ export const Tools = () => {
     <Div
       display="flex"
       overflowY="scroll"
-      padding="0 0.75rem"
+      padding="0 1.25rem"
       flexGrow={1}
       flexDirection="column"
       alignItems="start"
@@ -152,10 +170,9 @@ export const Tools = () => {
         variant="note"
         wrap="balance"
         className={css({
-          textStyle: 'sm',
-          paddingX: '0.75rem',
-          paddingTop: '0.25rem',
-          marginBottom: '1rem',
+          fontSize: '0.8125rem',
+          lineHeight: '1.25rem',
+          marginBottom: '0.75rem',
         })}
       >
         {t('body')}{' '}

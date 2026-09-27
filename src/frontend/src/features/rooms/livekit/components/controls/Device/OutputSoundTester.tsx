@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RiVolumeUpFill } from '@remixicon/react'
+import { VolumeUpIcon } from '@/icons'
 import { styled } from '@/styled-system/jsx'
 import { Button } from '@/primitives'
 import { canTestAudioOutput } from '@/features/rooms/utils/canTestAudioOutput'
@@ -12,8 +12,8 @@ import { canTestAudioOutput } from '@/features/rooms/utils/canTestAudioOutput'
 type Theme = 'light' | 'dark'
 
 const BUTTON_VARIANT = {
-  light: 'quaternaryText',
-  dark: 'primaryTextDark',
+  light: 'outline',
+  dark: 'outline',
 } as const
 
 const StyledContainer = styled('div', {
@@ -119,7 +119,7 @@ export const OutputSoundTester = ({
         }}
       >
         <StyledButtonContent>
-          <RiVolumeUpFill size={18} aria-hidden />
+          <VolumeUpIcon size={18} aria-hidden />
           {isPlaying ? t('audiooutput.testing') : t('audiooutput.test')}
         </StyledButtonContent>
       </Button>

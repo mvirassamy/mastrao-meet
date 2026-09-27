@@ -53,7 +53,7 @@ export const MeetWorkspaceToolbar = () => {
           label={t('dashboard.newMeeting')}
           showIcon
           buttonProps={{
-            size: 'app',
+            size: 'default',
             className: css({
               minHeight: { base: '44px', md: '38px' },
             }),

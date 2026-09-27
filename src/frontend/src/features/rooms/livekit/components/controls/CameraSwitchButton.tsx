@@ -1,6 +1,6 @@
 import { Button } from '@/primitives'
 import { useMediaDeviceSelect } from '@livekit/components-react'
-import { RiCameraSwitchFill } from '@remixicon/react'
+import { CameraSwitchIcon } from '@/icons'
 import { useEffect, useState } from 'react'
 import type { ButtonProps } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
@@ -118,12 +118,12 @@ export const CameraSwitchButton = (props: Partial<ButtonProps>) => {
         toggle()
         props.onPress?.(e)
       }}
-      variant="primaryTextDark"
+      variant="ghost"
       aria-label={t('options.items.switchCamera')}
       tooltip={t('options.items.switchCamera')}
       description={true}
     >
-      <RiCameraSwitchFill size={20} />
+      <CameraSwitchIcon size={20} />
     </Button>
   )
 }

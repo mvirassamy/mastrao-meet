@@ -17,7 +17,7 @@ import {
   useTrackMutedIndicator,
 } from '@livekit/components-react'
 import Source = Track.Source
-import { RiMicFill, RiMicOffFill } from '@remixicon/react'
+import { MicrophoneIcon, MicrophoneOffIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { useState } from 'react'
 import { useMuteParticipant } from '@/features/rooms/api/muteParticipant'
@@ -54,9 +54,8 @@ const MicIndicator = ({ participant }: MicIndicatorProps) => {
   return (
     <>
       <Button
-        square
-        variant="greyscale"
-        size="sm"
+        variant="ghost"
+        size="icon-sm"
         tooltip={label}
         aria-label={label}
         isDisabled={isMuted || !canMute}
@@ -70,9 +69,9 @@ const MicIndicator = ({ participant }: MicIndicatorProps) => {
         data-attr="participants-mute"
       >
         {isMuted ? (
-          <RiMicOffFill color={'gray'} aria-hidden={true} />
+          <MicrophoneOffIcon color={'gray'} aria-hidden={true} />
         ) : (
-          <RiMicFill
+          <MicrophoneIcon
             className={css({
               color: isSpeaking ? 'primary' : 'muted-foreground',
               animation: isSpeaking

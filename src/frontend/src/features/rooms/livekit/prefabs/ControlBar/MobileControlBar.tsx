@@ -8,11 +8,11 @@ import { Track } from 'livekit-client'
 import { HandToggle } from '../../components/controls/HandToggle'
 import { Button } from '@/primitives/Button'
 import {
-  RiAccountBoxFill,
-  RiMegaphoneFill,
-  RiMore2Fill,
-  RiSettings3Fill,
-} from '@remixicon/react'
+  AccountBoxIcon,
+  MegaphoneIcon,
+  MoreVerticalIcon,
+  SettingsIcon,
+} from '@/icons'
 import { ScreenShareToggle } from '../../components/controls/ScreenShareToggle'
 import { ChatToggle } from '../../components/controls/ChatToggle'
 import { ParticipantsToggle } from '../../components/controls/ParticipantsToggle'
@@ -70,13 +70,12 @@ export function MobileControlBar({
           <Button
             shape="circle"
             id="room-options-trigger"
-            square
-            variant="primaryDark"
+            variant="outline"
             aria-label={t('options.buttonLabel')}
             tooltip={t('options.buttonLabel')}
             onPress={() => setIsMenuOpened(true)}
           >
-            <RiMore2Fill />
+            <MoreVerticalIcon />
           </Button>
           <LeaveButton />
         </ControlBarRegion>
@@ -108,7 +107,7 @@ export function MobileControlBar({
                 onDeviceError={(error) =>
                   onDeviceError?.({ source: Track.Source.ScreenShare, error })
                 }
-                variant="primaryTextDark"
+                variant="ghost"
                 description={true}
                 onPress={() => setIsMenuOpened(false)}
               />
@@ -140,24 +139,24 @@ export function MobileControlBar({
                 toggleEffects()
                 setIsMenuOpened(false)
               }}
-              variant="primaryTextDark"
+              variant="ghost"
               aria-label={t('options.items.effects')}
               tooltip={t('options.items.effects')}
               description={true}
             >
-              <RiAccountBoxFill size={20} />
+              <AccountBoxIcon size={20} />
             </Button>
             {data?.feedback?.url && (
               <LinkButton
                 href={data?.feedback?.url}
-                variant="primaryTextDark"
+                variant="ghost"
                 tooltip={t('options.items.feedback')}
                 aria-label={t('options.items.feedback')}
                 description={true}
                 target="_blank"
                 onPress={() => setIsMenuOpened(false)}
               >
-                <RiMegaphoneFill size={20} />
+                <MegaphoneIcon size={20} />
               </LinkButton>
             )}
             <Button
@@ -165,12 +164,12 @@ export function MobileControlBar({
                 openSettingsDialog()
                 setIsMenuOpened(false)
               }}
-              variant="primaryTextDark"
+              variant="ghost"
               aria-label={t('options.items.settings')}
               tooltip={t('options.items.settings')}
               description={true}
             >
-              <RiSettings3Fill size={20} />
+              <SettingsIcon size={20} />
             </Button>
             <CameraSwitchButton onPress={() => setIsMenuOpened(false)} />
           </div>

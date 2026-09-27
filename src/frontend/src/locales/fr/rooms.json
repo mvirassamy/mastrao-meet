@@ -289,8 +289,8 @@
       "closed": "Afficher le chat",
       "input": {
         "textArea": {
-          "label": "Ecrire un message",
-          "placeholder": "Ecrire un message"
+          "label": "Écrire un message",
+          "placeholder": "Écrire un message"
         },
         "button": {
           "label": "Envoyer un message"

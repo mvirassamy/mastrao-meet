@@ -25,7 +25,7 @@ export const LoginButton = ({
       size={size}
       href={authUrl()}
       data-attr="login"
-      variant="primary"
+      variant="default"
     >
       {t('buttonLabel')}
     </LinkButton>

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { MenuItem, Menu as RACMenu } from 'react-aria-components'
 import { Button, Menu, type ButtonProps } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
-import { RiAddFill, RiLinksFill, RiVideoAddFill } from '@remixicon/react'
+import { AddIcon, LinkIcon, VideoAddIcon } from '@/icons'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
 import { useState } from 'react'
 
@@ -73,9 +73,9 @@ export const CreateMeetingMenu = ({
       <div className={css({ display: 'flex', flexDirection: 'column' })}>
         <Menu density="app">
           <Button
-            variant="primary"
+            variant="default"
             data-attr="create-meeting"
-            icon={showIcon ? <RiVideoAddFill aria-hidden="true" /> : undefined}
+            icon={showIcon ? <VideoAddIcon aria-hidden="true" /> : undefined}
             isDisabled={isCreating}
             loading={isCreating}
             {...buttonProps}
@@ -95,7 +95,7 @@ export const CreateMeetingMenu = ({
               onAction={() => void createMeeting(false)}
               data-attr="create-option-instant"
             >
-              <RiAddFill aria-hidden="true" />
+              <AddIcon aria-hidden="true" />
               {t('createMenu.instantOption')}
             </MenuItem>
             <MenuItem
@@ -110,7 +110,7 @@ export const CreateMeetingMenu = ({
               onAction={() => void createMeeting(true)}
               data-attr="create-option-later"
             >
-              <RiLinksFill aria-hidden="true" />
+              <LinkIcon aria-hidden="true" />
               {t('createMenu.laterOption')}
             </MenuItem>
           </RACMenu>

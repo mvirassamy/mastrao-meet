@@ -45,9 +45,10 @@ describe('SettingsDialog appearance', () => {
     expect(screen.getByText('Matthias Virassamy')).toBeTruthy()
   })
 
-  it('keeps the original dialog everywhere else, including rooms', () => {
+  it('uses the same dialog from every other entry point', () => {
     render(<SettingsDialog isOpen />)
-    const dialog = screen.getByRole('dialog')
-    expect(dialog.closest('.authenticated-meet-workspace')).toBeNull()
+    const dialog = screen.getByRole('dialog', { name: 'dialog.heading' })
+    expect(dialog.closest('.authenticated-meet-workspace')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'tabs.general' })).toBeTruthy()
   })
 })

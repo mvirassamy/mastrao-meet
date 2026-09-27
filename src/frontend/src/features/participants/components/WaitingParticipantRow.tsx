@@ -4,7 +4,7 @@ import { css } from '@/styled-system/css'
 import { Avatar } from '@/components/Avatar'
 import { useTranslation } from 'react-i18next'
 import { WaitingParticipant } from '../api/listWaitingParticipants'
-import { RiCloseFill } from '@remixicon/react'
+import { CloseIcon } from '@/icons'
 import { ParticipantName } from './ParticipantName'
 
 export const WaitingParticipantRow = ({
@@ -34,7 +34,7 @@ export const WaitingParticipantRow = ({
       <HStack gap="0.25rem" flexShrink={0}>
         <Button
           size="sm"
-          variant="tertiary"
+          variant="secondary"
           onPress={() => onAction(participant, true)}
           aria-label={t('waiting.accept.label', { name: participant.username })}
           data-attr="participants-accept"
@@ -42,15 +42,14 @@ export const WaitingParticipantRow = ({
           {t('participants.waiting.accept.button')}
         </Button>
         <Button
-          size="sm"
-          square
+          size="icon-sm"
           tooltip={t('participants.waiting.deny.button')}
-          variant="secondaryText"
+          variant="ghost"
           onPress={() => onAction(participant, false)}
           aria-label={t('waiting.deny.label', { name: participant.username })}
           data-attr="participants-deny"
         >
-          <RiCloseFill />
+          <CloseIcon />
         </Button>
       </HStack>
     </HStack>

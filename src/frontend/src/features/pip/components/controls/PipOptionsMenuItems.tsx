@@ -2,7 +2,7 @@ import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import { PictureInPictureMenuItem } from '@/features/rooms/livekit/components/controls/Options/PictureInPictureMenuItem'
 import { CollapsibleControl, CollapsibleControls } from '../PipControlBar'
-import { RiArrowUpFill, RiEmotionFill } from '@remixicon/react'
+import { ArrowUpIcon, EmojiIcon } from '@/icons'
 import { menuRecipe } from '@/primitives/menuRecipe.ts'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
 import { useRoomContext, useTrackToggle } from '@livekit/components-react'
@@ -40,7 +40,7 @@ export const PipOptionsMenuItems = ({
       <PictureInPictureMenuItem />
       {overflowControls.has(CollapsibleControls.REACTIONS) && (
         <MenuItem onAction={toggleReactions} className={itemClass}>
-          <RiEmotionFill size={20} />
+          <EmojiIcon size={20} />
           {t('controls.reactions.button')}
         </MenuItem>
       )}
@@ -53,7 +53,7 @@ export const PipOptionsMenuItems = ({
           }
           className={itemClass}
         >
-          <RiArrowUpFill size={20} />
+          <ArrowUpIcon size={20} />
           {t(
             isScreenSharing
               ? 'controls.screenShare.stop'

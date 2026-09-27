@@ -10,6 +10,8 @@ type PinnedTrackRef = ReturnType<typeof ref<TrackReferenceOrPlaceholder>>
 type State = {
   showHeader: boolean
   showFooter: boolean
+  /** 'glass': translucent header that sticks to the top while scrolling. */
+  headerAppearance: 'default' | 'glass'
   showSubtitles: boolean
   activePanelId: PanelId | null
   activeSubPanelId: SubPanelId | null
@@ -20,6 +22,7 @@ type State = {
 export const layoutStore = proxy<State>({
   showHeader: false,
   showFooter: false,
+  headerAppearance: 'default',
   showSubtitles: false,
   activePanelId: null,
   activeSubPanelId: null,

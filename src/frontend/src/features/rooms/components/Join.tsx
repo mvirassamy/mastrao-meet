@@ -6,7 +6,7 @@ import { Screen } from '@/layout/Screen'
 import { type LocalAudioTrack, type LocalVideoTrack } from 'livekit-client'
 import { Button, Dialog, Text } from '@/primitives'
 import { Heading } from 'react-aria-components'
-import { RiImageCircleAiFill } from '@remixicon/react'
+import { EffectsIcon } from '@/icons'
 import { isMobileBrowser } from '@livekit/components-core'
 import {
   EffectsConfiguration,
@@ -310,7 +310,7 @@ const Effects = ({
         tooltip={t('description')}
         aria-label={t('description')}
       >
-        <RiImageCircleAiFill size={24} />
+        <EffectsIcon size={24} />
       </Button>
     </>
   )
@@ -380,7 +380,7 @@ const VideoPreview = ({
             {permissionsButtonLabel && (
               <Button
                 size="sm"
-                variant="tertiary"
+                variant="secondary"
                 onPress={() => openPermissionsDialog('videoinput')}
               >
                 {t(`permissionsButton.${permissionsButtonLabel}`)}

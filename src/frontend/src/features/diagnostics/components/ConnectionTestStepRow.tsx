@@ -5,7 +5,7 @@ import {
   Heading,
   Button as RACButton,
 } from 'react-aria-components'
-import { RiArrowDownSFill } from '@remixicon/react'
+import { ChevronDownIcon } from '@/icons'
 import { css, cx } from '@/styled-system/css'
 import type { ConnectionTestStepResult } from '../types'
 import { StepStatusIndicator } from './StepStatusIndicator'
@@ -153,7 +153,7 @@ export const ConnectionTestStepRow = ({
               )}
             >
               <StepRowContent step={step} />
-              <RiArrowDownSFill
+              <ChevronDownIcon
                 aria-hidden="true"
                 className={cx(
                   chevronClass,

@@ -9,7 +9,7 @@ import { styled } from '@/styled-system/jsx'
 import { useReactionsToolbar } from '../../hooks/useReactionsToolbar'
 import { useIsMobile } from '@/utils/useIsMobile'
 import { useSize } from '@/features/rooms/livekit/hooks/useResizeObserver'
-import { RiArrowLeftSFill, RiArrowRightSFill } from '@remixicon/react'
+import { ChevronLeftIcon, ChevronRightIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { ReactionsKeyboardNavigation } from './ReactionsKeyboardNavigation'
 import { FocusScope } from 'react-aria'
@@ -190,13 +190,13 @@ export const ReactionButtonsContainer = ({
         <div aria-hidden="true">
           <Button
             onPress={() => scrollBy(-SCROLL_AMOUNT)}
-            variant="primaryTextDark"
+            variant="ghost"
             size="sm"
             isDisabled={atStart}
             round
             excludeFromTabOrder
           >
-            <RiArrowLeftSFill />
+            <ChevronLeftIcon />
           </Button>
         </div>
       )}
@@ -212,13 +212,13 @@ export const ReactionButtonsContainer = ({
         <div aria-hidden="true">
           <Button
             onPress={() => scrollBy(SCROLL_AMOUNT)}
-            variant="primaryTextDark"
+            variant="ghost"
             size="sm"
             isDisabled={atEnd}
             round
             excludeFromTabOrder
           >
-            <RiArrowRightSFill />
+            <ChevronRightIcon />
           </Button>
         </div>
       )}

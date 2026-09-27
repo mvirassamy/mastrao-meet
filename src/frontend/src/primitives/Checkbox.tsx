@@ -1,4 +1,4 @@
-import { RiCheckFill } from '@remixicon/react'
+import { CheckIcon } from '@/icons'
 import { type ReactNode, useId, useState } from 'react'
 import {
   type CheckboxProps as RACCheckboxProps,
@@ -137,7 +137,7 @@ export const Checkbox = ({
             return (
               <>
                 <div className="mt-Checkbox-checkbox">
-                  <RiCheckFill size={18} aria-hidden="true" />
+                  <CheckIcon size={18} aria-hidden="true" />
                 </div>
                 <div>
                   {typeof children === 'function'

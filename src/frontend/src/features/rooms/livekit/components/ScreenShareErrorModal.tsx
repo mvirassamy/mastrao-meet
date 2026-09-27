@@ -1,6 +1,5 @@
-import { A, Button, Dialog, P } from '@/primitives'
+import { A, Button, Dialog, DialogActions, P } from '@/primitives'
 import { useTranslation } from 'react-i18next'
-import { css } from '@/styled-system/css'
 
 // todo - refactor it into a generic system
 export const ScreenShareErrorModal = ({
@@ -50,14 +49,11 @@ export const ScreenShareErrorModal = ({
               </A>
               .
             </P>
-            <Button
-              onPress={close}
-              size="sm"
-              variant="primary"
-              className={css({ marginLeft: 'auto', marginTop: '2rem' })}
-            >
-              {t('closeButton')}
-            </Button>
+            <DialogActions>
+              <Button onPress={close} variant="default">
+                {t('closeButton')}
+              </Button>
+            </DialogActions>
           </>
         )
       }}

@@ -3,7 +3,9 @@
   "cancel": "Cancel",
   "closeDialog": "Close dialog",
   "error": {
-    "heading": "An error occurred while loading the page"
+    "body": "The page could not be displayed. Try again in a moment or go back to the home page.",
+    "heading": "An error occurred while loading the page",
+    "retry": "Try again"
   },
   "feedback": {
     "context": "Your feedback shapes the product!",

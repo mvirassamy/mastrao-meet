@@ -1,5 +1,5 @@
 import { ToggleButton } from '@/primitives'
-import { RiAdminFill } from '@remixicon/react'
+import { AdminIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import type { ToggleButtonProps } from '@/primitives/ToggleButton'
@@ -7,7 +7,7 @@ import { useIsAdminOrOwner } from '../hooks/useIsAdminOrOwner'
 import { useSidePanel } from '../hooks/useSidePanel'
 
 export const AdminToggle = ({
-  variant = 'primaryTextDark',
+  variant = 'ghost',
   onPress,
   ...props
 }: ToggleButtonProps) => {
@@ -28,7 +28,6 @@ export const AdminToggle = ({
     >
       <ToggleButton
         shape="circle"
-        square
         variant={variant}
         aria-label={t(tooltipLabel)}
         tooltip={t(tooltipLabel)}
@@ -40,7 +39,7 @@ export const AdminToggle = ({
         }}
         {...props}
       >
-        <RiAdminFill />
+        <AdminIcon />
       </ToggleButton>
     </div>
   )

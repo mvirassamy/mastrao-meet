@@ -163,9 +163,8 @@ export const MeetWorkspaceShell = ({
                 })}
               >
                 <Button
-                  square
-                  size="appIcon"
-                  variant="secondaryText"
+                  size="icon"
+                  variant="ghost"
                   aria-label={t('dashboard.sidebar.open')}
                   tooltip={t('dashboard.sidebar.open')}
                   onPress={() => setMobileOpen(true)}

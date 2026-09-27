@@ -1,5 +1,5 @@
 import { ToggleButton } from '@/primitives'
-import { RiShareBoxFill, RiStopCircleFill } from '@remixicon/react'
+import { ShareBoxIcon, StopCircleIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import {
   useTrackToggle,
@@ -20,7 +20,7 @@ type Props = Omit<
   ToggleButtonProps
 
 export const ScreenShareToggle = ({
-  variant = 'primaryDark',
+  variant = 'outline',
   onPress,
   ...props
 }: Props) => {
@@ -32,7 +32,7 @@ export const ScreenShareToggle = ({
   })
 
   const tooltipLabel = enabled ? 'stop' : 'start'
-  const Icon = enabled ? RiStopCircleFill : RiShareBoxFill
+  const Icon = enabled ? StopCircleIcon : ShareBoxIcon
 
   const canShareScreen = useCanPublishTrack(TrackSource.SCREEN_SHARE)
 
@@ -41,7 +41,6 @@ export const ScreenShareToggle = ({
       shape="circle"
       isSelected={enabled}
       isDisabled={!canShareScreen}
-      square
       variant={variant}
       aria-label={t(tooltipLabel)}
       tooltip={t(tooltipLabel)}

@@ -1,5 +1,5 @@
 import { ProgressBar } from 'react-aria-components'
-import { RiHourglassFill } from '@remixicon/react'
+import { HourglassIcon } from '@/icons'
 import { css, cx } from '@/styled-system/css'
 
 const rotatingArcClassName = css({
@@ -86,7 +86,7 @@ export const Spinner = ({
               },
             })}
           >
-            <RiHourglassFill
+            <HourglassIcon
               size={Math.max(16, Math.round(size * 0.4))}
               style={{
                 display: 'block',

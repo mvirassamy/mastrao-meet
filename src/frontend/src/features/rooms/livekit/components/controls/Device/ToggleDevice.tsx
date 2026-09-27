@@ -76,8 +76,8 @@ export const ToggleDevice = <T extends ToggleSource>({
       } as ToggleDeviceStyleProps
     }
     return {
-      variant: 'primaryDark',
-      errorVariant: 'error2',
+      variant: 'outline',
+      errorVariant: 'warning',
       toggleButtonProps: {
         groupPosition: undefined,
       },

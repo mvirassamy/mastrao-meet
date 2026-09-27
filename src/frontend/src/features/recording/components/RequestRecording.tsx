@@ -73,7 +73,7 @@ export const RequestRecording = ({
         })}
       >
         <Button
-          variant="tertiary"
+          variant="secondary"
           fullWidth
           onPress={onPress}
           isDisabled={isDisabled}

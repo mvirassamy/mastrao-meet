@@ -1,10 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  RiArrowLeftSFill,
-  RiArrowRightSFill,
-  RiCalendarFill,
-} from '@remixicon/react'
+import { ChevronLeftIcon, ChevronRightIcon, CalendarIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import {
@@ -82,7 +78,7 @@ export const MeetingWeekStrip = ({
           fontWeight: 500,
         })}
       >
-        <RiCalendarFill size={16} aria-hidden="true" />
+        <CalendarIcon size={16} aria-hidden="true" />
         <span>
           {formatCalendarDate(selectedDate, locale, {
             weekday: 'short',
@@ -92,7 +88,7 @@ export const MeetingWeekStrip = ({
         </span>
         {!isTodaySelected && (
           <Button
-            size="appSm"
+            size="sm"
             variant="outline"
             onPress={goToToday}
             className={css({
@@ -118,9 +114,8 @@ export const MeetingWeekStrip = ({
         })}
       >
         <Button
-          square
-          size="app"
-          variant="secondaryText"
+          size="icon"
+          variant="ghost"
           aria-label={t('dashboard.calendar.previousWeek')}
           tooltip={t('dashboard.calendar.previousWeek')}
           onPress={() => changeWeek(-1)}
@@ -132,7 +127,7 @@ export const MeetingWeekStrip = ({
             paddingX: { base: '0!', md: 'var(--square-padding)' },
           })}
         >
-          <RiArrowLeftSFill aria-hidden="true" />
+          <ChevronLeftIcon aria-hidden="true" />
         </Button>
         <div
           className={css({
@@ -223,9 +218,8 @@ export const MeetingWeekStrip = ({
           </div>
         </div>
         <Button
-          square
-          size="app"
-          variant="secondaryText"
+          size="icon"
+          variant="ghost"
           aria-label={t('dashboard.calendar.nextWeek')}
           tooltip={t('dashboard.calendar.nextWeek')}
           onPress={() => changeWeek(1)}
@@ -237,7 +231,7 @@ export const MeetingWeekStrip = ({
             paddingX: { base: '0!', md: 'var(--square-padding)' },
           })}
         >
-          <RiArrowRightSFill aria-hidden="true" />
+          <ChevronRightIcon aria-hidden="true" />
         </Button>
       </div>
     </section>

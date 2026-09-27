@@ -64,22 +64,17 @@ export const Form = ({
           })}
         >
           {!!onCancel && (
-            <Button size="app" variant="outline" onPress={() => onCancel()}>
+            <Button variant="outline" onPress={() => onCancel()}>
               {t('cancel')}
             </Button>
           )}
-          <Button
-            size="app"
-            type="submit"
-            variant="primary"
-            {...submitButtonProps}
-          >
+          <Button type="submit" variant="default" {...submitButtonProps}>
             {submitLabel}
           </Button>
         </div>
       ) : (
         <HStack gap="gutter">
-          <Button type="submit" variant="primary" {...submitButtonProps}>
+          <Button type="submit" variant="default" {...submitButtonProps}>
             {submitLabel}
           </Button>
           {!!onCancel && (

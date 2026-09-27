@@ -1,340 +1,299 @@
 import { type RecipeVariantProps, cva } from '@/styled-system/css'
 import type { SystemStyleObject } from '@/styled-system/types'
 
-const primaryStyle = {
-  backgroundColor: 'primary',
-  color: 'primary-foreground',
-  fontWeight: 'medium !important',
+/*
+ * Mastrao button: a one-to-one port of the Platform `Button`
+ * (src/components/ui/button.tsx): same variants, sizes and colours. Colours
+ * come from the fixed --button-* palette (mastrao-theme.css) so a button looks
+ * the same on every screen, room included.
+ *
+ * Only the call controls are Meet-specific: `shape="circle"`, `round` and
+ * the media variants (`hangup`, `warning`, `whiteCircle`, `errorCircle`,
+ * `bigSquare`, `permission`). They keep their own dimensions and icon
+ * sizes (see `data-call-control` in Button.tsx).
+ */
+
+const mix = (color: string, percent: number, base = 'transparent') =>
+  `color-mix(in srgb, var(${color}) ${percent}%, ${base})`
+
+const hover = '&[data-hovered]:not([data-disabled])'
+const expanded = '&[aria-expanded=true]'
+const selected = '&[data-selected]'
+
+// Toggle buttons (side panels, reactions…) need a visible "on" state.
+const selectedState = {
+  backgroundColor: 'var(--button-accent)',
   borderColor: 'transparent',
-  '&[data-hovered]:not([data-disabled])': {
-    backgroundColor: 'primary.hover',
-  },
-  '&[data-pressed]:not([data-disabled])': {
-    backgroundColor: 'primary.active',
-  },
-  '&[data-selected]': {
-    backgroundColor: 'primary',
-    color: 'primary-foreground',
+  color: 'var(--button-primary)',
+} satisfies SystemStyleObject
+
+const defaultStyle = {
+  backgroundColor: 'var(--button-primary)',
+  color: 'var(--button-primary-foreground)',
+  [hover]: { backgroundColor: mix('--button-primary', 80) },
+  [selected]: {
+    backgroundColor: 'var(--button-primary)',
+    color: 'var(--button-primary-foreground)',
   },
 } satisfies SystemStyleObject
 
-const secondaryStyle = {
-  backgroundColor: 'secondary',
-  color: 'secondary-foreground',
-  fontWeight: 'medium !important',
-  borderColor: 'transparent',
-  '&[data-hovered]:not([data-disabled])': {
-    backgroundColor: 'accent',
-  },
-  '&[data-pressed]:not([data-disabled])': {
-    backgroundColor: 'accent',
-  },
-  '&[data-selected]': {
-    backgroundColor: 'selected',
-    color: 'selected-foreground',
-  },
+const outlineRest = {
+  borderColor: mix('--button-primary', 23, 'var(--button-background)'),
+  backgroundColor: 'var(--button-background)',
+  color: mix('--button-primary', 55, 'var(--button-ink-soft)'),
+} satisfies SystemStyleObject
+
+const outlineActive = {
+  borderColor: mix('--button-primary', 40, 'var(--button-background)'),
+  backgroundColor: mix('--button-accent', 65, 'var(--button-background)'),
 } satisfies SystemStyleObject
 
 const outlineStyle = {
-  backgroundColor: 'card',
-  color: 'card-foreground',
-  fontWeight: 'medium !important',
-  borderColor: 'input',
-  '&[data-hovered]:not([data-disabled])': {
-    color: 'primary',
-    borderColor: 'primary',
+  ...outlineRest,
+  [hover]: outlineActive,
+  [expanded]: outlineActive,
+  [selected]: selectedState,
+} satisfies SystemStyleObject
+
+const secondaryStyle = {
+  backgroundColor: 'var(--button-secondary)',
+  color: 'var(--button-secondary-foreground)',
+  [hover]: { backgroundColor: mix('--button-secondary', 80) },
+  [expanded]: {
+    backgroundColor: 'var(--button-secondary)',
+    color: 'var(--button-secondary-foreground)',
   },
-  '&[data-pressed]:not([data-disabled])': {
-    color: 'primary.active',
-    borderColor: 'primary.active',
-  },
-  '&[data-selected]': {
-    backgroundColor: 'selected',
-    color: 'selected-foreground',
-  },
+  [selected]: selectedState,
+} satisfies SystemStyleObject
+
+const ghostActive = {
+  backgroundColor: 'var(--button-muted)',
+  color: 'var(--button-foreground)',
 } satisfies SystemStyleObject
 
 const ghostStyle = {
-  backgroundColor: 'transparent',
-  color: 'foreground',
-  fontWeight: 'medium !important',
-  borderColor: 'transparent',
-  '&[data-hovered]:not([data-disabled])': {
-    backgroundColor: 'accent',
-  },
-  '&[data-pressed]:not([data-disabled])': {
-    backgroundColor: 'accent',
-  },
-  '&[data-selected]': {
-    backgroundColor: 'selected',
-    color: 'selected-foreground',
-  },
+  [hover]: ghostActive,
+  [expanded]: ghostActive,
+  [selected]: selectedState,
 } satisfies SystemStyleObject
 
 const destructiveStyle = {
+  backgroundColor: mix('--button-destructive', 10),
+  color: 'var(--button-destructive)',
+  [hover]: { backgroundColor: mix('--button-destructive', 20) },
+  '&[data-focus-visible]': {
+    borderColor: mix('--button-destructive', 40),
+    boxShadow: `0 0 0 3px ${mix('--button-destructive', 20)}`,
+  },
+} satisfies SystemStyleObject
+
+const invertStyle = {
+  backgroundColor: 'var(--button-background)',
+  color: 'var(--button-foreground)',
+  [hover]: { backgroundColor: mix('--button-background', 90) },
+} satisfies SystemStyleObject
+
+const linkStyle = {
+  color: 'var(--button-primary)',
+  textUnderlineOffset: '4px',
+  [hover]: { textDecoration: 'underline' },
+} satisfies SystemStyleObject
+
+// Call controls ------------------------------------------------------------
+
+const hangupStyle = {
   backgroundColor: 'destructive',
   color: 'destructive-foreground',
-  fontWeight: 'medium !important',
-  borderColor: 'transparent',
-  '&[data-hovered]:not([data-disabled])': {
-    backgroundColor: 'destructive-hover',
-  },
+  [hover]: { backgroundColor: 'destructive-hover' },
   '&[data-pressed]:not([data-disabled])': {
     backgroundColor: 'destructive-active',
   },
-  '&[data-selected]': {
-    backgroundColor: 'destructive',
-    color: 'destructive-foreground',
+} satisfies SystemStyleObject
+
+const warningStyle = {
+  backgroundColor: 'var(--call-attention)',
+  color: 'var(--call-attention-foreground)',
+  borderColor: 'var(--call-attention-border)',
+  [hover]: { backgroundColor: 'var(--call-attention-hover)' },
+  '&[data-disabled]': { opacity: 1 },
+  [selected]: {
+    backgroundColor: 'var(--call-attention)',
+    color: 'var(--call-attention-foreground)',
   },
 } satisfies SystemStyleObject
 
 const mediaStyle = {
   backgroundColor: 'media-overlay',
   color: 'media-overlay-foreground',
-  fontWeight: 'medium !important',
   borderColor: 'media-overlay-foreground',
-  '&[data-hovered]:not([data-disabled])': {
-    backgroundColor: 'media-overlay',
-  },
-  '&[data-pressed]:not([data-disabled])': {
-    backgroundColor: 'media-overlay',
-  },
-  '&[data-selected]': {
+  [selected]: {
     backgroundColor: 'media-overlay',
     color: 'media-overlay-foreground',
   },
 } satisfies SystemStyleObject
 
-const successStyle = {
-  backgroundColor: 'success',
-  color: 'success-foreground',
-  fontWeight: 'medium !important',
-  borderColor: 'transparent',
-  '&[data-hovered]:not([data-disabled])': {
-    backgroundColor: 'success',
-  },
-  '&[data-pressed]:not([data-disabled])': {
-    backgroundColor: 'success',
-  },
-  '&[data-selected]': {
-    backgroundColor: 'success',
-    color: 'success-foreground',
-  },
+const bigCircle = {
+  width: '56px!',
+  height: '56px!',
+  padding: '0!',
+  borderRadius: '100%!',
 } satisfies SystemStyleObject
 
-const warningStyle = {
-  '&[data-disabled]': { opacity: 1 },
-  backgroundColor: 'warning',
-  color: 'warning-foreground',
-  fontWeight: 'medium !important',
-  borderColor: 'transparent',
-  '&[data-hovered]:not([data-disabled])': {
-    backgroundColor: 'warning',
-  },
-  '&[data-pressed]:not([data-disabled])': {
-    backgroundColor: 'warning',
-  },
-  '&[data-selected]': {
-    backgroundColor: 'warning',
-    color: 'warning-foreground',
-  },
-} satisfies SystemStyleObject
-
-// Legacy names remain adapters; new consumers choose the semantic variants.
+// Icons follow the Platform `[&_svg]:size-*` rule, except in call controls.
+const icons = (size: string) => ({
+  '&:not([data-call-control]) svg': { width: size, height: size },
+})
 
 export const buttonRecipe = cva({
   base: {
-    display: 'flex',
-    justifyContent: 'center',
+    display: 'inline-flex',
+    flexShrink: 0,
     alignItems: 'center',
-    transition: 'background 200ms, outline 200ms, border-color 200ms',
-    cursor: 'pointer',
+    justifyContent: 'center',
+    borderRadius: '10px',
     border: '1px solid transparent',
-    '&[data-disabled]': {
-      cursor: 'default',
-      opacity: 0.55,
-    },
+    backgroundClip: 'padding-box',
+    fontSize: '0.875rem',
+    lineHeight: '1.25rem',
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+    transition: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+    outline: 'none',
+    userSelect: 'none',
+    cursor: 'pointer',
+    textDecoration: 'none',
     '&[data-focus-visible]': {
-      outline: '2px solid',
-      outlineColor: 'ring',
-      outlineOffset: '2px',
+      borderColor: 'var(--button-ring)',
+      boxShadow: `0 0 0 3px ${mix('--button-ring', 50)}`,
     },
-    gap: '0.5rem',
+    '&[data-pressed]:not([aria-haspopup])': {
+      transform: 'translateY(1px)',
+    },
+    '&[data-disabled]': {
+      pointerEvents: 'none',
+      opacity: 0.5,
+    },
+    '&[aria-invalid=true]': {
+      borderColor: 'var(--button-destructive)',
+      boxShadow: `0 0 0 3px ${mix('--button-destructive', 20)}`,
+    },
+    '& svg': {
+      pointerEvents: 'none',
+      flexShrink: 0,
+    },
   },
   variants: {
-    shape: {
-      circle: {
-        borderRadius: '50%!',
-        width: 'var(--call-control-size)',
-        height: 'var(--call-control-size)',
-        minWidth: 'var(--call-control-size)',
-        padding: '0!',
-        flexShrink: 0,
-      },
-    },
-    size: {
-      default: {
-        borderRadius: 'control',
-        paddingX: '1',
-        paddingY: '0.625',
-        '--square-padding': '{spacing.0.625}',
-      },
-      sm: {
-        borderRadius: 'control',
-        paddingX: '0.5',
-        paddingY: '0.25',
-        '--square-padding': '{spacing.0.25}',
-      },
-      xs: {
-        borderRadius: 'control',
-        '--square-padding': '0',
-      },
-      compact: {
-        borderRadius: 'control',
-        paddingX: '0.5',
-        paddingY: '0.625',
-        '--square-padding': '{spacing.0.625}',
-      },
-      appXs: {
-        minHeight: '24px',
-        paddingX: '0.5rem',
-        paddingY: 0,
-        borderRadius: 'control',
-        gap: '0.25rem',
-        fontSize: '0.75rem',
-        lineHeight: '1rem',
-        '--square-padding': '0.25rem',
-        '& svg': { width: '12px', height: '12px' },
-      },
-      appSm: {
-        minHeight: '28px',
-        paddingX: '0.625rem',
-        paddingY: 0,
-        borderRadius: 'control',
-        gap: '0.375rem',
-        fontSize: '0.8125rem',
-        lineHeight: '1rem',
-        '--square-padding': '0.375rem',
-        '& svg': { width: '14px', height: '14px' },
-      },
-      app: {
-        minHeight: '38px',
-        paddingX: '0.75rem',
-        paddingY: 0,
-        borderRadius: 'control',
-        gap: '0.5rem',
-        fontSize: '0.875rem',
-        lineHeight: '1.25rem',
-        '--square-padding': '0.5rem',
-        '& svg': { width: '16px', height: '16px' },
-      },
-      appIcon: {
-        width: '32px',
-        height: '32px',
-        minWidth: '32px',
-        minHeight: '32px',
-        padding: 0,
-        borderRadius: 'control',
-        '--square-padding': '0',
-        '& svg': { width: '16px', height: '16px' },
-      },
-    },
-    square: {
-      true: {
-        paddingX: 'var(--square-padding)',
-        paddingY: 'var(--square-padding)',
-      },
-    },
-    round: {
-      true: {
-        borderRadius: '50%',
-        paddingX: 'var(--square-padding)',
-        paddingY: 'var(--square-padding)',
-      },
-    },
     variant: {
-      primary: primaryStyle,
-      default: primaryStyle,
-      secondary: secondaryStyle,
+      default: defaultStyle,
       outline: outlineStyle,
+      secondary: secondaryStyle,
       ghost: ghostStyle,
       destructive: destructiveStyle,
-      link: { ...ghostStyle, color: 'primary', textDecoration: 'underline' },
-      secondaryText: ghostStyle,
-      tertiary: secondaryStyle,
-      tertiaryText: ghostStyle,
-      primaryDark: outlineStyle,
-      secondaryDark: outlineStyle,
-      primaryTextDark: ghostStyle,
-      quaternaryText: ghostStyle,
-      greyscale: ghostStyle,
-      danger: destructiveStyle,
-      error2: warningStyle,
-      success: successStyle,
-      text: { ...ghostStyle, color: 'primary' },
-      whiteCircle: {
-        ...mediaStyle,
-        width: '56px',
-        height: '56px',
-        borderRadius: '100%',
-      },
-      errorCircle: {
-        ...warningStyle,
-        width: '56px',
-        height: '56px',
-        borderRadius: '100%',
-      },
+      invert: invertStyle,
+      link: linkStyle,
+      // Call controls only.
+      hangup: hangupStyle,
+      warning: warningStyle,
+      whiteCircle: { ...mediaStyle, ...bigCircle },
+      errorCircle: { ...warningStyle, ...bigCircle },
       bigSquare: {
         ...outlineStyle,
-        width: '56px',
-        height: '56px',
-        borderRadius: 'control',
-        padding: '0',
+        width: '56px!',
+        height: '56px!',
+        padding: '0!',
         flexShrink: 0,
-        '&[data-selected]': {
+        [selected]: {
           boxShadow:
-            '0 0 0 3px token(colors.ring) inset, 0 0 0 5px token(colors.card) inset',
+            '0 0 0 3px var(--button-ring) inset, 0 0 0 5px var(--button-background) inset',
         },
       },
       permission: {
         position: 'relative',
-        borderRadius: '100%',
-        color: 'warning-foreground',
-        backgroundColor: 'warning',
-        width: 'fit-content',
-        height: 'fit-content',
-        padding: '0 !important',
-        margin: '0 !important',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        borderRadius: '100%!',
+        color: 'var(--call-attention-badge)',
+        backgroundColor: 'transparent',
+        width: 'fit-content!',
+        height: 'fit-content!',
+        padding: '0!',
+        margin: '0!',
       },
     },
-    invisible: {
-      true: {
-        borderColor: 'transparent!',
-        backgroundColor: 'transparent!',
-        '&[data-hovered]': {
-          backgroundColor: 'transparent!',
-          borderColor: 'colorPalette.active!',
-        },
-        '&[data-pressed]': {
-          borderColor: 'currentcolor',
-        },
-        '&[data-disabled]': {
-          color: 'disabled-foreground',
-        },
+    size: {
+      default: {
+        minHeight: '38px',
+        gap: '0.5rem',
+        paddingX: '0.75rem',
+        ...icons('16px'),
       },
+      xs: {
+        minHeight: '24px',
+        gap: '0.25rem',
+        borderRadius: '8px',
+        paddingX: '0.5rem',
+        fontSize: '0.75rem',
+        lineHeight: '1rem',
+        ...icons('12px'),
+      },
+      sm: {
+        minHeight: '28px',
+        gap: '0.25rem',
+        borderRadius: '8px',
+        paddingX: '0.625rem',
+        fontSize: '0.8rem',
+        ...icons('14px'),
+      },
+      lg: {
+        minHeight: '36px',
+        gap: '0.375rem',
+        paddingX: '0.625rem',
+        ...icons('16px'),
+      },
+      icon: { width: '32px', height: '32px', padding: 0, ...icons('16px') },
+      'icon-xs': {
+        width: '24px',
+        height: '24px',
+        padding: 0,
+        borderRadius: '8px',
+        ...icons('12px'),
+      },
+      'icon-sm': {
+        width: '28px',
+        height: '28px',
+        padding: 0,
+        borderRadius: '8px',
+        ...icons('16px'),
+      },
+      'icon-lg': {
+        width: '36px',
+        height: '36px',
+        padding: 0,
+        ...icons('16px'),
+      },
+    },
+    // Call controls: round buttons sized by --call-control-size.
+    shape: {
+      circle: {
+        borderRadius: '50%!',
+        width: 'var(--call-control-size)!',
+        height: 'var(--call-control-size)!',
+        minWidth: 'var(--call-control-size)',
+        padding: '0!',
+        flexShrink: 0,
+        // Every call control icon has the same 22px optical size.
+        '& svg': { width: '22px!', height: '22px!' },
+      },
+    },
+    // Reaction buttons: round icon buttons.
+    round: {
+      true: { borderRadius: '50%!' },
     },
     fullWidth: {
-      true: {
-        width: 'full',
-      },
+      true: { width: 'full' },
     },
     loading: {
       true: {},
     },
-    // some toggle buttons make more sense without a "pushed button" style when selected because their content changes to mark the state
+    // Toggles whose content already shows the state keep the resting style.
     shySelected: {
       true: {},
     },
@@ -342,13 +301,15 @@ export const buttonRecipe = cva({
       true: {
         flexDirection: 'column',
         gap: '0.5rem',
+        height: 'auto!',
+        paddingY: '0.5rem',
         '& span': {
           fontSize: '13px',
           textAlign: 'center',
         },
       },
     },
-    // if the button is next to other ones to make a "button group", tell where the button is to handle radius
+    // Buttons grouped side by side share their inner edges.
     groupPosition: {
       left: {
         borderTopRightRadius: 0,
@@ -369,26 +330,21 @@ export const buttonRecipe = cva({
       shape: 'circle',
       description: true,
       css: {
-        width: 'auto',
-        height: 'auto',
-        borderRadius: 'control!',
+        width: 'auto!',
+        height: 'auto!',
+        borderRadius: '10px!',
         padding: '0.625rem!',
       },
     },
     {
-      variant: 'primaryDark',
+      variant: 'outline',
       shySelected: true,
-      css: {
-        '&[data-selected]': {
-          backgroundColor: 'card',
-          color: 'card-foreground',
-        },
-      },
+      css: { [selected]: outlineRest },
     },
   ],
   defaultVariants: {
     size: 'default',
-    variant: 'primary',
+    variant: 'default',
   },
 })
 

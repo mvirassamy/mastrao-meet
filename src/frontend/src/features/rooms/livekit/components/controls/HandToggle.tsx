@@ -76,8 +76,7 @@ export const HandToggle = () => {
     >
       <ToggleButton
         shape="circle"
-        square
-        variant="primaryDark"
+        variant="outline"
         aria-label={t(tooltipLabel)}
         tooltip={t(tooltipLabel)}
         isSelected={isHandRaised}

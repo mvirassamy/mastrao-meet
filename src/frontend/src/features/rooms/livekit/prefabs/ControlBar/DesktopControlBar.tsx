@@ -94,6 +94,18 @@ export function DesktopControlBar({
             onDeviceError?.({ source: Track.Source.Camera, error })
           }
         />
+        {/* Separates the media devices from the meeting actions. */}
+        <span
+          aria-hidden="true"
+          className={css({
+            width: '1px',
+            height: '26px',
+            marginX: '4px',
+            flexShrink: 0,
+            backgroundColor: 'var(--call-separator)',
+            '@media (max-width: 1099px)': { display: 'none' },
+          })}
+        />
         <SubtitlesToggle />
         <HandToggle />
         <ReactionsToggle />

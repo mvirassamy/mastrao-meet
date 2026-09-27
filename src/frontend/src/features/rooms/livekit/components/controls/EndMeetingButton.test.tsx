@@ -68,6 +68,9 @@ vi.mock('@/primitives', () => ({
     title: string
   }) => (isOpen ? <section aria-label={title}>{children}</section> : null),
   P: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  DialogActions: ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  ),
 }))
 
 vi.mock('@/styled-system/jsx', () => ({

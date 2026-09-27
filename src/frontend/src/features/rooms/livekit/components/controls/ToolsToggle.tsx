@@ -1,5 +1,5 @@
 import { ToggleButton } from '@/primitives'
-import { RiShapesFill } from '@remixicon/react'
+import { ToolsIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { useSidePanel } from '../../hooks/useSidePanel'
 import { css } from '@/styled-system/css'
@@ -7,7 +7,7 @@ import type { ToggleButtonProps } from '@/primitives/ToggleButton'
 import { useRegisterKeyboardShortcut } from '@/features/shortcuts/useRegisterKeyboardShortcut'
 
 export const ToolsToggle = ({
-  variant = 'primaryTextDark',
+  variant = 'ghost',
   onPress,
   ...props
 }: ToggleButtonProps) => {
@@ -30,7 +30,6 @@ export const ToolsToggle = ({
     >
       <ToggleButton
         shape="circle"
-        square
         variant={variant}
         aria-label={t(tooltipLabel)}
         tooltip={t(tooltipLabel)}
@@ -43,7 +42,7 @@ export const ToolsToggle = ({
         {...props}
         data-attr="toggle-tools"
       >
-        <RiShapesFill />
+        <ToolsIcon />
       </ToggleButton>
     </div>
   )
