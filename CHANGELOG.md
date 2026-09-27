@@ -6,6 +6,9 @@
   keyboard focus kept clear of the sticky home header, and every icon
   imported from @/icons.
 
+- 2026-09-27: Allow an OIDC organizer holding the canonical host grant to
+  receive their LiveKit media identity and enter the meeting they created.
+
 - 2026-09-27: Restore the optional "learn more" link on the public home when
   a deployment sets FRONTEND_MANIFEST_LINK, lost with the new public home.
 
