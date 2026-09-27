@@ -16,7 +16,8 @@
   "connectionTestLink": "Testen Sie Ihre Konfiguration",
   "createMenu": {
     "laterOption": "Meeting für später planen",
-    "instantOption": "Meeting sofort starten"
+    "instantOption": "Meeting sofort starten",
+    "error": "Das Meeting konnte nicht erstellt werden. Versuche es erneut."
   },
   "laterMeetingDialog": {
     "heading": "Zugangsdaten",
@@ -59,5 +60,34 @@
     },
     "carouselLabel": "Einführungs-Diashow",
     "slidePosition": "Folie {{current}} von {{total}}"
+  },
+  "dashboard": {
+    "newMeeting": "Neu",
+    "sidebar": {
+      "label": "Videokonferenz-Navigation",
+      "meetings": "Meetings",
+      "history": "Verlauf",
+      "open": "Navigation öffnen",
+      "close": "Navigation schließen",
+      "collapse": "Navigation einklappen",
+      "expand": "Navigation ausklappen"
+    },
+    "join": {
+      "label": "Meeting-Code oder Link",
+      "placeholder": "Code oder Link eingeben",
+      "submit": "Teilnehmen",
+      "error": "Gib einen gültigen Meeting-Link oder Code ein."
+    },
+    "calendar": {
+      "label": "Meeting-Kalender",
+      "previousWeek": "Vorherige Woche",
+      "nextWeek": "Nächste Woche",
+      "today": "Heute"
+    },
+    "empty": {
+      "todayTitle": "Für heute sind keine Meetings geplant",
+      "dateTitle": "Für dieses Datum sind keine Meetings geplant",
+      "description": "Starte jetzt ein Meeting oder erstelle einen Link zum späteren Teilen."
+    }
   }
 }

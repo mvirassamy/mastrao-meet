@@ -1,22 +1,19 @@
 import { useTranslation } from 'react-i18next'
 import { Field, Ul, H, P, Form, Dialog } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
-import { isRoomValid } from '@/features/rooms'
+import { parseMeetingInput } from '../utils/meetingJoinInput'
 
 export const JoinMeetingDialog = () => {
   const { t } = useTranslation('home')
 
   const handleSubmit = (data: { roomId?: FormDataEntryValue }) => {
-    const roomId = (data.roomId as string)
-      .trim()
-      .replace(`${window.location.origin}/`, '')
-    navigateTo('room', roomId)
+    const roomId = parseMeetingInput(data.roomId as string)
+    if (roomId) navigateTo('room', roomId)
   }
 
   const validateRoomId = (value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-    return !isRoomValid(trimmed) ? (
+    if (!value.trim()) return null
+    return !parseMeetingInput(value) ? (
       <>
         <p>{t('joinInputError')}</p>
         <Ul>
@@ -28,7 +25,7 @@ export const JoinMeetingDialog = () => {
   }
 
   return (
-    <Dialog title={t('joinMeeting')}>
+    <Dialog title={t('joinMeeting')} appearance="app">
       <Form onSubmit={handleSubmit} submitLabel={t('joinInputSubmit')}>
         {/* eslint-disable jsx-a11y/no-autofocus -- Focus on input when modal opens, required for accessibility */}
         <Field

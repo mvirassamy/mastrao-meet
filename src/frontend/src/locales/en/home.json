@@ -16,7 +16,8 @@
   "connectionTestLink": "Test your configuration",
   "createMenu": {
     "laterOption": "Create a meeting for a later date",
-    "instantOption": "Start an instant meeting"
+    "instantOption": "Start an instant meeting",
+    "error": "Unable to create the meeting. Try again."
   },
   "laterMeetingDialog": {
     "heading": "Your connection details",
@@ -59,5 +60,34 @@
     },
     "carouselLabel": "Introduction slideshow",
     "slidePosition": "Slide {{current}} of {{total}}"
+  },
+  "dashboard": {
+    "newMeeting": "New",
+    "sidebar": {
+      "label": "Video meeting navigation",
+      "meetings": "Meetings",
+      "history": "History",
+      "open": "Open navigation",
+      "close": "Close navigation",
+      "collapse": "Collapse navigation",
+      "expand": "Expand navigation"
+    },
+    "join": {
+      "label": "Meeting code or link",
+      "placeholder": "Enter a code or link",
+      "submit": "Join",
+      "error": "Enter a valid meeting link or code."
+    },
+    "calendar": {
+      "label": "Meeting calendar",
+      "previousWeek": "Previous week",
+      "nextWeek": "Next week",
+      "today": "Today"
+    },
+    "empty": {
+      "todayTitle": "No meetings scheduled for today",
+      "dateTitle": "No meetings scheduled for this date",
+      "description": "Start a meeting now or prepare a link to share for later."
+    }
   }
 }

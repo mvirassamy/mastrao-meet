@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { Bold, Button, Dialog, type DialogProps, P, Text } from '@/primitives'
-import { HStack } from '@/styled-system/jsx'
-import { RiCheckFill, RiFileCopyFill, RiSpam2Fill } from '@remixicon/react'
+import {
+  RiCheckFill,
+  RiFileCopyFill,
+  RiLinksFill,
+  RiSpam2Fill,
+} from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { ApiAccessLevel, ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { useTelephony } from '@/features/rooms/livekit/hooks/useTelephony'
@@ -20,8 +24,6 @@ export const LaterMeetingDialog = ({
   const roomUrl = room && getRouteUrl('room', room?.slug)
   const telephony = useTelephony()
 
-  const [isHovered, setIsHovered] = useState(false)
-
   const isTelephonyReadyForUse = useMemo(() => {
     return telephony?.enabled && room?.pin_code
   }, [telephony?.enabled, room?.pin_code])
@@ -34,7 +36,12 @@ export const LaterMeetingDialog = ({
   } = useCopyRoomToClipboard(room || undefined)
 
   return (
-    <Dialog isOpen={!!room} {...dialogProps} title={t('heading')}>
+    <Dialog
+      isOpen={!!room}
+      {...dialogProps}
+      appearance="app"
+      title={t('heading')}
+    >
       <P>{t('description')}</P>
       {!!roomUrl && (
         <>
@@ -126,74 +133,83 @@ export const LaterMeetingDialog = ({
               </Button>
             </div>
           ) : (
-            <Button
-              variant={isCopied ? 'success' : 'primary'}
-              size="sm"
-              fullWidth
-              aria-label={t('copy')}
-              style={{
-                justifyContent: 'start',
-              }}
-              onPress={copyRoomToClipboard}
-              onHoverChange={setIsHovered}
-              data-attr="later-dialog-copy"
+            <div
+              className={css({
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                marginTop: '0.75rem',
+                padding: '0.25rem 0.25rem 0.25rem 0.75rem',
+                border: '1px solid token(colors.border)',
+                borderRadius: '8px',
+                backgroundColor:
+                  'color-mix(in srgb, var(--muted) 50%, transparent)',
+              })}
             >
-              {isCopied ? (
-                <>
-                  <RiCheckFill
-                    size={18}
-                    style={{ marginRight: '8px' }}
-                    aria-hidden="true"
-                  />
-                  {t('copied')}
-                </>
-              ) : (
-                <>
-                  <RiFileCopyFill
-                    size={18}
-                    style={{ marginRight: '8px', minWidth: '18px' }}
-                    aria-hidden="true"
-                  />
-                  {isHovered ? (
-                    t('copy')
-                  ) : (
-                    <div
-                      style={{
-                        textOverflow: 'ellipsis',
-                        overflow: 'hidden',
-                        userSelect: 'none',
-                        textWrap: 'nowrap',
-                      }}
-                    >
-                      {roomUrl?.replace(/^https?:\/\//, '')}
-                    </div>
-                  )}
-                </>
-              )}
-            </Button>
-          )}
-          {room?.access_level == ApiAccessLevel.PUBLIC && (
-            <HStack>
-              <div
+              <RiLinksFill
+                size={16}
+                aria-hidden="true"
+                className={css({ flexShrink: 0, color: 'muted-foreground' })}
+              />
+              <span
                 className={css({
-                  backgroundColor: 'accent',
-                  borderRadius: '50%',
-                  padding: '4px',
-                  marginTop: '1rem',
+                  minWidth: 0,
+                  flex: 1,
+                  overflow: 'hidden',
+                  color: 'foreground',
+                  fontSize: '0.875rem',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 })}
               >
-                <RiSpam2Fill
-                  size={22}
-                  className={css({
-                    fill: 'primary',
-                  })}
-                  aria-hidden="true"
-                />
-              </div>
-              <Text variant="sm" style={{ marginTop: '1rem' }}>
-                {t('permissions')}
-              </Text>
-            </HStack>
+                {roomUrl?.replace(/^https?:\/\//, '')}
+              </span>
+              <Button
+                size="appSm"
+                variant={isCopied ? 'success' : 'primary'}
+                onPress={copyRoomToClipboard}
+                data-attr="later-dialog-copy"
+                icon={
+                  isCopied ? (
+                    <RiCheckFill aria-hidden="true" />
+                  ) : (
+                    <RiFileCopyFill aria-hidden="true" />
+                  )
+                }
+                className={css({
+                  flexShrink: 0,
+                  minHeight: { base: '40px', md: '32px' },
+                  whiteSpace: 'nowrap',
+                })}
+              >
+                {isCopied ? t('copied') : t('copy')}
+              </Button>
+            </div>
+          )}
+          {room?.access_level == ApiAccessLevel.PUBLIC && (
+            <p
+              className={css({
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                marginTop: '0.75rem',
+                marginBottom: 0,
+                color: 'muted-foreground',
+                fontSize: '0.8125rem!',
+                lineHeight: '1.25rem',
+              })}
+            >
+              <RiSpam2Fill
+                size={16}
+                aria-hidden="true"
+                className={css({
+                  flexShrink: 0,
+                  marginTop: '0.125rem',
+                  color: 'primary',
+                })}
+              />
+              {t('permissions')}
+            </p>
           )}
         </>
       )}

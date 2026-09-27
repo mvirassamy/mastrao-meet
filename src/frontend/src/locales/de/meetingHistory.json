@@ -1,0 +1,87 @@
+{
+  "description": "Vergangene Besprechungen, auf die Sie Zugriff haben, von der neuesten zur ältesten.",
+  "detail": {
+    "back": "Zurück zum Verlauf",
+    "error": {
+      "description": "Der Dienst antwortet derzeit nicht. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+      "title": "Besprechung kann nicht angezeigt werden"
+    },
+    "loading": "Besprechung wird geladen…",
+    "notFound": {
+      "description": "Diese Besprechung existiert nicht oder Sie haben keinen Zugriff mehr darauf.",
+      "title": "Besprechung nicht gefunden"
+    }
+  },
+  "empty": {
+    "description": "Beendete Besprechungen, auf die Sie Zugriff haben, erscheinen hier mit Zusammenfassung und Transkript.",
+    "title": "Noch keine vergangenen Besprechungen"
+  },
+  "error": {
+    "description": "Der Dienst antwortet derzeit nicht. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "retry": "Erneut versuchen",
+    "title": "Verlauf kann nicht angezeigt werden"
+  },
+  "loadMore": "Mehr anzeigen",
+  "loadMoreError": "Ältere Besprechungen konnten nicht geladen werden.",
+  "loading": "Verlauf wird geladen…",
+  "loadingMore": "Wird geladen…",
+  "participants_one": "{{count}} Teilnehmer",
+  "participants_other": "{{count}} Teilnehmende",
+  "status": {
+    "summary": {
+      "absent": "Keine Zusammenfassung",
+      "available": "Zusammenfassung verfügbar",
+      "failed": "Zusammenfassung nicht verfügbar",
+      "processing": "Zusammenfassung in Arbeit"
+    },
+    "transcript": {
+      "absent": "Kein Transkript",
+      "available": "Transkript verfügbar",
+      "failed": "Transkript nicht verfügbar",
+      "processing": "Transkript in Arbeit"
+    }
+  },
+  "summary": {
+    "absent": {
+      "description": "Für diese Besprechung wurde keine Zusammenfassung erstellt.",
+      "title": "Keine Zusammenfassung"
+    },
+    "automatic": "Automatisch aus dem Transkript erstellte Zusammenfassung, nicht von einer Person geprüft.",
+    "failed": {
+      "description": "Die Zusammenfassung konnte für diese Besprechung nicht erstellt werden.",
+      "title": "Zusammenfassung nicht verfügbar"
+    },
+    "processing": {
+      "description": "Sie erscheint hier, sobald sie fertig ist. Diese Seite aktualisiert sich automatisch.",
+      "title": "Zusammenfassung in Arbeit"
+    },
+    "requestFailed": {
+      "description": "Die Anfrage für die Zusammenfassung ist fehlgeschlagen. Sie können es erneut versuchen.",
+      "title": "Zusammenfassung nicht gestartet"
+    },
+    "title": "Zusammenfassung",
+    "waitingTranscript": {
+      "description": "Sie wird erstellt, sobald das Transkript verfügbar ist. Diese Seite aktualisiert sich automatisch.",
+      "title": "Zusammenfassung ausstehend"
+    }
+  },
+  "title": "Verlauf",
+  "transcript": {
+    "absent": {
+      "description": "Für diese Besprechung wurde kein Transkript erstellt.",
+      "title": "Kein Transkript"
+    },
+    "failed": {
+      "description": "Das Transkript konnte für diese Besprechung nicht erstellt werden.",
+      "title": "Transkript nicht verfügbar"
+    },
+    "processing": {
+      "description": "Es erscheint hier, sobald es fertig ist. Diese Seite aktualisiert sich automatisch.",
+      "title": "Transkript in Arbeit"
+    },
+    "title": "Transkript",
+    "truncated": "Es wird nur ein Teil des Transkripts angezeigt.",
+    "unknownSpeaker": "Sprecher"
+  },
+  "untitled": "Besprechung ohne Titel"
+}

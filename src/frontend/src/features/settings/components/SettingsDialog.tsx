@@ -12,8 +12,12 @@ import { LoginButton } from '@/components/LoginButton'
 import { logout } from '@/features/auth/utils/logout'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { RoomsTab } from './tabs/RoomsTab'
+import { AppSettingsDialog } from './AppSettingsDialog'
 
-export type SettingsDialogProps = Pick<DialogProps, 'isOpen' | 'onOpenChange'>
+export type SettingsDialogProps = Pick<
+  DialogProps,
+  'isOpen' | 'onOpenChange' | 'appearance'
+>
 
 enum SettingsDialogTabKey {
   GENERAL = 'general',
@@ -54,6 +58,19 @@ const tabPanelStyle = css({
 })
 
 export const SettingsDialog = (props: SettingsDialogProps) => {
+  // The authenticated workspace uses the Mastrao application dialog; every
+  // other entry point (rooms, header, device menus) keeps the original one.
+  if (props.appearance === 'app')
+    return (
+      <AppSettingsDialog
+        isOpen={props.isOpen}
+        onOpenChange={props.onOpenChange}
+      />
+    )
+  return <DefaultSettingsDialog {...props} />
+}
+
+const DefaultSettingsDialog = (props: SettingsDialogProps) => {
   const { t, i18n } = useTranslation('settings')
   const { user, isLoggedIn } = useUser()
   const { languagesList, currentLanguage } = useLanguageLabels()
@@ -71,7 +88,7 @@ export const SettingsDialog = (props: SettingsDialogProps) => {
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        minWidth: '360px',
+        minWidth: { base: 0, md: '360px' },
       })}
     >
       <H lvl={2}>{t('account.heading')}</H>
@@ -117,7 +134,13 @@ export const SettingsDialog = (props: SettingsDialogProps) => {
   }
 
   return (
-    <Dialog innerRef={dialogEl} {...props} role="dialog" type="flex">
+    <Dialog
+      innerRef={dialogEl}
+      {...props}
+      role="dialog"
+      type="flex"
+      size="large"
+    >
       <Tabs
         orientation="vertical"
         className={tabsStyle}

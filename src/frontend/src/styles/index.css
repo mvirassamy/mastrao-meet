@@ -1,3 +1,4 @@
+@import '@fontsource-variable/inter';
 @import './mastrao-theme.css';
 @import './livekit.css';
 @layer reset, base, tokens, recipes, utilities;

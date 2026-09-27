@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-27: Add the authenticated Mastrao Meet home, canonical idempotent
+  meeting creation, and creator-scoped history with transcript and summary
+  states, without changing the LiveKit conference runtime.
+
 - 2026-09-26: Stop canonical lifecycle polling when a missing or closed room
   has no lifecycle projection, while retaining retries for transient failures.
 

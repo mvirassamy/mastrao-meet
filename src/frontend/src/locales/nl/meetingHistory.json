@@ -1,0 +1,87 @@
+{
+  "description": "Afgelopen vergaderingen waartoe u toegang hebt, van de meest recente tot de oudste.",
+  "detail": {
+    "back": "Terug naar geschiedenis",
+    "error": {
+      "description": "De dienst reageert momenteel niet. Controleer uw verbinding en probeer het opnieuw.",
+      "title": "Deze vergadering kan niet worden weergegeven"
+    },
+    "loading": "Vergadering laden…",
+    "notFound": {
+      "description": "Deze vergadering bestaat niet of u hebt er geen toegang meer toe.",
+      "title": "Vergadering niet gevonden"
+    }
+  },
+  "empty": {
+    "description": "Afgelopen vergaderingen waartoe u toegang hebt, verschijnen hier met hun samenvatting en transcriptie.",
+    "title": "Nog geen afgelopen vergaderingen"
+  },
+  "error": {
+    "description": "De dienst reageert momenteel niet. Controleer uw verbinding en probeer het opnieuw.",
+    "retry": "Opnieuw proberen",
+    "title": "Geschiedenis kan niet worden weergegeven"
+  },
+  "loadMore": "Meer tonen",
+  "loadMoreError": "Oudere vergaderingen konden niet worden geladen.",
+  "loading": "Geschiedenis laden…",
+  "loadingMore": "Laden…",
+  "participants_one": "{{count}} deelnemer",
+  "participants_other": "{{count}} deelnemers",
+  "status": {
+    "summary": {
+      "absent": "Geen samenvatting",
+      "available": "Samenvatting beschikbaar",
+      "failed": "Samenvatting niet beschikbaar",
+      "processing": "Samenvatting in voorbereiding"
+    },
+    "transcript": {
+      "absent": "Geen transcriptie",
+      "available": "Transcriptie beschikbaar",
+      "failed": "Transcriptie niet beschikbaar",
+      "processing": "Transcriptie in voorbereiding"
+    }
+  },
+  "summary": {
+    "absent": {
+      "description": "Voor deze vergadering is geen samenvatting gemaakt.",
+      "title": "Geen samenvatting"
+    },
+    "automatic": "Automatisch gegenereerde samenvatting op basis van de transcriptie, niet door een persoon nagelezen.",
+    "failed": {
+      "description": "De samenvatting kon voor deze vergadering niet worden gemaakt.",
+      "title": "Samenvatting niet beschikbaar"
+    },
+    "processing": {
+      "description": "Ze verschijnt hier zodra ze klaar is. Deze pagina wordt automatisch bijgewerkt.",
+      "title": "Samenvatting in voorbereiding"
+    },
+    "requestFailed": {
+      "description": "Het aanvragen van de samenvatting is mislukt. U kunt het opnieuw proberen.",
+      "title": "Samenvatting niet gestart"
+    },
+    "title": "Samenvatting",
+    "waitingTranscript": {
+      "description": "Ze wordt gemaakt zodra de transcriptie beschikbaar is. Deze pagina wordt automatisch bijgewerkt.",
+      "title": "Samenvatting in afwachting"
+    }
+  },
+  "title": "Geschiedenis",
+  "transcript": {
+    "absent": {
+      "description": "Voor deze vergadering is geen transcriptie gemaakt.",
+      "title": "Geen transcriptie"
+    },
+    "failed": {
+      "description": "De transcriptie kon voor deze vergadering niet worden gemaakt.",
+      "title": "Transcriptie niet beschikbaar"
+    },
+    "processing": {
+      "description": "Ze verschijnt hier zodra ze klaar is. Deze pagina wordt automatisch bijgewerkt.",
+      "title": "Transcriptie in voorbereiding"
+    },
+    "title": "Transcriptie",
+    "truncated": "Slechts een deel van de transcriptie wordt weergegeven.",
+    "unknownSpeaker": "Spreker"
+  },
+  "untitled": "Vergadering zonder titel"
+}

@@ -1,9 +1,23 @@
 import type { ApiConfig } from '@/api/useConfig'
+import type { ApiUser } from '@/features/auth/api/ApiUser'
 import { ApiAccessLevel, type ApiRoom } from '@/features/rooms/api/ApiRoom'
+import {
+  isPreviewMeetingHistoryRequest,
+  previewMeetingHistoryResponse,
+} from './previewMeetingHistoryFixtures'
 
 export const previewRoomId = 'room_00000000000000000000000000000000'
 export const previewScenario =
   new URLSearchParams(location.search).get('screen') ?? 'join'
+/** Fictional signed-in user for the authenticated workspace screens only. */
+export const previewUser: ApiUser = {
+  id: 'preview-user',
+  email: 'matthias@mastrao.com',
+  full_name: 'Matthias Virassamy',
+  last_name: 'Virassamy',
+  language: 'fr-fr',
+  timezone: 'Europe/Paris',
+}
 export const previewRoom: ApiRoom = {
   id: previewRoomId,
   slug: previewRoomId,
@@ -45,9 +59,12 @@ const jsonResponse = (data: unknown, status = 200) =>
 
 /** No backend, credentials, media capture or connection can be used by this entry. */
 export const preparePreview = () => {
+  const requestedLanguage = new URLSearchParams(location.search).get('lang')
   localStorage.setItem(
     'i18nextLng',
-    new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'fr'
+    requestedLanguage && ['de', 'en', 'fr', 'nl'].includes(requestedLanguage)
+      ? requestedLanguage
+      : 'fr'
   )
   if (previewScenario === 'devices-off') {
     const originalQuery = navigator.permissions.query.bind(
@@ -96,6 +113,8 @@ export const preparePreview = () => {
           { detail: 'Aperçu local : aucune action envoyée.' },
           503
         )
+      if (isPreviewMeetingHistoryRequest(url))
+        return previewMeetingHistoryResponse(url, previewScenario)
       if (url.pathname.includes('/rooms/')) {
         if (previewScenario === 'loading')
           return new Promise<Response>(() => undefined)

@@ -1,0 +1,87 @@
+{
+  "description": "Les réunions passées auxquelles vous avez accès, de la plus récente à la plus ancienne.",
+  "detail": {
+    "back": "Retour à l’historique",
+    "error": {
+      "description": "Le service ne répond pas pour le moment. Vérifiez votre connexion, puis réessayez.",
+      "title": "Impossible d’afficher cette réunion"
+    },
+    "loading": "Chargement de la réunion…",
+    "notFound": {
+      "description": "Cette réunion n’existe pas ou vous n’y avez plus accès.",
+      "title": "Réunion introuvable"
+    }
+  },
+  "empty": {
+    "description": "Les réunions terminées auxquelles vous avez accès apparaîtront ici, avec leur synthèse et leur transcription.",
+    "title": "Aucune réunion passée pour le moment"
+  },
+  "error": {
+    "description": "Le service ne répond pas pour le moment. Vérifiez votre connexion, puis réessayez.",
+    "retry": "Réessayer",
+    "title": "Impossible d’afficher l’historique"
+  },
+  "loadMore": "Afficher plus",
+  "loadMoreError": "Les réunions plus anciennes n’ont pas pu être chargées.",
+  "loading": "Chargement de l’historique…",
+  "loadingMore": "Chargement…",
+  "participants_one": "{{count}} participant",
+  "participants_other": "{{count}} participants",
+  "status": {
+    "summary": {
+      "absent": "Sans synthèse",
+      "available": "Synthèse disponible",
+      "failed": "Synthèse indisponible",
+      "processing": "Synthèse en préparation"
+    },
+    "transcript": {
+      "absent": "Sans transcription",
+      "available": "Transcription disponible",
+      "failed": "Transcription indisponible",
+      "processing": "Transcription en préparation"
+    }
+  },
+  "summary": {
+    "absent": {
+      "description": "Aucune synthèse n’a été produite pour cette réunion.",
+      "title": "Aucune synthèse"
+    },
+    "automatic": "Synthèse générée automatiquement à partir de la transcription, sans relecture humaine.",
+    "failed": {
+      "description": "La synthèse n’a pas pu être produite pour cette réunion.",
+      "title": "Synthèse indisponible"
+    },
+    "processing": {
+      "description": "Elle apparaîtra ici dès qu’elle sera prête. Cette page se met à jour automatiquement.",
+      "title": "Synthèse en préparation"
+    },
+    "requestFailed": {
+      "description": "La demande de synthèse n’a pas abouti. Vous pouvez réessayer.",
+      "title": "Synthèse non lancée"
+    },
+    "title": "Synthèse",
+    "waitingTranscript": {
+      "description": "Elle sera préparée dès que la transcription sera disponible. Cette page se met à jour automatiquement.",
+      "title": "Synthèse en attente"
+    }
+  },
+  "title": "Historique",
+  "transcript": {
+    "absent": {
+      "description": "Aucune transcription n’a été produite pour cette réunion.",
+      "title": "Aucune transcription"
+    },
+    "failed": {
+      "description": "La transcription n’a pas pu être produite pour cette réunion.",
+      "title": "Transcription indisponible"
+    },
+    "processing": {
+      "description": "Elle apparaîtra ici dès qu’elle sera prête. Cette page se met à jour automatiquement.",
+      "title": "Transcription en préparation"
+    },
+    "title": "Transcription",
+    "truncated": "Seule une partie de la transcription est affichée.",
+    "unknownSpeaker": "Intervenant"
+  },
+  "untitled": "Réunion sans titre"
+}

@@ -6,12 +6,18 @@ if (import.meta.env.DEV) {
     previewRoom,
     previewRoomId,
     previewScenario,
+    previewUser,
   } = await import('./previewFixtures')
+  const { getPreviewContent } = await import('./previewScenarioRoute')
   preparePreview()
   const { queryClient } = await import('@/api/queryClient')
   const { keys } = await import('@/api/queryKeys')
   queryClient.setQueryData([keys.config], previewConfig)
-  queryClient.setQueryData([keys.user], false)
+  // Workspace screens are signed in, as in real use; every other screen is not.
+  const workspace = ['authenticated-home', 'meeting-history'].includes(
+    getPreviewContent(previewScenario)
+  )
+  queryClient.setQueryData([keys.user], workspace ? previewUser : false)
   if (!['error', 'loading'].includes(previewScenario))
     queryClient.setQueryData([keys.room, previewRoomId], previewRoom)
   const { userChoicesStore } = await import('@/stores/userChoices')

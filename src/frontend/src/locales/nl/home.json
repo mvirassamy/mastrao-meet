@@ -16,7 +16,8 @@
   "connectionTestLink": "Test je configuratie",
   "createMenu": {
     "laterOption": "Maak een vergadering voor een latere datum",
-    "instantOption": "Begin direct een vergadering"
+    "instantOption": "Begin direct een vergadering",
+    "error": "De vergadering kon niet worden gemaakt. Probeer het opnieuw."
   },
   "laterMeetingDialog": {
     "heading": "Uw verbindingsgegevens",
@@ -59,5 +60,34 @@
     },
     "carouselLabel": "Introductie-diavoorstelling",
     "slidePosition": "Dia {{current}} van {{total}}"
+  },
+  "dashboard": {
+    "newMeeting": "Nieuw",
+    "sidebar": {
+      "label": "Navigatie voor videovergaderingen",
+      "meetings": "Vergaderingen",
+      "history": "Geschiedenis",
+      "open": "Navigatie openen",
+      "close": "Navigatie sluiten",
+      "collapse": "Navigatie inklappen",
+      "expand": "Navigatie uitklappen"
+    },
+    "join": {
+      "label": "Vergadercode of link",
+      "placeholder": "Voer een code of link in",
+      "submit": "Deelnemen",
+      "error": "Voer een geldige vergaderlink of code in."
+    },
+    "calendar": {
+      "label": "Vergaderkalender",
+      "previousWeek": "Vorige week",
+      "nextWeek": "Volgende week",
+      "today": "Vandaag"
+    },
+    "empty": {
+      "todayTitle": "Geen vergaderingen gepland voor vandaag",
+      "dateTitle": "Geen vergaderingen gepland voor deze datum",
+      "description": "Start nu een vergadering of maak een link om later te delen."
+    }
   }
 }

@@ -23,10 +23,13 @@ const createRoom = ({
   })
 }
 
+export const createRoomMutationKey = ['createRoom'] as const
+
 export function useCreateRoom(
   options?: UseMutationOptions<ApiRoom, ApiError, CreateRoomParams>
 ) {
   return useMutation<ApiRoom, ApiError, CreateRoomParams>({
+    mutationKey: createRoomMutationKey,
     mutationFn: createRoom,
     onSuccess: options?.onSuccess,
   })
