@@ -1,4 +1,4 @@
-import { CloseIcon, MastraoSidebarIcon } from '@/icons'
+import { CloseIcon, SidebarIcon } from '@/icons'
 import { Link } from 'wouter'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -99,7 +99,7 @@ export const MeetSidebarBrand = ({
         '& svg': { width: '19px', height: '19px' },
       })}
     >
-      {mobile ? <CloseIcon aria-hidden="true" /> : <MastraoSidebarIcon />}
+      {mobile ? <CloseIcon aria-hidden="true" /> : <SidebarIcon />}
     </Button>
   </div>
 )

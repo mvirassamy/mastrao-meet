@@ -40,6 +40,8 @@ export const PermissionNeededButton = ({
           className={css({
             display: 'grid',
             placeItems: 'center',
+            // Centre the oversized glyph on the disc, not in its grid track.
+            placeContent: 'center',
             width: '22px',
             height: '22px',
             borderRadius: '100%',

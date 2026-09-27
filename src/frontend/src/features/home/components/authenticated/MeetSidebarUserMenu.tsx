@@ -1,4 +1,4 @@
-import { MastraoLogoutIcon } from '@/icons'
+import { LogoutIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { Menu as AriaMenu, MenuItem } from 'react-aria-components'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
@@ -169,7 +169,7 @@ export const MeetSidebarUserMenu = ({
               },
             })}
           >
-            <MastraoLogoutIcon />
+            <LogoutIcon />
             <span>{t('logout')}</span>
           </MenuItem>
         </AriaMenu>

@@ -1,4 +1,4 @@
-import { MastraoSidebarIcon } from '@/icons'
+import { SidebarIcon } from '@/icons'
 import { ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog, Modal, ModalOverlay } from 'react-aria-components'
@@ -175,7 +175,7 @@ export const MeetWorkspaceShell = ({
                     minHeight: '44px',
                   })}
                 >
-                  <MastraoSidebarIcon />
+                  <SidebarIcon />
                 </Button>
                 <span
                   className={css({
