@@ -1061,6 +1061,12 @@ class Base(Configuration):
     OIDC_STORE_ID_TOKEN = values.BooleanValue(
         default=True, environ_name="OIDC_STORE_ID_TOKEN", environ_prefix=None
     )
+    OIDC_STORE_ACCESS_TOKEN = values.BooleanValue(
+        default=False, environ_name="OIDC_STORE_ACCESS_TOKEN", environ_prefix=None
+    )
+    MASTRAO_PLATFORM_API_BASE_URL = values.Value(
+        None, environ_name="MASTRAO_PLATFORM_API_BASE_URL", environ_prefix=None
+    )
     ALLOW_LOGOUT_GET_METHOD = values.BooleanValue(
         default=True, environ_name="ALLOW_LOGOUT_GET_METHOD", environ_prefix=None
     )

@@ -29,6 +29,7 @@ from core.mastrao_host_contract import (
 from core.mastrao_host_grant import (
     SESSION_COMPACT_GRANTS_KEY,
     SESSION_NONCE_KEY,
+    SESSION_OIDC_SUBJECT_KEY,
     SESSION_PLATFORM_REF_KEY,
 )
 from core.mastrao_identity import mastrao_host_subject, mastrao_technical_owner_subject
@@ -154,7 +155,7 @@ def _binding_for(grant):
     return binding
 
 
-def _commit_grant(request, grant, compact_grant):
+def _commit_grant(request, grant, compact_grant, *, retain_oidc_user=False):
     remaining_seconds = int(grant["expires_at"] - time.time())
     if remaining_seconds < 1:
         raise HostHandoffRefused()
@@ -169,17 +170,32 @@ def _commit_grant(request, grant, compact_grant):
             existing_platform_session_ref = request.session.get(
                 SESSION_PLATFORM_REF_KEY
             )
-            login(request, identity.user, backend=SESSION_BACKEND)
+            oidc_subject = (
+                str(request.user.sub)
+                if retain_oidc_user and request.user.is_authenticated
+                else None
+            )
+            if retain_oidc_user:
+                if not isinstance(request.session.get("oidc_access_token"), str):
+                    raise HostHandoffRefused()
+            else:
+                login(request, identity.user, backend=SESSION_BACKEND)
             session_nonce = (
                 existing_nonce
-                if existing_user_id == identity.user.pk
-                and existing_platform_session_ref == grant["platform_session_ref"]
-                and isinstance(existing_nonce, str)
-                and existing_nonce
+                if (
+                    (retain_oidc_user or existing_user_id == identity.user.pk)
+                    and existing_platform_session_ref == grant["platform_session_ref"]
+                    and isinstance(existing_nonce, str)
+                    and existing_nonce
+                )
                 else secrets.token_urlsafe(32)
             )
             request.session[SESSION_NONCE_KEY] = session_nonce
             request.session[SESSION_PLATFORM_REF_KEY] = grant["platform_session_ref"]
+            if oidc_subject is not None:
+                request.session[SESSION_OIDC_SUBJECT_KEY] = oidc_subject
+            else:
+                request.session.pop(SESSION_OIDC_SUBJECT_KEY, None)
             compact_grants = request.session.get(SESSION_COMPACT_GRANTS_KEY, {})
             if not isinstance(compact_grants, dict):
                 compact_grants = {}
@@ -207,6 +223,22 @@ def _commit_grant(request, grant, compact_grant):
     except (IntegrityError, ValidationError, HostHandoffRefused):
         request.session.flush()
         raise
+
+
+def consume_host_handoff_for_oidc_session(request, host_handoff):
+    """Redeem and bind a host grant without replacing the authenticated OIDC user."""
+
+    if not settings.MASTRAO_HOST_HANDOFF_ENABLED or not request.user.is_authenticated:
+        raise HostHandoffRefused()
+    _admit_public_attempt(request, host_handoff)
+    grant, compact_grant = _redeem(host_handoff)
+    _, binding = _commit_grant(
+        request,
+        grant,
+        compact_grant,
+        retain_oidc_user=True,
+    )
+    return binding
 
 
 @csrf_exempt

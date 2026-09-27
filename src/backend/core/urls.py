@@ -14,6 +14,12 @@ from core.mastrao_guest_handoff import (
     establish_mastrao_guest_session,
 )
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
+from core.mastrao_meeting_history import (
+    create_meeting,
+    meeting_history,
+    meeting_history_detail,
+    meeting_summary,
+)
 from core.mastrao_native_capture_adapter import start_native_capture
 from core.mastrao_native_capture_stop import stop_native_capture
 from core.mastrao_recording_access import recording_access, recording_download
@@ -133,6 +139,22 @@ urlpatterns = [
             [
                 *router.urls,
                 *oidc_urls,
+                path("meetings/", create_meeting, name="mastrao_create_meeting"),
+                path(
+                    "meetings/history/",
+                    meeting_history,
+                    name="mastrao_meeting_history",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/",
+                    meeting_history_detail,
+                    name="mastrao_meeting_history_detail",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/summary/",
+                    meeting_summary,
+                    name="mastrao_meeting_summary",
+                ),
                 path("config/", get_frontend_configuration, name="config"),
             ]
         ),

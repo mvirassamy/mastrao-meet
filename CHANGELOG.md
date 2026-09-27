@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-27: Add the authenticated, same-origin Platform bridge for canonical
+  Meet room creation, creator-scoped history, transcripts and summaries while
+  keeping the OIDC access token in the server-side session.
+
 - 2026-09-26: Stop canonical lifecycle polling when a missing or closed room
   has no lifecycle projection, while retaining retries for transient failures.
 
