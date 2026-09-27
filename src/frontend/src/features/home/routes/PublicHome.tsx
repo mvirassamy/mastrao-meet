@@ -17,6 +17,7 @@ import {
   type AppIconComponent,
 } from '@/icons'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
+import { MoreLink } from '../components/MoreLink'
 
 /*
  * Public home: Google Meet structure, Mastrao Platform look, three arguments.
@@ -387,6 +388,7 @@ export const PublicHome = () => {
               {t('homeV2.cta.body')}
             </p>
             <JoinButtons centered />
+            <MoreLink />
           </section>
         </div>
       </div>

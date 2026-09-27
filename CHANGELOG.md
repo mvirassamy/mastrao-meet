@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-27: Restore the optional "learn more" link on the public home when
+  a deployment sets FRONTEND_MANIFEST_LINK, lost with the new public home.
+
 - 2026-09-27: Align the Meet frontend with the Mastrao Platform look: shared
   dialogs, platform buttons and Heroicons, softer text inks, compact room
   menus and side panels, orange permission state in the call bar, a new public
