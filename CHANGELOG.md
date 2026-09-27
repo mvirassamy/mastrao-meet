@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-09-27: Fix review findings on the Mastrao UI alignment: permission
+  badge no longer covers the mic toggle, round reaction buttons, wrapping
+  mobile menu captions, accessible destructive and primary hover contrast,
+  keyboard focus kept clear of the sticky home header, and every icon
+  imported from @/icons.
+
 - 2026-09-27: Restore the optional "learn more" link on the public home when
   a deployment sets FRONTEND_MANIFEST_LINK, lost with the new public home.
 

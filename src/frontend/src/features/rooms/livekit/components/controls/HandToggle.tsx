@@ -1,4 +1,4 @@
-import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
+import { HandRaisedIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 
 import { ToggleButton } from '@/primitives'
@@ -83,7 +83,7 @@ export const HandToggle = () => {
         onPress={handleToggle}
         data-attr={`controls-hand-${tooltipLabel}`}
       >
-        <HandRaisedFill />
+        <HandRaisedIcon />
       </ToggleButton>
     </div>
   )

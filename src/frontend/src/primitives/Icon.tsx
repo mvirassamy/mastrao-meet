@@ -1,4 +1,3 @@
-import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { cva, RecipeVariantProps } from '@/styled-system/css'
 import { ComponentPropsWithoutRef } from 'react'
 
@@ -13,6 +12,7 @@ import {
   DownloadCloudIcon,
   VideoIcon,
   InformationIcon,
+  HandRaisedIcon,
 } from '@/icons'
 // Explicit native solid glyphs; do not fill outline SVGs through CSS.
 const icons = {
@@ -22,7 +22,7 @@ const icons = {
   speech_to_text: SpeakIcon,
   language: TranslateIcon,
   article: ArticleIcon,
-  person_raised_hand: HandRaisedFill,
+  person_raised_hand: HandRaisedIcon,
   login: LoginIcon,
   mail: MailIcon,
   cloud_download: DownloadCloudIcon,

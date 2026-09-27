@@ -1,10 +1,10 @@
+import { MastraoLogoutIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { Menu as AriaMenu, MenuItem } from 'react-aria-components'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
 import { logout } from '@/features/auth/utils/logout'
 import { Button, Menu } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { MastraoLogoutIcon } from './mastraoIcons'
 import { MeetUserAvatar } from './MeetUserAvatar'
 
 type MeetSidebarUserMenuProps = {
@@ -33,9 +33,10 @@ export const MeetSidebarUserMenu = ({
     <Menu placement={collapsed ? 'right' : 'top'} density="app">
       <Button
         size={collapsed ? 'icon' : 'default'}
-        variant="outline"
+        variant="ghost"
         aria-label={accessibleLabel}
         tooltip={collapsed ? accessibleLabel : undefined}
+        // Layout only: a bordered profile card; colours come from "ghost".
         className={css({
           width: collapsed ? '40px' : '100%',
           height: collapsed ? '40px' : '48px',
@@ -45,16 +46,9 @@ export const MeetSidebarUserMenu = ({
           gap: collapsed ? 0 : '0.5rem',
           padding: collapsed ? '0!' : '0.5rem!',
           borderRadius: '8px',
-          border: '1px solid var(--border)!',
-          backgroundColor: 'var(--card)!',
-          color: 'var(--foreground)!',
-          fontWeight: '400!',
+          borderColor: 'var(--border)',
+          fontWeight: 400,
           overflow: 'hidden',
-          '&[data-hovered], &[data-pressed], &[aria-expanded=true]': {
-            backgroundColor: 'var(--muted)!',
-            borderColor: 'var(--border)!',
-            color: 'var(--foreground)!',
-          },
         })}
       >
         <MeetUserAvatar name={label} compact={collapsed} />

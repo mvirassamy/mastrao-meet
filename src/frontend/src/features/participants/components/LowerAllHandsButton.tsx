@@ -1,4 +1,4 @@
-import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
+import { HandRaisedIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import type { Participant } from 'livekit-client'
@@ -31,7 +31,7 @@ const LowerAllHandsButtonInner = ({
         marginBottom: '0.5rem',
       })}
     >
-      <HandRaisedFill size={16} />
+      <HandRaisedIcon size={16} />
       {t('participants.lowerParticipantsHand')}
     </Button>
   )

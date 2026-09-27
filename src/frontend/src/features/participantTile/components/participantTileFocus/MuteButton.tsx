@@ -27,6 +27,7 @@ export const MuteButton = ({ participant }: { participant: Participant }) => {
         size="icon-sm"
         variant={'ghost'}
         onPress={() => setIsAlertOpen(true)}
+        aria-label={t('muteParticipant', { name })}
         tooltip={t('muteParticipant', { name })}
       >
         {!isMuted ? <MicrophoneIcon /> : <MicrophoneOffIcon />}

@@ -1,8 +1,7 @@
-import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import { PictureInPictureMenuItem } from '@/features/rooms/livekit/components/controls/Options/PictureInPictureMenuItem'
 import { CollapsibleControl, CollapsibleControls } from '../PipControlBar'
-import { ArrowUpIcon, EmojiIcon } from '@/icons'
+import { ArrowUpIcon, EmojiIcon, HandRaisedIcon } from '@/icons'
 import { menuRecipe } from '@/primitives/menuRecipe.ts'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
 import { useRoomContext, useTrackToggle } from '@livekit/components-react'
@@ -63,7 +62,7 @@ export const PipOptionsMenuItems = ({
       )}
       {overflowControls.has(CollapsibleControls.HAND) && (
         <MenuItem onAction={toggleRaisedHand} className={itemClass}>
-          <HandRaisedFill size={20} />
+          <HandRaisedIcon size={20} />
           {isHandRaised ? t('controls.hand.lower') : t('controls.hand.raise')}
         </MenuItem>
       )}

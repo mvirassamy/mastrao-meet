@@ -1,8 +1,7 @@
-import { CloseIcon } from '@/icons'
+import { CloseIcon, MastraoSidebarIcon } from '@/icons'
 import { Link } from 'wouter'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { MastraoSidebarIcon } from './mastraoIcons'
 
 type MeetSidebarBrandProps = {
   collapsed?: boolean

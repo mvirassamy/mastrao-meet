@@ -40,6 +40,7 @@ import {
   ExclamationTriangleIcon as HeroExclamationTriangleIcon,
   EyeIcon as HeroEyeIcon,
   FaceSmileIcon as HeroFaceSmileIcon,
+  HandRaisedIcon as HeroHandRaisedIcon,
   InformationCircleIcon as HeroInformationCircleIcon,
   LanguageIcon as HeroLanguageIcon,
   LinkIcon as HeroLinkIcon,
@@ -70,6 +71,12 @@ import {
   XMarkIcon as HeroXMarkIcon,
 } from '@heroicons/react/20/solid'
 import * as Custom from './customIcons'
+import { BlurOn as BlurOnGlyph } from './BlurOn'
+import { BlurOnStrong as BlurOnStrongGlyph } from './BlurOnStrong'
+import {
+  MastraoLogoutIcon as MastraoLogoutGlyph,
+  MastraoSidebarIcon as MastraoSidebarGlyph,
+} from './mastraoIcons'
 
 /**
  * Application icons: Heroicons 20 solid, the family of the Mastrao platform.
@@ -189,3 +196,9 @@ export const VolumeDownIcon = sized(HeroSpeakerWaveIcon) // RiVolumeDownFill
 export const VolumeMuteIcon = sized(HeroSpeakerXMarkIcon) // RiVolumeMuteFill
 export const VolumeUpIcon = sized(HeroSpeakerWaveIcon) // RiVolumeUpFill
 export const WarningIcon = sized(HeroExclamationTriangleIcon) // RiSpam2Fill
+export const HandRaisedIcon = sized(HeroHandRaisedIcon)
+// Hand-drawn glyphs without a Heroicons equivalent.
+export const BlurOn = sized(BlurOnGlyph)
+export const BlurOnStrong = sized(BlurOnStrongGlyph)
+export const MastraoLogoutIcon = sized(MastraoLogoutGlyph)
+export const MastraoSidebarIcon = sized(MastraoSidebarGlyph)

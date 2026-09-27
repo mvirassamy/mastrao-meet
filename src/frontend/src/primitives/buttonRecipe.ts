@@ -30,7 +30,8 @@ const selectedState = {
 const defaultStyle = {
   backgroundColor: 'var(--button-primary)',
   color: 'var(--button-primary-foreground)',
-  [hover]: { backgroundColor: mix('--button-primary', 80) },
+  // Darken on hover (a translucent fade would drop white text below 4.5:1).
+  [hover]: { backgroundColor: mix('--button-primary', 90, '#08142e') },
   [selected]: {
     backgroundColor: 'var(--button-primary)',
     color: 'var(--button-primary-foreground)',
@@ -79,7 +80,8 @@ const ghostStyle = {
 
 const destructiveStyle = {
   backgroundColor: mix('--button-destructive', 10),
-  color: 'var(--button-destructive)',
+  // Darker ink keeps the text >= 4.5:1 on the 10% and 20% tints (WCAG 1.4.3).
+  color: 'var(--button-destructive-foreground)',
   [hover]: { backgroundColor: mix('--button-destructive', 20) },
   '&[data-focus-visible]': {
     borderColor: mix('--button-destructive', 40),
@@ -212,8 +214,14 @@ export const buttonRecipe = cva({
         borderRadius: '100%!',
         color: 'var(--call-attention-badge)',
         backgroundColor: 'transparent',
-        width: 'fit-content!',
-        height: 'fit-content!',
+        // 24px hit area around the 22px badge; reset the size's min-height
+        // so the badge never covers the control underneath.
+        display: 'grid!',
+        placeItems: 'center',
+        width: '24px!',
+        height: '24px!',
+        minWidth: '0!',
+        minHeight: '0!',
         padding: '0!',
         margin: '0!',
       },
@@ -285,7 +293,14 @@ export const buttonRecipe = cva({
     },
     // Reaction buttons: round icon buttons.
     round: {
-      true: { borderRadius: '50%!' },
+      // Square 36px hit area, so the 50% radius draws a circle.
+      true: {
+        borderRadius: '50%!',
+        width: '36px!',
+        height: '36px!',
+        minWidth: '36px',
+        padding: '0!',
+      },
     },
     fullWidth: {
       true: { width: 'full' },
@@ -301,11 +316,16 @@ export const buttonRecipe = cva({
       true: {
         flexDirection: 'column',
         gap: '0.5rem',
+        // Captions wrap inside their tile instead of overflowing it.
+        whiteSpace: 'normal',
+        textAlign: 'center',
         height: 'auto!',
         paddingY: '0.5rem',
         '& span': {
           fontSize: '13px',
           textAlign: 'center',
+          maxWidth: '100%',
+          overflowWrap: 'anywhere',
         },
       },
     },
@@ -331,6 +351,7 @@ export const buttonRecipe = cva({
       description: true,
       css: {
         width: 'auto!',
+        maxWidth: '100%',
         height: 'auto!',
         borderRadius: '10px!',
         padding: '0.625rem!',

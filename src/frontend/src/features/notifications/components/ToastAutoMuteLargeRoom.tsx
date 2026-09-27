@@ -5,7 +5,6 @@ import { type ToastProps } from './Toast'
 import { VStack } from '@/styled-system/jsx'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
 import { StyledToastContainer } from './StyledToastContainer'
 import { useRoomContext } from '@livekit/components-react'
 
@@ -38,14 +37,7 @@ export function ToastAutoMuteLargeRoom({
         padding={14}
       >
         <p>{t('auto')}</p>
-        <Button
-          size="sm"
-          variant="link"
-          className={css({
-            color: 'primary',
-          })}
-          onPress={() => handleDismiss()}
-        >
+        <Button size="sm" variant="link" onPress={() => handleDismiss()}>
           {t('dismiss')}
         </Button>
       </VStack>
