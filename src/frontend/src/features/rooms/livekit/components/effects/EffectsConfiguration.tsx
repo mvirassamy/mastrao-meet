@@ -19,8 +19,6 @@ import {
 } from '@/primitives'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { styled } from '@/styled-system/jsx'
-import { BlurOn } from '@/components/icons/BlurOn'
-import { BlurOnStrong } from '@/components/icons/BlurOnStrong'
 import { useTrackToggle } from '@livekit/components-react'
 import { Loader } from '@/primitives/Loader'
 import { useSyncAfterDelay } from '@/hooks/useSyncAfterDelay'
@@ -33,7 +31,13 @@ import {
 } from '@/features/files/api/listFiles.ts'
 import { useCreateFile } from '@/features/files/api/createFile.ts'
 import { FileTrigger } from 'react-aria-components'
-import { DeleteIcon, ImageAddIcon } from '@/icons'
+import {
+  DeleteIcon,
+  ImageAddIcon,
+  BlurOn,
+  BlurOnStrong,
+  type AppIconComponent,
+} from '@/icons'
 import { useDeleteFile } from '@/features/files/api/deleteFile.ts'
 import { useUser } from '@/features/auth/api/useUser'
 import { ApiFileItem } from '@/features/files/api/types.ts'
@@ -390,7 +394,7 @@ export const EffectsConfiguration = ({
     isDisabled: boolean
     blurBased: {
       radius: BlurRadius
-      Icon: React.FC
+      Icon: AppIconComponent
       ref?: React.Ref<HTMLButtonElement>
       tooltip: string
       id: string

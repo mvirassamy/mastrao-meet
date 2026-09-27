@@ -43,6 +43,8 @@ const JoinButtons = ({ centered = false }: { centered?: boolean }) => {
       className={css({
         display: 'flex',
         flexWrap: 'wrap',
+        // Keeps the 38px join button centred next to the taller ProConnect one.
+        alignItems: 'center',
         gap: '0.75rem',
         justifyContent: centered ? 'center' : { base: 'center', lg: 'start' },
       })}
@@ -221,10 +223,16 @@ export const PublicHome = () => {
   }, [data])
 
   // Sticky translucent header, like the Platform vitrine, on this page only.
+  // The scroll padding keeps keyboard-focused elements clear of it
+  // (WCAG 2.4.11 Focus Not Obscured).
   useEffect(() => {
     layoutStore.headerAppearance = 'glass'
+    const root = document.documentElement
+    const previousScrollPadding = root.style.scrollPaddingTop
+    root.style.scrollPaddingTop = '76px'
     return () => {
       layoutStore.headerAppearance = 'default'
+      root.style.scrollPaddingTop = previousScrollPadding
     }
   }, [])
 
@@ -323,7 +331,7 @@ export const PublicHome = () => {
               width={1000}
               height={645}
               decoding="async"
-              fetchPriority="high"
+              loading="eager"
               className={css({
                 display: 'block',
                 width: '100%',

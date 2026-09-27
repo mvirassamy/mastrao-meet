@@ -21,6 +21,7 @@ export const FocusButton = ({
     <Button
       size="icon-sm"
       variant="ghost"
+      aria-label={inFocus ? t('pin.disable') : t('pin.enable')}
       tooltip={inFocus ? t('pin.disable') : t('pin.enable')}
       onPress={() => (inFocus ? clearPinnedTrack() : setPinnedTrack(trackRef))}
     >

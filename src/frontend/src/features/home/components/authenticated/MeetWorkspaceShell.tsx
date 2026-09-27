@@ -1,3 +1,4 @@
+import { SidebarIcon } from '@/icons'
 import { ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog, Modal, ModalOverlay } from 'react-aria-components'
@@ -6,7 +7,6 @@ import { Button } from '@/primitives'
 import { AppAppearanceProvider } from '@/primitives/appAppearance'
 import { css } from '@/styled-system/css'
 import { MeetSidebar } from './MeetSidebar'
-import { MastraoSidebarIcon } from './mastraoIcons'
 
 const COLLAPSED_STORAGE_KEY = 'mastrao-meet.sidebar-collapsed'
 
@@ -175,7 +175,7 @@ export const MeetWorkspaceShell = ({
                     minHeight: '44px',
                   })}
                 >
-                  <MastraoSidebarIcon />
+                  <SidebarIcon />
                 </Button>
                 <span
                   className={css({

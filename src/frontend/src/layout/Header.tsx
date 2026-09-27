@@ -262,7 +262,8 @@ export const Header = () => {
                   />
                 </Menu>
               )}
-              <SettingsButton />
+              {/* Blurred backdrop outside rooms; rooms keep the dim one. */}
+              <SettingsButton dialogAppearance={isRoom ? 'default' : 'app'} />
             </Stack>
           </nav>
         </HStack>

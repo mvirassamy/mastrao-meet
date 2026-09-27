@@ -1,4 +1,4 @@
-import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
+import { HandRaisedIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 
 import { HStack } from '@/styled-system/jsx'
@@ -32,7 +32,7 @@ const ActionButton = ({
       tooltip={t('participants.lowerParticipantHand', { name })}
       data-attr="participants-lower-hand"
     >
-      <HandRaisedFill />
+      <HandRaisedIcon />
     </Button>
   )
 }

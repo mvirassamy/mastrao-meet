@@ -10,6 +10,7 @@ export const EffectsButton = React.memo(() => {
     <Button
       size="icon-sm"
       variant={'ghost'}
+      aria-label={t('effects')}
       tooltip={t('effects')}
       onPress={() => !isEffectsOpen && toggleEffects()}
     >

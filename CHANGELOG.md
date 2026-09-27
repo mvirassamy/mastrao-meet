@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-09-27: Fix review findings on the Mastrao UI alignment: permission
+  badge no longer covers the mic toggle, round reaction buttons, wrapping
+  mobile menu captions, accessible destructive and primary hover contrast,
+  keyboard focus kept clear of the sticky home header, and every icon
+  imported from @/icons.
+
 - 2026-09-27: Allow an OIDC organizer holding the canonical host grant to
   receive their LiveKit media identity and enter the meeting they created.
 

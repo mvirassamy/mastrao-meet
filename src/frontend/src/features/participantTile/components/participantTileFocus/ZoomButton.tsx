@@ -21,6 +21,7 @@ export const ZoomButton = ({
     <Button
       size="icon-sm"
       variant="ghost"
+      aria-label={t('fullScreen')}
       tooltip={t('fullScreen')}
       onPress={() => toggleFullScreen()}
     >

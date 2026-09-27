@@ -1,8 +1,7 @@
-import { CloseIcon } from '@/icons'
+import { CloseIcon, SidebarIcon } from '@/icons'
 import { Link } from 'wouter'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { MastraoSidebarIcon } from './mastraoIcons'
 
 type MeetSidebarBrandProps = {
   collapsed?: boolean
@@ -100,7 +99,7 @@ export const MeetSidebarBrand = ({
         '& svg': { width: '19px', height: '19px' },
       })}
     >
-      {mobile ? <CloseIcon aria-hidden="true" /> : <MastraoSidebarIcon />}
+      {mobile ? <CloseIcon aria-hidden="true" /> : <SidebarIcon />}
     </Button>
   </div>
 )

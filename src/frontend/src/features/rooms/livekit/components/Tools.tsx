@@ -1,6 +1,5 @@
-import { A, Div, Icon, Text } from '@/primitives'
+import { A, Button, Div, Icon, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { Button as RACButton } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 import { ReactNode } from 'react'
 import { SubPanelId, useSidePanel } from '../hooks/useSidePanel'
@@ -27,34 +26,22 @@ const ToolButton = ({
   onPress,
 }: ToolsButtonProps) => {
   return (
-    <RACButton
+    <Button
+      variant="outline"
+      fullWidth
+      // Layout only: a two-line tile instead of a single-line button.
       className={css({
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'start',
         gap: '0.75rem',
+        height: 'auto',
         padding: '0.625rem 0.75rem',
-        borderRadius: '10px',
-        border: '1px solid token(colors.border)',
-        width: 'full',
-        backgroundColor: 'card',
+        whiteSpace: 'normal',
         textAlign: 'start',
-        outline: 'none',
-        transition: 'background 150ms, border-color 150ms',
-        '&[data-hovered]': {
-          backgroundColor: 'accent',
-          borderColor: 'input',
-          cursor: 'pointer',
-        },
-        '&[data-focus-visible]': {
-          borderColor: 'ring',
-          boxShadow: '0 0 0 3px rgb(45 91 227 / 0.2)',
-        },
       })}
       onPress={onPress}
     >
       <div
+        aria-hidden="true"
         className={css({
           height: '32px',
           minWidth: '32px',
@@ -65,7 +52,6 @@ const ToolButton = ({
           position: 'relative',
           background: 'accent',
           color: 'primary',
-          '& svg': { width: '16px', height: '16px' },
         })}
       >
         {icon}
@@ -73,7 +59,7 @@ const ToolButton = ({
       <div className={css({ minWidth: 0 })}>
         <Text
           margin={false}
-          as="h2"
+          as="span"
           variant="inherits"
           className={css({
             display: 'flex',
@@ -81,20 +67,27 @@ const ToolButton = ({
             fontSize: '0.875rem',
             lineHeight: '1.25rem',
             fontWeight: 500,
+            color: 'var(--heading-foreground)',
           })}
         >
           {title}
         </Text>
         <Text
-          as="p"
+          as="span"
           variant="note"
           wrap="pretty"
-          className={css({ fontSize: '0.8125rem', lineHeight: '1.125rem' })}
+          className={css({
+            display: 'block',
+            fontSize: '0.8125rem',
+            lineHeight: '1.125rem',
+            fontWeight: 400,
+          })}
         >
           {description}
         </Text>
       </div>
       <div
+        aria-hidden="true"
         className={css({
           marginLeft: 'auto',
           height: '100%',
@@ -102,12 +95,11 @@ const ToolButton = ({
           justifyContent: 'center',
           alignItems: 'center',
           color: 'muted-foreground',
-          '& svg': { width: '16px', height: '16px' },
         })}
       >
         <Icon name="chevron_forward" />
       </div>
-    </RACButton>
+    </Button>
   )
 }
 

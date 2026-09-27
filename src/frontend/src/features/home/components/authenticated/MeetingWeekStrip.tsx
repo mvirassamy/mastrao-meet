@@ -124,7 +124,7 @@ export const MeetingWeekStrip = ({
             height: { base: '44px', md: '36px' },
             minWidth: { base: '44px', md: '36px' },
             minHeight: { base: '44px', md: '36px' },
-            paddingX: { base: '0!', md: 'var(--square-padding)' },
+            paddingX: '0!',
           })}
         >
           <ChevronLeftIcon aria-hidden="true" />
@@ -228,7 +228,7 @@ export const MeetingWeekStrip = ({
             height: { base: '44px', md: '36px' },
             minWidth: { base: '44px', md: '36px' },
             minHeight: { base: '44px', md: '36px' },
-            paddingX: { base: '0!', md: 'var(--square-padding)' },
+            paddingX: '0!',
           })}
         >
           <ChevronRightIcon aria-hidden="true" />

@@ -20,6 +20,7 @@
   --button-accent: #edf2ff;
   --button-ink-soft: #3d485e;
   --button-destructive: #e7000b;
+  --button-destructive-foreground: #9f0712;
   --button-ring: #2d5be3;
   /* Call controls needing an action (camera/micro permissions): "Orange Mastrao". */
   --call-attention: #ffedd5;

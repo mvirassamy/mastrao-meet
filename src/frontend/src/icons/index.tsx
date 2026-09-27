@@ -40,6 +40,7 @@ import {
   ExclamationTriangleIcon as HeroExclamationTriangleIcon,
   EyeIcon as HeroEyeIcon,
   FaceSmileIcon as HeroFaceSmileIcon,
+  HandRaisedIcon as HeroHandRaisedIcon,
   InformationCircleIcon as HeroInformationCircleIcon,
   LanguageIcon as HeroLanguageIcon,
   LinkIcon as HeroLinkIcon,
@@ -54,6 +55,7 @@ import {
   PlayIcon as HeroPlayIcon,
   PlusIcon as HeroPlusIcon,
   QuestionMarkCircleIcon as HeroQuestionMarkCircleIcon,
+  RectangleGroupIcon as HeroRectangleGroupIcon,
   ShieldCheckIcon as HeroShieldCheckIcon,
   SparklesIcon as HeroSparklesIcon,
   SpeakerWaveIcon as HeroSpeakerWaveIcon,
@@ -189,3 +191,7 @@ export const VolumeDownIcon = sized(HeroSpeakerWaveIcon) // RiVolumeDownFill
 export const VolumeMuteIcon = sized(HeroSpeakerXMarkIcon) // RiVolumeMuteFill
 export const VolumeUpIcon = sized(HeroSpeakerWaveIcon) // RiVolumeUpFill
 export const WarningIcon = sized(HeroExclamationTriangleIcon) // RiSpam2Fill
+export const HandRaisedIcon = sized(HeroHandRaisedIcon)
+export const SidebarIcon = sized(HeroRectangleGroupIcon)
+export const BlurOn = sized(Custom.BlurOn)
+export const BlurOnStrong = sized(Custom.BlurOnStrong)

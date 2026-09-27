@@ -1,4 +1,4 @@
-import { HandRaisedFill } from '@/components/icons/HandRaisedFill'
+import { HandRaisedIcon } from '@/icons'
 import React, { ReactNode, RefObject, useEffect, useRef } from 'react'
 import {
   useRaisedHand,
@@ -14,7 +14,7 @@ const PositionInQueue = React.memo(
         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.1rem' }}
       >
         <span>{positionInQueue}</span>
-        <HandRaisedFill
+        <HandRaisedIcon
           color="currentColor"
           size={16}
           style={{
