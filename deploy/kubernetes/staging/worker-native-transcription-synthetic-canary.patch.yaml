@@ -1,0 +1,12 @@
+spec:
+  template:
+    spec:
+      containers:
+        - name: worker-native
+          env:
+            - name: MASTRAO_MEETING_TRANSCRIPTION_ENABLED
+              value: "True"
+            - name: MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED
+              value: "True"
+            - name: MASTRAO_NATIVE_ASR_ENABLED
+              value: "True"

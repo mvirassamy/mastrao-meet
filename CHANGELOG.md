@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-28: Add reviewable staging patches to activate and roll back the
+  synthetic-only native transcription canary without opening beta-user audio.
+
 - 2026-09-27: Fix review findings on the Mastrao UI alignment: permission
   badge no longer covers the mic toggle, round reaction buttons, wrapping
   mobile menu captions, accessible destructive and primary hover contrast,
