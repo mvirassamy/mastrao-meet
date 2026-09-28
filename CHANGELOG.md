@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-28: Ignore native transcript capture egress events in the legacy
+  recording webhook path, so native completion does not trigger a 500 error.
+
 - 2026-09-28: End the shared Platform session when a user signs out from Meet,
   then return to Meet through the state-protected OIDC logout callback.
 

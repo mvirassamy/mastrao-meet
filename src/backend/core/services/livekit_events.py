@@ -205,6 +205,14 @@ class LiveKitEventsService:
         if handler is not None:
             handler(data)
 
+    @staticmethod
+    def _is_native_capture_egress(egress_id):
+        """Return whether the egress belongs to the native capture pipeline."""
+
+        return models.MastraoNativeCaptureStart.objects.filter(
+            provider_job_ref=egress_id
+        ).exists()
+
     def _handle_egress_updated(self, data):
         """Handle 'egress_updated' event."""
 
@@ -212,6 +220,12 @@ class LiveKitEventsService:
         try:
             recording = models.Recording.objects.get(worker_id=egress_id)
         except models.Recording.DoesNotExist as err:
+            if self._is_native_capture_egress(egress_id):
+                logger.info(
+                    "Ignoring legacy recording update for native capture egress %s",
+                    egress_id,
+                )
+                return
             raise ActionFailedError(
                 f"Recording with worker ID {egress_id} does not exist"
             ) from err
@@ -222,13 +236,20 @@ class LiveKitEventsService:
     def _handle_egress_ended(self, data):
         """Handle 'egress_ended' event."""
 
+        egress_id = data.egress_info.egress_id
         try:
             recording = models.Recording.objects.select_related("room").get(
-                worker_id=data.egress_info.egress_id
+                worker_id=egress_id
             )
         except models.Recording.DoesNotExist as err:
+            if self._is_native_capture_egress(egress_id):
+                logger.info(
+                    "Ignoring legacy recording end for native capture egress %s",
+                    egress_id,
+                )
+                return
             raise ActionFailedError(
-                f"Recording with worker ID {data.egress_info.egress_id} does not exist"
+                f"Recording with worker ID {egress_id} does not exist"
             ) from err
 
         try:
