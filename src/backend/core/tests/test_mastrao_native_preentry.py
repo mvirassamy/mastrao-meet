@@ -88,7 +88,7 @@ def projection():
 @pytest.fixture
 def native_settings(settings, signer):
     settings.MASTRAO_NATIVE_PREENTRY_ENABLED = True
-    settings.MASTRAO_HOST_HANDOFF_ENABLED = True
+    settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = True
     settings.MASTRAO_GUEST_HANDOFF_ENABLED = True
     settings.MASTRAO_ROOM_EFFECT_PUBLIC_JWK = (
         settings.MASTRAO_RECORDING_EFFECT_PUBLIC_JWK

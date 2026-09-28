@@ -35,7 +35,7 @@ def admission_enabled():
     """New candidates require both explicit preentry and trusted RTC provenance."""
     return (
         settings.MASTRAO_NATIVE_PREENTRY_ENABLED
-        and settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED
+        and settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
     )
 
 

@@ -228,7 +228,10 @@ def _commit_grant(request, grant, compact_grant, *, retain_oidc_user=False):
 def consume_host_handoff_for_oidc_session(request, host_handoff):
     """Redeem and bind a host grant without replacing the authenticated OIDC user."""
 
-    if not settings.MASTRAO_HOST_HANDOFF_ENABLED or not request.user.is_authenticated:
+    if (
+        not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
+        or not request.user.is_authenticated
+    ):
         raise HostHandoffRefused()
     _admit_public_attempt(request, host_handoff)
     grant, compact_grant = _redeem(host_handoff)
@@ -246,7 +249,7 @@ def consume_host_handoff_for_oidc_session(request, host_handoff):
 def consume_mastrao_host_handoff(request):
     """Redeem one short bearer, establish the host session, then cleanly redirect."""
 
-    if not settings.MASTRAO_HOST_HANDOFF_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return JsonResponse({"message": "Not found"}, status=404)
     try:
         if request.headers.get("origin") != settings.MASTRAO_PLATFORM_ORIGIN:

@@ -26,7 +26,7 @@ from core.mastrao_room_lifecycle import assert_mastrao_room_open
 
 def generate_host_media_config(request, room, **configuration):
     """Journal only the requesting browser's current exact-room host grant."""
-    if not settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return utils.generate_livekit_config(**configuration)
     grant = active_host_grant(request, room)
     if grant is None:
@@ -41,7 +41,7 @@ def generate_host_media_config(request, room, **configuration):
 
 def generate_guest_media_config(grant, authorization_digest, **configuration):
     """Called only after the Core guest-media grant has been verified."""
-    if not settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return utils.generate_livekit_config(**configuration)
     return _issue_bound_config(grant, authorization_digest, configuration)
 
