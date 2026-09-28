@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-09-28: Pick the interface language from the shared mastrao_lang
+  cookie, then the first supported browser language (fr, en, nl, de), and
+  fall back to English instead of French. The cookie is set on the parent
+  domain so Mastrao applications can share the same choice.
+
 - 2026-09-28: Share canonical rooms through a host-bound guest invitation URL
   instead of the raw room URL, while preserving ordinary room sharing and
   failing closed when the secure link is unavailable.
