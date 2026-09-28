@@ -130,6 +130,7 @@ from core.services.room_roles import (
     RoomRoleService,
 )
 from core.services.subtitle import SubtitleException, SubtitleService
+from core.services.subtitle_control import get_subtitle_snapshot
 from core.tasks.connection_test import delete_connection_test_room
 from core.tasks.file import process_file_deletion
 from core.utils import generate_token
@@ -291,9 +292,11 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         """Keep lifecycle reads uncacheable and non-enumerable."""
 
         response = super().finalize_response(request, response, *args, **kwargs)
-        if settings.MASTRAO_NATIVE_PREENTRY_ENABLED and getattr(
-            self, "action", None
-        ) in ("retrieve", "request_entry", "native_notice_decision"):
+        action = getattr(self, "action", None)
+        if action == "subtitle_state" or (
+            settings.MASTRAO_NATIVE_PREENTRY_ENABLED
+            and action in ("retrieve", "request_entry", "native_notice_decision")
+        ):
             response["Cache-Control"] = "private, no-store"
         if getattr(self, "action", None) == "mastrao_meeting_lifecycle":
             response["Cache-Control"] = "no-store"
@@ -1020,6 +1023,22 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
             return drf_response.Response({"error": str(e)}, status=e.status_code)
 
         return drf_response.Response(result, status=drf_status.HTTP_200_OK)
+
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="subtitle-state",
+        permission_classes=[permissions.CanViewSubtitleState],
+        authentication_classes=[LiveKitTokenAuthentication],
+    )
+    def subtitle_state(self, request, pk=None):  # pylint: disable=unused-argument
+        """Return the public room-scoped subtitle control snapshot."""
+
+        room = self.get_object()
+        return drf_response.Response(
+            {"subtitle": get_subtitle_snapshot(room)},
+            status=drf_status.HTTP_200_OK,
+        )
 
     @decorators.action(
         detail=True,

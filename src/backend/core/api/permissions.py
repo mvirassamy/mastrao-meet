@@ -167,6 +167,38 @@ class HasLiveKitRoomAccess(permissions.BasePermission):
         return request.auth.video.room == str(obj.id)
 
 
+def can_view_subtitle_state(request, room):
+    """Return whether a LiveKit token is scoped to the requested room."""
+
+    video_grants = getattr(getattr(request, "auth", None), "video", None)
+    return bool(video_grants and video_grants.room == str(room.id))
+
+
+def can_control_subtitles(request, room):
+    """Return whether the room-scoped token can change subtitle control state."""
+
+    video_grants = getattr(getattr(request, "auth", None), "video", None)
+    return bool(
+        video_grants
+        and video_grants.room == str(room.id)
+        and getattr(video_grants, "room_admin", False)
+    )
+
+
+class CanViewSubtitleState(permissions.BasePermission):
+    """Allow a participant to read the public subtitle snapshot."""
+
+    def has_object_permission(self, request, view, obj):
+        return can_view_subtitle_state(request, obj)
+
+
+class CanControlSubtitles(permissions.BasePermission):
+    """Allow only a room administrator token to control subtitles."""
+
+    def has_object_permission(self, request, view, obj):
+        return can_control_subtitles(request, obj)
+
+
 class FilePermission(IsAuthenticated):
     """
     Permissions applying to the file API endpoint.

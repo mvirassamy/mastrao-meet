@@ -509,6 +509,165 @@ class Room(Resource):
         return None
 
 
+class RoomSubtitleControl(BaseModel):
+    """Room-scoped, public-safe subtitle control state.
+
+    ``room_sid`` is supplied by the LiveKit acquisition boundary.  This model
+    deliberately does not discover rooms or dispatch agents; it only stores
+    the state associated with an already-resolved provider room.
+    """
+
+    class DesiredState(models.TextChoices):
+        """The desired subtitle control state."""
+
+        OFF = "OFF", _("Off")
+        ON = "ON", _("On")
+
+    class PublicState(models.TextChoices):
+        """The safe state exposed by the subtitle snapshot endpoint."""
+
+        UNKNOWN = "unknown", _("Unknown")
+        INACTIVE = "inactive", _("Inactive")
+        STARTING = "starting", _("Starting")
+        LIVE = "live", _("Live")
+        RECONNECTING = "reconnecting", _("Reconnecting")
+        DEGRADED = "degraded", _("Degraded")
+        UNAVAILABLE = "unavailable", _("Unavailable")
+        STOPPING = "stopping", _("Stopping")
+        STOPPED = "stopped", _("Stopped")
+
+    class ReasonCode(models.TextChoices):
+        """Closed set of public reasons for non-live states."""
+
+        DISPATCH_MISSING = "dispatch_missing", _("Dispatch missing")
+        AGENT_MISSING = "agent_missing", _("Agent missing")
+        WORKER_NOT_READY = "worker_not_ready", _("Worker not ready")
+        PROVIDER_UNAVAILABLE = "provider_unavailable", _("Provider unavailable")
+        PROVIDER_REJECTED = "provider_rejected", _("Provider rejected")
+        CONTRACT_INVALID = "contract_invalid", _("Contract invalid")
+        PERMISSION_DENIED = "permission_denied", _("Permission denied")
+        ROOM_FINISHED = "room_finished", _("Room finished")
+        UNKNOWN = "unknown", _("Unknown")
+
+    MAX_OBSERVED_DISPATCH_IDS = 32
+
+    room = models.ForeignKey(
+        Room,
+        on_delete=models.CASCADE,
+        related_name="subtitle_controls",
+        db_index=True,
+    )
+    room_sid = models.CharField(
+        max_length=128,
+        unique=True,
+        validators=[
+            validators.RegexValidator(
+                regex=r"^RM_[A-Za-z0-9_-]{1,124}$",
+                message="room_sid must be a LiveKit room SID.",
+            )
+        ],
+    )
+    provider = models.CharField(max_length=32, blank=True, null=True)
+    agent_name = models.CharField(max_length=128, blank=True, null=True)
+    session_id = models.CharField(max_length=128, blank=True, null=True)
+    control_generation = models.PositiveBigIntegerField(default=0)
+    state_version = models.PositiveBigIntegerField(default=0)
+    public_state = models.CharField(
+        max_length=16,
+        choices=PublicState.choices,
+        default=PublicState.INACTIVE,
+    )
+    is_current = models.BooleanField(default=True)
+    reason_code = models.CharField(
+        max_length=32,
+        choices=ReasonCode.choices,
+        blank=True,
+        null=True,
+    )
+    observed_dispatch_ids = ArrayField(
+        models.CharField(max_length=128),
+        default=list,
+        blank=True,
+    )
+    agent_present = models.BooleanField(default=False)
+    worker_ready = models.BooleanField(default=False)
+    worker_observed_at = models.DateTimeField(blank=True, null=True)
+    pending_since = models.DateTimeField(blank=True, null=True)
+    attempts = models.PositiveIntegerField(default=0)
+    next_retry_at = models.DateTimeField(blank=True, null=True)
+    desired_state = models.CharField(
+        max_length=3,
+        choices=DesiredState.choices,
+        default=DesiredState.OFF,
+    )
+
+    class Meta:
+        db_table = "meet_room_subtitle_control"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room"],
+                condition=models.Q(is_current=True),
+                name="subtitle_control_one_current_room",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(desired_state__in=["OFF", "ON"]),
+                name="subtitle_control_desired_state_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    public_state__in=[
+                        "unknown",
+                        "inactive",
+                        "starting",
+                        "live",
+                        "reconnecting",
+                        "degraded",
+                        "unavailable",
+                        "stopping",
+                        "stopped",
+                    ]
+                ),
+                name="subtitle_control_public_state_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reason_code__isnull=True)
+                | models.Q(
+                    reason_code__in=[
+                        "dispatch_missing",
+                        "agent_missing",
+                        "worker_not_ready",
+                        "provider_unavailable",
+                        "provider_rejected",
+                        "contract_invalid",
+                        "permission_denied",
+                        "room_finished",
+                        "unknown",
+                    ]
+                ),
+                name="subtitle_control_reason_code_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(observed_dispatch_ids__len__lte=32),
+                name="subtitle_control_dispatch_ids_bounded",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["room", "updated_at"]),
+        ]
+
+    def __str__(self):
+        return f"Subtitle control {self.room_sid}"
+
+    def clean(self):
+        """Keep provider observation history bounded and public-safe."""
+
+        super().clean()
+        if len(self.observed_dispatch_ids) > self.MAX_OBSERVED_DISPATCH_IDS:
+            raise ValidationError(
+                {"observed_dispatch_ids": ("At most 32 dispatch ids may be observed.")}
+            )
+
+
 class MastraoRoomBinding(BaseModel):
     """Idempotent technical binding for one Cabinet Core room effect."""
 
