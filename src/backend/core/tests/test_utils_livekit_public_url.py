@@ -51,3 +51,28 @@ def test_unset_public_origin_preserves_existing_configuration(settings):
         "synthetic-room", AnonymousUser(), "Guest", participant_id="guest-test"
     )
     assert result["url"] == settings.LIVEKIT_CONFIGURATION["url"]
+
+
+@pytest.mark.parametrize(
+    ("subtitle_enabled", "panel_enabled", "expected_panel_enabled"),
+    [
+        (False, False, False),
+        (False, True, False),
+        (True, False, False),
+        (True, True, True),
+    ],
+)
+def test_live_transcript_panel_configuration_requires_both_flags(
+    settings, subtitle_enabled, panel_enabled, expected_panel_enabled
+):
+    """The live panel is exposed only when subtitles and the panel are enabled."""
+    settings.ROOM_SUBTITLE_ENABLED = subtitle_enabled
+    settings.LIVE_TRANSCRIPT_PANEL_ENABLED = panel_enabled
+
+    response = get_frontend_configuration(APIRequestFactory().get("/api/v1.0/config/"))
+
+    assert response.data["subtitle"]["enabled"] is subtitle_enabled
+    assert (
+        response.data["subtitle"]["live_transcript_panel_enabled"]
+        is expected_panel_enabled
+    )
