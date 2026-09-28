@@ -1,3 +1,4 @@
+import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeftIcon, ChevronRightIcon, CalendarIcon } from '@/icons'
@@ -22,7 +23,7 @@ export const MeetingWeekStrip = ({
   onSelectDate,
 }: MeetingWeekStripProps) => {
   const { t, i18n } = useTranslation('home')
-  const locale = i18n.resolvedLanguage || i18n.language || 'fr'
+  const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const selectedButtonRef = useRef<HTMLButtonElement>(null)
   const focusSelectedDayRef = useRef(false)
   const isTodaySelected = isSameCalendarDay(selectedDate, today)

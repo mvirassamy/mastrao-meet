@@ -1,3 +1,4 @@
+import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
@@ -196,7 +197,7 @@ const MeetingDetailContent = ({
   onRetrySummary: () => void
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
-  const locale = i18n.resolvedLanguage || i18n.language || 'fr'
+  const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const duration = formatMeetingDuration(
     meeting.startedAt,
     meeting.endedAt,

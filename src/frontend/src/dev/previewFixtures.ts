@@ -1,3 +1,4 @@
+import { LANGUAGE_COOKIE, isSupportedLanguage } from '@/i18n/languageDetection'
 import type { ApiConfig } from '@/api/useConfig'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
 import { ApiAccessLevel, type ApiRoom } from '@/features/rooms/api/ApiRoom'
@@ -60,12 +61,12 @@ const jsonResponse = (data: unknown, status = 200) =>
 /** No backend, credentials, media capture or connection can be used by this entry. */
 export const preparePreview = () => {
   const requestedLanguage = new URLSearchParams(location.search).get('lang')
-  localStorage.setItem(
-    'i18nextLng',
-    requestedLanguage && ['de', 'en', 'fr', 'nl'].includes(requestedLanguage)
+  // The preview is French unless ?lang= asks otherwise.
+  document.cookie = `${LANGUAGE_COOKIE}=${
+    requestedLanguage && isSupportedLanguage(requestedLanguage)
       ? requestedLanguage
       : 'fr'
-  )
+  }; path=/`
   if (previewScenario === 'devices-off') {
     const originalQuery = navigator.permissions.query.bind(
       navigator.permissions
