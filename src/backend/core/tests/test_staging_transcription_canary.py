@@ -36,3 +36,40 @@ def test_canary_uses_only_the_native_transcription_pipeline():
         "MASTRAO_NATIVE_ASR_ENABLED": "True",
     }
     assert gateway == {"ASR_GATEWAY_NATIVE_TEST_DATA_ONLY": "true"}
+
+
+def test_canary_reconciler_dispatches_only_native_work_on_the_native_pool():
+    """Recover missed native wake-ups without opening the legacy pipeline."""
+
+    document = yaml.safe_load(
+        (
+            STAGING / "reconcile-native-transcription-synthetic-canary.cronjob.yaml"
+        ).read_text()
+    )
+    assert document["kind"] == "CronJob"
+    assert document["metadata"]["name"] == "reconcile-native-transcription"
+    assert document["spec"]["schedule"] == "* * * * *"
+    assert document["spec"]["concurrencyPolicy"] == "Forbid"
+
+    pod = document["spec"]["jobTemplate"]["spec"]["template"]
+    assert pod["metadata"]["labels"] == {
+        "app.kubernetes.io/name": "worker-native",
+        "mastrao.com/component": "worker-native",
+        "mastrao.com/role": "native-reconciler",
+    }
+    spec = pod["spec"]
+    assert spec["serviceAccountName"] == "worker-native"
+    assert spec["nodeSelector"]["mastrao.com/node-pool"] == "capture"
+    [container] = spec["containers"]
+    assert container["command"] == [
+        "/app/.venv/bin/python",
+        "manage.py",
+        "reconcile_mastrao_recordings",
+        "--native-only",
+        "--limit",
+        "2",
+    ]
+    environment = {item["name"]: item.get("value") for item in container["env"]}
+    assert environment["MASTRAO_MEETING_TRANSCRIPTION_ENABLED"] == "False"
+    assert environment["MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED"] == "True"
+    assert environment["MASTRAO_NATIVE_ASR_ENABLED"] == "True"

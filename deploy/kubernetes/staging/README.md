@@ -42,7 +42,7 @@ worker_native_pod="$(
 )"
 kubectl --context "$KUBE_CONTEXT" -n mastrao-staging exec \
   "$worker_native_pod" -- python -c \
-  'import urllib.request; response = urllib.request.urlopen("http://asr-gateway:8787/healthz", timeout=5); print(response.status, response.read().decode())'
+  'import sys,urllib.request; response = urllib.request.urlopen("http://asr-gateway:8787/healthz", timeout=5); sys.stdout.write(f"{response.status} {response.read().decode()}\n")'
 ```
 
 Continue only when this returns `200 {"ok":true,"stub":false}`. The legacy
@@ -53,6 +53,14 @@ ingress is restricted to that worker. Therefore a gateway probe from
 `meet-api` cannot qualify this canary, and its expected failure does not
 justify enabling the legacy switch or widening the API policy.
 After this preflight, run only the owned synthetic transcription journey.
+
+The canary also requires
+`reconcile-native-transcription-synthetic-canary.cronjob.yaml`. It runs the
+native-only reconciliation once per minute with the `worker-native` workload
+identity. This is what recovers a missed broker wake-up, observes stopped
+LiveKit captures, and dispatches source-transfer and ASR tasks to the existing
+native worker. Validate it with `kubectl apply --dry-run=server` before applying
+it. Remove that CronJob during rollback.
 
 If the canary fails, apply the two `*-rollback.patch.yaml` files. The rollback
 deliberately leaves the gateway's synthetic-data-only guard enabled.
