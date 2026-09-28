@@ -58,6 +58,22 @@ def mock_livekit_token(mock_room_id):
 
 
 @pytest.fixture
+def mock_livekit_participant_token(mock_room_id):
+    """Mock a non-administrator LiveKit token for the room."""
+
+    video_grants = VideoGrants(room=mock_room_id, room_join=True)
+    token = (
+        AccessToken(
+            api_key=settings.LIVEKIT_CONFIGURATION["api_key"],
+            api_secret=settings.LIVEKIT_CONFIGURATION["api_secret"],
+        )
+        .with_grants(video_grants)
+        .with_identity(str(uuid.uuid4()))
+    )
+    return token.to_jwt()
+
+
+@pytest.fixture
 def mock_livekit_client():
     """Mock LiveKit API client."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
@@ -192,6 +208,25 @@ def test_start_subtitle_twirp_error(
     }
 
 
+def test_start_subtitle_allows_a_room_participant(
+    settings, mock_livekit_client, mock_livekit_participant_token, mock_room_id
+):
+    """Keep the existing room-access contract independent from control rights."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(id=mock_room_id)
+    client = APIClient()
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/start-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_participant_token}",
+    )
+
+    assert response.status_code == 200
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
+
+
 def test_start_subtitle_wrong_room(settings, mock_livekit_token):
     """Test that tokens are validated against the correct room ID."""
 
@@ -228,6 +263,9 @@ def test_start_subtitle_wrong_signature(settings, mock_livekit_token):
     )
 
     assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Invalid LiveKit token: Signature verification failed"
+    }
 
 
 def test_subtitle_state_requires_a_room_scoped_livekit_token():

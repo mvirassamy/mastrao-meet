@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-29: Stabilize subtitle generations, current-room selection,
+  PostgreSQL constraints, and concurrent CAS writes.
+
 - 2026-09-29: Add room-scoped subtitle control state, monotone CAS versions,
   closed reason codes, permissions, and a private snapshot endpoint.
 

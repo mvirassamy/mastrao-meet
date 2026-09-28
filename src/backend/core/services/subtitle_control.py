@@ -59,21 +59,45 @@ def ensure_subtitle_control(room: Room, *, room_sid: str) -> RoomSubtitleControl
     """
 
     _check_room_sid(room_sid)
-    conflicting_control = (
+    locked_room = Room.objects.select_for_update().get(pk=room.pk)
+    control = (
         RoomSubtitleControl.objects.select_for_update()
         .filter(room_sid=room_sid)
-        .exclude(room=room)
         .first()
     )
-    if conflicting_control is not None:
+    if control is not None and control.room_id != locked_room.pk:
         raise SubtitleControlContractError(
             "The LiveKit room SID is already bound to another room."
         )
 
-    control, _ = RoomSubtitleControl.objects.select_for_update().get_or_create(
-        room=room,
-        room_sid=room_sid,
+    if control is None:
+        control = RoomSubtitleControl(
+            room=locked_room,
+            room_sid=room_sid,
+            is_current=False,
+        )
+        try:
+            control.save()
+        except ValidationError as error:
+            raise SubtitleControlContractError(str(error)) from error
+
+    current_control = (
+        RoomSubtitleControl.objects.select_for_update()
+        .filter(room=locked_room, is_current=True)
+        .exclude(pk=control.pk)
+        .first()
     )
+    if current_control is not None:
+        current_control.is_current = False
+        current_control.save(update_fields=["is_current"])
+
+    if not control.is_current:
+        control.is_current = True
+        try:
+            control.save(update_fields=["is_current"])
+        except ValidationError as error:
+            raise SubtitleControlContractError(str(error)) from error
+
     return control
 
 
@@ -83,14 +107,14 @@ def compare_and_set_subtitle_control(
     *,
     expected_control_generation: int,
     expected_state_version: int,
+    new_intent: bool = False,
     **changes,
 ) -> RoomSubtitleControl:
     """Apply one state transition using generation and version CAS.
 
-    Every accepted transition increments ``state_version`` and
-    ``control_generation`` while holding the row lock.  Therefore a new
-    session cannot reset the public version and stale workers cannot overwrite
-    a newer state.
+    Every accepted transition increments ``state_version`` while holding the
+    row lock. ``control_generation`` changes only when the desired state
+    changes or the caller explicitly marks a new intent.
     """
 
     _check_room_sid(room_sid)
@@ -119,11 +143,18 @@ def compare_and_set_subtitle_control(
             "Subtitle control state changed before this transition was applied."
         )
 
+    desired_state_changed = (
+        "desired_state" in changes and changes["desired_state"] != control.desired_state
+    )
     for field, value in changes.items():
         setattr(control, field, value)
-    control.control_generation += 1
     control.state_version += 1
-    control.save()
+    if desired_state_changed or new_intent:
+        control.control_generation += 1
+    try:
+        control.save()
+    except ValidationError as error:
+        raise SubtitleControlContractError(str(error)) from error
     return control
 
 
@@ -132,7 +163,7 @@ def _serialize_control(control: RoomSubtitleControl | None) -> dict:
 
     if control is None:
         return {
-            "state": RoomSubtitleControl.PublicState.UNKNOWN,
+            "state": RoomSubtitleControl.PublicState.INACTIVE,
             "stateVersion": 0,
             "sessionId": None,
             "updatedAt": None,
@@ -156,7 +187,7 @@ def get_subtitle_snapshot(room: Room) -> dict:
     """Read the latest room-scoped public subtitle snapshot."""
 
     control = (
-        RoomSubtitleControl.objects.filter(room=room)
+        RoomSubtitleControl.objects.filter(room=room, is_current=True)
         .order_by("-updated_at", "-created_at")
         .first()
     )

@@ -559,6 +559,7 @@ class RoomSubtitleControl(BaseModel):
     )
     room_sid = models.CharField(
         max_length=128,
+        unique=True,
         validators=[
             validators.RegexValidator(
                 regex=r"^RM_[A-Za-z0-9_-]{1,124}$",
@@ -574,8 +575,9 @@ class RoomSubtitleControl(BaseModel):
     public_state = models.CharField(
         max_length=16,
         choices=PublicState.choices,
-        default=PublicState.UNKNOWN,
+        default=PublicState.INACTIVE,
     )
+    is_current = models.BooleanField(default=True)
     reason_code = models.CharField(
         max_length=32,
         choices=ReasonCode.choices,
@@ -603,9 +605,51 @@ class RoomSubtitleControl(BaseModel):
         db_table = "meet_room_subtitle_control"
         constraints = [
             models.UniqueConstraint(
-                fields=["room", "room_sid"],
-                name="subtitle_control_room_sid_unique",
-            )
+                fields=["room"],
+                condition=models.Q(is_current=True),
+                name="subtitle_control_one_current_room",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(desired_state__in=["OFF", "ON"]),
+                name="subtitle_control_desired_state_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    public_state__in=[
+                        "unknown",
+                        "inactive",
+                        "starting",
+                        "live",
+                        "reconnecting",
+                        "degraded",
+                        "unavailable",
+                        "stopping",
+                        "stopped",
+                    ]
+                ),
+                name="subtitle_control_public_state_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reason_code__isnull=True)
+                | models.Q(
+                    reason_code__in=[
+                        "dispatch_missing",
+                        "agent_missing",
+                        "worker_not_ready",
+                        "provider_unavailable",
+                        "provider_rejected",
+                        "contract_invalid",
+                        "permission_denied",
+                        "room_finished",
+                        "unknown",
+                    ]
+                ),
+                name="subtitle_control_reason_code_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(observed_dispatch_ids__len__lte=32),
+                name="subtitle_control_dispatch_ids_bounded",
+            ),
         ]
         indexes = [
             models.Index(fields=["room", "updated_at"]),

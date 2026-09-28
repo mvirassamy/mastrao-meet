@@ -1045,7 +1045,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         methods=["post"],
         url_path="start-subtitle",
         permission_classes=[
-            permissions.CanControlSubtitles,
+            permissions.HasLiveKitRoomAccess,
         ],
         authentication_classes=[LiveKitTokenAuthentication],
     )
