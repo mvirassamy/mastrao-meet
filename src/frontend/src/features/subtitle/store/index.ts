@@ -7,6 +7,7 @@ export {
   liveTranscriptionReducer,
 } from './liveTranscriptionReducer'
 export {
+  parseLiveTranscriptionGapStream,
   parseLiveTranscriptionStream,
   readLiveTranscriptionStream,
   toLegacyTranscriptionEvent,

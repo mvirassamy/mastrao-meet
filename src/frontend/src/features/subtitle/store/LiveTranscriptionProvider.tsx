@@ -8,6 +8,7 @@ import {
 import { useRoomContext } from '@livekit/components-react'
 import { RoomEvent } from 'livekit-client'
 import {
+  parseLiveTranscriptionGapStream,
   readLiveTranscriptionStream,
   toLegacyTranscriptionEvent,
 } from './liveTranscriptionContract'
@@ -16,6 +17,7 @@ import {
   liveTranscriptionReducer,
 } from './liveTranscriptionReducer'
 import {
+  LIVE_TRANSCRIPTION_GAP_TOPIC,
   LIVE_TRANSCRIPTION_TOPIC,
   type LiveTranscriptionEventHandler,
   type LiveTranscriptionState,
@@ -78,12 +80,27 @@ export const LiveTranscriptionProvider = ({
         })
       }
     }
+    const handleGapStream = async (
+      reader: LiveTranscriptionTextStreamReader
+    ) => {
+      try {
+        parseLiveTranscriptionGapStream(await reader.readAll()).forEach(
+          (event) => dispatch({ type: 'ingest', event })
+        )
+      } catch {
+        // A lost gap marker must not break the transcript itself.
+      }
+    }
 
     room.on(RoomEvent.TranscriptionReceived, handleLegacyTranscription)
     room.on(RoomEvent.Reconnecting, handleReconnecting)
     room.on(RoomEvent.Reconnected, handleReconnected)
     room.on(RoomEvent.Disconnected, handleDisconnected)
     room.registerTextStreamHandler(LIVE_TRANSCRIPTION_TOPIC, handleTextStream)
+    room.registerTextStreamHandler(
+      LIVE_TRANSCRIPTION_GAP_TOPIC,
+      handleGapStream
+    )
 
     return () => {
       room.off(RoomEvent.TranscriptionReceived, handleLegacyTranscription)
@@ -91,6 +108,7 @@ export const LiveTranscriptionProvider = ({
       room.off(RoomEvent.Reconnected, handleReconnected)
       room.off(RoomEvent.Disconnected, handleDisconnected)
       room.unregisterTextStreamHandler(LIVE_TRANSCRIPTION_TOPIC)
+      room.unregisterTextStreamHandler(LIVE_TRANSCRIPTION_GAP_TOPIC)
     }
   }, [handleLegacyTranscription, room, roomId])
 

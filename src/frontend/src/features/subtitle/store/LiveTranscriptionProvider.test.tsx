@@ -54,6 +54,45 @@ afterEach(() => {
 })
 
 describe('LiveTranscriptionProvider', () => {
+  it('listens to the transcript and gap topics and releases both', async () => {
+    const { room } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    const view = render(
+      <App>
+        <Probe />
+      </App>
+    )
+    const handlers = new Map(
+      room.registerTextStreamHandler.mock.calls.map(
+        ([topic, handler]) => [topic, handler] as const
+      )
+    )
+    expect([...handlers.keys()]).toEqual([
+      'lk.transcription',
+      'mastrao.transcription.gap.v1',
+    ])
+
+    await act(async () => {
+      await handlers.get('mastrao.transcription.gap.v1')?.({
+        info: { id: 'stream-gap' },
+        readAll: async () =>
+          JSON.stringify({
+            schemaVersion: 1,
+            gapId: 'GAP_1',
+            reason: 'provider-reconnect',
+          }),
+      })
+    })
+    expect(view.getByTestId('transcription-state').textContent).toBe(
+      'degraded:'
+    )
+
+    view.unmount()
+    expect(room.unregisterTextStreamHandler).toHaveBeenCalledWith(
+      'mastrao.transcription.gap.v1'
+    )
+  })
+
   it('keeps the room store mounted while the compact view closes and reopens', () => {
     const { room, emit } = createRoom()
     useRoomContextMock.mockReturnValue(room)

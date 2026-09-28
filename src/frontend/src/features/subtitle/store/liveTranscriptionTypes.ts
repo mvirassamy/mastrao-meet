@@ -5,6 +5,8 @@ import type {
 } from 'livekit-client'
 
 export const LIVE_TRANSCRIPTION_TOPIC = 'lk.transcription'
+// Versioned Mastrao topic on which the live worker publishes gap markers.
+export const LIVE_TRANSCRIPTION_GAP_TOPIC = 'mastrao.transcription.gap.v1'
 export const LIVE_TRANSCRIPTION_SCHEMA_VERSION = 1
 export const MAX_FINAL_TRANSCRIPTION_SEGMENTS = 5_000
 export const MAX_ACTIVE_TRANSCRIPTION_SEGMENTS = 256

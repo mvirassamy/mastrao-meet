@@ -151,7 +151,8 @@ const parseStatus = (value: Record<string, unknown>) => {
 const parseGap = (
   value: Record<string, unknown>
 ): LiveTranscriptionGap | null => {
-  const id = asNonEmptyString(value.id)
+  // The live worker names the identifier gapId on its dedicated topic.
+  const id = asNonEmptyString(value.id) ?? asNonEmptyString(value.gapId)
   const reason = asNonEmptyString(value.reason)
   if (!id || !reason) return null
   return {
@@ -269,6 +270,25 @@ export const readLiveTranscriptionStream = async (
     senderIdentity,
     reader.info.id
   )
+
+/**
+ * Gap markers travel on their own versioned topic so they never mix with
+ * transcript text. Anything else than a versioned gap object is ignored.
+ */
+export const parseLiveTranscriptionGapStream = (
+  payload: string
+): LiveTranscriptionTransportEvent[] => {
+  const record = asRecord(parseJson(payload))
+  if (
+    !record ||
+    asNonNegativeInteger(record.schemaVersion) !==
+      LIVE_TRANSCRIPTION_SCHEMA_VERSION
+  ) {
+    return []
+  }
+  const gap = parseGap(record)
+  return gap ? [{ type: 'gap', gap }] : []
+}
 
 export const toLegacyTranscriptionEvent = (
   segments: TranscriptionSegment[],

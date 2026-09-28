@@ -1,11 +1,38 @@
 import { describe, expect, it } from 'vitest'
 import {
   LIVE_TRANSCRIPTION_TOPIC,
+  parseLiveTranscriptionGapStream,
   parseLiveTranscriptionStream,
   toLegacyTranscriptionEvent,
 } from './index'
 
 describe('live transcription contract', () => {
+  it('parses a worker gap marker from its dedicated topic', () => {
+    expect(
+      parseLiveTranscriptionGapStream(
+        JSON.stringify({
+          schemaVersion: 1,
+          roomId: 'room-1',
+          participantIdentity: 'alice',
+          trackSid: 'TR_A',
+          fromLegId: 'LEG_1',
+          toLegId: 'LEG_2',
+          gapId: 'GAP_1',
+          durationMs: 820,
+          reason: 'provider-reconnect',
+        })
+      )
+    ).toMatchObject([
+      { type: 'gap', gap: { id: 'GAP_1', reason: 'provider-reconnect' } },
+    ])
+    expect(parseLiveTranscriptionGapStream('plain text')).toEqual([])
+    expect(
+      parseLiveTranscriptionGapStream(
+        JSON.stringify({ schemaVersion: 2, gapId: 'GAP_2', reason: 'x' })
+      )
+    ).toEqual([])
+  })
+
   it('parses a versioned multi-segment envelope', () => {
     const events = parseLiveTranscriptionStream(
       JSON.stringify({
