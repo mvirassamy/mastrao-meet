@@ -436,6 +436,11 @@ class Room(Resource):
         verbose_name=_("Room PIN code"),
         help_text=_("Unique n-digit code that identifies this room in telephony mode."),
     )
+    subtitle_state = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Durable lifecycle state for the room subtitle agent."),
+    )
 
     class Meta:
         db_table = "meet_room"

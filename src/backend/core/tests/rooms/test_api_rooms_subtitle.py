@@ -4,6 +4,7 @@ Test rooms API endpoints in the Meet core app: start subtitle.
 # pylint: disable=W0621
 
 import uuid
+from types import SimpleNamespace
 from unittest import mock
 
 from django.conf import settings
@@ -57,6 +58,15 @@ def mock_livekit_client():
     """Mock LiveKit API client."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
         mock_client = mock.AsyncMock()
+        mock_client.agent_dispatch.list_dispatch = mock.AsyncMock(
+            return_value=SimpleNamespace(agent_dispatches=[])
+        )
+        mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
+            return_value=SimpleNamespace(
+                id="dispatch-1", agent_name="multi-user-transcriber"
+            )
+        )
+        mock_client.agent_dispatch.delete_dispatch = mock.AsyncMock()
         mock_create.return_value = mock_client
         yield mock_client
 
@@ -152,7 +162,9 @@ def test_start_subtitle_valid_token(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "success"}
+    assert response.json()["status"] == "success"
+    assert response.json()["subtitle"]["state"] == "live"
+    assert response.json()["subtitle"]["dispatchId"] == "dispatch-1"
 
     mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
 
@@ -182,9 +194,56 @@ def test_start_subtitle_twirp_error(
     )
 
     assert response.status_code == 500
+    assert response.json() == {"error": "Failed to create subtitle agent"}
+
+
+def test_stop_subtitle_requires_room_token():
+    room = RoomFactory()
+    response = APIClient().post(f"/api/v1.0/rooms/{room.id}/stop-subtitle/")
+
+    assert response.status_code == 403
     assert response.json() == {
-        "error": f"Subtitles failed to start for room {room.slug}"
+        "detail": "Authentication credentials were not provided."
     }
+
+
+def test_stop_subtitle_returns_persisted_state(
+    mock_livekit_client, mock_livekit_token, mock_room_id
+):
+    room = RoomFactory(
+        id=mock_room_id,
+        subtitle_state={
+            "state": "live",
+            "provider": "livekit",
+            "agentName": "multi-user-transcriber",
+            "dispatchId": "dispatch-1",
+        },
+    )
+
+    response = APIClient().post(
+        f"/api/v1.0/rooms/{room.id}/stop-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["subtitle"]["state"] == "stopped"
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_called_once()
+
+
+def test_subtitle_state_returns_persisted_state(mock_livekit_token, mock_room_id):
+    room = RoomFactory(
+        id=mock_room_id,
+        subtitle_state={"state": "reconnecting", "dispatchId": "dispatch-1"},
+    )
+
+    response = APIClient().get(
+        f"/api/v1.0/rooms/{room.id}/subtitle-state/",
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["subtitle"]["state"] == "reconnecting"
 
 
 def test_start_subtitle_wrong_room(settings, mock_livekit_token):

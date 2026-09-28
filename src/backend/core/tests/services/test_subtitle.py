@@ -1,48 +1,209 @@
-"""
-Test subtitle service.
-"""
+"""Tests for the durable subtitle lifecycle service."""
 
-# pylint: disable=W0621
+from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from unittest import mock
 
+from django.db import close_old_connections
+
 import pytest
+from livekit.api import TwirpError
 
 from core.factories import RoomFactory
-from core.services.subtitle import SubtitleService
+from core.services.subtitle import SubtitleException, SubtitleService
 
 pytestmark = pytest.mark.django_db
 
 
+def _dispatch(dispatch_id="dispatch-1", agent_name="multi-user-transcriber"):
+    return SimpleNamespace(id=dispatch_id, agent_name=agent_name)
+
+
+def _dispatch_response(*dispatches):
+    return SimpleNamespace(agent_dispatches=list(dispatches))
+
+
 @pytest.fixture
 def mock_livekit_client():
-    """Mock LiveKit API client."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
-        mock_client = mock.AsyncMock()
-        mock_create.return_value = mock_client
-        yield mock_client
+        client = mock.AsyncMock()
+        client.agent_dispatch.list_dispatch = mock.AsyncMock(
+            return_value=_dispatch_response()
+        )
+        client.agent_dispatch.create_dispatch = mock.AsyncMock(return_value=_dispatch())
+        client.agent_dispatch.delete_dispatch = mock.AsyncMock()
+        mock_create.return_value = client
+        yield client
 
 
-def test_start_subtitle_settings(mock_livekit_client, settings):
-    """Test that start_subtitle uses the configured agent name from Django settings."""
-
-    settings.ROOM_SUBTITLE_AGENT_NAME = "fake-subtitle-agent-name"
-
+def test_start_subtitle_persists_dispatch_and_identity(
+    mock_livekit_client,
+):
     room = RoomFactory(name="my room")
-    SubtitleService().start_subtitle(room)
 
+    state = SubtitleService().start_subtitle(room, started_by="participant-1")
+
+    assert state["state"] == "live"
+    assert state["provider"] == "livekit"
+    assert state["dispatchId"] == "dispatch-1"
+    assert state["startedBy"] == "participant-1"
     mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
 
-    call_args = mock_livekit_client.agent_dispatch.create_dispatch.call_args[0][0]
-    assert call_args.agent_name == "fake-subtitle-agent-name"
-    assert call_args.room == str(room.id)
+
+def test_start_subtitle_is_idempotent(mock_livekit_client):
+    room = RoomFactory(name="my room")
+    service = SubtitleService()
+
+    service.start_subtitle(room)
+    state = service.start_subtitle(room)
+
+    assert state["dispatchId"] == "dispatch-1"
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
 
 
-def test_stop_subtitle_not_implemented():
-    """Test that stop_subtitle raises NotImplementedError."""
-
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_start_subtitle_creates_one_dispatch(mock_livekit_client):
     room = RoomFactory(name="my room")
 
-    with pytest.raises(
-        NotImplementedError, match="Subtitle agent stopping not yet implemented"
-    ):
+    def start_from_worker(_):
+        close_old_connections()
+        try:
+            return SubtitleService().start_subtitle(room)
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        states = list(executor.map(start_from_worker, range(2)))
+
+    assert {state["dispatchId"] for state in states} == {"dispatch-1"}
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
+
+
+def test_start_subtitle_adopts_orphan_dispatch(mock_livekit_client):
+    room = RoomFactory(name="my room")
+    orphan = _dispatch("orphan-1")
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = _dispatch_response(
+        orphan
+    )
+
+    state = SubtitleService().start_subtitle(room)
+
+    assert state["dispatchId"] == "orphan-1"
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+def test_start_subtitle_marks_provider_failure_unavailable(mock_livekit_client):
+    room = RoomFactory(name="my room")
+    mock_livekit_client.agent_dispatch.create_dispatch.side_effect = TwirpError(
+        msg="LiveKit unavailable", code="unavailable", status=503
+    )
+
+    with pytest.raises(SubtitleException, match="Failed to create subtitle agent"):
+        SubtitleService().start_subtitle(room)
+
+    room.refresh_from_db()
+    assert room.subtitle_state["state"] == "unavailable"
+
+
+def test_stop_subtitle_absent_is_idempotent(mock_livekit_client):
+    room = RoomFactory(name="my room")
+
+    state = SubtitleService().stop_subtitle(room)
+
+    assert state["state"] == "stopped"
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_not_called()
+
+
+def test_stop_subtitle_deletes_active_dispatch(mock_livekit_client):
+    room = RoomFactory(
+        name="my room",
+        subtitle_state={
+            "state": "live",
+            "provider": "livekit",
+            "agentName": "multi-user-transcriber",
+            "dispatchId": "dispatch-1",
+        },
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = _dispatch_response()
+
+    state = SubtitleService().stop_subtitle(room)
+
+    assert state["state"] == "stopped"
+    assert state["dispatchId"] is None
+    dispatch_id, room_name = (
+        mock_livekit_client.agent_dispatch.delete_dispatch.call_args.args
+    )
+    assert dispatch_id == "dispatch-1"
+    assert room_name == str(room.id)
+
+
+def test_stop_subtitle_already_stopped_does_not_delete(mock_livekit_client):
+    room = RoomFactory(
+        name="my room",
+        subtitle_state={"state": "stopped", "dispatchId": None},
+    )
+
+    state = SubtitleService().stop_subtitle(room)
+
+    assert state["state"] == "stopped"
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_not_called()
+
+
+def test_stop_subtitle_drain_timeout_preserves_dispatch(mock_livekit_client, settings):
+    settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS = 0.01
+    room = RoomFactory(
+        name="my room",
+        subtitle_state={
+            "state": "live",
+            "agentName": "multi-user-transcriber",
+            "dispatchId": "dispatch-1",
+        },
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = _dispatch_response(
+        _dispatch()
+    )
+
+    with pytest.raises(SubtitleException, match="Timed out waiting"):
         SubtitleService().stop_subtitle(room)
+
+    room.refresh_from_db()
+    assert room.subtitle_state["state"] == "degraded"
+    assert room.subtitle_state["dispatchId"] == "dispatch-1"
+
+
+def test_openai_agent_requires_allowlisted_room(mock_livekit_client, settings):
+    settings.LIVE_STT_OPENAI_ENABLED = True
+    settings.LIVE_STT_OPENAI_ROOM_ALLOWLIST = "another-room"
+    room = RoomFactory(name="my room")
+
+    with pytest.raises(SubtitleException, match="not enabled for room"):
+        SubtitleService().start_subtitle(room)
+
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+def test_openai_agent_uses_configured_name_for_allowlisted_room(
+    mock_livekit_client, settings
+):
+    room = RoomFactory(name="my room")
+    settings.LIVE_STT_OPENAI_ENABLED = True
+    settings.LIVE_STT_OPENAI_ROOM_ALLOWLIST = str(room.id)
+    settings.LIVE_STT_OPENAI_AGENT_NAME = "configured-live-transcribe"
+
+    state = SubtitleService().start_subtitle(room)
+
+    request = mock_livekit_client.agent_dispatch.create_dispatch.call_args.args[0]
+    assert request.agent_name == "configured-live-transcribe"
+    assert state["provider"] == "openai"
+
+
+def test_openai_kill_switch_keeps_existing_agent_path(mock_livekit_client, settings):
+    settings.LIVE_STT_OPENAI_ENABLED = False
+    settings.ROOM_SUBTITLE_AGENT_NAME = "existing-agent"
+    room = RoomFactory(name="my room")
+
+    state = SubtitleService().start_subtitle(room)
+
+    request = mock_livekit_client.agent_dispatch.create_dispatch.call_args.args[0]
+    assert request.agent_name == "existing-agent"
+    assert state["provider"] == "livekit"

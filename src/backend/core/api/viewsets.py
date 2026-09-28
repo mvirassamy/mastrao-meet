@@ -1041,15 +1041,64 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         room = self.get_object()
 
         try:
-            SubtitleService().start_subtitle(room)
-        except SubtitleException:
+            state = SubtitleService().start_subtitle(
+                room,
+                started_by=getattr(request.auth, "identity", None),
+            )
+        except SubtitleException as error:
             return drf_response.Response(
-                {"error": f"Subtitles failed to start for room {room.slug}"},
+                {"error": str(error)},
                 status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return drf_response.Response(
-            {"status": "success"}, status=drf_status.HTTP_200_OK
+            {"status": "success", "subtitle": state},
+            status=drf_status.HTTP_200_OK,
+        )
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="stop-subtitle",
+        permission_classes=[
+            permissions.HasLiveKitRoomAccess,
+        ],
+        authentication_classes=[LiveKitTokenAuthentication],
+    )
+    def stop_subtitle(self, request, pk=None):  # pylint: disable=unused-argument
+        """Stop the room subtitle agent, including an already-stopped room."""
+
+        room = self.get_object()
+
+        try:
+            state = SubtitleService().stop_subtitle(room)
+        except SubtitleException as error:
+            return drf_response.Response(
+                {"error": str(error)},
+                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return drf_response.Response(
+            {"status": "success", "subtitle": state},
+            status=drf_status.HTTP_200_OK,
+        )
+
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="subtitle-state",
+        permission_classes=[
+            permissions.HasLiveKitRoomAccess,
+        ],
+        authentication_classes=[LiveKitTokenAuthentication],
+    )
+    def subtitle_state(self, request, pk=None):  # pylint: disable=unused-argument
+        """Return durable subtitle lifecycle state for room resynchronization."""
+
+        room = self.get_object()
+        return drf_response.Response(
+            {"subtitle": SubtitleService().get_status(room)},
+            status=drf_status.HTTP_200_OK,
         )
 
     @decorators.action(

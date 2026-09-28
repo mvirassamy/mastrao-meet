@@ -1435,6 +1435,32 @@ class Base(Configuration):
         environ_name="ROOM_SUBTITLE_AGENT_NAME",
         environ_prefix=None,
     )
+    LIVE_STT_OPENAI_ENABLED = values.BooleanValue(
+        False, environ_name="LIVE_STT_OPENAI_ENABLED", environ_prefix=None
+    )
+    LIVE_STT_OPENAI_AGENT_NAME = values.Value(
+        "gpt-live-transcribe",
+        environ_name="LIVE_STT_OPENAI_AGENT_NAME",
+        environ_prefix=None,
+    )
+    LIVE_STT_OPENAI_ROOM_ALLOWLIST = values.Value(
+        "",
+        environ_name="LIVE_STT_OPENAI_ROOM_ALLOWLIST",
+        environ_prefix=None,
+    )
+    LIVE_TRANSCRIPT_PANEL_ENABLED = values.BooleanValue(
+        False, environ_name="LIVE_TRANSCRIPT_PANEL_ENABLED", environ_prefix=None
+    )
+    ROOM_SUBTITLE_START_TIMEOUT_SECONDS = values.FloatValue(
+        30.0,
+        environ_name="ROOM_SUBTITLE_START_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS = values.FloatValue(
+        10.0,
+        environ_name="ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
 
     # Metadata collector settings
     METADATA_COLLECTOR_ENABLED = values.BooleanValue(
