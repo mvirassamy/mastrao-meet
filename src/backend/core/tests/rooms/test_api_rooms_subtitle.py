@@ -4,6 +4,7 @@ Test rooms API endpoints in the Meet core app: start subtitle.
 # pylint: disable=W0621
 
 import uuid
+from types import SimpleNamespace
 from unittest import mock
 
 from django.conf import settings
@@ -57,6 +58,13 @@ def mock_livekit_client():
     """Mock LiveKit API client."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
         mock_client = mock.AsyncMock()
+        mock_client.agent_dispatch.list_dispatch = mock.AsyncMock(return_value=[])
+        mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
+            return_value=SimpleNamespace(
+                id="dispatch-1", agent_name="multi-user-transcriber"
+            )
+        )
+        mock_client.agent_dispatch.delete_dispatch = mock.AsyncMock()
         mock_create.return_value = mock_client
         yield mock_client
 
@@ -152,7 +160,9 @@ def test_start_subtitle_valid_token(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "success"}
+    assert response.json()["status"] == "success"
+    assert response.json()["subtitle"]["state"] == "live"
+    assert response.json()["subtitle"]["dispatchId"] == "dispatch-1"
 
     mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
 
@@ -172,7 +182,9 @@ def test_start_subtitle_twirp_error(
     client = APIClient()
 
     mock_livekit_client.agent_dispatch.create_dispatch.side_effect = TwirpError(
-        msg="Internal server error", code="unknown", status=500
+        msg="https://internal.example/livekit?token=secret",
+        code="unknown",
+        status=500,
     )
 
     response = client.post(
@@ -182,9 +194,83 @@ def test_start_subtitle_twirp_error(
     )
 
     assert response.status_code == 500
+    assert response.json() == {"error": "Failed to create subtitle agent"}
+    assert "internal.example" not in response.content.decode()
+
+
+def test_stop_subtitle_requires_room_token(settings):
+    """Stop is refused without a LiveKit room token."""
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory()
+    response = APIClient().post(f"/api/v1.0/rooms/{room.id}/stop-subtitle/")
+
+    assert response.status_code == 403
     assert response.json() == {
-        "error": f"Subtitles failed to start for room {room.slug}"
+        "detail": "Authentication credentials were not provided."
     }
+
+
+def test_stop_subtitle_returns_persisted_state(
+    settings, mock_livekit_client, mock_livekit_token, mock_room_id
+):
+    """Stop deletes the dispatch and returns the persisted state."""
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(
+        id=mock_room_id,
+        subtitle_state={
+            "state": "live",
+            "provider": "livekit",
+            "agentName": "multi-user-transcriber",
+            "dispatchId": "dispatch-1",
+        },
+    )
+
+    response = APIClient().post(
+        f"/api/v1.0/rooms/{room.id}/stop-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["subtitle"]["state"] == "stopped"
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_called_once()
+
+
+def test_subtitle_state_returns_persisted_state(
+    settings, mock_livekit_token, mock_room_id
+):
+    """The state endpoint returns the persisted lifecycle state."""
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(
+        id=mock_room_id,
+        subtitle_state={"state": "reconnecting", "dispatchId": "dispatch-1"},
+    )
+
+    response = APIClient().get(
+        f"/api/v1.0/rooms/{room.id}/subtitle-state/",
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["subtitle"]["state"] == "reconnecting"
+
+
+@pytest.mark.parametrize("path", ["stop-subtitle", "subtitle-state"])
+def test_subtitle_cleanup_endpoints_remain_available_when_start_is_disabled(
+    path, mock_livekit_token, mock_room_id
+):
+    """Disabling start does not remove cleanup or reconciliation access."""
+    room = RoomFactory(id=mock_room_id)
+    client = APIClient()
+    call = client.get if path == "subtitle-state" else client.post
+
+    response = call(
+        f"/api/v1.0/rooms/{room.id}/{path}/",
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["subtitle"]["state"] in {"inactive", "stopped"}
 
 
 def test_start_subtitle_wrong_room(settings, mock_livekit_token):
