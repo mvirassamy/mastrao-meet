@@ -126,6 +126,57 @@ def _redeem_guest(client, binding, invitation="aaa.bbb.ccc"):
     return response, grant
 
 
+@override_settings(APPLICATION_BASE_URL="http://meet.test")
+def test_guest_session_refuses_a_cross_origin_request_without_the_flag():
+    """Retiring the flag keeps the same-origin boundary mandatory."""
+
+    response = Client().post(
+        reverse("establish_mastrao_guest_session"),
+        data="{}",
+        content_type="application/json",
+        HTTP_ORIGIN="https://attacker.test",
+        HTTP_SEC_FETCH_SITE="cross-site",
+    )
+
+    assert response.status_code == 404
+    assert GUEST_RETRY_COOKIE not in response.cookies
+
+
+@override_settings(
+    APPLICATION_BASE_URL="http://meet.test",
+    MASTRAO_ROOM_EFFECT_PUBLIC_JWK="",
+)
+def test_unverifiable_guest_invitation_fails_closed_before_core():
+    """An unverifiable invitation (no signing key) never reaches Core."""
+
+    client = Client()
+    client.post(
+        reverse("establish_mastrao_guest_session"),
+        data="{}",
+        content_type="application/json",
+        HTTP_ORIGIN="http://meet.test",
+        HTTP_SEC_FETCH_SITE="same-origin",
+    )
+    header = "eyJhbGciOiJFZERTQSJ9"
+    with mock.patch("core.mastrao_guest_handoff._post_core") as post_core:
+        response = client.post(
+            reverse("consume_mastrao_guest_invitation"),
+            data=json.dumps(
+                {
+                    "guest_invitation": f"{header}.e30.c2ln",
+                    "redemption_id": "redemption_" + "0" * 32,
+                }
+            ),
+            content_type="application/json",
+            HTTP_ORIGIN="http://meet.test",
+            HTTP_SEC_FETCH_SITE="same-origin",
+        )
+
+    assert response.status_code in {404, 503}
+    post_core.assert_not_called()
+    assert not models.MastraoGuestGrant.objects.exists()
+
+
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
 )
