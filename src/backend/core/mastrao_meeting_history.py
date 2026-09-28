@@ -8,6 +8,7 @@ from django.views.decorators.http import require_GET, require_POST
 from core.mastrao_host_contract import HostHandoffRefused
 from core.mastrao_host_handoff import consume_host_handoff_for_oidc_session
 from core.mastrao_platform_facade import (
+    MEETING_CREATION_TIMEOUT_SECONDS,
     PlatformFacadeError,
     meeting_path,
     request_platform,
@@ -46,7 +47,10 @@ def create_meeting(request):
             "POST",
             "/api/meet/meetings",
             accepted_statuses={201},
-            options={"idempotency_key": idempotency_key},
+            options={
+                "idempotency_key": idempotency_key,
+                "timeout": MEETING_CREATION_TIMEOUT_SECONDS,
+            },
         )
         handoff = body.pop("host_handoff", None)
         if not isinstance(handoff, str):

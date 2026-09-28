@@ -11,6 +11,10 @@ import requests
 MAX_PLATFORM_RESPONSE_BYTES = 2 * 1024 * 1024
 MEETING_REF = re.compile(r"^[A-Za-z0-9_-]{16,160}$")
 CURSOR = re.compile(r"^[A-Za-z0-9_-]{1,512}$")
+DEFAULT_TIMEOUT_SECONDS = 5
+# Platform waits up to ~7.75 s for the new meeting projection before it seals
+# the recording mode and mints the host handoff. Reads must outlast that.
+MEETING_CREATION_TIMEOUT_SECONDS = (5, 20)
 
 
 class PlatformFacadeError(Exception):
@@ -77,6 +81,7 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
     options = options or {}
     cursor = options.get("cursor")
     idempotency_key = options.get("idempotency_key")
+    timeout = options.get("timeout", DEFAULT_TIMEOUT_SECONDS)
     target = f"{_platform_origin()}{path}"
     if cursor is not None:
         if not CURSOR.fullmatch(cursor):
@@ -92,7 +97,7 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
                 method,
                 target,
                 headers=headers,
-                timeout=5,
+                timeout=timeout,
                 allow_redirects=False,
                 stream=True,
             )

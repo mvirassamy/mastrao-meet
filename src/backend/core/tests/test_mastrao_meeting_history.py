@@ -77,7 +77,7 @@ def test_create_meeting_forwards_server_side_token_without_redirect():
             "authorization": f"Bearer {TOKEN}",
             "x-idempotency-key": IDEMPOTENCY_KEY,
         },
-        timeout=5,
+        timeout=(5, 20),
         allow_redirects=False,
         stream=True,
     )
