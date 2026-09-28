@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-28: Keep an invited guest out of the terminal meeting screen when a
+  masked or transient lifecycle lookup returns 404, and resume lobby entry as
+  soon as the authoritative lifecycle confirms that the meeting is open.
+
 - 2026-09-28: Share canonical rooms through a host-bound guest invitation URL
   instead of the raw room URL, while preserving ordinary room sharing and
   failing closed when the secure link is unavailable.

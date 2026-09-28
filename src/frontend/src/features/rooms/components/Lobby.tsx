@@ -126,6 +126,10 @@ export const Lobby = ({
           navigateToEndedMeeting(roomId)
           return
         }
+        if (lifecycle.state === 'open') {
+          startWaiting()
+          return
+        }
       } catch (error) {
         if (isMissingRoomLifecycle(error)) {
           navigateToEndedMeeting(roomId)
@@ -141,7 +145,7 @@ export const Lobby = ({
       controller.abort()
       if (timer) clearTimeout(timer)
     }
-  }, [roomId, status])
+  }, [roomId, startWaiting, status])
 
   useEffect(() => {
     if (phase === 'active' || !isMastraoRoomId(roomId)) return
@@ -202,6 +206,10 @@ export const Lobby = ({
               navigateToEndedMeeting(roomId)
               return
             }
+            if (lifecycle.state === 'open') {
+              await refetchRoom()
+              return
+            }
           } catch (lifecycleError) {
             if (isMissingRoomLifecycle(lifecycleError)) {
               navigateToEndedMeeting(roomId)
@@ -221,7 +229,7 @@ export const Lobby = ({
       // The room component will handle the room creation if the user is authenticated
       enterRoom()
     }
-  }, [isError, error, enterRoom, roomId])
+  }, [isError, error, enterRoom, refetchRoom, roomId])
 
   const { openLoginHint } = useLoginHint()
 
