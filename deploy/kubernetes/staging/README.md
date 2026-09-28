@@ -31,7 +31,28 @@ These patches must not be used for beta-user audio while
 Render every document against the live API before applying it with
 `kubectl patch --type=strategic --dry-run=server`. Apply the documents one at a
 time, wait for `meet-api`, `worker-native`, and `asr-gateway` to complete their
-rollouts, then run only the owned synthetic transcription journey.
+rollouts, then qualify the exact native network path from the new
+`worker-native` pod:
+
+```bash
+worker_native_pod="$(
+  kubectl --context "$KUBE_CONTEXT" -n mastrao-staging get pod \
+    -l app.kubernetes.io/name=worker-native \
+    -o jsonpath='{.items[0].metadata.name}'
+)"
+kubectl --context "$KUBE_CONTEXT" -n mastrao-staging exec \
+  "$worker_native_pod" -- python -c \
+  'import urllib.request; response = urllib.request.urlopen("http://asr-gateway:8787/healthz", timeout=5); print(response.status, response.read().decode())'
+```
+
+Continue only when this returns `200 {"ok":true,"stub":false}`. The legacy
+`meet-api` and `worker-general` paths are not substitutes for this check.
+Cilium deliberately refuses gateway DNS and port 8787 egress from those
+workloads. Only `worker-native` may resolve and call `asr-gateway`, whose
+ingress is restricted to that worker. Therefore a gateway probe from
+`meet-api` cannot qualify this canary, and its expected failure does not
+justify enabling the legacy switch or widening the API policy.
+After this preflight, run only the owned synthetic transcription journey.
 
 If the canary fails, apply the two `*-rollback.patch.yaml` files. The rollback
 deliberately leaves the gateway's synthetic-data-only guard enabled.
