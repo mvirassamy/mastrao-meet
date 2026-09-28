@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-28: Fence live subtitle starts and stops with durable attempts,
+  keep rollback cleanup available when start is disabled, fall back outside the
+  OpenAI canary, and remove provider error details from API responses.
+
 - 2026-09-28: Manage one idempotent live subtitle agent dispatch per room:
   persisted lifecycle state, orphan dispatch adoption, a real stop with
   bounded drain, a state endpoint, and an allowlisted OpenAI agent kept off

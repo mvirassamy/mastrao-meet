@@ -182,7 +182,9 @@ def test_start_subtitle_twirp_error(
     client = APIClient()
 
     mock_livekit_client.agent_dispatch.create_dispatch.side_effect = TwirpError(
-        msg="Internal server error", code="unknown", status=500
+        msg="https://internal.example/livekit?token=secret",
+        code="unknown",
+        status=500,
     )
 
     response = client.post(
@@ -193,6 +195,7 @@ def test_start_subtitle_twirp_error(
 
     assert response.status_code == 500
     assert response.json() == {"error": "Failed to create subtitle agent"}
+    assert "internal.example" not in response.content.decode()
 
 
 def test_stop_subtitle_requires_room_token(settings):
@@ -253,10 +256,10 @@ def test_subtitle_state_returns_persisted_state(
 
 
 @pytest.mark.parametrize("path", ["stop-subtitle", "subtitle-state"])
-def test_subtitle_lifecycle_endpoints_are_closed_by_default(
+def test_subtitle_cleanup_endpoints_remain_available_when_start_is_disabled(
     path, mock_livekit_token, mock_room_id
 ):
-    """Stop and state stay closed while the subtitle flag is off."""
+    """Disabling start does not remove cleanup or reconciliation access."""
     room = RoomFactory(id=mock_room_id)
     client = APIClient()
     call = client.get if path == "subtitle-state" else client.post
@@ -266,7 +269,8 @@ def test_subtitle_lifecycle_endpoints_are_closed_by_default(
         HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json()["subtitle"]["state"] in {"inactive", "stopped"}
 
 
 def test_start_subtitle_wrong_room(settings, mock_livekit_token):

@@ -1047,8 +1047,8 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
             )
         except SubtitleException as error:
             return drf_response.Response(
-                {"error": str(error)},
-                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": error.public_message},
+                status=error.status_code,
             )
 
         return drf_response.Response(
@@ -1065,7 +1065,6 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         ],
         authentication_classes=[LiveKitTokenAuthentication],
     )
-    @FeatureFlag.require("subtitle")
     def stop_subtitle(self, request, pk=None):  # pylint: disable=unused-argument
         """Stop the room subtitle agent, including an already-stopped room."""
 
@@ -1075,8 +1074,8 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
             state = SubtitleService().stop_subtitle(room)
         except SubtitleException as error:
             return drf_response.Response(
-                {"error": str(error)},
-                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": error.public_message},
+                status=error.status_code,
             )
 
         return drf_response.Response(
@@ -1093,7 +1092,6 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         ],
         authentication_classes=[LiveKitTokenAuthentication],
     )
-    @FeatureFlag.require("subtitle")
     def subtitle_state(self, request, pk=None):  # pylint: disable=unused-argument
         """Return durable subtitle lifecycle state for room resynchronization."""
 

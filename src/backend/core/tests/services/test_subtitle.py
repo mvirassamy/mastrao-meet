@@ -1,5 +1,5 @@
 """Tests for the durable subtitle lifecycle service."""
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name,protected-access
 
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -12,7 +12,7 @@ import pytest
 from livekit.api import TwirpError
 
 from core.factories import RoomFactory
-from core.services.subtitle import SubtitleException, SubtitleService
+from core.services.subtitle import SubtitleConflict, SubtitleException, SubtitleService
 
 pytestmark = pytest.mark.django_db
 
@@ -53,6 +53,16 @@ def test_start_subtitle_persists_dispatch_and_identity(
     assert state["dispatchId"] == "dispatch-1"
     assert state["startedBy"] == "participant-1"
     mock_livekit_client.agent_dispatch.create_dispatch.assert_called_once()
+
+
+def test_empty_persisted_state_is_inactive():
+    """Missing optional JSON keys keep the documented inactive default."""
+    room = RoomFactory(name="my room", subtitle_state={})
+
+    state = SubtitleService().get_status(room)
+
+    assert state["state"] == SubtitleService.INACTIVE
+    assert state["stopRequested"] is False
 
 
 def test_start_subtitle_is_idempotent(mock_livekit_client):
@@ -229,16 +239,106 @@ def test_fresh_stop_claim_is_not_duplicated(mock_livekit_client):
     mock_livekit_client.agent_dispatch.delete_dispatch.assert_not_called()
 
 
-def test_openai_agent_requires_allowlisted_room(mock_livekit_client, settings):
-    """The OpenAI agent is refused outside the allowlist."""
+def test_openai_agent_falls_back_outside_allowlist(mock_livekit_client, settings):
+    """The existing provider remains active outside the OpenAI canary."""
     settings.LIVE_STT_OPENAI_ENABLED = True
     settings.LIVE_STT_OPENAI_ROOM_ALLOWLIST = "another-room"
     room = RoomFactory(name="my room")
 
-    with pytest.raises(SubtitleException, match="not enabled for room"):
+    state = SubtitleService().start_subtitle(room)
+
+    request = mock_livekit_client.agent_dispatch.create_dispatch.call_args.args[0]
+    assert request.agent_name == settings.ROOM_SUBTITLE_AGENT_NAME
+    assert state["provider"] == "livekit"
+
+
+def test_stop_requested_during_start_cleans_up_without_live_state():
+    """A stop claim fences a delayed start before it can publish live."""
+    room = RoomFactory(name="my room")
+    room_id = str(room.id)
+    attempt = SubtitleService._claim_start(
+        room_id, "multi-user-transcriber", "livekit", "participant-1"
+    )
+
+    stop = SubtitleService._claim_stop(room_id)
+    assert stop["state"]["state"] == SubtitleService.STOPPING
+    assert stop["state"]["stopRequested"] is True
+
+    result = SubtitleService._finalize_start(
+        room_id,
+        attempt["attemptId"],
+        "dispatch-1",
+        "multi-user-transcriber",
+        "livekit",
+    )
+    assert result["cleanup"] is True
+    stopped = SubtitleService._mark_stopped_after_start(room_id, attempt["attemptId"])
+    assert stopped["state"] == SubtitleService.STOPPED
+
+
+def test_provider_change_requires_explicit_stop(mock_livekit_client, settings):
+    """Changing from OpenAI to the legacy provider never starts a second agent."""
+    settings.LIVE_STT_OPENAI_ENABLED = False
+    room = RoomFactory(
+        name="my room",
+        subtitle_state={
+            "state": "live",
+            "provider": "openai",
+            "agentName": settings.LIVE_STT_OPENAI_AGENT_NAME,
+            "dispatchId": "openai-1",
+        },
+    )
+
+    with pytest.raises(SubtitleConflict, match="explicit stop"):
         SubtitleService().start_subtitle(room)
 
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+def test_stop_deletes_livekit_and_openai_dispatches(mock_livekit_client, settings):
+    """Rollback cleanup removes both known providers from the room."""
+    settings.ROOM_SUBTITLE_AGENT_NAME = "legacy-agent"
+    settings.LIVE_STT_OPENAI_AGENT_NAME = "gpt-live-transcribe"
+    room = RoomFactory(
+        name="my room",
+        subtitle_state={
+            "state": "live",
+            "provider": "openai",
+            "agentName": "gpt-live-transcribe",
+            "dispatchId": "openai-1",
+        },
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
+        _dispatch_response(
+            _dispatch("openai-1", "gpt-live-transcribe"),
+            _dispatch("legacy-1", "legacy-agent"),
+        ),
+        _dispatch_response(),
+    ]
+
+    state = SubtitleService().stop_subtitle(room)
+
+    assert state["state"] == SubtitleService.STOPPED
+    assert {
+        call.args[0]
+        for call in mock_livekit_client.agent_dispatch.delete_dispatch.call_args_list
+    } == {"openai-1", "legacy-1"}
+
+
+def test_start_failure_does_not_persist_provider_error_details(
+    mock_livekit_client,
+):
+    """Provider URLs/details stay in logs, not in the participant-visible state."""
+    room = RoomFactory(name="my room")
+    mock_livekit_client.agent_dispatch.create_dispatch.side_effect = RuntimeError(
+        "https://internal.example/livekit?token=secret"
+    )
+
+    with pytest.raises(SubtitleException, match="Failed to create subtitle agent"):
+        SubtitleService().start_subtitle(room)
+
+    room.refresh_from_db()
+    assert room.subtitle_state["lastError"] == "Failed to create subtitle agent"
 
 
 def test_openai_agent_uses_configured_name_for_allowlisted_room(
