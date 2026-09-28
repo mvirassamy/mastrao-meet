@@ -28,6 +28,7 @@ import { openSettingsDialog } from '@/stores/settings'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
 import { EndMeetingButton } from '../../components/controls/EndMeetingButton'
+import { LiveTranscriptToggle } from '../../components/controls/LiveTranscriptToggle'
 
 export function MobileControlBar({
   onDeviceError,
@@ -117,6 +118,10 @@ export function MobileControlBar({
               onPress={() => setIsMenuOpened(false)}
             />
             <ChatToggle
+              description={true}
+              onPress={() => setIsMenuOpened(false)}
+            />
+            <LiveTranscriptToggle
               description={true}
               onPress={() => setIsMenuOpened(false)}
             />

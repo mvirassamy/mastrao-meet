@@ -311,6 +311,10 @@
       "closed": "Afficher les sous-titres",
       "open": "Masquer les sous-titres"
     },
+    "liveTranscript": {
+      "closed": "Ouvrir la transcription en direct",
+      "open": "Masquer la transcription en direct"
+    },
     "screenShare": {
       "start": "Partager l'écran",
       "stop": "Arrêter le partage"
@@ -474,6 +478,7 @@
       "effects": "Arrière-plans et effets",
       "chat": "Messages dans l'appel",
       "transcript": "Transcrire",
+      "liveTranscript": "Transcription en direct",
       "screenRecording": "Enregistrer",
       "admin": "Commandes de l'organisateur",
       "tools": "Outils de réunion",
@@ -484,6 +489,7 @@
       "effects": "les effets",
       "chat": "les messages",
       "transcript": "transcrire",
+      "liveTranscript": "la transcription en direct",
       "screenRecording": "enregistrer",
       "admin": "commandes de l'organisateur",
       "tools": "outils de réunion",
@@ -494,6 +500,24 @@
   "chat": {
     "disclaimer": "Les messages sont visibles par les participants uniquement au moment de\nleur envoi. Tous les messages sont supprimés à la fin de l'appel.",
     "messagesLog": "Messages du chat"
+  },
+  "liveTranscript": {
+    "status": {
+      "inactive": "La transcription en direct est inactive.",
+      "starting": "Démarrage de la transcription en direct…",
+      "live": "Transcription en direct",
+      "reconnecting": "Reconnexion à la transcription en direct…",
+      "degraded": "Une partie de la conversation peut manquer.",
+      "degradedWithGap": "Une partie de la conversation peut manquer.",
+      "unavailable": "La transcription en direct est indisponible.",
+      "stopped": "La transcription en direct est arrêtée."
+    },
+    "empty": "Aucune transcription en direct n'est encore disponible.",
+    "segmentsLabel": "Segments de transcription en direct",
+    "interim": "Brouillon",
+    "truncated": "Seule la partie la plus récente de la transcription est affichée.",
+    "returnToLive_one": "Revenir au direct ({{count}} nouveau segment)",
+    "returnToLive_other": "Revenir au direct ({{count}} nouveaux segments)"
   },
   "moreTools": {
     "body": "Accéder à davantage d'outils pour améliorer vos réunions.",

@@ -15,6 +15,8 @@ import { Tools } from './Tools'
 import { Info } from './Info'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
 import { useRestoreFocus } from '@/hooks/useRestoreFocus'
+import { LiveTranscriptPanel } from '@/features/subtitle/component/LiveTranscriptPanel'
+import { useIsMobile } from '@/utils/useIsMobile'
 
 type StyledSidePanelProps = {
   title: string
@@ -27,6 +29,7 @@ type StyledSidePanelProps = {
   onBack: () => void
   backButtonLabel: string
   isReactionToolbarOpen?: boolean
+  isFullScreen?: boolean
 }
 
 const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
@@ -38,6 +41,7 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
       onClose,
       isClosed,
       isReactionToolbarOpen,
+      isFullScreen = false,
       closeButtonTooltip,
       isSubmenu = false,
       onBack,
@@ -72,6 +76,12 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
         right: 0,
         top: 0,
         width: 'var(--sizes-room-side-panel)',
+        ...(isFullScreen && {
+          margin: 0,
+          borderRadius: 0,
+          width: '100%',
+          bottom: 0,
+        }),
         transition: '.5s cubic-bezier(.4,0,.2,1) 5ms',
         '&:focus': {
           outline: 'none',
@@ -79,11 +89,15 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
       })}`}
       style={{
         transform: isClosed
-          ? 'translateX(calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin)))'
+          ? isFullScreen
+            ? 'translateX(100%)'
+            : 'translateX(calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin)))'
           : 'none',
-        bottom: isReactionToolbarOpen
-          ? 'calc( var(--sizes-room-control-bar) + var(--sizes-room-reaction-toolbar-height) + calc(var(--lk-grid-gap) / 2))'
-          : 'var(--sizes-room-control-bar)',
+        bottom: isFullScreen
+          ? 0
+          : isReactionToolbarOpen
+            ? 'calc( var(--sizes-room-control-bar) + var(--sizes-room-reaction-toolbar-height) + calc(var(--lk-grid-gap) / 2))'
+            : 'var(--sizes-room-control-bar)',
       }}
       aria-hidden={isClosed}
       aria-label={ariaLabel}
@@ -113,6 +127,8 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
         )}
         <Heading
           slot="title"
+          tabIndex={-1}
+          data-side-panel-title
           level={1}
           className={css({
             flex: 1,
@@ -176,17 +192,23 @@ export const SidePanel = () => {
     isInfoOpen,
     isSubPanelOpen,
     activeSubPanelId,
+    isLiveTranscriptOpen,
   } = useSidePanel()
   const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel' })
   const title = t(`heading.${activeSubPanelId || activePanelId}`)
 
   const { isOpen: isReactionToolbarOpen } = useReactionsToolbar()
+  const isMobile = useIsMobile()
 
   const asideRef = useRef<HTMLElement>(null)
 
   const focusAside = useCallback(() => {
     requestAnimationFrame(() => {
-      asideRef.current?.focus({ preventScroll: true })
+      const heading = asideRef.current?.querySelector<HTMLElement>(
+        '[data-side-panel-title]'
+      )
+      heading?.focus({ preventScroll: true })
+      if (!heading) asideRef.current?.focus({ preventScroll: true })
     })
   }, [])
 
@@ -213,6 +235,7 @@ export const SidePanel = () => {
       isClosed={!isSidePanelOpen}
       isSubmenu={isSubPanelOpen}
       isReactionToolbarOpen={isReactionToolbarOpen}
+      isFullScreen={isMobile && isLiveTranscriptOpen}
       backButtonLabel={t('backToTools')}
       onBack={() => (layoutStore.activeSubPanelId = null)}
     >
@@ -233,6 +256,9 @@ export const SidePanel = () => {
       </Panel>
       <Panel isOpen={isInfoOpen}>
         <Info />
+      </Panel>
+      <Panel isOpen={isLiveTranscriptOpen} keepAlive={true}>
+        <LiveTranscriptPanel />
       </Panel>
     </StyledSidePanel>
   )
