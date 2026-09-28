@@ -292,7 +292,13 @@ class Base(Configuration):
 
     # Opt-in internal boundary used by Mastrao Cabinet Core. The endpoint stays
     # closed unless the full signed room-effect configuration is provided.
-    MASTRAO_MEETING_INTEGRATION_CONFIGURED = False
+    # A property, unlike an assignment in post_setup, reaches django.conf.settings.
+    # pylint: disable=invalid-name
+    @property
+    def MASTRAO_MEETING_INTEGRATION_CONFIGURED(self):
+        """Derive the atomic Mastrao base contract from its configuration."""
+        return resolve_mastrao_meeting_integration(self)
+
     MASTRAO_ROOM_EFFECT_ISSUER = values.Value(
         "", environ_name="MASTRAO_ROOM_EFFECT_ISSUER", environ_prefix=None
     )
@@ -1704,11 +1710,8 @@ class Base(Configuration):
         """
         super().post_setup()
 
-        cls.MASTRAO_MEETING_INTEGRATION_CONFIGURED = (
-            resolve_mastrao_meeting_integration(cls)
-        )
         validate_mastrao_meeting_close_configuration(
-            cls.MASTRAO_MEETING_INTEGRATION_CONFIGURED,
+            resolve_mastrao_meeting_integration(cls),
             cls.LIVEKIT_EXPLICIT_ROOM_CREATION,
         )
 

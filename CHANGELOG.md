@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-29: Expose the derived Meeting base contract to Django settings so a
+  complete configuration really enables it, and drop the lone close endpoint
+  from the env templates so installations without Mastrao still start.
+
 - 2026-09-29: Derive the governed Meeting base contract atomically from its
   complete signed configuration and retire the room-adapter, host-handoff and
   media-binding feature flags without affecting unconfigured fork installs.

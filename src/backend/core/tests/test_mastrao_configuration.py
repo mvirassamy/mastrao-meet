@@ -125,6 +125,63 @@ def test_settings_boot_refuses_room_adapter_without_explicit_room_creation():
     assert "LIVEKIT_EXPLICIT_ROOM_CREATION=true" in result.stderr
 
 
+def _load_development_setting(name, overrides):
+    """Load the real Development configuration and print one setting."""
+
+    return subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; "
+                "importer.install(); "
+                "from django.conf import settings; "
+                f"print(settings.{name})"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env={
+            **os.environ,
+            "DJANGO_CONFIGURATION": "Development",
+            "DJANGO_SETTINGS_MODULE": "meet.settings",
+            **overrides,
+        },
+        text=True,
+    )
+
+
+def test_settings_boot_exposes_a_complete_meeting_integration():
+    """A complete contract must reach django.conf.settings, not only the class."""
+
+    result = _load_development_setting(
+        "MASTRAO_MEETING_INTEGRATION_CONFIGURED",
+        {
+            "LIVEKIT_EXPLICIT_ROOM_CREATION": "True",
+            **dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, "configured"),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "True"
+
+
+def test_settings_boot_refuses_a_partial_meeting_integration():
+    """One configured contract value must stop the process at startup."""
+
+    result = _load_development_setting(
+        "MASTRAO_MEETING_INTEGRATION_CONFIGURED",
+        {
+            **dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, ""),
+            "MASTRAO_ROOM_EFFECT_ISSUER": "https://core.mastrao.test",
+        },
+    )
+
+    assert result.returncode != 0
+    assert "Incomplete Mastrao meeting integration" in result.stderr
+
+
 def test_meeting_integration_is_absent_when_no_contract_value_is_configured():
     """The upstream fork remains valid without the Mastrao integration."""
 
