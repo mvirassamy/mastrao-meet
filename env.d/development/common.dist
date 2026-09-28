@@ -61,7 +61,8 @@ LIVEKIT_EXPLICIT_ROOM_CREATION=true
 LIVEKIT_INTERNAL_URL=http://livekit:7880
 LIVEKIT_VERIFY_SSL=False
 ALLOW_UNREGISTERED_ROOMS=False
-MASTRAO_CORE_MEETING_CLOSE_ENDPOINT=http://host.docker.internal:3911/internal/v1/meetings/close
+# Mastrao meeting integration is all-or-nothing: set every value listed in
+# MASTRAO_BASE_CONTRACT_SETTINGS (meet/settings.py) or none of them.
 
 # Recording
 RECORDING_ENABLE=True
