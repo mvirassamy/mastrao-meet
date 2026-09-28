@@ -128,7 +128,6 @@ def _redeem_guest(client, binding, invitation="aaa.bbb.ccc"):
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_guest_retry_cookie_is_established_without_server_session_state():
     """The recovery nonce is host-only and does not allocate Redis session state."""
@@ -153,7 +152,6 @@ def test_guest_retry_cookie_is_established_without_server_session_state():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_exact_redemption_retry_recovers_after_session_response_loss():
     """The pre-established nonce recovers grant session fields after a lost response."""
@@ -182,7 +180,6 @@ def test_exact_redemption_retry_recovers_after_session_response_loss():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_tombstone_revokes_exact_guest_projection():
     """A browser-retained guest credential cannot mint media after closure."""
@@ -227,7 +224,6 @@ def test_tombstone_revokes_exact_guest_projection():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
     """Concurrent invalid credentials cannot occupy every request worker."""
@@ -259,7 +255,6 @@ def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
     MASTRAO_MEETING_CLOSE_ENABLED=False,
     LIVEKIT_EXPLICIT_ROOM_CREATION=False,
 )
@@ -306,7 +301,6 @@ def test_guest_redemption_creates_only_room_bound_anonymous_grant(settings):
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_guest_redemption_rotates_the_anonymous_session_key():
     """A known anonymous session cannot inherit the redeemed guest grant."""
@@ -329,7 +323,6 @@ def test_guest_redemption_rotates_the_anonymous_session_key():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_confirmed_local_allow_is_required_before_guest_media(settings):
     """A guest gets no media until Meet has confirmed the Core decision."""

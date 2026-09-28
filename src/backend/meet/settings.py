@@ -527,9 +527,6 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
-    MASTRAO_GUEST_INVITATION_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_GUEST_INVITATION_ENABLED", environ_prefix=None
-    )
     MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT", environ_prefix=None
     )
