@@ -23,7 +23,7 @@ i18n
     supportedLngs: SUPPORTED_LANGUAGES,
     fallbackLng,
     ns: i18nDefaultNamespace,
-    detection: languageDetectionOptions(window.location),
+    detection: languageDetectionOptions(),
     interpolation: {
       escapeValue: false,
     },

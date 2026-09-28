@@ -1,49 +1,55 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import i18next from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import {
   FALLBACK_LANGUAGE,
   LANGUAGE_COOKIE,
   SUPPORTED_LANGUAGES,
+  languageCookie,
   languageDetectionOptions,
   sharedCookieDomain,
 } from './languageDetection'
+import { setInterfaceLanguage } from './setInterfaceLanguage'
+
+const setBrowserLanguages = (languages: string[]) => {
+  vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(languages)
+  vi.spyOn(window.navigator, 'language', 'get').mockReturnValue(
+    languages[0] ?? ''
+  )
+}
 
 const detect = async (browserLanguages: string[]) => {
-  Object.defineProperty(window.navigator, 'languages', {
-    value: browserLanguages,
-    configurable: true,
-  })
+  setBrowserLanguages(browserLanguages)
   const instance = i18next.createInstance()
   await instance.use(LanguageDetector).init({
     supportedLngs: SUPPORTED_LANGUAGES,
     fallbackLng: FALLBACK_LANGUAGE,
     resources: {},
-    detection: languageDetectionOptions({
-      hostname: 'localhost',
-      protocol: 'http:',
-    }),
+    detection: languageDetectionOptions(),
   })
   return instance.language
 }
 
-const clearCookie = () => {
-  document.cookie = `${LANGUAGE_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
-}
+const readLanguageCookie = () =>
+  document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith(`${LANGUAGE_COOKIE}=`))
 
 afterEach(() => {
-  clearCookie()
-  window.localStorage?.clear()
+  vi.restoreAllMocks()
+  document.cookie = `${LANGUAGE_COOKIE}=; max-age=0; path=/`
 })
 
 describe('interface language detection', () => {
   it('uses the first supported browser language, ignoring the region', async () => {
     expect(await detect(['nl-BE', 'fr-BE', 'en'])).toBe('nl')
-    clearCookie()
-    window.localStorage?.clear()
+  })
+
+  it('skips unsupported languages', async () => {
     expect(await detect(['es-ES', 'de-CH'])).toBe('de')
-    clearCookie()
-    window.localStorage?.clear()
+  })
+
+  it('keeps the first language even when a later one matches exactly', async () => {
     expect(await detect(['de-CH', 'en'])).toBe('de')
   })
 
@@ -56,9 +62,51 @@ describe('interface language detection', () => {
     expect(await detect(['fr-FR'])).toBe('de')
   })
 
-  it('stores the resolved language in the shared cookie', async () => {
+  it('never stores a detected language', async () => {
     await detect(['fr-FR'])
-    expect(document.cookie).toContain(`${LANGUAGE_COOKIE}=fr`)
+    expect(readLanguageCookie()).toBeUndefined()
+  })
+
+  it('ignores the legacy localStorage guess', async () => {
+    const getItem = vi.fn(() => 'fr')
+    vi.stubGlobal('localStorage', { getItem, setItem: vi.fn() })
+    expect(await detect(['nl-BE'])).toBe('nl')
+    expect(getItem).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('setInterfaceLanguage', () => {
+  it('stores an explicit choice in the shared cookie', async () => {
+    const changeLanguage = vi
+      .spyOn(i18next, 'changeLanguage')
+      .mockResolvedValue((() => '') as never)
+    await setInterfaceLanguage('nl')
+    expect(readLanguageCookie()).toBe(`${LANGUAGE_COOKIE}=nl`)
+    expect(changeLanguage).toHaveBeenCalledWith('nl')
+  })
+
+  it('ignores unsupported languages', async () => {
+    const changeLanguage = vi.spyOn(i18next, 'changeLanguage')
+    await setInterfaceLanguage('es')
+    expect(readLanguageCookie()).toBeUndefined()
+    expect(changeLanguage).not.toHaveBeenCalled()
+  })
+})
+
+describe('languageCookie', () => {
+  it('shares the choice with the parent domain over HTTPS', () => {
+    expect(
+      languageCookie('de', { hostname: 'meet.mastrao.com', protocol: 'https:' })
+    ).toBe(
+      `${LANGUAGE_COOKIE}=de; path=/; max-age=31536000; samesite=lax; domain=.mastrao.com; secure`
+    )
+  })
+
+  it('stays host-only on localhost', () => {
+    expect(
+      languageCookie('fr', { hostname: 'localhost', protocol: 'http:' })
+    ).toBe(`${LANGUAGE_COOKIE}=fr; path=/; max-age=31536000; samesite=lax`)
   })
 })
 
