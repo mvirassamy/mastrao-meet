@@ -1,0 +1,275 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reconcile-native-transcription
+  namespace: mastrao-staging
+  labels:
+    app.kubernetes.io/name: worker-native
+    mastrao.com/component: worker-native
+    mastrao.com/role: native-reconciler
+spec:
+  schedule: "* * * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 45
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  suspend: false
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 180
+      ttlSecondsAfterFinished: 300
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: worker-native
+            mastrao.com/component: worker-native
+            mastrao.com/role: native-reconciler
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - name: worker-native-reconciler
+            image: rg.fr-par.scw.cloud/mastrao-staging/meet-backend@sha256:67d5dba2d14d2e23cd4f82c21861445c1dda9d4a0a225abe77e6890320074b02
+            imagePullPolicy: IfNotPresent
+            command:
+            - "/app/.venv/bin/python"
+            - manage.py
+            - reconcile_mastrao_recordings
+            - "--native-only"
+            - "--limit"
+            - '2'
+            env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: meet.settings
+            - name: DJANGO_CONFIGURATION
+              value: Production
+            - name: DJANGO_ALLOWED_HOSTS
+              value: meet.mastrao-staging.com,meet-api,localhost
+            - name: DJANGO_CSRF_TRUSTED_ORIGINS
+              value: https://meet.mastrao-staging.com
+            - name: APPLICATION_BASE_URL
+              value: https://meet.mastrao-staging.com
+            - name: MEDIA_BASE_URL
+              value: https://meet.mastrao-staging.com
+            - name: CELERY_ENABLED
+              value: 'True'
+            - name: PYTHONDONTWRITEBYTECODE
+              value: '1'
+            - name: LIVEKIT_API_URL
+              value: http://livekit-signal.mastrao-staging.svc.cluster.local:7880
+            - name: LIVEKIT_PUBLIC_URL
+              value: wss://rtc.mastrao-staging.com
+            - name: MASTRAO_PLATFORM_ORIGIN
+              value: https://app.mastrao-staging.com
+            - name: MASTRAO_ROOM_ADAPTER_ENABLED
+              value: 'False'
+            - name: MASTRAO_HOST_HANDOFF_ENABLED
+              value: 'False'
+            - name: MASTRAO_GUEST_INVITATION_ENABLED
+              value: 'True'
+            - name: MASTRAO_MEETING_CLOSE_ENABLED
+              value: 'False'
+            - name: MASTRAO_MEETING_RECORDING_ENABLED
+              value: 'True'
+            - name: MASTRAO_MEETING_RECORDING_START_ENABLED
+              value: 'False'
+            - name: MASTRAO_MEETING_RECORDING_PRODUCT_EXPOSURE_ENABLED
+              value: 'True'
+            - name: MASTRAO_MEETING_TRANSCRIPTION_ENABLED
+              value: 'False'
+            - name: MASTRAO_MEDIA_TOKEN_BINDING_ENABLED
+              value: 'True'
+            - name: MASTRAO_NATIVE_PREENTRY_ENABLED
+              value: 'True'
+            - name: MASTRAO_NATIVE_CAPTURE_START_ENABLED
+              value: 'True'
+            - name: MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED
+              value: 'True'
+            - name: MASTRAO_NATIVE_ASR_ENABLED
+              value: 'True'
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: DJANGO_SECRET_KEY
+                  name: mastrao-meet-runtime-v1
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_URL
+                  name: mastrao-meet-runtime-v1
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  key: CELERY_BROKER_URL
+                  name: mastrao-meet-runtime-v1
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  key: REDIS_URL
+                  name: mastrao-meet-runtime-v1
+            - name: AWS_S3_ENDPOINT_URL
+              value: https://s3.fr-par.scw.cloud
+            - name: AWS_S3_REGION_NAME
+              value: fr-par
+            - name: AWS_STORAGE_BUCKET_NAME
+              value: mastrao-staging-meet-egress-captures
+            - name: AWS_S3_SIGNATURE_VERSION
+              value: s3v4
+            - name: AWS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_S3_ACCESS_KEY_ID
+                  name: mastrao-meet-s3-v1
+            - name: AWS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_S3_SECRET_ACCESS_KEY
+                  name: mastrao-meet-s3-v1
+            - name: MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT
+              value: "/var/lib/mastrao-native-spool"
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: LIVEKIT_API_KEY
+                  name: mastrao-livekit-api-v1
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: LIVEKIT_API_SECRET
+                  name: mastrao-livekit-api-v1
+            - name: MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT
+              value: http://asr-gateway:8787/v1/native/transcribe
+            - name: MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: ASR_GATEWAY_AUTH_TOKEN
+                  name: mastrao-asr-workload-v1
+            - name: MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/capture/native/notice
+            - name: MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/capture/native/observed
+            - name: MASTRAO_CORE_NATIVE_SOURCE_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/capture/native/source
+            - name: MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/capture/native/asr/prepare
+            - name: MASTRAO_CORE_NATIVE_ASR_RESULT_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/capture/native/asr/result
+            - name: MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/recording/session-status
+            - name: MASTRAO_CORE_RECORDING_DECISION_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/recording/decisions
+            - name: MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/transcription/decisions
+            - name: MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/guest-invitations/redeem
+            - name: MASTRAO_CORE_GUEST_DECISION_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/guest-admissions/decide
+            - name: MASTRAO_CORE_GUEST_CONFIRM_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/guest-admissions/confirm
+            - name: MASTRAO_CORE_GUEST_MEDIA_ENDPOINT
+              value: http://cabinet-core:8080/internal/v1/meetings/guest-media/authorize
+            - name: MASTRAO_RECORDING_NOTICE_VERSION
+              value: synthetic_recording_notice_20260915
+            - name: MASTRAO_RECORDING_NOTICE_DIGEST
+              value: 7ee9704ea65b7ba6dfb327af36bdf049b5fe101917c29a8a269bc6961d984eb4
+            - name: MASTRAO_RECORDING_REGION_REF
+              value: fr-par
+            - name: MASTRAO_RECORDING_STORAGE_BINDING_DIGEST
+              value: 1326e7d2381d354dd6f340f9cb38db658ca0e3029a65e07e4d5c1d7cf0bc51c9
+            - name: MASTRAO_RECORDING_ENCRYPTION_REF
+              value: synthetic_tls_transport_v1
+            - name: MASTRAO_RECORDING_LIFECYCLE_POLICY_REF
+              value: synthetic_manual_cleanup_v1
+            - name: MASTRAO_RECORDING_EFFECT_ISSUER
+              value: mastrao-core-staging
+            - name: MASTRAO_RECORDING_EFFECT_AUDIENCE
+              value: mastrao-meet-staging
+            - name: MASTRAO_RECORDING_EFFECT_KEY_ID
+              value: mastrao-staging-core-recording-f8a4963b8cf110b4ff672a9c
+            - name: MASTRAO_RECORDING_EFFECT_PUBLIC_JWK
+              value: '{"alg":"EdDSA","crv":"Ed25519","kid":"mastrao-staging-core-recording-f8a4963b8cf110b4ff672a9c","kty":"OKP","use":"sig","x":"3T_WT__QwHu7YaP8Q15SZyOzLhTYt9EwyWoEt5Q7-Go"}'
+            - name: MASTRAO_RECORDING_RECEIPT_ISSUER
+              value: mastrao-meet-staging
+            - name: MASTRAO_RECORDING_RECEIPT_AUDIENCE
+              value: mastrao-core-staging
+            - name: MASTRAO_RECORDING_RECEIPT_KEY_ID
+              value: mastrao-staging-meet-recording-receipt-57195bf6a0bd336440b14d04
+            - name: MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK
+              valueFrom:
+                secretKeyRef:
+                  key: MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK
+                  name: mastrao-meet-recording-receipt-v1
+            resources:
+              limits:
+                cpu: '1'
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: "/etc/mastrao/postgres"
+              name: postgres-ca
+              readOnly: true
+            - mountPath: "/etc/mastrao/redis"
+              name: redis-ca
+              readOnly: true
+            - mountPath: "/tmp"
+              name: tmp
+            - mountPath: "/var/lib/mastrao-native-spool"
+              name: native-spool
+          dnsConfig:
+            options:
+            - name: ndots
+              value: '1'
+          dnsPolicy: ClusterFirst
+          hostAliases:
+          - hostnames:
+            - rw-e8b46a5c-1a87-4b0d-87e1-9cab1ef11f39.rdb.fr-par.scw.cloud
+            ip: 172.16.8.8
+          - hostnames:
+            - redis-meet.mastrao-staging.svc.cluster.local
+            ip: 10.32.9.61
+          imagePullSecrets:
+          - name: mastrao-registry-pull-v1
+          nodeSelector:
+            kubernetes.io/arch: amd64
+            kubernetes.io/hostname: scw-k8s-par-thirsty-cray-capture-00c4bd088b9e4
+            mastrao.com/node-pool: capture
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: worker-native
+          terminationGracePeriodSeconds: 90
+          tolerations:
+          - effect: NoSchedule
+            key: mastrao.com/dedicated
+            operator: Equal
+            value: capture
+          volumes:
+          - configMap:
+              defaultMode: 420
+              name: mastrao-core-migration-ca-v1
+            name: postgres-ca
+          - configMap:
+              defaultMode: 420
+              name: mastrao-meet-redis-ca-v1
+            name: redis-ca
+          - emptyDir:
+              medium: Memory
+              sizeLimit: 64Mi
+            name: tmp
+          - name: native-spool
+            persistentVolumeClaim:
+              claimName: native-spool-rwo

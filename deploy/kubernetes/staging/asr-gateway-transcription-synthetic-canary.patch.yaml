@@ -1,0 +1,8 @@
+spec:
+  template:
+    spec:
+      containers:
+        - name: asr-gateway
+          env:
+            - name: ASR_GATEWAY_NATIVE_TEST_DATA_ONLY
+              value: "true"

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-28: Add reviewable staging patches to activate and roll back the
+  synthetic-only native transcription canary without opening beta-user audio.
+
 - 2026-09-28: Share canonical rooms through a host-bound guest invitation URL
   instead of the raw room URL, while preserving ordinary room sharing and
   failing closed when the secure link is unavailable.

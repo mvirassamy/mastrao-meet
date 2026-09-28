@@ -15,3 +15,52 @@ kubectl --context "$KUBE_CONTEXT" apply \
 
 Review `kubectl diff` against the same file before the supervised apply. A Meet
 image rollout updates only the Deployments and must leave this policy intact.
+
+## Synthetic transcription canary
+
+The three `*-transcription-synthetic-canary.patch.yaml` files are strategic
+merge patches for the staging workloads involved in native transcription. They
+enable capture, native source transfer and native ASR while keeping the legacy
+transcription worker disabled and the gateway restricted to synthetic test
+data. Keeping `MASTRAO_MEETING_TRANSCRIPTION_ENABLED=False` is deliberate: the
+staging gateway is native-only, and enabling that legacy switch makes the
+deployable Django settings require the incompatible `/v1/transcribe` pipeline.
+These patches must not be used for beta-user audio while
+`ASR_GATEWAY_NATIVE_TEST_DATA_ONLY=true`.
+
+Render every document against the live API before applying it with
+`kubectl patch --type=strategic --dry-run=server`. Apply the documents one at a
+time, wait for `meet-api`, `worker-native`, and `asr-gateway` to complete their
+rollouts, then qualify the exact native network path from the new
+`worker-native` pod:
+
+```bash
+worker_native_pod="$(
+  kubectl --context "$KUBE_CONTEXT" -n mastrao-staging get pod \
+    -l app.kubernetes.io/name=worker-native \
+    -o jsonpath='{.items[0].metadata.name}'
+)"
+kubectl --context "$KUBE_CONTEXT" -n mastrao-staging exec \
+  "$worker_native_pod" -- python -c \
+  'import sys,urllib.request; response = urllib.request.urlopen("http://asr-gateway:8787/healthz", timeout=5); sys.stdout.write(f"{response.status} {response.read().decode()}\n")'
+```
+
+Continue only when this returns `200 {"ok":true,"stub":false}`. The legacy
+`meet-api` and `worker-general` paths are not substitutes for this check.
+Cilium deliberately refuses gateway DNS and port 8787 egress from those
+workloads. Only `worker-native` may resolve and call `asr-gateway`, whose
+ingress is restricted to that worker. Therefore a gateway probe from
+`meet-api` cannot qualify this canary, and its expected failure does not
+justify enabling the legacy switch or widening the API policy.
+After this preflight, run only the owned synthetic transcription journey.
+
+The canary also requires
+`reconcile-native-transcription-synthetic-canary.cronjob.yaml`. It runs the
+native-only reconciliation once per minute with the `worker-native` workload
+identity. This is what recovers a missed broker wake-up, observes stopped
+LiveKit captures, and dispatches source-transfer and ASR tasks to the existing
+native worker. Validate it with `kubectl apply --dry-run=server` before applying
+it. Remove that CronJob during rollback.
+
+If the canary fails, apply the two `*-rollback.patch.yaml` files. The rollback
+deliberately leaves the gateway's synthetic-data-only guard enabled.
