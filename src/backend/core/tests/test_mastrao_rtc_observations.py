@@ -26,7 +26,7 @@ ENDPOINT = "/api/v1.0/rooms/webhooks-livekit/"
 
 @pytest.fixture(autouse=True)
 def isolated_settings(settings):
-    settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = True
+    settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = True
     settings.LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX = ""
     settings.LIVEKIT_CONFIGURATION = {
         "api_key": "test_api_key",
@@ -207,7 +207,7 @@ def test_incomplete_canonical_fact_is_not_acknowledged(client, settings, event, 
 
 
 def test_flag_off_retains_existing_behavior(client, settings, event):
-    settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = False
+    settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = False
     assert _post(client, settings, event).status_code == 200
     assert not models.MastraoRtcObservation.objects.exists()
 

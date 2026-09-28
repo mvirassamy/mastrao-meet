@@ -255,7 +255,7 @@ def test_refused_or_unaccepted_core_close_does_not_create_local_fence(status):
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_ROOM_ADAPTER_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
@@ -300,7 +300,7 @@ def test_close_tombstones_deletes_and_replays_without_second_provider_call():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_ROOM_ADAPTER_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     ROOM_TELEPHONY_ENABLED=False,
     ROOMKIT_ENABLED=False,
@@ -331,7 +331,7 @@ def test_provider_failure_keeps_pending_tombstone_that_blocks_creation():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_ROOM_ADAPTER_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
     ROOM_TELEPHONY_ENABLED=False,
@@ -399,7 +399,7 @@ def test_already_aborted_recording_does_not_block_room_close():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_ROOM_ADAPTER_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
     ROOM_TELEPHONY_ENABLED=False,
@@ -434,7 +434,7 @@ def test_missing_provider_room_is_a_successful_idempotent_close():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_ROOM_ADAPTER_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
@@ -467,7 +467,7 @@ def test_accepted_close_effect_reconciles_without_a_product_flag():
     assert models.MastraoRoomClosure.objects.filter(room_binding=binding).exists()
 
 
-@override_settings(MASTRAO_ROOM_ADAPTER_ENABLED=False)
+@override_settings(MASTRAO_MEETING_INTEGRATION_CONFIGURED=False)
 def test_close_adapter_refuses_effects_when_room_adapter_is_disabled():
     """The global room adapter kill switch also closes the destructive endpoint."""
 

@@ -110,7 +110,7 @@ def fixture_adapter_settings():
     command_private, command_jwks = _jwk_pair()
     _receipt_private, receipt_jwks = _jwk_pair()
     settings_override = override_settings(
-        MASTRAO_ROOM_ADAPTER_ENABLED=True,
+        MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
         MASTRAO_ROOM_EFFECT_ISSUER="cabinet-core-local",
         MASTRAO_ROOM_EFFECT_AUDIENCE="mastrao-meet-local",
         MASTRAO_ROOM_EFFECT_PUBLIC_JWK=command_jwks["public"],
@@ -214,7 +214,7 @@ def test_adapter_refuses_disabled_or_tampered_effect(client, adapter_settings):
     assert response.status_code == 404
     assert not MastraoRoomBinding.objects.exists()
 
-    with override_settings(MASTRAO_ROOM_ADAPTER_ENABLED=False):
+    with override_settings(MASTRAO_MEETING_INTEGRATION_CONFIGURED=False):
         disabled = client.post(
             url,
             data=json.dumps({"room_effect": token}),

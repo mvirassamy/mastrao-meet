@@ -533,7 +533,7 @@ def test_host_platform_return_rejects_a_grant_binding_mismatch():
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     APPLICATION_BASE_URL="https://meet.mastrao.test",
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_host_handoff_creates_session_bound_grant_without_durable_access(client):
@@ -638,7 +638,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_exact_host_can_end_and_retry_after_tombstone(client):
@@ -724,7 +724,7 @@ def test_exact_host_can_end_and_retry_after_tombstone(client):
     ["provider_digest", "access_level", "device_owner", "owner_access"],
 )
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_host_handoff_refuses_room_binding_drift(client, drift):
@@ -764,7 +764,7 @@ def test_host_handoff_refuses_room_binding_drift(client, drift):
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_host_handoff_refuses_wrong_origin_and_local_replay(client):
@@ -806,7 +806,7 @@ def test_host_handoff_refuses_wrong_origin_and_local_replay(client):
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_lost_session_save_requires_and_accepts_a_fresh_remint():
@@ -869,7 +869,7 @@ def test_lost_session_save_requires_and_accepts_a_fresh_remint():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_core_consume_loss_before_local_commit_requires_a_fresh_remint(client):
@@ -922,7 +922,7 @@ def test_core_consume_loss_before_local_commit_requires_a_fresh_remint(client):
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_same_host_keeps_grants_for_two_meetings_in_one_session(client):
@@ -1000,7 +1000,7 @@ def test_same_host_keeps_grants_for_two_meetings_in_one_session(client):
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
     SESSION_ENGINE="django.contrib.sessions.backends.db",
 )
@@ -1060,7 +1060,7 @@ def test_new_platform_session_invalidates_previous_grants(client):
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_inactive_host_identity_is_refused(client):
@@ -1094,7 +1094,7 @@ def test_inactive_host_identity_is_refused(client):
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_concurrent_host_handoff_has_one_local_winner():

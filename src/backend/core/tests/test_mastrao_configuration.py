@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from types import SimpleNamespace
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -12,6 +13,7 @@ import pytest
 from meet import settings as meet_settings
 from meet.settings import (
     redis_url_with_database,
+    resolve_mastrao_meeting_integration,
     validate_mastrao_meeting_close_configuration,
     validate_mastrao_transcription_configuration,
 )
@@ -97,8 +99,8 @@ def test_settings_boot_refuses_room_adapter_without_explicit_room_creation():
         **os.environ,
         "DJANGO_CONFIGURATION": "Development",
         "DJANGO_SETTINGS_MODULE": "meet.settings",
-        "MASTRAO_ROOM_ADAPTER_ENABLED": "True",
         "LIVEKIT_EXPLICIT_ROOM_CREATION": "False",
+        **dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, "configured"),
     }
     result = subprocess.run(
         [
@@ -109,7 +111,7 @@ def test_settings_boot_refuses_room_adapter_without_explicit_room_creation():
                 "importer.install(); "
                 "from django.conf import settings; "
                 "import sys; "
-                "sys.stdout.write(str(settings.MASTRAO_ROOM_ADAPTER_ENABLED))"
+                "sys.stdout.write(str(settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED))"
             ),
         ],
         check=False,
@@ -121,6 +123,38 @@ def test_settings_boot_refuses_room_adapter_without_explicit_room_creation():
 
     assert result.returncode != 0
     assert "LIVEKIT_EXPLICIT_ROOM_CREATION=true" in result.stderr
+
+
+def test_meeting_integration_is_absent_when_no_contract_value_is_configured():
+    """The upstream fork remains valid without the Mastrao integration."""
+
+    configuration = SimpleNamespace(
+        **dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, "")
+    )
+
+    assert resolve_mastrao_meeting_integration(configuration) is False
+
+
+def test_meeting_integration_refuses_partial_configuration():
+    """One configured contract value must never create a partial runtime."""
+
+    configuration = SimpleNamespace(
+        **dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, "")
+    )
+    configuration.MASTRAO_ROOM_EFFECT_ISSUER = "https://core.mastrao.test"
+
+    with pytest.raises(ImproperlyConfigured, match="Incomplete Mastrao meeting"):
+        resolve_mastrao_meeting_integration(configuration)
+
+
+def test_meeting_integration_accepts_complete_base_contract():
+    """A complete configuration atomically enables every base contract path."""
+
+    configuration = SimpleNamespace(
+        **dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, "configured")
+    )
+
+    assert resolve_mastrao_meeting_integration(configuration) is True
 
 
 @pytest.mark.parametrize(

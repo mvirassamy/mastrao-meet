@@ -76,6 +76,45 @@ MASTRAO_HANDOFF_CREDENTIAL_HEADERS = {
     "x-mastrao-transcription-egress-grant",
 }
 
+MASTRAO_BASE_CONTRACT_SETTINGS = (
+    "MASTRAO_ROOM_EFFECT_ISSUER",
+    "MASTRAO_ROOM_EFFECT_AUDIENCE",
+    "MASTRAO_ROOM_EFFECT_PUBLIC_JWK",
+    "MASTRAO_ROOM_EFFECT_KEY_ID",
+    "MASTRAO_ROOM_RECEIPT_ISSUER",
+    "MASTRAO_ROOM_RECEIPT_AUDIENCE",
+    "MASTRAO_ROOM_RECEIPT_PRIVATE_JWK",
+    "MASTRAO_ROOM_RECEIPT_KEY_ID",
+    "MASTRAO_PLATFORM_ORIGIN",
+    "MASTRAO_CORE_REDEMPTION_ENDPOINT",
+    "MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT",
+    "MASTRAO_CORE_GUEST_DECISION_ENDPOINT",
+    "MASTRAO_CORE_GUEST_CONFIRM_ENDPOINT",
+    "MASTRAO_CORE_GUEST_MEDIA_ENDPOINT",
+    "MASTRAO_CORE_MEETING_CLOSE_ENDPOINT",
+)
+MASTRAO_BASE_CONTRACT_SENTINELS = tuple(
+    name for name in MASTRAO_BASE_CONTRACT_SETTINGS if name != "MASTRAO_PLATFORM_ORIGIN"
+)
+
+
+def resolve_mastrao_meeting_integration(configuration):
+    """Derive one atomic base contract from its complete configuration."""
+
+    configured = {
+        name: isinstance(getattr(configuration, name, None), str)
+        and bool(getattr(configuration, name).strip())
+        for name in MASTRAO_BASE_CONTRACT_SETTINGS
+    }
+    if not any(configured[name] for name in MASTRAO_BASE_CONTRACT_SENTINELS):
+        return False
+    missing = sorted(name for name, present in configured.items() if not present)
+    if missing:
+        raise ImproperlyConfigured(
+            "Incomplete Mastrao meeting integration; missing " + ", ".join(missing)
+        )
+    return True
+
 
 def validate_mastrao_meeting_close_configuration(
     room_adapter_enabled, explicit_creation
@@ -84,7 +123,7 @@ def validate_mastrao_meeting_close_configuration(
 
     if room_adapter_enabled and not explicit_creation:
         raise ImproperlyConfigured(
-            "MASTRAO_ROOM_ADAPTER_ENABLED requires LIVEKIT_EXPLICIT_ROOM_CREATION=true"
+            "MASTRAO_MEETING_INTEGRATION_CONFIGURED requires LIVEKIT_EXPLICIT_ROOM_CREATION=true"
         )
 
 
@@ -253,9 +292,7 @@ class Base(Configuration):
 
     # Opt-in internal boundary used by Mastrao Cabinet Core. The endpoint stays
     # closed unless the full signed room-effect configuration is provided.
-    MASTRAO_ROOM_ADAPTER_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_ROOM_ADAPTER_ENABLED", environ_prefix=None
-    )
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED = False
     MASTRAO_ROOM_EFFECT_ISSUER = values.Value(
         "", environ_name="MASTRAO_ROOM_EFFECT_ISSUER", environ_prefix=None
     )
@@ -466,12 +503,6 @@ class Base(Configuration):
         "",
         environ_name="MASTRAO_RECORDING_LIFECYCLE_POLICY_REF",
         environ_prefix=None,
-    )
-    MASTRAO_HOST_HANDOFF_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_HOST_HANDOFF_ENABLED", environ_prefix=None
-    )
-    MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_MEDIA_TOKEN_BINDING_ENABLED", environ_prefix=None
     )
     # Admission only. Disabling must not disable reconciliation of accepted starts.
     MASTRAO_NATIVE_CAPTURE_START_ENABLED = values.BooleanValue(
@@ -1673,8 +1704,11 @@ class Base(Configuration):
         """
         super().post_setup()
 
+        cls.MASTRAO_MEETING_INTEGRATION_CONFIGURED = (
+            resolve_mastrao_meeting_integration(cls)
+        )
         validate_mastrao_meeting_close_configuration(
-            cls.MASTRAO_ROOM_ADAPTER_ENABLED,
+            cls.MASTRAO_MEETING_INTEGRATION_CONFIGURED,
             cls.LIVEKIT_EXPLICIT_ROOM_CREATION,
         )
 

@@ -22,7 +22,7 @@ from core.mastrao_room_contract import (
 def ensure_mastrao_room(request):
     """Create or find one restricted room from a signed exact effect."""
 
-    if not settings.MASTRAO_ROOM_ADAPTER_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return JsonResponse({"message": "Not found"}, status=404)
     declared_length = request.headers.get("content-length")
     try:
