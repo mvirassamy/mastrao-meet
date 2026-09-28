@@ -225,7 +225,8 @@ export const SidePanel = () => {
     activeKey: activePanelId,
   })
 
-  if (isLiveTranscriptOpen && !isLiveTranscriptPanelEnabled(data)) {
+  const liveTranscriptPanelEnabled = isLiveTranscriptPanelEnabled(data)
+  if (isLiveTranscriptOpen && !liveTranscriptPanelEnabled) {
     return null
   }
 
@@ -263,9 +264,11 @@ export const SidePanel = () => {
       <Panel isOpen={isInfoOpen}>
         <Info />
       </Panel>
-      <Panel isOpen={isLiveTranscriptOpen} keepAlive={true}>
-        <LiveTranscriptPanel />
-      </Panel>
+      {liveTranscriptPanelEnabled && (
+        <Panel isOpen={isLiveTranscriptOpen} keepAlive={true}>
+          <LiveTranscriptPanel />
+        </Panel>
+      )}
     </StyledSidePanel>
   )
 }

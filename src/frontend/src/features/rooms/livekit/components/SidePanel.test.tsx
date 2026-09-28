@@ -107,4 +107,21 @@ describe('SidePanel live transcript visibility', () => {
     expect(screen.getByRole('complementary')).not.toBeNull()
     expect(screen.getByTestId('live-transcript-panel')).not.toBeNull()
   })
+
+  it('never keeps the live panel alive behind another panel when disabled', () => {
+    mockUseSidePanel.mockReturnValue({
+      ...liveTranscriptPanelState,
+      activePanelId: 'chat',
+      isChatOpen: true,
+      isLiveTranscriptOpen: false,
+    })
+    mockUseConfig.mockReturnValue({
+      data: { subtitle: { live_transcript_panel_enabled: false } },
+    })
+
+    render(<SidePanel />)
+
+    expect(screen.getByRole('complementary')).not.toBeNull()
+    expect(screen.queryByTestId('live-transcript-panel')).toBeNull()
+  })
 })
