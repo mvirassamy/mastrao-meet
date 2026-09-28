@@ -5,7 +5,7 @@ spec:
         - name: worker-native
           env:
             - name: MASTRAO_MEETING_TRANSCRIPTION_ENABLED
-              value: "True"
+              value: "False"
             - name: MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED
               value: "True"
             - name: MASTRAO_NATIVE_ASR_ENABLED

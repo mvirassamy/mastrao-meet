@@ -20,8 +20,12 @@ image rollout updates only the Deployments and must leave this policy intact.
 
 The three `*-transcription-synthetic-canary.patch.yaml` files are strategic
 merge patches for the staging workloads involved in native transcription. They
-enable capture and ASR while keeping the gateway restricted to synthetic test
-data. They must not be used for beta-user audio while
+enable capture, native source transfer and native ASR while keeping the legacy
+transcription worker disabled and the gateway restricted to synthetic test
+data. Keeping `MASTRAO_MEETING_TRANSCRIPTION_ENABLED=False` is deliberate: the
+staging gateway is native-only, and enabling that legacy switch makes the
+deployable Django settings require the incompatible `/v1/transcribe` pipeline.
+These patches must not be used for beta-user audio while
 `ASR_GATEWAY_NATIVE_TEST_DATA_ONLY=true`.
 
 Render every document against the live API before applying it with

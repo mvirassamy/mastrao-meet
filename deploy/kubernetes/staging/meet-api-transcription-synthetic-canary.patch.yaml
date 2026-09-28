@@ -7,4 +7,4 @@ spec:
             - name: MASTRAO_MEETING_RECORDING_START_ENABLED
               value: "True"
             - name: MASTRAO_MEETING_TRANSCRIPTION_ENABLED
-              value: "True"
+              value: "False"
