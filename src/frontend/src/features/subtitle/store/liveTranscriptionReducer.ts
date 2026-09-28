@@ -11,7 +11,8 @@ export const createLiveTranscriptionState = (
   roomId: string
 ): LiveTranscriptionState => ({
   roomId,
-  status: 'inactive',
+  status: 'unknown',
+  connectionStatus: 'connected',
   segments: [],
   gaps: [],
   truncated: false,
@@ -140,6 +141,8 @@ export const liveTranscriptionReducer = (
       return createLiveTranscriptionState(action.roomId)
     case 'status':
       return { ...state, status: action.status }
+    case 'connection':
+      return { ...state, connectionStatus: action.status }
     case 'gap':
       if (state.gaps.some((gap) => gap.id === action.gap.id)) return state
       return { ...state, gaps: [...state.gaps, action.gap], status: 'degraded' }

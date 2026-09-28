@@ -32,6 +32,27 @@ const ingest = (
   })
 
 describe('liveTranscriptionReducer', () => {
+  it.each(['inactive', 'stopped', 'live'] as const)(
+    'keeps collective status %s separate from media reconnection',
+    (status) => {
+      let state = liveTranscriptionReducer(
+        createLiveTranscriptionState('room-1'),
+        { type: 'status', status }
+      )
+      state = liveTranscriptionReducer(state, {
+        type: 'connection',
+        status: 'reconnecting',
+      })
+      state = liveTranscriptionReducer(state, {
+        type: 'connection',
+        status: 'connected',
+      })
+
+      expect(state.status).toBe(status)
+      expect(state.connectionStatus).toBe('connected')
+    }
+  )
+
   it('applies interim revisions and replaces them with an immutable final', () => {
     let state = createLiveTranscriptionState('room-1')
     state = ingest(state, [segment({ revision: 0, text: 'bon' })])

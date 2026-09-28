@@ -1,6 +1,9 @@
 export { LiveTranscriptionProvider } from './LiveTranscriptionProvider'
 export { useLiveTranscription } from './liveTranscriptionContext'
-export { getParticipantForTranscription } from './liveTranscriptionParticipants'
+export {
+  getParticipantForTrack,
+  getParticipantForTranscription,
+} from './liveTranscriptionParticipants'
 export {
   createLiveTranscriptionState,
   getLiveTranscriptionSegmentKey,

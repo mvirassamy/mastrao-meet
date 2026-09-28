@@ -3,25 +3,27 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type ReactNode,
 } from 'react'
 import { useRoomContext } from '@livekit/components-react'
 import { RoomEvent } from 'livekit-client'
+import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
+import { fetchSubtitleState } from '../api/fetchSubtitleState'
 import {
-  parseLiveTranscriptionGapStream,
   readLiveTranscriptionStream,
-  toLegacyTranscriptionEvent,
+  parseLiveTranscriptionGapStream,
 } from './liveTranscriptionContract'
 import {
   createLiveTranscriptionState,
   liveTranscriptionReducer,
 } from './liveTranscriptionReducer'
+import { getParticipantForTrack } from './liveTranscriptionParticipants'
 import {
   LIVE_TRANSCRIPTION_GAP_TOPIC,
   LIVE_TRANSCRIPTION_TOPIC,
-  type LiveTranscriptionEventHandler,
-  type LiveTranscriptionState,
   type LiveTranscriptionTextStreamReader,
+  type LiveTranscriptionTransportEvent,
 } from './liveTranscriptionTypes'
 import { LiveTranscriptionContext } from './liveTranscriptionContext'
 
@@ -34,31 +36,63 @@ export const LiveTranscriptionProvider = ({
   children: ReactNode
 }) => {
   const room = useRoomContext()
+  const apiRoomData = useRoomData()
   const roomId = getRoomId(room)
+  const subtitleRoomId = apiRoomData?.livekit?.room ?? roomId
+  const subtitleToken = apiRoomData?.livekit?.token
+  const subtitleRoomIdRef = useRef(subtitleRoomId)
+  const subtitleTokenRef = useRef(subtitleToken)
+  const subtitleStateRequestIdRef = useRef(0)
+  subtitleRoomIdRef.current = subtitleRoomId
+  subtitleTokenRef.current = subtitleToken
   const [state, dispatch] = useReducer(
     liveTranscriptionReducer,
     roomId,
     createLiveTranscriptionState
   )
 
-  const handleLegacyTranscription = useCallback<LiveTranscriptionEventHandler>(
-    (segments, participant, publication) => {
+  const syncSubtitleState = useCallback(async () => {
+    const requestId = ++subtitleStateRequestIdRef.current
+    const currentRoomId = subtitleRoomIdRef.current
+    const currentToken = subtitleTokenRef.current
+
+    if (!currentToken) {
+      dispatch({ type: 'status', status: 'unknown' })
+      return
+    }
+
+    try {
+      const response = await fetchSubtitleState(currentRoomId, currentToken)
+      if (requestId !== subtitleStateRequestIdRef.current) return
       dispatch({
-        type: 'ingest',
-        event: toLegacyTranscriptionEvent(segments, participant, publication),
+        type: 'status',
+        status: response.subtitle?.state ?? 'unknown',
       })
-    },
-    []
-  )
+    } catch {
+      if (requestId !== subtitleStateRequestIdRef.current) return
+      dispatch({ type: 'status', status: 'unknown' })
+    }
+  }, [])
 
   useEffect(() => {
+    subtitleStateRequestIdRef.current += 1
     dispatch({ type: 'reset', roomId })
 
-    const handleStatus = (status: LiveTranscriptionState['status']) =>
-      dispatch({ type: 'status', status })
-    const handleReconnecting = () => handleStatus('reconnecting')
-    const handleReconnected = () => handleStatus('live')
-    const handleDisconnected = () => dispatch({ type: 'reset', roomId })
+    const handleReconnecting = () =>
+      dispatch({ type: 'connection', status: 'reconnecting' })
+    const handleReconnected = () => {
+      dispatch({ type: 'connection', status: 'connected' })
+      void syncSubtitleState()
+    }
+    const handleDisconnected = () => {
+      subtitleStateRequestIdRef.current += 1
+      dispatch({ type: 'reset', roomId })
+      dispatch({ type: 'connection', status: 'disconnected' })
+    }
+    const ingestEvent = (event: LiveTranscriptionTransportEvent) => {
+      if (event.type === 'status') subtitleStateRequestIdRef.current += 1
+      dispatch({ type: 'ingest', event })
+    }
     const handleTextStream = async (
       reader: LiveTranscriptionTextStreamReader,
       participantInfo: { identity: string }
@@ -68,7 +102,26 @@ export const LiveTranscriptionProvider = ({
           reader,
           participantInfo.identity
         )
-        events.forEach((event) => dispatch({ type: 'ingest', event }))
+        events.forEach((event) => {
+          if (event.type !== 'segments') {
+            ingestEvent(event)
+            return
+          }
+          dispatch({
+            type: 'ingest',
+            event: {
+              type: 'segments',
+              segments: event.segments.map((segment) => ({
+                ...segment,
+                participantIdentity: getParticipantForTrack(
+                  room,
+                  segment.trackSid,
+                  segment.participantIdentity
+                ),
+              })),
+            },
+          })
+        })
       } catch {
         dispatch({
           type: 'gap',
@@ -92,7 +145,6 @@ export const LiveTranscriptionProvider = ({
       }
     }
 
-    room.on(RoomEvent.TranscriptionReceived, handleLegacyTranscription)
     room.on(RoomEvent.Reconnecting, handleReconnecting)
     room.on(RoomEvent.Reconnected, handleReconnected)
     room.on(RoomEvent.Disconnected, handleDisconnected)
@@ -103,16 +155,23 @@ export const LiveTranscriptionProvider = ({
     )
 
     return () => {
-      room.off(RoomEvent.TranscriptionReceived, handleLegacyTranscription)
       room.off(RoomEvent.Reconnecting, handleReconnecting)
       room.off(RoomEvent.Reconnected, handleReconnected)
       room.off(RoomEvent.Disconnected, handleDisconnected)
       room.unregisterTextStreamHandler(LIVE_TRANSCRIPTION_TOPIC)
       room.unregisterTextStreamHandler(LIVE_TRANSCRIPTION_GAP_TOPIC)
     }
-  }, [handleLegacyTranscription, room, roomId])
+  }, [room, roomId, syncSubtitleState])
 
-  const value = useMemo(() => ({ ...state, dispatch }), [state])
+  const hasSubtitleToken = Boolean(subtitleToken)
+  useEffect(() => {
+    void syncSubtitleState()
+  }, [roomId, hasSubtitleToken, syncSubtitleState])
+
+  const value = useMemo(
+    () => ({ ...state, dispatch, syncSubtitleState }),
+    [state, syncSubtitleState]
+  )
   return (
     <LiveTranscriptionContext.Provider value={value}>
       {children}

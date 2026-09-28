@@ -1,9 +1,3 @@
-import type {
-  Participant,
-  TrackPublication,
-  TranscriptionSegment,
-} from 'livekit-client'
-
 export const LIVE_TRANSCRIPTION_TOPIC = 'lk.transcription'
 // Versioned Mastrao topic on which the live worker publishes gap markers.
 export const LIVE_TRANSCRIPTION_GAP_TOPIC = 'mastrao.transcription.gap.v1'
@@ -12,13 +6,20 @@ export const MAX_FINAL_TRANSCRIPTION_SEGMENTS = 5_000
 export const MAX_ACTIVE_TRANSCRIPTION_SEGMENTS = 256
 
 export type LiveTranscriptionStatus =
+  | 'unknown'
   | 'inactive'
   | 'starting'
   | 'live'
   | 'reconnecting'
   | 'degraded'
   | 'unavailable'
+  | 'stopping'
   | 'stopped'
+
+export type LiveTranscriptionConnectionStatus =
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
 
 export type LiveTranscriptionSegmentState = 'interim' | 'final'
 export type LiveTranscriptionMetadataSource =
@@ -74,6 +75,7 @@ export interface LiveTranscriptionTextStreamReader {
 export interface LiveTranscriptionState {
   roomId: string
   status: LiveTranscriptionStatus
+  connectionStatus: LiveTranscriptionConnectionStatus
   segments: LiveTranscriptionSegment[]
   gaps: LiveTranscriptionGap[]
   truncated: boolean
@@ -84,10 +86,5 @@ export type LiveTranscriptionAction =
   | { type: 'reset'; roomId: string }
   | { type: 'ingest'; event: LiveTranscriptionTransportEvent }
   | { type: 'status'; status: LiveTranscriptionStatus }
+  | { type: 'connection'; status: LiveTranscriptionConnectionStatus }
   | { type: 'gap'; gap: LiveTranscriptionGap }
-
-export type LiveTranscriptionEventHandler = (
-  segments: TranscriptionSegment[],
-  participant?: Participant,
-  publication?: TrackPublication
-) => void

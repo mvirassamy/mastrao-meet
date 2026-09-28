@@ -6,6 +6,7 @@ import type {
 
 export type LiveTranscriptionContextValue = LiveTranscriptionState & {
   dispatch: (action: LiveTranscriptionAction) => void
+  syncSubtitleState: () => Promise<void>
 }
 
 export const LiveTranscriptionContext =

@@ -135,13 +135,15 @@ const toSegment = (
 const parseStatus = (value: Record<string, unknown>) => {
   const status = value.status
   if (
+    status === 'unknown' ||
     status === 'inactive' ||
     status === 'starting' ||
     status === 'live' ||
     status === 'reconnecting' ||
     status === 'degraded' ||
     status === 'unavailable' ||
-    status === 'stopped'
+    status === 'stopped' ||
+    status === 'stopping'
   ) {
     return status satisfies LiveTranscriptionStatus
   }
@@ -168,7 +170,8 @@ const parsePayload = (
   payload: unknown,
   attributes: Record<string, string>,
   senderIdentity: string,
-  streamId: string
+  streamId: string,
+  rawPayload: string
 ): LiveTranscriptionTransportEvent[] => {
   if (Array.isArray(payload)) {
     return [
@@ -188,8 +191,9 @@ const parsePayload = (
 
   const record = asRecord(payload)
   if (!record) {
+    const text = rawPayload
     const segment = toSegment(
-      { text: payload },
+      { text },
       attributes,
       senderIdentity,
       streamId,
@@ -246,8 +250,7 @@ const parsePayload = (
  * livekit-client 2.20.0 exposes lk.transcription through the generic text
  * stream API, not a typed transcription-stream helper. The Mastrao envelope
  * carries fields absent from the SDK segment model. Standard lk.* attributes
- * are used as a fallback; the legacy RoomEvent path remains a compatibility
- * bridge until publishers migrate fully to the envelope.
+ * are used as a fallback for the generic stream payload.
  */
 export const parseLiveTranscriptionStream = (
   payload: string,
@@ -256,7 +259,13 @@ export const parseLiveTranscriptionStream = (
   streamId = 'unknown-stream'
 ): LiveTranscriptionTransportEvent[] => {
   const parsed = parseJson(payload)
-  const events = parsePayload(parsed, attributes, senderIdentity, streamId)
+  const events = parsePayload(
+    parsed,
+    attributes,
+    senderIdentity,
+    streamId,
+    payload
+  )
   return events.length > 0 ? events : []
 }
 

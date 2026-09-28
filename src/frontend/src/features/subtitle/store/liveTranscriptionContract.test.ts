@@ -115,6 +115,43 @@ describe('live transcription contract', () => {
     })
   })
 
+  it.each(['2024', 'true', 'null'])(
+    'keeps valid JSON primitive %s as a text segment',
+    (payload) => {
+      const [event] = parseLiveTranscriptionStream(
+        payload,
+        {
+          'lk.segment_id': `item-${payload}`,
+          'lk.transcribed_track_id': 'TR_alice',
+        },
+        'agent',
+        `stream-${payload}`
+      )
+
+      expect(event).toMatchObject({
+        type: 'segments',
+        segments: [{ text: payload }],
+      })
+    }
+  )
+
+  it('preserves the exact raw text for a valid JSON number', () => {
+    const [event] = parseLiveTranscriptionStream(
+      '2.50',
+      {
+        'lk.segment_id': 'item-2-50',
+        'lk.transcribed_track_id': 'TR_alice',
+      },
+      'agent',
+      'stream-2-50'
+    )
+
+    expect(event).toMatchObject({
+      type: 'segments',
+      segments: [{ text: '2.50' }],
+    })
+  })
+
   it('adapts all legacy TranscriptionReceived segments', () => {
     const event = toLegacyTranscriptionEvent(
       [
