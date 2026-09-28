@@ -1,4 +1,5 @@
 import { closeSidePanel, layoutStore } from '@/stores/layout'
+import { isLiveTranscriptPanelEnabled, useConfig } from '@/api/useConfig'
 import { css } from '@/styled-system/css'
 import { Heading } from 'react-aria-components'
 import { Button } from '@/primitives'
@@ -194,6 +195,7 @@ export const SidePanel = () => {
     activeSubPanelId,
     isLiveTranscriptOpen,
   } = useSidePanel()
+  const { data } = useConfig()
   const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel' })
   const title = t(`heading.${activeSubPanelId || activePanelId}`)
 
@@ -222,6 +224,10 @@ export const SidePanel = () => {
     preventScroll: true,
     activeKey: activePanelId,
   })
+
+  if (isLiveTranscriptOpen && !isLiveTranscriptPanelEnabled(data)) {
+    return null
+  }
 
   return (
     <StyledSidePanel

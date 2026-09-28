@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
+import { isLiveTranscriptPanelEnabled, useConfig } from '@/api/useConfig'
 import { TranscriptIcon } from '@/icons'
 import { ToggleButton } from '@/primitives'
 import type { ToggleButtonProps } from '@/primitives/ToggleButton'
@@ -13,8 +14,11 @@ export const LiveTranscriptToggle = ({
   const { t } = useTranslation('rooms', {
     keyPrefix: 'controls.liveTranscript',
   })
+  const { data } = useConfig()
   const { isLiveTranscriptOpen, toggleLiveTranscript } = useSidePanel()
   const tooltipLabel = isLiveTranscriptOpen ? 'open' : 'closed'
+
+  if (!isLiveTranscriptPanelEnabled(data)) return null
 
   return (
     <ToggleButton

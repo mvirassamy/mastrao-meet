@@ -45,6 +45,7 @@ export interface ApiConfig {
   }
   subtitle: {
     enabled: boolean
+    live_transcript_panel_enabled: boolean
   }
   diagnostics: {
     connection_test_enabled?: boolean
@@ -69,6 +70,10 @@ export interface ApiConfig {
   auto_mute_on_join_threshold: number
   authenticated_users_can_edit_display_name: boolean
 }
+
+export const isLiveTranscriptPanelEnabled = (
+  config: Pick<ApiConfig, 'subtitle'> | undefined
+) => config?.subtitle.live_transcript_panel_enabled === true
 
 const fetchConfig = (): Promise<ApiConfig> => {
   return fetchApi<ApiConfig>(`config/`)
