@@ -146,6 +146,8 @@
     "copied": "Copiées dans le presse-papiers",
     "heading": "Votre réunion est prête",
     "description": "Partagez ces informations avec les personnes que vous souhaitez inviter à la réunion.",
+    "preparing": "Préparation du lien d’invitation sécurisé…",
+    "unavailable": "Impossible de préparer le lien d’invitation. Réessayez dans un instant.",
     "permissions": "Les personnes disposant de ce lien n'ont pas besoin de votre autorisation pour rejoindre cette réunion.",
     "closeDialog": "Fermer la fenêtre modale",
     "phone": {
@@ -511,6 +513,8 @@
   "info": {
     "roomInformation": {
       "title": "Informations de connexions",
+      "preparing": "Préparation du lien d’invitation sécurisé…",
+      "unavailable": "Le lien d’invitation est momentanément indisponible.",
       "button": {
         "ariaLabel": "Copier les informations de votre réunion",
         "copy": "Copier les informations",

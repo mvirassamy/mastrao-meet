@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-28: Share canonical rooms through a host-bound guest invitation URL
+  instead of the raw room URL, while preserving ordinary room sharing and
+  failing closed when the secure link is unavailable.
+
 - 2026-09-27: Fix review findings on the Mastrao UI alignment: permission
   badge no longer covers the mic toggle, round reaction buttons, wrapping
   mobile menu captions, accessible destructive and primary hover contrast,
