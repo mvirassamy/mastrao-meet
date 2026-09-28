@@ -146,6 +146,8 @@
     "copied": "Infos kopiert",
     "heading": "Dein Meeting ist bereit",
     "description": "Teile diesen Link mit Personen, die du zum Meeting einladen möchten.",
+    "preparing": "Der sichere Einladungslink wird vorbereitet…",
+    "unavailable": "Der Einladungslink konnte nicht erstellt werden. Versuche es gleich noch einmal.",
     "permissions": "Personen mit diesem Link benötigen keine Erlaubnis, um diesem Meeting beizutreten.",
     "closeDialog": "Dialogfenster schließen",
     "phone": {
@@ -511,6 +513,8 @@
   "info": {
     "roomInformation": {
       "title": "Verbindungsinformationen",
+      "preparing": "Der sichere Einladungslink wird vorbereitet…",
+      "unavailable": "Der Einladungslink ist vorübergehend nicht verfügbar.",
       "button": {
         "ariaLabel": "Kopiere die Informationen aus dem Meeting",
         "copy": "Informationen kopieren",

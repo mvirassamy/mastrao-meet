@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useMemo, useState } from 'react'
 import { formatPinCode } from '@/features/rooms/utils/telephony'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
-import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { reportError } from '@/features/analytics/telemetry'
+import { useRoomShareLink } from './useRoomShareLink'
 
 const COPY_SUCCESS_TIMEOUT = 3000
 
@@ -32,29 +32,32 @@ export const useCopyRoomToClipboard = (room: ApiRoom | undefined) => {
     }
   }, [isRoomUrlCopied])
 
-  const roomSlug = room?.slug
-  const roomUrl = useMemo(() => {
-    return roomSlug ? getRouteUrl('room', roomSlug) : ''
-  }, [roomSlug])
+  const { shareUrl, isShareLinkPending, shareLinkError } = useRoomShareLink(
+    room?.slug
+  )
+  const shareUrlDisplay = shareUrl
+    .replace(/^https?:\/\//, '')
+    .replace(/#.*$/, '')
 
   const hasTelephonyInfo = useMemo(() => {
     return telephony.enabled && room?.pin_code
   }, [telephony.enabled, room])
 
   const content = useMemo(() => {
-    if (!roomUrl || !room) return ''
-    if (!hasTelephonyInfo) return roomUrl
+    if (!shareUrl || !room) return ''
+    if (!hasTelephonyInfo) return shareUrl
 
     return [
-      t('url', { roomUrl }),
+      t('url', { roomUrl: shareUrl }),
       t('numberAndPin', {
         phoneNumber: telephony?.internationalPhoneNumber,
         pinCode: formatPinCode(room.pin_code),
       }),
     ].join('\n')
-  }, [roomUrl, hasTelephonyInfo, telephony, room, t])
+  }, [shareUrl, hasTelephonyInfo, telephony, room, t])
 
   const copyRoomToClipboard = async () => {
+    if (!content) return
     try {
       await navigator.clipboard.writeText(content)
       setIsCopied(true)
@@ -66,8 +69,9 @@ export const useCopyRoomToClipboard = (room: ApiRoom | undefined) => {
   }
 
   const copyRoomUrlToClipboard = async () => {
+    if (!shareUrl) return
     try {
-      await navigator.clipboard.writeText(roomUrl)
+      await navigator.clipboard.writeText(shareUrl)
       setIsRoomUrlCopied(true)
     } catch (error) {
       reportError('clipboard_failure', error, {
@@ -81,5 +85,9 @@ export const useCopyRoomToClipboard = (room: ApiRoom | undefined) => {
     copyRoomToClipboard,
     isRoomUrlCopied,
     copyRoomUrlToClipboard,
+    shareUrl,
+    shareUrlDisplay,
+    isShareLinkPending,
+    shareLinkError,
   }
 }

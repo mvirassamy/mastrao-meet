@@ -119,3 +119,11 @@ def meeting_path(meeting_ref, suffix=""):
     if not MEETING_REF.fullmatch(meeting_ref):
         raise PlatformFacadeError(status=404)
     return f"/api/meet/meetings/history/{meeting_ref}/{suffix}"
+
+
+def guest_invitation_path(meeting_ref):
+    """Build the allowlisted Platform guest-invitation path for one meeting."""
+
+    if not MEETING_REF.fullmatch(meeting_ref):
+        raise PlatformFacadeError(status=404)
+    return f"/api/meet/meetings/{meeting_ref}/guest-invitation"
