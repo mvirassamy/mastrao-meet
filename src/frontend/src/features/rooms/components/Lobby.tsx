@@ -29,6 +29,10 @@ import { isMissingRoomLifecycle } from '../api/isMissingRoomLifecycle'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 
+// An open lifecycle does not guarantee that the next lobby or room request
+// succeeds (masked 404): pace the retry so a persistent 404 never loops hot.
+const OPEN_LIFECYCLE_RETRY_MS = 1000
+
 const navigateToEndedMeeting = (roomId: string) =>
   navigateTo(
     'feedback',
@@ -126,6 +130,10 @@ export const Lobby = ({
           navigateToEndedMeeting(roomId)
           return
         }
+        if (lifecycle.state === 'open') {
+          timer = setTimeout(startWaiting, OPEN_LIFECYCLE_RETRY_MS)
+          return
+        }
       } catch (error) {
         if (isMissingRoomLifecycle(error)) {
           navigateToEndedMeeting(roomId)
@@ -141,7 +149,7 @@ export const Lobby = ({
       controller.abort()
       if (timer) clearTimeout(timer)
     }
-  }, [roomId, status])
+  }, [roomId, startWaiting, status])
 
   useEffect(() => {
     if (phase === 'active' || !isMastraoRoomId(roomId)) return
@@ -202,6 +210,12 @@ export const Lobby = ({
               navigateToEndedMeeting(roomId)
               return
             }
+            if (lifecycle.state === 'open') {
+              timer = setTimeout(() => {
+                void refetchRoom()
+              }, OPEN_LIFECYCLE_RETRY_MS)
+              return
+            }
           } catch (lifecycleError) {
             if (isMissingRoomLifecycle(lifecycleError)) {
               navigateToEndedMeeting(roomId)
@@ -221,7 +235,7 @@ export const Lobby = ({
       // The room component will handle the room creation if the user is authenticated
       enterRoom()
     }
-  }, [isError, error, enterRoom, roomId])
+  }, [isError, error, enterRoom, refetchRoom, roomId])
 
   const { openLoginHint } = useLoginHint()
 

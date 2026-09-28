@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-28: Keep an invited guest out of the terminal meeting screen when a
+  masked or transient lifecycle lookup returns 404, and resume lobby entry as
+  soon as the authoritative lifecycle confirms that the meeting is open.
+
 - 2026-09-28: Redesign the meeting-not-found page with an illustration,
   translated copy in every language, a readable example link, and actions to
   go back home or enter another meeting code.

@@ -177,6 +177,27 @@ describe('Lobby lifecycle reconciliation', () => {
     )
   })
 
+  it('resumes guest entry when a transient 404 still belongs to an open meeting', async () => {
+    vi.useFakeTimers()
+    lobbyStatus = ApiLobbyStatus.ENDED
+    fetchRoomLifecycle.mockResolvedValueOnce({ state: 'open' })
+
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={vi.fn()}
+      />
+    )
+
+    await act(async () => undefined)
+    // Paced: a lobby 404 that persists must not loop without delay.
+    expect(startWaiting).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(startWaiting).toHaveBeenCalledOnce()
+    expect(navigateTo).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
   it('does not enter when a submit races with a restored close intent', () => {
     lifecyclePhase = 'requesting'
     const enterRoom = vi.fn()
@@ -211,12 +232,12 @@ describe('Lobby lifecycle reconciliation', () => {
     expect(markEnding).not.toHaveBeenCalled()
   })
 
-  it('stops lifecycle polling when a missing canonical room has no lifecycle', async () => {
+  it('does not misreport a masked lifecycle 404 as an ended meeting', async () => {
     vi.useFakeTimers()
     roomQueryError = new ApiError(404, { message: 'not found' })
-    fetchRoomLifecycle.mockRejectedValueOnce(
-      new ApiError(404, { message: 'not found' })
-    )
+    fetchRoomLifecycle
+      .mockRejectedValueOnce(new ApiError(404, { message: 'not found' }))
+      .mockResolvedValueOnce({ state: 'open' })
 
     render(
       <Lobby
@@ -227,17 +248,14 @@ describe('Lobby lifecycle reconciliation', () => {
 
     await act(async () => undefined)
     expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
-    expect(navigateTo).toHaveBeenCalledWith(
-      'feedback',
-      {
-        outcome: 'ended',
-        roomId: 'room_ffffffffffffffffffffffffffffffff',
-      },
-      expect.objectContaining({ replace: true })
-    )
+    expect(navigateTo).not.toHaveBeenCalled()
 
-    await act(async () => vi.advanceTimersByTimeAsync(2_000))
-    expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(fetchRoomLifecycle).toHaveBeenCalledTimes(2)
+    expect(refetchRoom).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(refetchRoom).toHaveBeenCalledOnce()
+    expect(navigateTo).not.toHaveBeenCalled()
     vi.useRealTimers()
   })
 

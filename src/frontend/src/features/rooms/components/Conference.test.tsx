@@ -336,25 +336,25 @@ describe('Conference room lookup', () => {
     expect(markEnding).not.toHaveBeenCalled()
   })
 
-  it('finishes reconciliation when a closing room lifecycle is gone', async () => {
+  it('does not misreport a masked lifecycle 404 as an ended meeting', async () => {
+    vi.useFakeTimers()
     lifecyclePhase = 'uncertain'
     lifecycleCloseRequestId = 'close_existing'
     fetchRoom.mockResolvedValue({})
-    fetchRoomLifecycle.mockRejectedValueOnce(
-      new ApiError(410, { message: 'gone' })
-    )
+    fetchRoomLifecycle
+      .mockRejectedValueOnce(new ApiError(404, { message: 'not found' }))
+      .mockResolvedValueOnce({ state: 'open' })
 
     render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
 
-    await waitFor(() =>
-      expect(navigateTo).toHaveBeenCalledWith(
-        'feedback',
-        {
-          outcome: 'ended',
-          roomId: 'room_0123456789abcdef0123456789abcdef',
-        },
-        expect.objectContaining({ replace: true })
-      )
-    )
+    await act(async () => undefined)
+    expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
+    expect(navigateTo).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(fetchRoomLifecycle).toHaveBeenCalledTimes(2)
+    expect(markActive).not.toHaveBeenCalled()
+    expect(navigateTo).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })
