@@ -1,5 +1,12 @@
 # Changelog
 
+- 2026-09-29: Add the isolated Backend B subtitle-agent reconciler: durable
+  participant readiness and identity, desired/observed/pending projection,
+  reliable post-commit LiveKit status packets, list-delete-list cleanup,
+  bounded Celery retries, room-finished shutdown, CAS fencing, kill-switch
+  handling, and provider-active conflict protection. Backend-only; no
+  staging, frontend, audio/video pipeline, or OpenAI provider changes.
+
 - 2026-09-29: Stabilize subtitle generations, current-room selection,
   PostgreSQL constraints, and concurrent CAS writes.
 

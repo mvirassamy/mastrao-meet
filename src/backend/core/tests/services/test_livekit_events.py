@@ -10,6 +10,7 @@ from django.utils import timezone
 
 import pytest
 from livekit.api import EgressStatus
+from livekit.protocol.models import ParticipantInfo
 
 from core import models
 from core.factories import RecordingFactory, RoomFactory, UserFactory
@@ -545,6 +546,35 @@ def test_handle_room_finished_clears_cache_and_deletes_dispatch_rule(
 
     mock_delete_dispatch_rule.assert_called_once_with(mock_room_name)
     mock_clear_cache.assert_called_once_with(mock_room_name)
+
+
+@mock.patch("core.services.livekit_events.schedule_subtitle_reconciliation")
+@mock.patch("core.services.livekit_events.observe_subtitle_agent")
+def test_handle_subtitle_agent_join_and_leave(mock_observe, mock_schedule, service):
+    """Route verified agent presence events to the durable subtitle observer."""
+
+    mock_observe.return_value = mock.Mock(room_sid="RM_event")
+    mock_data = mock.MagicMock()
+    mock_data.room.sid = "RM_event"
+    mock_data.participant.kind = ParticipantInfo.AGENT
+    mock_data.participant.identity = "subtitle-agent"
+
+    service._handle_participant_joined(mock_data)
+    service._handle_participant_left(mock_data)
+
+    assert mock_observe.call_args_list == [
+        mock.call(
+            "RM_event",
+            participant_identity="subtitle-agent",
+            present=True,
+        ),
+        mock.call(
+            "RM_event",
+            participant_identity="subtitle-agent",
+            present=False,
+        ),
+    ]
+    mock_schedule.assert_called_once_with("RM_event")
 
 
 @mock.patch.object(LobbyService, "clear_room_cache")

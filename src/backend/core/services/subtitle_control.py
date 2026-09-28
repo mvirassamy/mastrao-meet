@@ -1,4 +1,5 @@
 """Room-scoped subtitle control state and its public snapshot."""
+# pylint: disable=cyclic-import
 
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
@@ -108,6 +109,7 @@ def compare_and_set_subtitle_control(
     expected_control_generation: int,
     expected_state_version: int,
     new_intent: bool = False,
+    current_only: bool = False,
     **changes,
 ) -> RoomSubtitleControl:
     """Apply one state transition using generation and version CAS.
@@ -125,11 +127,12 @@ def compare_and_set_subtitle_control(
         )
 
     try:
-        control = (
-            RoomSubtitleControl.objects.select_for_update()
-            .select_related("room")
-            .get(room_sid=room_sid)
+        controls = RoomSubtitleControl.objects.select_for_update().select_related(
+            "room"
         )
+        if current_only:
+            controls = controls.filter(is_current=True)
+        control = controls.get(room_sid=room_sid)
     except RoomSubtitleControl.DoesNotExist as error:
         raise SubtitleControlContractError(
             "The LiveKit room SID has not been acquired."
@@ -155,6 +158,11 @@ def compare_and_set_subtitle_control(
         control.save()
     except ValidationError as error:
         raise SubtitleControlContractError(str(error)) from error
+    from .subtitle_reconciliation import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        queue_subtitle_snapshot,
+    )
+
+    queue_subtitle_snapshot(control.room_id)
     return control
 
 
