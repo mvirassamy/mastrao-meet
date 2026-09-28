@@ -1,4 +1,5 @@
 """Tests for the durable subtitle lifecycle service."""
+# pylint: disable=redefined-outer-name
 
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -27,6 +28,7 @@ def _dispatch_response(*dispatches):
 
 @pytest.fixture
 def mock_livekit_client():
+    """Mock the LiveKit API client used by the subtitle service."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
         client = mock.AsyncMock()
         client.agent_dispatch.list_dispatch = mock.AsyncMock(
@@ -41,6 +43,7 @@ def mock_livekit_client():
 def test_start_subtitle_persists_dispatch_and_identity(
     mock_livekit_client,
 ):
+    """Start persists the dispatch id and who started it."""
     room = RoomFactory(name="my room")
 
     state = SubtitleService().start_subtitle(room, started_by="participant-1")
@@ -53,6 +56,7 @@ def test_start_subtitle_persists_dispatch_and_identity(
 
 
 def test_start_subtitle_is_idempotent(mock_livekit_client):
+    """A second start reuses the live dispatch."""
     room = RoomFactory(name="my room")
     service = SubtitleService()
 
@@ -65,6 +69,7 @@ def test_start_subtitle_is_idempotent(mock_livekit_client):
 
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_start_subtitle_creates_one_dispatch(mock_livekit_client):
+    """Concurrent starts create a single dispatch."""
     room = RoomFactory(name="my room")
 
     def start_from_worker(_):
@@ -82,6 +87,7 @@ def test_concurrent_start_subtitle_creates_one_dispatch(mock_livekit_client):
 
 
 def test_start_subtitle_adopts_orphan_dispatch(mock_livekit_client):
+    """Start adopts a dispatch left by a previous attempt."""
     room = RoomFactory(name="my room")
     orphan = _dispatch("orphan-1")
     mock_livekit_client.agent_dispatch.list_dispatch.return_value = _dispatch_response(
@@ -95,6 +101,7 @@ def test_start_subtitle_adopts_orphan_dispatch(mock_livekit_client):
 
 
 def test_start_subtitle_marks_provider_failure_unavailable(mock_livekit_client):
+    """A provider failure marks the room unavailable."""
     room = RoomFactory(name="my room")
     mock_livekit_client.agent_dispatch.create_dispatch.side_effect = TwirpError(
         msg="LiveKit unavailable", code="unavailable", status=503
@@ -108,6 +115,7 @@ def test_start_subtitle_marks_provider_failure_unavailable(mock_livekit_client):
 
 
 def test_stop_subtitle_absent_is_idempotent(mock_livekit_client):
+    """Stopping without a dispatch is a no-op."""
     room = RoomFactory(name="my room")
 
     state = SubtitleService().stop_subtitle(room)
@@ -117,6 +125,7 @@ def test_stop_subtitle_absent_is_idempotent(mock_livekit_client):
 
 
 def test_stop_subtitle_deletes_active_dispatch(mock_livekit_client):
+    """Stop deletes the active dispatch and confirms the drain."""
     room = RoomFactory(
         name="my room",
         subtitle_state={
@@ -140,6 +149,7 @@ def test_stop_subtitle_deletes_active_dispatch(mock_livekit_client):
 
 
 def test_stop_subtitle_already_stopped_does_not_delete(mock_livekit_client):
+    """Stopping a stopped room deletes nothing."""
     room = RoomFactory(
         name="my room",
         subtitle_state={"state": "stopped", "dispatchId": None},
@@ -152,6 +162,7 @@ def test_stop_subtitle_already_stopped_does_not_delete(mock_livekit_client):
 
 
 def test_stop_subtitle_drain_timeout_preserves_dispatch(mock_livekit_client, settings):
+    """A drain timeout keeps the dispatch and degrades the room."""
     settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS = 0.01
     room = RoomFactory(
         name="my room",
@@ -219,6 +230,7 @@ def test_fresh_stop_claim_is_not_duplicated(mock_livekit_client):
 
 
 def test_openai_agent_requires_allowlisted_room(mock_livekit_client, settings):
+    """The OpenAI agent is refused outside the allowlist."""
     settings.LIVE_STT_OPENAI_ENABLED = True
     settings.LIVE_STT_OPENAI_ROOM_ALLOWLIST = "another-room"
     room = RoomFactory(name="my room")
@@ -232,6 +244,7 @@ def test_openai_agent_requires_allowlisted_room(mock_livekit_client, settings):
 def test_openai_agent_uses_configured_name_for_allowlisted_room(
     mock_livekit_client, settings
 ):
+    """Allowlisted rooms use the OpenAI agent name."""
     room = RoomFactory(name="my room")
     settings.LIVE_STT_OPENAI_ENABLED = True
     settings.LIVE_STT_OPENAI_ROOM_ALLOWLIST = str(room.id)
@@ -245,6 +258,7 @@ def test_openai_agent_uses_configured_name_for_allowlisted_room(
 
 
 def test_openai_kill_switch_keeps_existing_agent_path(mock_livekit_client, settings):
+    """With the OpenAI flag off the existing agent is used."""
     settings.LIVE_STT_OPENAI_ENABLED = False
     settings.ROOM_SUBTITLE_AGENT_NAME = "existing-agent"
     room = RoomFactory(name="my room")

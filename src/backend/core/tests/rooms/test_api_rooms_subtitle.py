@@ -195,7 +195,9 @@ def test_start_subtitle_twirp_error(
     assert response.json() == {"error": "Failed to create subtitle agent"}
 
 
-def test_stop_subtitle_requires_room_token():
+def test_stop_subtitle_requires_room_token(settings):
+    """Stop is refused without a LiveKit room token."""
+    settings.ROOM_SUBTITLE_ENABLED = True
     room = RoomFactory()
     response = APIClient().post(f"/api/v1.0/rooms/{room.id}/stop-subtitle/")
 
@@ -208,6 +210,7 @@ def test_stop_subtitle_requires_room_token():
 def test_stop_subtitle_returns_persisted_state(
     settings, mock_livekit_client, mock_livekit_token, mock_room_id
 ):
+    """Stop deletes the dispatch and returns the persisted state."""
     settings.ROOM_SUBTITLE_ENABLED = True
     room = RoomFactory(
         id=mock_room_id,
@@ -233,6 +236,7 @@ def test_stop_subtitle_returns_persisted_state(
 def test_subtitle_state_returns_persisted_state(
     settings, mock_livekit_token, mock_room_id
 ):
+    """The state endpoint returns the persisted lifecycle state."""
     settings.ROOM_SUBTITLE_ENABLED = True
     room = RoomFactory(
         id=mock_room_id,
@@ -252,6 +256,7 @@ def test_subtitle_state_returns_persisted_state(
 def test_subtitle_lifecycle_endpoints_are_closed_by_default(
     path, mock_livekit_token, mock_room_id
 ):
+    """Stop and state stay closed while the subtitle flag is off."""
     room = RoomFactory(id=mock_room_id)
     client = APIClient()
     call = client.get if path == "subtitle-state" else client.post
