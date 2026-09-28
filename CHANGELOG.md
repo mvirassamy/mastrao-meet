@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-28: Redesign the meeting-not-found page with an illustration,
+  translated copy in every language, a readable example link, and actions to
+  go back home or enter another meeting code.
+
 - 2026-09-28: Share canonical rooms through a host-bound guest invitation URL
   instead of the raw room URL, while preserving ordinary room sharing and
   failing closed when the secure link is unavailable.

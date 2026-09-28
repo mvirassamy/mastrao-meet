@@ -25,6 +25,7 @@ describe('getPreviewContent', () => {
       invitation: 'invitation',
       feedback: 'feedback',
       error: 'error',
+      'not-found': 'not-found',
       loading: 'loading',
       home: 'home',
       'authenticated-home': 'authenticated-home',

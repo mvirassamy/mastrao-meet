@@ -17,6 +17,7 @@ import { queryClient } from '@/api/queryClient'
 import { Layout } from '@/layout/Layout'
 import { Screen } from '@/layout/Screen'
 import { ErrorScreen } from '@/components/ErrorScreen'
+import { NotFoundScreen } from '@/components/NotFoundScreen'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import Home from '@/features/home/routes/Home'
 import { AuthenticatedHome } from '@/features/home/routes/AuthenticatedHome'
@@ -183,6 +184,7 @@ const PreviewScreen = () => {
       </Screen>
     )
   if (content === 'error') return <ErrorScreen />
+  if (content === 'not-found') return <NotFoundScreen />
   if (content === 'loading') return <LoadingScreen delay={0} />
   return <Join roomId={previewRoomId} enterRoom={() => undefined} />
 }
