@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-09-28: Add a live transcription side panel fed by the room store:
+  grouped interventions, interim text replaced in place by the final, a
+  return-to-live counter, one polite announcement per final and a full-screen
+  layout on mobile. Opening it never starts transcription.
+
 - 2026-09-28: Keep live transcription in one room-scoped store fed by the
   lk.transcription text streams and the legacy transcription events, with
   immutable finals, per-track segment identity, bounded history and gap

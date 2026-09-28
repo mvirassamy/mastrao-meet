@@ -135,11 +135,17 @@ describe('LiveTranscriptPanel', () => {
     expect(
       document.querySelector('[data-segment-state="final"]')
     ).not.toBeNull()
-    expect(
-      document
-        .querySelector('[data-segment-state="final"]')
-        ?.getAttribute('aria-live')
-    ).toBe('polite')
+    // Finals are announced through one persistent live region, interims never.
+    const announcer = document.querySelector(
+      '[data-testid="live-transcript-announcer"]'
+    )
+    expect(announcer?.getAttribute('aria-live')).toBe('polite')
+    expect(announcer?.textContent).toContain('Bonjour à tous')
+    expect(announcer?.textContent).not.toContain('Bon ')
+    expect(document.querySelectorAll('[aria-live]')).toHaveLength(1)
+    expect(document.querySelector('[role="region"]')?.textContent).toContain(
+      'Bonjour à tous'
+    )
   })
 
   it('replaces an interim intervention with its final text in place', () => {

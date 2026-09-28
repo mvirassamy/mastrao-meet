@@ -70,6 +70,16 @@ const getFinalSegmentKeys = (segments: LiveTranscriptionSegment[]) =>
     .filter((segment) => segment.state === 'final')
     .map((segment) => segment.key)
 
+const getLatestFinalSegment = (segments: LiveTranscriptionSegment[]) =>
+  segments.reduce<LiveTranscriptionSegment | undefined>(
+    (latest, segment) =>
+      segment.state === 'final' &&
+      (!latest || segment.receivedAt >= latest.receivedAt)
+        ? segment
+        : latest,
+    undefined
+  )
+
 const LiveTranscriptSegment = ({
   segment,
   interimLabel,
@@ -78,7 +88,6 @@ const LiveTranscriptSegment = ({
   interimLabel: string
 }) => (
   <p
-    aria-live={segment.state === 'final' ? 'polite' : undefined}
     data-segment-state={segment.state}
     className={css({
       margin: 0,
@@ -177,6 +186,20 @@ export const LiveTranscriptPanel = () => {
     () => getFinalSegmentKeys(segments),
     [segments]
   )
+  // One persistent live region: a region created with its content, or an
+  // attribute added while the text changes, is not reliably announced.
+  const latestFinal = useMemo(() => getLatestFinalSegment(segments), [segments])
+  const latestFinalAnnouncement = useMemo(() => {
+    if (!latestFinal) return ''
+    const participant = getParticipantForTranscription(
+      room,
+      latestFinal.participantIdentity
+    )
+    const name = participant
+      ? getParticipantName(participant)
+      : latestFinal.participantIdentity
+    return `${name} : ${latestFinal.text}`
+  }, [latestFinal, room])
 
   const markFinalsAsSeen = useCallback(() => {
     for (const key of finalSegmentKeys) seenFinalKeysRef.current.add(key)
@@ -266,6 +289,7 @@ export const LiveTranscriptPanel = () => {
       <div
         ref={transcriptRef}
         onScroll={handleTranscriptScroll}
+        role="region"
         aria-label={t('segmentsLabel')}
         className={css({
           display: 'flex',
@@ -291,6 +315,15 @@ export const LiveTranscriptPanel = () => {
             />
           ))
         )}
+      </div>
+
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="live-transcript-announcer"
+      >
+        {latestFinalAnnouncement}
       </div>
 
       {!isFollowing && (
