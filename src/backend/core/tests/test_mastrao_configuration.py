@@ -90,6 +90,39 @@ def test_room_adapter_requires_explicit_room_creation():
         validate_mastrao_meeting_close_configuration(True, False)
 
 
+def test_settings_boot_refuses_room_adapter_without_explicit_room_creation():
+    """Loading settings must enforce the stale-token invariant on the adapter."""
+
+    environment = {
+        **os.environ,
+        "DJANGO_CONFIGURATION": "Development",
+        "DJANGO_SETTINGS_MODULE": "meet.settings",
+        "MASTRAO_ROOM_ADAPTER_ENABLED": "True",
+        "LIVEKIT_EXPLICIT_ROOM_CREATION": "False",
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; "
+                "importer.install(); "
+                "from django.conf import settings; "
+                "import sys; "
+                "sys.stdout.write(str(settings.MASTRAO_ROOM_ADAPTER_ENABLED))"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env=environment,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "LIVEKIT_EXPLICIT_ROOM_CREATION=true" in result.stderr
+
+
 @pytest.mark.parametrize(
     ("room_adapter_enabled", "explicit_creation"),
     [(False, False), (False, True), (True, True)],
