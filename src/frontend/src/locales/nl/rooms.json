@@ -311,6 +311,11 @@
       "closed": "Ondertitels weergeven",
       "open": "Ondertitels verbergen"
     },
+    "liveTranscript": {
+      "closed": "Live transcript openen",
+      "open": "Live transcript verbergen",
+      "transcriptionInProgress": "Transcriptie bezig"
+    },
     "screenShare": {
       "start": "Scherm delen",
       "stop": "Stop schermdelen"
@@ -474,6 +479,7 @@
       "effects": "Effecten",
       "chat": "Berichten in de chat",
       "transcript": "Transcriberen",
+      "liveTranscript": "Live transcript",
       "screenRecording": "Opnemen",
       "admin": "Beheerdersbediening",
       "tools": "Meer tools",
@@ -485,6 +491,7 @@
       "chat": "berichten",
       "screenRecording": "opnemen",
       "transcript": "transcriberen",
+      "liveTranscript": "het live transcript",
       "admin": "beheerdersbediening",
       "tools": "meer tools",
       "info": "vergaderinformatie"
@@ -494,6 +501,27 @@
   "chat": {
     "disclaimer": "De berichten zijn alleen voor de deelnemers zichtbaar op het moment dat ze worden verzonden. Alle berichten worden verwijderd aan het einde van het gesprek.",
     "messagesLog": "Chatberichten"
+  },
+  "liveTranscript": {
+    "status": {
+      "unknown": "De status van de live transcriptie is onbekend.",
+      "inactive": "Live transcriptie is inactief.",
+      "starting": "Live transcriptie wordt gestart…",
+      "live": "Live transcriptie",
+      "reconnecting": "Opnieuw verbinden met live transcriptie…",
+      "degraded": "Delen van het gesprek kunnen ontbreken.",
+      "degradedWithGap": "Delen van het gesprek kunnen ontbreken.",
+      "unavailable": "Live transcriptie is niet beschikbaar.",
+      "stopping": "Live transcriptie wordt gestopt…",
+      "stopped": "Live transcriptie is gestopt."
+    },
+    "availabilityNote": "Transcriptie beschikbaar sinds u bent binnengekomen.",
+    "empty": "Er is nog geen live transcript beschikbaar.",
+    "segmentsLabel": "Live transcriptsegmenten",
+    "interim": "Concept",
+    "truncated": "Alleen het meest recente deel van het live transcript wordt getoond.",
+    "returnToLive_one": "Terug naar live ({{count}} nieuw segment)",
+    "returnToLive_other": "Terug naar live ({{count}} nieuwe segmenten)"
   },
   "moreTools": {
     "body": "Je krijgt toegang tot meer tools om je vergaderingen te verbeteren.",

@@ -311,6 +311,11 @@
       "closed": "Show subtitles",
       "open": "Hide subtitles"
     },
+    "liveTranscript": {
+      "closed": "Open live transcript",
+      "open": "Hide live transcript",
+      "transcriptionInProgress": "Transcription in progress"
+    },
     "screenShare": {
       "start": "Share screen",
       "stop": "Stop screen share"
@@ -474,6 +479,7 @@
       "effects": "Backgrounds and Effects",
       "chat": "Messages in the chat",
       "transcript": "Transcribe",
+      "liveTranscript": "Live transcript",
       "screenRecording": "Record",
       "admin": "Host settings",
       "tools": "More tools",
@@ -484,6 +490,7 @@
       "effects": "Backgrounds and Effects",
       "chat": "messages",
       "transcript": "transcribe",
+      "liveTranscript": "the live transcript",
       "screenRecording": "record",
       "admin": "host settings",
       "tools": "more tools",
@@ -494,6 +501,27 @@
   "chat": {
     "disclaimer": "The messages are visible to participants only at the time they are sent. All messages are deleted at the end of the call.",
     "messagesLog": "Chat messages"
+  },
+  "liveTranscript": {
+    "status": {
+      "unknown": "Live transcription status is unknown.",
+      "inactive": "Live transcription is inactive.",
+      "starting": "Starting live transcription…",
+      "live": "Live transcription",
+      "reconnecting": "Reconnecting to live transcription…",
+      "degraded": "Some parts of the conversation may be missing.",
+      "degradedWithGap": "Some parts of the conversation may be missing.",
+      "unavailable": "Live transcription is unavailable.",
+      "stopping": "Stopping live transcription…",
+      "stopped": "Live transcription is stopped."
+    },
+    "availabilityNote": "Transcript available since you joined.",
+    "empty": "No live transcript is available yet.",
+    "segmentsLabel": "Live transcript segments",
+    "interim": "Draft",
+    "truncated": "Only the most recent part of the live transcript is shown.",
+    "returnToLive_one": "Return to live ({{count}} new segment)",
+    "returnToLive_other": "Return to live ({{count}} new segments)"
   },
   "moreTools": {
     "body": "Access more tools to enhance your meetings.",

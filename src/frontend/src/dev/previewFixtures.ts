@@ -36,7 +36,7 @@ export const previewConfig: ApiConfig = {
     allowed_extensions: [],
     allowed_mimetypes: [],
   },
-  subtitle: { enabled: false },
+  subtitle: { enabled: false, live_transcript_panel_enabled: false },
   diagnostics: { connection_test_enabled: false },
   telephony: { enabled: false },
   recording: { is_enabled: false, available_modes: [] },

@@ -8,6 +8,7 @@ export enum PanelId {
   TOOLS = 'tools',
   ADMIN = 'admin',
   INFO = 'info',
+  LIVE_TRANSCRIPT = 'liveTranscript',
 }
 
 export enum SubPanelId {
@@ -26,6 +27,7 @@ export const useSidePanel = () => {
   const isToolsOpen = activePanelId == PanelId.TOOLS
   const isAdminOpen = activePanelId == PanelId.ADMIN
   const isInfoOpen = activePanelId == PanelId.INFO
+  const isLiveTranscriptOpen = activePanelId == PanelId.LIVE_TRANSCRIPT
   const isTranscriptOpen = activeSubPanelId == SubPanelId.TRANSCRIPT
   const isScreenRecordingOpen = activeSubPanelId == SubPanelId.SCREEN_RECORDING
   const isSidePanelOpen = !!activePanelId
@@ -61,9 +63,21 @@ export const useSidePanel = () => {
     if (layoutSnap.activeSubPanelId) layoutStore.activeSubPanelId = null
   }
 
+  const toggleLiveTranscript = () => {
+    layoutStore.activePanelId = isLiveTranscriptOpen
+      ? null
+      : PanelId.LIVE_TRANSCRIPT
+    if (layoutSnap.activeSubPanelId) layoutStore.activeSubPanelId = null
+  }
+
   const openTranscript = () => {
     layoutStore.activeSubPanelId = SubPanelId.TRANSCRIPT
     layoutStore.activePanelId = PanelId.TOOLS
+  }
+
+  const openLiveTranscript = () => {
+    layoutStore.activePanelId = PanelId.LIVE_TRANSCRIPT
+    layoutStore.activeSubPanelId = null
   }
 
   const openScreenRecording = () => {
@@ -80,7 +94,9 @@ export const useSidePanel = () => {
     toggleTools,
     toggleAdmin,
     toggleInfo,
+    toggleLiveTranscript,
     openTranscript,
+    openLiveTranscript,
     openScreenRecording,
     isSubPanelOpen,
     isChatOpen,
@@ -90,6 +106,7 @@ export const useSidePanel = () => {
     isToolsOpen,
     isAdminOpen,
     isInfoOpen,
+    isLiveTranscriptOpen,
     isTranscriptOpen,
     isScreenRecordingOpen,
   }

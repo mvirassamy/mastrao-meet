@@ -4,6 +4,7 @@ import { ParticipantsToggle } from '../../components/controls/ParticipantsToggle
 import { ToolsToggle } from '../../components/controls/ToolsToggle'
 import { InfoToggle } from '../../components/controls/InfoToggle'
 import { AdminToggle } from '../../components/AdminToggle'
+import { LiveTranscriptToggle } from '../../components/controls/LiveTranscriptToggle'
 
 export const MoreOptions = () => (
   <nav
@@ -22,6 +23,7 @@ export const MoreOptions = () => (
     <InfoToggle />
     <ParticipantsToggle />
     <ChatToggle />
+    <LiveTranscriptToggle />
     <ToolsToggle />
     <AdminToggle />
   </nav>

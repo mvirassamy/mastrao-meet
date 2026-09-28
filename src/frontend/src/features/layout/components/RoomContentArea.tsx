@@ -8,6 +8,7 @@ import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 import { Subtitles } from '@/features/subtitle/component/Subtitles'
 import { MainNotificationToast } from '@/features/notifications/MainNotificationToast'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
+import { useIsMobile } from '@/utils/useIsMobile'
 
 const RoomViewport = styled(
   'div',
@@ -67,13 +68,16 @@ interface RoomContentAreaProps {
 }
 
 export function RoomContentArea({ children }: RoomContentAreaProps) {
-  const { isSidePanelOpen } = useSidePanel()
+  const { isSidePanelOpen, isLiveTranscriptOpen } = useSidePanel()
+  const isMobile = useIsMobile()
   const { areSubtitlesOpen } = useSubtitles()
   const { isOpen: isReactionToolbarOpen } = useReactionsToolbar()
+  const shouldReservePanelSpace =
+    isSidePanelOpen && !(isMobile && isLiveTranscriptOpen)
 
   return (
     <RoomViewport
-      isSidePanelOpen={isSidePanelOpen}
+      isSidePanelOpen={shouldReservePanelSpace}
       isReactionToolbarOpen={isReactionToolbarOpen}
     >
       <TrackAreaContainer areSubtitlesOpen={areSubtitlesOpen}>
