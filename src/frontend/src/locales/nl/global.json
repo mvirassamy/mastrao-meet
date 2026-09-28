@@ -33,7 +33,9 @@
   },
   "logout": "Uitloggen",
   "notFound": {
-    "heading": "Pagina niet gevonden"
+    "heading": "Controleer je vergadercode",
+    "body": "Deze link hoort bij geen enkele vergadering. Controleer de code in het adres, die ziet er zo uit:",
+    "enterCode": "Code invoeren"
   },
   "selected": "geselecteerd",
   "submit": "OK",

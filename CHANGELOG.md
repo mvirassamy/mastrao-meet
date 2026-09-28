@@ -4,6 +4,10 @@
   masked or transient lifecycle lookup returns 404, and resume lobby entry as
   soon as the authoritative lifecycle confirms that the meeting is open.
 
+- 2026-09-28: Redesign the meeting-not-found page with an illustration,
+  translated copy in every language, a readable example link, and actions to
+  go back home or enter another meeting code.
+
 - 2026-09-28: Pick the interface language from the shared mastrao_lang
   cookie, then the first supported browser language (fr, en, nl, de), and
   fall back to English instead of French. Only an explicit choice writes the

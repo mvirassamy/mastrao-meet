@@ -33,8 +33,9 @@
   },
   "logout": "Se déconnecter",
   "notFound": {
-    "heading": "Vérifier votre code de réunion",
-    "body": "Vérifiez que vous avez saisi le code de réunion correct dans l'URL. Exemple :"
+    "heading": "Vérifiez votre code de réunion",
+    "body": "Ce lien ne correspond à aucune réunion. Vérifiez le code saisi dans l'adresse, il ressemble à ceci :",
+    "enterCode": "Saisir un code"
   },
   "selected": "sélectionné",
   "submit": "OK",
