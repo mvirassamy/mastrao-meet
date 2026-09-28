@@ -80,14 +80,19 @@ class SubtitleService:
         attempt_id = claim["attemptId"]
         client = None
         dispatch_id = None
+        deadline = self._start_deadline()
         try:
             client = utils.create_livekit_client()
-            dispatch = await self._find_dispatch(client, room_id, agent_name)
+            dispatch = await self._find_dispatch(client, room_id, agent_name, deadline)
             if dispatch is None:
-                response = await self._create_dispatch(client, room_id, agent_name)
+                response = await self._create_dispatch(
+                    client, room_id, agent_name, deadline
+                )
                 dispatch_id = self._dispatch_id(response)
                 if not dispatch_id:
-                    dispatch = await self._find_dispatch(client, room_id, agent_name)
+                    dispatch = await self._find_dispatch(
+                        client, room_id, agent_name, deadline
+                    )
                     dispatch_id = self._dispatch_id(dispatch)
             else:
                 dispatch_id = self._dispatch_id(dispatch)
@@ -99,21 +104,25 @@ class SubtitleService:
                 room_id, attempt_id, dispatch_id, agent_name, provider
             )
             if result["cleanup"]:
-                await self._delete_dispatches(
+                await self._cleanup_start_result(
                     client,
                     room_id,
-                    dispatch_ids={dispatch_id},
-                    agent_names={agent_name},
-                    deadline=time.monotonic()
-                    + settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS,
+                    dispatch_id,
+                    agent_name,
+                    result,
+                    deadline,
                 )
-                return await sync_to_async(self._mark_stopped_after_start)(
-                    room_id, attempt_id
+                return (
+                    result["state"]
+                    if result["superseded"]
+                    else await sync_to_async(self._mark_stopped_after_start)(
+                        room_id, attempt_id
+                    )
                 )
             return result["state"]
         except SubtitleException as error:
             await self._best_effort_cleanup_start(
-                client, room_id, agent_name, dispatch_id
+                client, room_id, attempt_id, agent_name, dispatch_id, deadline
             )
             await sync_to_async(self._mark_start_failure)(
                 room_id, attempt_id, dispatch_id, error.public_message
@@ -122,7 +131,7 @@ class SubtitleService:
         except Exception as error:  # pylint: disable=broad-exception-caught
             logger.exception("Failed to start subtitle agent for room %s", room_id)
             await self._best_effort_cleanup_start(
-                client, room_id, agent_name, dispatch_id
+                client, room_id, attempt_id, agent_name, dispatch_id, deadline
             )
             await sync_to_async(self._mark_start_failure)(
                 room_id, attempt_id, dispatch_id, "Failed to create subtitle agent"
@@ -232,22 +241,22 @@ class SubtitleService:
     def _dispatch_id(dispatch):
         return getattr(dispatch, "id", None) if dispatch is not None else None
 
-    @staticmethod
-    async def _create_dispatch(client, room_id, agent_name):
+    @classmethod
+    async def _create_dispatch(cls, client, room_id, agent_name, deadline):
         """Create one dispatch with the LiveKit v1.2 contract."""
 
         return await asyncio.wait_for(
             client.agent_dispatch.create_dispatch(
                 CreateAgentDispatchRequest(agent_name=agent_name, room=room_id)
             ),
-            timeout=settings.ROOM_SUBTITLE_START_TIMEOUT_SECONDS,
+            timeout=cls._remaining(deadline),
         )
 
     @classmethod
-    async def _find_dispatch(cls, client, room_id, agent_name):
+    async def _find_dispatch(cls, client, room_id, agent_name, deadline):
         dispatches = await asyncio.wait_for(
             client.agent_dispatch.list_dispatch(room_id),
-            timeout=settings.ROOM_SUBTITLE_START_TIMEOUT_SECONDS,
+            timeout=cls._remaining(deadline),
         )
         return next(
             (
@@ -285,16 +294,27 @@ class SubtitleService:
             names.add(state["agentName"])
         return names
 
+    @staticmethod
+    def _start_deadline():
+        """Reserve one bounded budget for all provider calls in a start."""
+
+        return time.monotonic() + settings.ROOM_SUBTITLE_START_TIMEOUT_SECONDS * 0.95
+
+    @staticmethod
+    def _remaining(deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise asyncio.TimeoutError
+        return remaining
+
     @classmethod
     # pylint: disable=too-many-arguments
     async def _delete_dispatches(
         cls, client, room_id, *, dispatch_ids, agent_names, deadline
     ):
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise asyncio.TimeoutError
         dispatches = await asyncio.wait_for(
-            client.agent_dispatch.list_dispatch(room_id), timeout=remaining
+            client.agent_dispatch.list_dispatch(room_id),
+            timeout=cls._remaining(deadline),
         )
         target_ids = set(dispatch_ids)
         target_ids.update(
@@ -304,32 +324,74 @@ class SubtitleService:
         )
         target_ids.discard(None)
         for dispatch_id in target_ids:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise asyncio.TimeoutError
             try:
                 await asyncio.wait_for(
                     client.agent_dispatch.delete_dispatch(dispatch_id, room_id),
-                    timeout=remaining,
+                    timeout=cls._remaining(deadline),
                 )
             except TwirpError as error:
                 if error.code != "not_found":
                     raise
         return target_ids
 
-    async def _best_effort_cleanup_start(
-        self, client, room_id, agent_name, dispatch_id
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    async def _cleanup_start_result(  # noqa: PLR0913,PLR0917
+        self, client, room_id, dispatch_id, agent_name, result, deadline
+    ):
+        if result["superseded"]:
+            current_dispatch_id = result["dispatchId"]
+            dispatch_ids = (
+                {dispatch_id}
+                if dispatch_id and dispatch_id != current_dispatch_id
+                else set()
+            )
+            agent_names = set()
+        else:
+            dispatch_ids = {dispatch_id} if dispatch_id else set()
+            agent_names = {agent_name}
+        await self._delete_dispatches(
+            client,
+            room_id,
+            dispatch_ids=dispatch_ids,
+            agent_names=agent_names,
+            deadline=deadline,
+        )
+
+    @classmethod
+    def _start_cleanup_scope(cls, room_id, attempt_id, dispatch_id, agent_name):
+        """Fence rollback cleanup against a newer persisted attempt."""
+
+        with transaction.atomic():
+            room = Room.objects.select_for_update().get(pk=room_id)
+            state = cls._normalize_state(room.subtitle_state)
+            current_dispatch_id = state["dispatchId"]
+            return {
+                "dispatch_ids": (
+                    {dispatch_id}
+                    if dispatch_id and dispatch_id != current_dispatch_id
+                    else set()
+                ),
+                "agent_names": (
+                    {agent_name} if state["attemptId"] == attempt_id else set()
+                ),
+            }
+
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
+    async def _best_effort_cleanup_start(  # noqa: PLR0913,PLR0917
+        self, client, room_id, attempt_id, agent_name, dispatch_id, deadline
     ):
         if client is None:
             return
         try:
+            cleanup_scope = await sync_to_async(self._start_cleanup_scope)(
+                room_id, attempt_id, dispatch_id, agent_name
+            )
             await self._delete_dispatches(
                 client,
                 room_id,
-                dispatch_ids={dispatch_id} if dispatch_id else set(),
-                agent_names={agent_name},
-                deadline=time.monotonic()
-                + settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS,
+                dispatch_ids=cleanup_scope["dispatch_ids"],
+                agent_names=cleanup_scope["agent_names"],
+                deadline=deadline,
             )
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception(
@@ -428,7 +490,12 @@ class SubtitleService:
                 or state["state"] != cls.STARTING
                 or state["stopRequested"]
             ):
-                return {"cleanup": True, "state": state}
+                return {
+                    "cleanup": True,
+                    "superseded": state["attemptId"] != attempt_id,
+                    "dispatchId": state["dispatchId"],
+                    "state": state,
+                }
             state.update(
                 {
                     "state": cls.LIVE,
@@ -440,7 +507,12 @@ class SubtitleService:
             )
             room.subtitle_state = state
             room.save(update_fields=["subtitle_state"])
-            return {"cleanup": False, "state": state}
+            return {
+                "cleanup": False,
+                "superseded": False,
+                "dispatchId": dispatch_id,
+                "state": state,
+            }
 
     @classmethod
     def _mark_start_failure(  # pylint: disable=too-many-arguments

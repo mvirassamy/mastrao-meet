@@ -1,7 +1,9 @@
 """Tests for the durable subtitle lifecycle service."""
 # pylint: disable=redefined-outer-name,protected-access
 
+import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest import mock
 
@@ -9,6 +11,7 @@ from django.db import close_old_connections
 from django.utils import timezone
 
 import pytest
+from asgiref.sync import async_to_sync
 from livekit.api import TwirpError
 
 from core.factories import RoomFactory
@@ -274,6 +277,99 @@ def test_stop_requested_during_start_cleans_up_without_live_state():
     assert result["cleanup"] is True
     stopped = SubtitleService._mark_stopped_after_start(room_id, attempt["attemptId"])
     assert stopped["state"] == SubtitleService.STOPPED
+
+
+def _superseded_start_attempts(room):
+    room_id = str(room.id)
+    first = SubtitleService._claim_start(
+        room_id, "multi-user-transcriber", "livekit", "participant-1"
+    )
+    room.refresh_from_db()
+    state = room.subtitle_state
+    state["startedAt"] = (timezone.now() - timedelta(seconds=60)).isoformat()
+    room.subtitle_state = state
+    room.save(update_fields=["subtitle_state"])
+
+    second = SubtitleService._claim_start(
+        room_id, "multi-user-transcriber", "livekit", "participant-2"
+    )
+    SubtitleService._finalize_start(
+        room_id,
+        second["attemptId"],
+        "dispatch-2",
+        "multi-user-transcriber",
+        "livekit",
+    )
+    return first, second
+
+
+def test_superseded_start_only_deletes_its_dispatch(mock_livekit_client):
+    """A stale finalizer cannot delete the dispatch adopted by a newer start."""
+    room = RoomFactory(name="my room")
+    first, second = _superseded_start_attempts(room)
+    room_id = str(room.id)
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = _dispatch_response(
+        _dispatch("dispatch-1"), _dispatch("dispatch-2")
+    )
+
+    result = SubtitleService._finalize_start(
+        room_id,
+        first["attemptId"],
+        "dispatch-1",
+        "multi-user-transcriber",
+        "livekit",
+    )
+
+    assert result["cleanup"] is True
+    assert result["superseded"] is True
+    assert result["dispatchId"] == "dispatch-2"
+    async_to_sync(SubtitleService()._cleanup_start_result)(
+        mock_livekit_client,
+        room_id,
+        "dispatch-1",
+        "multi-user-transcriber",
+        result,
+        time.monotonic() + 5,
+    )
+
+    assert [
+        call.args[0]
+        for call in mock_livekit_client.agent_dispatch.delete_dispatch.call_args_list
+    ] == ["dispatch-1"]
+    room.refresh_from_db()
+    assert room.subtitle_state["state"] == SubtitleService.LIVE
+    assert room.subtitle_state["dispatchId"] == "dispatch-2"
+    assert room.subtitle_state["attemptId"] == second["attemptId"]
+
+
+def test_superseded_start_exception_cleanup_only_deletes_its_dispatch(
+    mock_livekit_client,
+):
+    """Exception cleanup rereads the fence and preserves the newer dispatch."""
+    room = RoomFactory(name="my room")
+    first, second = _superseded_start_attempts(room)
+    room_id = str(room.id)
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = _dispatch_response(
+        _dispatch("dispatch-1"), _dispatch("dispatch-2")
+    )
+
+    async_to_sync(SubtitleService()._best_effort_cleanup_start)(
+        mock_livekit_client,
+        room_id,
+        first["attemptId"],
+        "multi-user-transcriber",
+        "dispatch-1",
+        time.monotonic() + 5,
+    )
+
+    assert [
+        call.args[0]
+        for call in mock_livekit_client.agent_dispatch.delete_dispatch.call_args_list
+    ] == ["dispatch-1"]
+    room.refresh_from_db()
+    assert room.subtitle_state["state"] == SubtitleService.LIVE
+    assert room.subtitle_state["dispatchId"] == "dispatch-2"
+    assert room.subtitle_state["attemptId"] == second["attemptId"]
 
 
 def test_provider_change_requires_explicit_stop(mock_livekit_client, settings):

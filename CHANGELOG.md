@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-28: Fence superseded subtitle rollback cleanup to the creating
+  attempt, preserve a newer LiveKit dispatch, and share one bounded start
+  deadline across provider calls.
+
 - 2026-09-28: Fence live subtitle starts and stops with durable attempts,
   keep rollback cleanup available when start is disabled, fall back outside the
   OpenAI canary, and remove provider error details from API responses.
