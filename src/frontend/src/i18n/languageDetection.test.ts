@@ -37,6 +37,7 @@ const readLanguageCookie = () =>
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   document.cookie = `${LANGUAGE_COOKIE}=; max-age=0; path=/`
 })
 
@@ -72,7 +73,6 @@ describe('interface language detection', () => {
     vi.stubGlobal('localStorage', { getItem, setItem: vi.fn() })
     expect(await detect(['nl-BE'])).toBe('nl')
     expect(getItem).not.toHaveBeenCalled()
-    vi.unstubAllGlobals()
   })
 })
 
