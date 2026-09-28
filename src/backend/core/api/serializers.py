@@ -260,7 +260,7 @@ class RoomSerializer(serializers.ModelSerializer):
             del output["pin_code"]
 
         if temporary_host_role is not None:
-            output["can_end"] = bool(settings.MASTRAO_MEETING_CLOSE_ENABLED)
+            output["can_end"] = True
 
         return output
 

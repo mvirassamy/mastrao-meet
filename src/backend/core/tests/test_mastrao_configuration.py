@@ -83,23 +83,25 @@ def test_development_csrf_origins_follow_the_configured_public_proxy():
     assert json.loads(result.stdout.strip()) == ["http://localhost:3020"]
 
 
-def test_close_rollout_requires_explicit_room_creation():
-    """A stale-token-safe close cannot run with implicit room creation."""
+def test_room_adapter_requires_explicit_room_creation():
+    """A governed room cannot let stale media tokens recreate its provider room."""
 
     with pytest.raises(ImproperlyConfigured, match="EXPLICIT_ROOM_CREATION"):
         validate_mastrao_meeting_close_configuration(True, False)
 
 
 @pytest.mark.parametrize(
-    ("close_enabled", "explicit_creation"),
+    ("room_adapter_enabled", "explicit_creation"),
     [(False, False), (False, True), (True, True)],
 )
-def test_safe_close_rollout_configurations_are_accepted(
-    close_enabled, explicit_creation
+def test_safe_room_adapter_configurations_are_accepted(
+    room_adapter_enabled, explicit_creation
 ):
-    """Disabled close and explicitly-created rooms remain valid configurations."""
+    """Absent adapters and explicitly-created governed rooms remain valid."""
 
-    validate_mastrao_meeting_close_configuration(close_enabled, explicit_creation)
+    validate_mastrao_meeting_close_configuration(
+        room_adapter_enabled, explicit_creation
+    )
 
 
 def test_transcription_disabled_needs_no_asr_configuration():

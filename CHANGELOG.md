@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-29: Make canonical host close part of the normal Meeting contract,
+  keep explicit provider-room creation mandatory for governed rooms and retire
+  the duplicate Meet close feature flag.
+
 - 2026-09-29: Make the signed guest invitation boundary part of the canonical
   Meeting contract and retire the duplicate Meet guest-invitation feature flag.
 
