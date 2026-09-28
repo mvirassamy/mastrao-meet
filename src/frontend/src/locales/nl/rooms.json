@@ -146,6 +146,8 @@
     "copied": "Informatie gekopieerd",
     "heading": "Uw vergadering is klaar",
     "description": "Deel deze link met mensen die u wilt uitnodigen voor de vergadering.",
+    "preparing": "De beveiligde uitnodigingslink wordt voorbereid…",
+    "unavailable": "De uitnodigingslink kon niet worden voorbereid. Probeer het zo opnieuw.",
     "permissions": "Mensen met deze link hebben uw toestemming niet nodig om deel te nemen aan deze vergadering.",
     "closeDialog": "Sluit het dialoogvenster",
     "phone": {
@@ -511,6 +513,8 @@
   "info": {
     "roomInformation": {
       "title": "Verbindingsinformatie",
+      "preparing": "De beveiligde uitnodigingslink wordt voorbereid…",
+      "unavailable": "De uitnodigingslink is tijdelijk niet beschikbaar.",
       "button": {
         "ariaLabel": "Kopieer de informatie van uw vergadering",
         "copy": "Informatie kopiëren",

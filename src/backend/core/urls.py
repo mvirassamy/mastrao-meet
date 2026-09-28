@@ -13,6 +13,7 @@ from core.mastrao_guest_handoff import (
     consume_mastrao_guest_invitation,
     establish_mastrao_guest_session,
 )
+from core.mastrao_guest_invitation_share import create_guest_invitation_share
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
 from core.mastrao_meeting_history import (
     create_meeting,
@@ -140,6 +141,11 @@ urlpatterns = [
                 *router.urls,
                 *oidc_urls,
                 path("meetings/", create_meeting, name="mastrao_create_meeting"),
+                path(
+                    "rooms/<str:room_ref>/guest-invitation/",
+                    create_guest_invitation_share,
+                    name="mastrao_create_guest_invitation_share",
+                ),
                 path(
                     "meetings/history/",
                     meeting_history,

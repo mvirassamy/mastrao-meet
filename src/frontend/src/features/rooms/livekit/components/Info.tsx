@@ -4,7 +4,6 @@ import { VStack } from '@/styled-system/jsx'
 import { css } from '@/styled-system/css'
 import { CheckIcon, CopyIcon } from '@/icons'
 import { Bold, Button, Div, Text } from '@/primitives'
-import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { useRoomData } from '../hooks/useRoomData'
 import { formatPinCode } from '../../utils/telephony'
 import { useTelephony } from '../hooks/useTelephony'
@@ -14,7 +13,6 @@ export const Info = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'info' })
 
   const data = useRoomData()
-  const roomUrl = data?.slug ? getRouteUrl('room', data.slug) : ''
 
   const telephony = useTelephony()
 
@@ -22,7 +20,13 @@ export const Info = () => {
     return telephony?.enabled && data?.pin_code
   }, [telephony?.enabled, data?.pin_code])
 
-  const { isCopied, copyRoomToClipboard } = useCopyRoomToClipboard(data)
+  const {
+    isCopied,
+    copyRoomToClipboard,
+    shareUrlDisplay,
+    isShareLinkPending,
+    shareLinkError,
+  } = useCopyRoomToClipboard(data)
 
   return (
     <Div
@@ -55,7 +59,7 @@ export const Info = () => {
           })}
         >
           <Text as="p" variant="xsNote" wrap="pretty">
-            {roomUrl.replace(/^https?:\/\//, '')}
+            {shareUrlDisplay}
           </Text>
           {isTelephonyReadyForUse && (
             <>
@@ -75,6 +79,7 @@ export const Info = () => {
           variant={isCopied ? 'secondary' : 'ghost'}
           aria-label={t('roomInformation.button.ariaLabel')}
           onPress={copyRoomToClipboard}
+          isDisabled={isShareLinkPending || Boolean(shareLinkError)}
           data-attr="copy-info-sidepannel"
           style={{
             marginLeft: '-8px',
@@ -92,6 +97,16 @@ export const Info = () => {
             </>
           )}
         </Button>
+        {isShareLinkPending && (
+          <Text as="p" variant="xsNote">
+            {t('roomInformation.preparing')}
+          </Text>
+        )}
+        {shareLinkError && (
+          <Text as="p" variant="xsNote">
+            {t('roomInformation.unavailable')}
+          </Text>
+        )}
       </VStack>
     </Div>
   )

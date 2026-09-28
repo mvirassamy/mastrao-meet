@@ -146,6 +146,8 @@
     "copied": "Information copied to clipboard",
     "heading": "Your meeting is ready",
     "description": "Share this link with people you want to invite to the meeting.",
+    "preparing": "Preparing the secure invitation link…",
+    "unavailable": "The invitation link could not be prepared. Try again in a moment.",
     "permissions": "People with this link do not need your permission to join this meeting.",
     "closeDialog": "Close dialog",
     "phone": {
@@ -511,6 +513,8 @@
   "info": {
     "roomInformation": {
       "title": "Connection Information",
+      "preparing": "Preparing the secure invitation link…",
+      "unavailable": "The invitation link is temporarily unavailable.",
       "button": {
         "ariaLabel": "Copy the information from your meeting",
         "copy": "Copy information",

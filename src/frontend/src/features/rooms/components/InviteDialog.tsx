@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { Div, Button, P, Bold } from '@/primitives'
 import { HStack, styled, VStack } from '@/styled-system/jsx'
 import { Heading, Dialog } from 'react-aria-components'
@@ -40,7 +39,6 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'shareDialog' })
 
   const roomData = useRoomData()
-  const roomUrl = roomData?.slug ? getRouteUrl('room', roomData.slug) : ''
 
   const telephony = useTelephony()
 
@@ -53,6 +51,10 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
     copyRoomToClipboard,
     isRoomUrlCopied,
     copyRoomUrlToClipboard,
+    shareUrl,
+    shareUrlDisplay,
+    isShareLinkPending,
+    shareLinkError,
   } = useCopyRoomToClipboard(roomData)
 
   if (!showInviteDialog) return null
@@ -99,9 +101,9 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
               })}
             >
               <Text as="p" wrap="pretty">
-                {roomUrl?.replace(/^https?:\/\//, '')}
+                {shareUrlDisplay}
               </Text>
-              {isTelephonyReadyForUse && roomUrl && (
+              {isTelephonyReadyForUse && shareUrl && (
                 <Button
                   variant={isRoomUrlCopied ? 'secondary' : 'ghost'}
                   size="icon-sm"
@@ -142,6 +144,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
                 justifyContent: 'start',
               }}
               onPress={copyRoomToClipboard}
+              isDisabled={isShareLinkPending || Boolean(shareLinkError)}
               data-attr="share-dialog-copy"
             >
               {isCopied ? (
@@ -170,6 +173,7 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
             fullWidth
             aria-label={isCopied ? t('copied') : t('copy')}
             onPress={copyRoomToClipboard}
+            isDisabled={isShareLinkPending || Boolean(shareLinkError)}
             data-attr="share-dialog-copy"
           >
             {isCopied ? (
@@ -185,6 +189,8 @@ export const InviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
             )}
           </Button>
         )}
+        {isShareLinkPending && <Text variant="sm">{t('preparing')}</Text>}
+        {shareLinkError && <Text variant="sm">{t('unavailable')}</Text>}
         {roomData?.access_level === ApiAccessLevel.PUBLIC && (
           <HStack>
             <div
