@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-09-28: Keep live transcription in one room-scoped store fed by the
+  lk.transcription text streams and the legacy transcription events, with
+  immutable finals, per-track segment identity, bounded history and gap
+  markers, shared by the compact subtitles.
+
 - 2026-09-28: Ignore native transcript capture egress events in the legacy
   recording webhook path, so native completion does not trigger a 500 error.
 
