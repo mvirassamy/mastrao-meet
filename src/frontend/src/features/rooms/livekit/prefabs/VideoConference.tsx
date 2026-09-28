@@ -33,6 +33,7 @@ import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { stopRecording } from '@/features/rooms/api/recordingConsent'
+import { LiveTranscriptionProvider } from '@/features/subtitle/store'
 
 /**
  * @public
@@ -183,42 +184,44 @@ export function VideoConference({
           overflowX: 'hidden',
         }}
       >
-        {isWeb() && (
-          <>
-            <ScreenShareErrorModal
-              isOpen={isShareErrorVisible}
-              onClose={() => setIsShareErrorVisible(false)}
-            />
-            <IsIdleDisconnectModal />
-            <PinAnnouncer />
-            <RoomContentArea>
-              {isPictureInPictureOpen ? (
-                <PipRoomPlaceholder />
-              ) : (
-                <StageLayout />
-              )}
-            </RoomContentArea>
-            <ControlBar
-              roomId={roomId}
-              canEnd={canEnd}
-              onMeetingEnded={onMeetingEnded}
-              onDeviceError={(e) => {
-                reportError('device_switch_failure', e.error, {
-                  at: 'ControlBar.onDeviceError',
-                  source: e.source,
-                })
-                if (
-                  e.source == Track.Source.ScreenShare &&
-                  e.error.toString() ==
-                    'NotAllowedError: Permission denied by system'
-                ) {
-                  setIsShareErrorVisible(true)
-                }
-              }}
-            />
-            <SidePanel />
-          </>
-        )}
+        <LiveTranscriptionProvider>
+          {isWeb() && (
+            <>
+              <ScreenShareErrorModal
+                isOpen={isShareErrorVisible}
+                onClose={() => setIsShareErrorVisible(false)}
+              />
+              <IsIdleDisconnectModal />
+              <PinAnnouncer />
+              <RoomContentArea>
+                {isPictureInPictureOpen ? (
+                  <PipRoomPlaceholder />
+                ) : (
+                  <StageLayout />
+                )}
+              </RoomContentArea>
+              <ControlBar
+                roomId={roomId}
+                canEnd={canEnd}
+                onMeetingEnded={onMeetingEnded}
+                onDeviceError={(e) => {
+                  reportError('device_switch_failure', e.error, {
+                    at: 'ControlBar.onDeviceError',
+                    source: e.source,
+                  })
+                  if (
+                    e.source == Track.Source.ScreenShare &&
+                    e.error.toString() ==
+                      'NotAllowedError: Permission denied by system'
+                  ) {
+                    setIsShareErrorVisible(true)
+                  }
+                }}
+              />
+              <SidePanel />
+            </>
+          )}
+        </LiveTranscriptionProvider>
         <RoomAudioRenderer />
         <ConnectionStateToast />
         <RecordingProvider />
