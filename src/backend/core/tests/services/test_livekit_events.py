@@ -153,6 +153,35 @@ def test_handle_egress_updated_non_handled(
     mock_update_metadata.assert_not_called()
 
 
+@mock.patch(
+    "core.services.livekit_events.models.MastraoNativeCaptureStart.objects.filter"
+)
+def test_handle_egress_updated_ignores_native_capture(mock_native_filter, service):
+    """Native capture updates are handled by the native drain pipeline."""
+
+    mock_native_filter.return_value.exists.return_value = True
+    service.recording_events.handle_update = mock.Mock()
+    mock_data = mock.MagicMock()
+    mock_data.egress_info.egress_id = "EG_native"
+
+    service._handle_egress_updated(mock_data)
+
+    mock_native_filter.assert_called_once_with(provider_job_ref="EG_native")
+    service.recording_events.handle_update.assert_not_called()
+
+
+def test_handle_egress_updated_unknown_recording_fails(service):
+    """Unknown egress updates still fail so LiveKit can retry races."""
+
+    mock_data = mock.MagicMock()
+    mock_data.egress_info.egress_id = "EG_unknown"
+
+    with pytest.raises(
+        ActionFailedError, match=r"Recording with worker ID .+ does not exist"
+    ):
+        service._handle_egress_updated(mock_data)
+
+
 @pytest.mark.parametrize(
     ("mode", "notification_type"),
     (
@@ -236,6 +265,28 @@ def test_handle_egress_ended_recording_not_found(
 
     recording.refresh_from_db()
     assert recording.status == "active"
+
+
+@mock.patch("core.utils.notify_participants")
+@mock.patch("core.services.room_management.RoomManagement.update_metadata")
+@mock.patch(
+    "core.services.livekit_events.models.MastraoNativeCaptureStart.objects.filter"
+)
+def test_handle_egress_ended_ignores_native_capture(
+    mock_native_filter, mock_update_metadata, mock_notify, service
+):
+    """Native capture end events are handled by the native drain pipeline."""
+
+    mock_native_filter.return_value.exists.return_value = True
+    mock_data = mock.MagicMock()
+    mock_data.egress_info.egress_id = "EG_native"
+    mock_data.egress_info.status = EgressStatus.EGRESS_COMPLETE
+
+    service._handle_egress_ended(mock_data)
+
+    mock_native_filter.assert_called_once_with(provider_job_ref="EG_native")
+    mock_notify.assert_not_called()
+    mock_update_metadata.assert_not_called()
 
 
 @mock.patch("core.utils.notify_participants")
