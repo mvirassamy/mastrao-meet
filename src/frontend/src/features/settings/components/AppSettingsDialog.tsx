@@ -1,3 +1,4 @@
+import { setInterfaceLanguage } from '@/i18n/setInterfaceLanguage'
 import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TabPanel } from 'react-aria-components'
@@ -58,7 +59,7 @@ const mutedText = css({
 })
 
 const GeneralSettings = () => {
-  const { t, i18n } = useTranslation('settings')
+  const { t } = useTranslation('settings')
   const { user, isLoggedIn } = useUser()
   const { languagesList, currentLanguage } = useLanguageLabels()
   const name = user?.full_name?.trim() || user?.email || ''
@@ -144,7 +145,7 @@ const GeneralSettings = () => {
             items={languagesList}
             defaultSelectedKey={currentLanguage.key}
             onSelectionChange={(lang) => {
-              i18n.changeLanguage(lang as string)
+              void setInterfaceLanguage(lang as string)
             }}
           />
         </div>

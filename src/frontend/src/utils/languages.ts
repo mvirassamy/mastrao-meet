@@ -1,3 +1,5 @@
+import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
+
 // Map frontend language codes to backend language codes
 
 export type BackendLanguage = 'en-us' | 'fr-fr' | 'nl-nl' | 'de-de'
@@ -11,7 +13,7 @@ const frontendToBackendMap: Record<FrontendLanguage, BackendLanguage> = {
 }
 
 export const convertToBackendLanguage = (
-  frontendLang: string = 'fr'
+  frontendLang: string = FALLBACK_LANGUAGE
 ): BackendLanguage => {
   return frontendToBackendMap[frontendLang as FrontendLanguage]
 }
