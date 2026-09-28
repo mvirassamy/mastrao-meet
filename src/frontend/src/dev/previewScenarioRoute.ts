@@ -18,6 +18,7 @@ export const previewScreens = [
   ['invitation', 'Invitation'],
   ['feedback', 'Après la réunion'],
   ['error', 'Erreur d’accès'],
+  ['not-found', 'Code de réunion introuvable'],
   ['loading', 'Chargement'],
   ['home', 'Accueil'],
   ['authenticated-home', 'Accueil connecté'],
@@ -46,6 +47,7 @@ export type PreviewContent =
   | 'feedback'
   | 'consent'
   | 'error'
+  | 'not-found'
   | 'loading'
   | 'join'
 
@@ -84,6 +86,7 @@ export const getPreviewContent = (scenario: string): PreviewContent => {
   if (scenario === 'feedback') return 'feedback'
   if (scenario === 'consent') return 'consent'
   if (scenario === 'error') return 'error'
+  if (scenario === 'not-found') return 'not-found'
   if (scenario === 'loading') return 'loading'
 
   return 'join'

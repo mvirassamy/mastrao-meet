@@ -34,7 +34,8 @@
   "logout": "Abmelden",
   "notFound": {
     "heading": "Überprüfe deinen Meeting-Code",
-    "body": "Stelle sicher, dass du den richtigen Meeting-Code in der URL eingegeben haben. Beispiel:"
+    "body": "Dieser Link gehört zu keinem Meeting. Überprüfe den Code in der Adresse, er sieht so aus:",
+    "enterCode": "Code eingeben"
   },
   "selected": "ausgewählt",
   "submit": "OK",

@@ -33,8 +33,9 @@
   },
   "logout": "Logout",
   "notFound": {
-    "heading": "Verify your meeting code",
-    "body": "Check that you have entered the correct meeting code in the URL. Example:"
+    "heading": "Check your meeting code",
+    "body": "This link does not match any meeting. Check the code in the address; it looks like this:",
+    "enterCode": "Enter a code"
   },
   "selected": "selected",
   "submit": "OK",
