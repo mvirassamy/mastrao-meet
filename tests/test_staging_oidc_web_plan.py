@@ -129,6 +129,15 @@ class StagingOidcWebPlanTests(unittest.TestCase):
         env_names = [item["name"] for item in patched_container["env"]]
         self.assertEqual(len(env_names), len(set(env_names)))
         self.assertEqual(env_names.count("OIDC_REDIRECT_ALLOWED_HOSTS"), 1)
+        self.assertIn("OIDC_OP_LOGOUT_ENDPOINT", env_names)
+        self.assertEqual(
+            next(
+                item["value"]
+                for item in patched_container["env"]
+                if item["name"] == "OIDC_OP_LOGOUT_ENDPOINT"
+            ),
+            "https://app.mastrao-staging.com/auth/meet-logout",
+        )
         self.assertNotIn("$patch", json.dumps(patch))
         self.assertEqual(
             plan["patchContract"],

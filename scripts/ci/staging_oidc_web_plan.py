@@ -301,6 +301,10 @@ def _public_env(
             "name": "OIDC_OP_INTROSPECTION_ENDPOINT",
             "value": f"{issuer}/oauth2/introspect",
         },
+        {
+            "name": "OIDC_OP_LOGOUT_ENDPOINT",
+            "value": f"{platform_origin}/auth/meet-logout",
+        },
         {"name": "OIDC_RP_SIGN_ALGO", "value": "RS256"},
         {"name": "OIDC_RP_SCOPES", "value": "openid profile email"},
         {"name": "OIDC_USE_PKCE", "value": "true"},
