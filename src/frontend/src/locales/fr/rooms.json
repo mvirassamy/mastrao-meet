@@ -313,7 +313,8 @@
     },
     "liveTranscript": {
       "closed": "Ouvrir la transcription en direct",
-      "open": "Masquer la transcription en direct"
+      "open": "Masquer la transcription en direct",
+      "transcriptionInProgress": "Transcription en cours"
     },
     "screenShare": {
       "start": "Partager l'écran",
@@ -503,6 +504,7 @@
   },
   "liveTranscript": {
     "status": {
+      "unknown": "L’état de la transcription en direct est inconnu.",
       "inactive": "La transcription en direct est inactive.",
       "starting": "Démarrage de la transcription en direct…",
       "live": "Transcription en direct",
@@ -510,8 +512,10 @@
       "degraded": "Une partie de la conversation peut manquer.",
       "degradedWithGap": "Une partie de la conversation peut manquer.",
       "unavailable": "La transcription en direct est indisponible.",
+      "stopping": "Arrêt de la transcription en direct…",
       "stopped": "La transcription en direct est arrêtée."
     },
+    "availabilityNote": "Transcription disponible depuis votre arrivée.",
     "empty": "Aucune transcription en direct n'est encore disponible.",
     "segmentsLabel": "Segments de transcription en direct",
     "interim": "Brouillon",

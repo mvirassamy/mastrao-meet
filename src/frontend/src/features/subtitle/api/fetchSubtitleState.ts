@@ -1,6 +1,7 @@
 import { fetchApi } from '@/api/fetchApi'
 
 export type ApiSubtitleLifecycleState =
+  | 'unknown'
   | 'inactive'
   | 'starting'
   | 'live'

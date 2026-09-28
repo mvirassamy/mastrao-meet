@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
+import frRooms from '@/locales/fr/rooms.json'
 import {
   LiveTranscriptionContext,
   type LiveTranscriptionContextValue,
@@ -11,6 +12,10 @@ import type {
   LiveTranscriptionSegment,
   LiveTranscriptionState,
 } from '../store/liveTranscriptionTypes'
+
+const { frenchAvailabilityNote } = vi.hoisted(() => ({
+  frenchAvailabilityNote: 'Transcription disponible depuis votre arrivée.',
+}))
 
 const room = {
   localParticipant: { identity: 'alice', name: 'Alice' },
@@ -24,10 +29,16 @@ vi.mock('@livekit/components-react', () => ({
 
 vi.mock('@/utils/useIsMobile', () => ({ useIsMobile: () => true }))
 
+vi.mock('@/features/rooms/livekit/hooks/useSidePanel', () => ({
+  useSidePanel: () => ({ isLiveTranscriptOpen: true }),
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number }) =>
-      options?.count === undefined ? key : `${key} ${options.count}`,
+    t: (key: string, options?: { count?: number }) => {
+      if (key === 'availabilityNote') return frenchAvailabilityNote
+      return options?.count === undefined ? key : `${key} ${options.count}`
+    },
   }),
 }))
 
@@ -48,7 +59,14 @@ vi.mock('@/primitives', () => ({
       {children}
     </button>
   ),
-  Text: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  Text: ({
+    children,
+    margin: _margin,
+    ...props
+  }: {
+    children: ReactNode
+    margin?: boolean
+  }) => <span {...props}>{children}</span>,
 }))
 
 vi.mock('@/styled-system/css', () => ({ css: () => '' }))
@@ -75,6 +93,7 @@ const createState = (
 ): LiveTranscriptionState => ({
   roomId: 'room-1',
   status: 'live',
+  connectionStatus: 'connected',
   segments: [createSegment()],
   gaps: [],
   truncated: false,
@@ -82,10 +101,14 @@ const createState = (
   ...overrides,
 })
 
-const renderPanel = (state: LiveTranscriptionState) => {
+const renderPanel = (
+  state: LiveTranscriptionState,
+  syncSubtitleState = vi.fn()
+) => {
   const value: LiveTranscriptionContextValue = {
     ...state,
     dispatch: vi.fn(),
+    syncSubtitleState,
   }
   return render(
     <LiveTranscriptionContext.Provider value={value}>
@@ -148,6 +171,37 @@ describe('LiveTranscriptPanel', () => {
     )
   })
 
+  it('keeps the availability note when there are no segments or when populated', () => {
+    const syncSubtitleState = vi.fn()
+    const { rerender } = renderPanel(
+      createState({ segments: [] }),
+      syncSubtitleState
+    )
+
+    expect(syncSubtitleState).toHaveBeenCalledOnce()
+    expect(frRooms.liveTranscript.availabilityNote).toBe(frenchAvailabilityNote)
+
+    expect(
+      screen.getByTestId('live-transcript-availability-note').textContent
+    ).toBe('Transcription disponible depuis votre arrivée.')
+
+    rerender(
+      <LiveTranscriptionContext.Provider
+        value={{
+          ...createState(),
+          dispatch: vi.fn(),
+          syncSubtitleState: vi.fn(),
+        }}
+      >
+        <LiveTranscriptPanel />
+      </LiveTranscriptionContext.Provider>
+    )
+
+    expect(
+      screen.getByTestId('live-transcript-availability-note').textContent
+    ).toBe('Transcription disponible depuis votre arrivée.')
+  })
+
   it('replaces an interim intervention with its final text in place', () => {
     const { rerender } = renderPanel(
       createState({
@@ -160,6 +214,7 @@ describe('LiveTranscriptPanel', () => {
         value={{
           ...createState({ segments: [createSegment({ text: 'Bonjour' })] }),
           dispatch: vi.fn(),
+          syncSubtitleState: vi.fn(),
         }}
       >
         <LiveTranscriptPanel />
@@ -173,12 +228,14 @@ describe('LiveTranscriptPanel', () => {
   })
 
   it.each([
+    'unknown',
     'inactive',
     'starting',
     'live',
     'reconnecting',
     'degraded',
     'unavailable',
+    'stopping',
     'stopped',
   ] as const)('exposes the %s status without a start action', (status) => {
     renderPanel(createState({ status }))
@@ -216,6 +273,7 @@ describe('LiveTranscriptPanel', () => {
             nextSequence: 2,
           }),
           dispatch: vi.fn(),
+          syncSubtitleState: vi.fn(),
         }}
       >
         <LiveTranscriptPanel />

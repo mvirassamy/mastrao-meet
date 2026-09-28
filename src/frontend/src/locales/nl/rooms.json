@@ -313,7 +313,8 @@
     },
     "liveTranscript": {
       "closed": "Live transcript openen",
-      "open": "Live transcript verbergen"
+      "open": "Live transcript verbergen",
+      "transcriptionInProgress": "Transcriptie bezig"
     },
     "screenShare": {
       "start": "Scherm delen",
@@ -503,6 +504,7 @@
   },
   "liveTranscript": {
     "status": {
+      "unknown": "De status van de live transcriptie is onbekend.",
       "inactive": "Live transcriptie is inactief.",
       "starting": "Live transcriptie wordt gestart…",
       "live": "Live transcriptie",
@@ -510,8 +512,10 @@
       "degraded": "Delen van het gesprek kunnen ontbreken.",
       "degradedWithGap": "Delen van het gesprek kunnen ontbreken.",
       "unavailable": "Live transcriptie is niet beschikbaar.",
+      "stopping": "Live transcriptie wordt gestopt…",
       "stopped": "Live transcriptie is gestopt."
     },
+    "availabilityNote": "Transcriptie beschikbaar sinds u bent binnengekomen.",
     "empty": "Er is nog geen live transcript beschikbaar.",
     "segmentsLabel": "Live transcriptsegmenten",
     "interim": "Concept",

@@ -313,7 +313,8 @@
     },
     "liveTranscript": {
       "closed": "Live-Transkript öffnen",
-      "open": "Live-Transkript ausblenden"
+      "open": "Live-Transkript ausblenden",
+      "transcriptionInProgress": "Transkription läuft"
     },
     "screenShare": {
       "start": "Bildschirm freigeben",
@@ -503,6 +504,7 @@
   },
   "liveTranscript": {
     "status": {
+      "unknown": "Der Status der Live-Transkription ist unbekannt.",
       "inactive": "Die Live-Transkription ist inaktiv.",
       "starting": "Live-Transkription wird gestartet…",
       "live": "Live-Transkription",
@@ -510,8 +512,10 @@
       "degraded": "Teile des Gesprächs könnten fehlen.",
       "degradedWithGap": "Teile des Gesprächs könnten fehlen.",
       "unavailable": "Die Live-Transkription ist nicht verfügbar.",
+      "stopping": "Live-Transkription wird beendet…",
       "stopped": "Die Live-Transkription wurde beendet."
     },
+    "availabilityNote": "Transkript seit Ihrem Beitritt verfügbar.",
     "empty": "Noch ist kein Live-Transkript verfügbar.",
     "segmentsLabel": "Live-Transkriptsegmente",
     "interim": "Entwurf",

@@ -364,6 +364,54 @@ describe('LiveTranscriptionProvider', () => {
     expect(view.getByTestId('transcription-state').textContent).toBe('live:')
   })
 
+  it.each(['live', 'stopping'] as const)(
+    'maps API state %s without requiring a transcript segment',
+    async (status) => {
+      const { room } = createRoom()
+      useRoomContextMock.mockReturnValue(room)
+      useRoomDataMock.mockReturnValue({
+        livekit: { room: 'room-1', token: 'token-1' },
+      })
+      fetchSubtitleStateMock.mockResolvedValue({ subtitle: { state: status } })
+
+      const view = render(
+        <App>
+          <Probe />
+        </App>
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(view.getByTestId('transcription-state').textContent).toBe(
+        `${status}:`
+      )
+      expect(fetchSubtitleStateMock).toHaveBeenCalledWith('room-1', 'token-1')
+    }
+  )
+
+  it('fails closed to the neutral state when the API state request fails', async () => {
+    const { room } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-1', token: 'token-1' },
+    })
+    fetchSubtitleStateMock.mockRejectedValue(new Error('offline'))
+
+    const view = render(
+      <App>
+        <Probe />
+      </App>
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(view.getByTestId('transcription-state').textContent).toBe('unknown:')
+  })
+
   it('ignores an API response that is older than a worker status event', async () => {
     const { room } = createRoom()
     useRoomContextMock.mockReturnValue(room)

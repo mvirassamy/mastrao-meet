@@ -313,7 +313,8 @@
     },
     "liveTranscript": {
       "closed": "Open live transcript",
-      "open": "Hide live transcript"
+      "open": "Hide live transcript",
+      "transcriptionInProgress": "Transcription in progress"
     },
     "screenShare": {
       "start": "Share screen",
@@ -503,6 +504,7 @@
   },
   "liveTranscript": {
     "status": {
+      "unknown": "Live transcription status is unknown.",
       "inactive": "Live transcription is inactive.",
       "starting": "Starting live transcription…",
       "live": "Live transcription",
@@ -510,8 +512,10 @@
       "degraded": "Some parts of the conversation may be missing.",
       "degradedWithGap": "Some parts of the conversation may be missing.",
       "unavailable": "Live transcription is unavailable.",
+      "stopping": "Stopping live transcription…",
       "stopped": "Live transcription is stopped."
     },
+    "availabilityNote": "Transcript available since you joined.",
     "empty": "No live transcript is available yet.",
     "segmentsLabel": "Live transcript segments",
     "interim": "Draft",

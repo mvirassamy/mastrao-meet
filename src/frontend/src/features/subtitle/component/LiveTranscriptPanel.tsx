@@ -12,6 +12,7 @@ import {
 } from '@/features/rooms/utils/getParticipantColor'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 
 import {
   getParticipantForTranscription,
@@ -22,12 +23,14 @@ import {
 
 const LIVE_TRANSCRIPTION_STATUS_KEYS: Record<LiveTranscriptionStatus, string> =
   {
+    unknown: 'unknown',
     inactive: 'inactive',
     starting: 'starting',
     live: 'live',
     reconnecting: 'reconnecting',
     degraded: 'degraded',
     unavailable: 'unavailable',
+    stopping: 'stopping',
     stopped: 'stopped',
   }
 
@@ -171,12 +174,18 @@ const LiveTranscriptGroup = ({
 export const LiveTranscriptPanel = () => {
   const room = useRoomContext()
   const isMobile = useIsMobile()
+  const { isLiveTranscriptOpen } = useSidePanel()
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
-  const { status, segments, gaps, truncated } = useLiveTranscription()
+  const { status, segments, gaps, truncated, syncSubtitleState } =
+    useLiveTranscription()
   const transcriptRef = useRef<HTMLDivElement>(null)
   const seenFinalKeysRef = useRef(new Set<string>())
   const [isFollowing, setIsFollowing] = useState(true)
   const [newSegmentCount, setNewSegmentCount] = useState(0)
+
+  useEffect(() => {
+    if (isLiveTranscriptOpen) void syncSubtitleState()
+  }, [isLiveTranscriptOpen, syncSubtitleState])
 
   const groups = useMemo(
     () => groupSegmentsByParticipant(segments, room),
@@ -266,6 +275,14 @@ export const LiveTranscriptPanel = () => {
         gap: '0.75rem',
       })}
     >
+      <Text
+        variant="note"
+        margin={false}
+        data-testid="live-transcript-availability-note"
+      >
+        {t('availabilityNote')}
+      </Text>
+
       <div
         role="status"
         data-transcription-status={status}
