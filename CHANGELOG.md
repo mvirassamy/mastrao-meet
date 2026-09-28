@@ -4,6 +4,12 @@
   masked or transient lifecycle lookup returns 404, and resume lobby entry as
   soon as the authoritative lifecycle confirms that the meeting is open.
 
+- 2026-09-28: Pick the interface language from the shared mastrao_lang
+  cookie, then the first supported browser language (fr, en, nl, de), and
+  fall back to English instead of French. Only an explicit choice writes the
+  cookie, on the parent domain, so Mastrao applications share it.
+  The legacy i18nextLng guess is ignored, so users pick a language once more.
+
 - 2026-09-28: Share canonical rooms through a host-bound guest invitation URL
   instead of the raw room URL, while preserving ordinary room sharing and
   failing closed when the secure link is unavailable.

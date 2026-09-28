@@ -15,6 +15,7 @@ export default defineConfig({
     include: [
       'src/features/{rooms,home,meetingHistory,settings}/**/*.test.{ts,tsx}',
       'src/primitives/**/*.test.{ts,tsx}',
+      'src/i18n/**/*.test.{ts,tsx}',
     ],
   },
 })

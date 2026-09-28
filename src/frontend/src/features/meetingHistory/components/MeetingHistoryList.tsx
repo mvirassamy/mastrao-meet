@@ -1,3 +1,4 @@
+import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
@@ -49,7 +50,7 @@ const groupByMonth = (
 
 export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
   const { t, i18n } = useTranslation(['meetingHistory', 'home'])
-  const locale = i18n.resolvedLanguage || i18n.language || 'fr'
+  const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const query = useMeetingHistory()
   useLoginRedirectOnAuthError(query.error)
   const listRef = useRef<HTMLDivElement>(null)
