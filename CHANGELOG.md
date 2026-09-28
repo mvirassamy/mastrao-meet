@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-09-28: Manage one idempotent live subtitle agent dispatch per room:
+  persisted lifecycle state, orphan dispatch adoption, a real stop with
+  bounded drain, a state endpoint, and an allowlisted OpenAI agent kept off
+  by default.
+
 - 2026-09-28: Ignore native transcript capture egress events in the legacy
   recording webhook path, so native completion does not trigger a 500 error.
 

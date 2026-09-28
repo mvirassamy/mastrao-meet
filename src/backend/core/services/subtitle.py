@@ -183,16 +183,13 @@ class SubtitleService:
 
     @classmethod
     async def _find_dispatch(cls, client, room_id, agent_name):
-        response = await asyncio.wait_for(
+        # livekit-api 1.2.0 returns list[AgentDispatch], not the raw response.
+        dispatches = await asyncio.wait_for(
             client.agent_dispatch.list_dispatch(room_id),
             timeout=settings.ROOM_SUBTITLE_START_TIMEOUT_SECONDS,
         )
         return next(
-            (
-                dispatch
-                for dispatch in response.agent_dispatches
-                if dispatch.agent_name == agent_name
-            ),
+            (dispatch for dispatch in dispatches if dispatch.agent_name == agent_name),
             None,
         )
 
@@ -200,13 +197,12 @@ class SubtitleService:
     async def _wait_for_drain(cls, client, room_id, dispatch_id):
         deadline = time.monotonic() + settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS
         while True:
-            response = await asyncio.wait_for(
+            dispatches = await asyncio.wait_for(
                 client.agent_dispatch.list_dispatch(room_id),
                 timeout=settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS,
             )
             if not any(
-                cls._dispatch_id(dispatch) == dispatch_id
-                for dispatch in response.agent_dispatches
+                cls._dispatch_id(dispatch) == dispatch_id for dispatch in dispatches
             ):
                 return True
             if time.monotonic() >= deadline:
@@ -253,10 +249,11 @@ class SubtitleService:
                 room.subtitle_state = state
                 room.save(update_fields=["subtitle_state"])
                 return {"claimed": False, "state": state}
-            if state["state"] == cls.STOPPING:
+            if state["state"] == cls.STOPPING and not cls._stopping_is_stale(state):
                 return {"claimed": False, "state": state}
 
             state["state"] = cls.STOPPING
+            state["stoppingAt"] = timezone.now().isoformat()
             state["lastError"] = None
             room.subtitle_state = state
             room.save(update_fields=["subtitle_state"])
@@ -325,6 +322,10 @@ class SubtitleService:
 
     @classmethod
     def _start_is_already_claimed(cls, state, agent_name):
+        if state["state"] == cls.STOPPING and cls._stopping_is_stale(state):
+            # A stop interrupted mid-way (worker killed) must not block the
+            # room forever: a new start re-adopts or recreates the dispatch.
+            return False
         claimed = (
             state["agentName"] == agent_name
             and state["state"] in cls._ACTIVE_STATES
@@ -341,6 +342,18 @@ class SubtitleService:
             claimed = age < settings.ROOM_SUBTITLE_START_TIMEOUT_SECONDS
         return claimed
 
+    @staticmethod
+    def _stopping_is_stale(state):
+        """A stop outlives delete plus drain only if its process died."""
+        stopping_at = state.get("stoppingAt")
+        if not stopping_at:
+            return True
+        try:
+            age = (timezone.now() - datetime.fromisoformat(stopping_at)).total_seconds()
+        except (TypeError, ValueError):
+            return True
+        return age >= 3 * settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS
+
     @classmethod
     def _normalize_state(cls, value):
         defaults = {
@@ -351,6 +364,7 @@ class SubtitleService:
             "startedBy": None,
             "startedAt": None,
             "stoppedAt": None,
+            "stoppingAt": None,
             "lastError": None,
         }
         if not isinstance(value, dict):

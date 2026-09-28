@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from django.db import close_old_connections
+from django.utils import timezone
 
 import pytest
 from livekit.api import TwirpError
@@ -20,7 +21,8 @@ def _dispatch(dispatch_id="dispatch-1", agent_name="multi-user-transcriber"):
 
 
 def _dispatch_response(*dispatches):
-    return SimpleNamespace(agent_dispatches=list(dispatches))
+    # Real livekit-api 1.2.0 shape: list_dispatch returns list[AgentDispatch].
+    return list(dispatches)
 
 
 @pytest.fixture
@@ -169,6 +171,51 @@ def test_stop_subtitle_drain_timeout_preserves_dispatch(mock_livekit_client, set
     room.refresh_from_db()
     assert room.subtitle_state["state"] == "degraded"
     assert room.subtitle_state["dispatchId"] == "dispatch-1"
+
+
+def test_interrupted_stop_does_not_block_the_room(mock_livekit_client, settings):
+    """A stale stopping claim is reclaimed by stop and does not block start."""
+    settings.ROOM_SUBTITLE_DRAIN_TIMEOUT_SECONDS = 1
+    stale = "2026-01-01T00:00:00+00:00"
+    room = RoomFactory(
+        name="my room",
+        subtitle_state={
+            "state": "stopping",
+            "agentName": "multi-user-transcriber",
+            "dispatchId": "dispatch-1",
+            "stoppingAt": stale,
+        },
+    )
+
+    state = SubtitleService().stop_subtitle(room)
+
+    assert state["state"] == "stopped"
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_called_once()
+
+    room.subtitle_state = {
+        "state": "stopping",
+        "agentName": "multi-user-transcriber",
+        "dispatchId": "dispatch-1",
+        "stoppingAt": stale,
+    }
+    room.save()
+    assert SubtitleService().start_subtitle(room)["state"] == "live"
+
+
+def test_fresh_stop_claim_is_not_duplicated(mock_livekit_client):
+    """A stop already in progress is not started twice."""
+    room = RoomFactory(
+        name="my room",
+        subtitle_state={
+            "state": "stopping",
+            "agentName": "multi-user-transcriber",
+            "dispatchId": "dispatch-1",
+            "stoppingAt": timezone.now().isoformat(),
+        },
+    )
+
+    assert SubtitleService().stop_subtitle(room)["state"] == "stopping"
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_not_called()
 
 
 def test_openai_agent_requires_allowlisted_room(mock_livekit_client, settings):

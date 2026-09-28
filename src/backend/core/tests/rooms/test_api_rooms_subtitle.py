@@ -58,9 +58,7 @@ def mock_livekit_client():
     """Mock LiveKit API client."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
         mock_client = mock.AsyncMock()
-        mock_client.agent_dispatch.list_dispatch = mock.AsyncMock(
-            return_value=SimpleNamespace(agent_dispatches=[])
-        )
+        mock_client.agent_dispatch.list_dispatch = mock.AsyncMock(return_value=[])
         mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
             return_value=SimpleNamespace(
                 id="dispatch-1", agent_name="multi-user-transcriber"
@@ -208,8 +206,9 @@ def test_stop_subtitle_requires_room_token():
 
 
 def test_stop_subtitle_returns_persisted_state(
-    mock_livekit_client, mock_livekit_token, mock_room_id
+    settings, mock_livekit_client, mock_livekit_token, mock_room_id
 ):
+    settings.ROOM_SUBTITLE_ENABLED = True
     room = RoomFactory(
         id=mock_room_id,
         subtitle_state={
@@ -231,7 +230,10 @@ def test_stop_subtitle_returns_persisted_state(
     mock_livekit_client.agent_dispatch.delete_dispatch.assert_called_once()
 
 
-def test_subtitle_state_returns_persisted_state(mock_livekit_token, mock_room_id):
+def test_subtitle_state_returns_persisted_state(
+    settings, mock_livekit_token, mock_room_id
+):
+    settings.ROOM_SUBTITLE_ENABLED = True
     room = RoomFactory(
         id=mock_room_id,
         subtitle_state={"state": "reconnecting", "dispatchId": "dispatch-1"},
@@ -244,6 +246,22 @@ def test_subtitle_state_returns_persisted_state(mock_livekit_token, mock_room_id
 
     assert response.status_code == 200
     assert response.json()["subtitle"]["state"] == "reconnecting"
+
+
+@pytest.mark.parametrize("path", ["stop-subtitle", "subtitle-state"])
+def test_subtitle_lifecycle_endpoints_are_closed_by_default(
+    path, mock_livekit_token, mock_room_id
+):
+    room = RoomFactory(id=mock_room_id)
+    client = APIClient()
+    call = client.get if path == "subtitle-state" else client.post
+
+    response = call(
+        f"/api/v1.0/rooms/{room.id}/{path}/",
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 404
 
 
 def test_start_subtitle_wrong_room(settings, mock_livekit_token):

@@ -1065,6 +1065,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         ],
         authentication_classes=[LiveKitTokenAuthentication],
     )
+    @FeatureFlag.require("subtitle")
     def stop_subtitle(self, request, pk=None):  # pylint: disable=unused-argument
         """Stop the room subtitle agent, including an already-stopped room."""
 
@@ -1092,6 +1093,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         ],
         authentication_classes=[LiveKitTokenAuthentication],
     )
+    @FeatureFlag.require("subtitle")
     def subtitle_state(self, request, pk=None):  # pylint: disable=unused-argument
         """Return durable subtitle lifecycle state for room resynchronization."""
 
