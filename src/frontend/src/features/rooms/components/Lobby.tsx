@@ -29,6 +29,10 @@ import { isMissingRoomLifecycle } from '../api/isMissingRoomLifecycle'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 
+// An open lifecycle does not guarantee that the next lobby or room request
+// succeeds (masked 404): pace the retry so a persistent 404 never loops hot.
+const OPEN_LIFECYCLE_RETRY_MS = 1000
+
 const navigateToEndedMeeting = (roomId: string) =>
   navigateTo(
     'feedback',
@@ -127,7 +131,7 @@ export const Lobby = ({
           return
         }
         if (lifecycle.state === 'open') {
-          startWaiting()
+          timer = setTimeout(startWaiting, OPEN_LIFECYCLE_RETRY_MS)
           return
         }
       } catch (error) {
@@ -207,7 +211,9 @@ export const Lobby = ({
               return
             }
             if (lifecycle.state === 'open') {
-              await refetchRoom()
+              timer = setTimeout(() => {
+                void refetchRoom()
+              }, OPEN_LIFECYCLE_RETRY_MS)
               return
             }
           } catch (lifecycleError) {

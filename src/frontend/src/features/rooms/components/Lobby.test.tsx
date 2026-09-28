@@ -178,6 +178,7 @@ describe('Lobby lifecycle reconciliation', () => {
   })
 
   it('resumes guest entry when a transient 404 still belongs to an open meeting', async () => {
+    vi.useFakeTimers()
     lobbyStatus = ApiLobbyStatus.ENDED
     fetchRoomLifecycle.mockResolvedValueOnce({ state: 'open' })
 
@@ -188,8 +189,13 @@ describe('Lobby lifecycle reconciliation', () => {
       />
     )
 
-    await vi.waitFor(() => expect(startWaiting).toHaveBeenCalledOnce())
+    await act(async () => undefined)
+    // Paced: a lobby 404 that persists must not loop without delay.
+    expect(startWaiting).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(startWaiting).toHaveBeenCalledOnce()
     expect(navigateTo).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   it('does not enter when a submit races with a restored close intent', () => {
@@ -246,6 +252,8 @@ describe('Lobby lifecycle reconciliation', () => {
 
     await act(async () => vi.advanceTimersByTimeAsync(1_000))
     expect(fetchRoomLifecycle).toHaveBeenCalledTimes(2)
+    expect(refetchRoom).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
     expect(refetchRoom).toHaveBeenCalledOnce()
     expect(navigateTo).not.toHaveBeenCalled()
     vi.useRealTimers()
