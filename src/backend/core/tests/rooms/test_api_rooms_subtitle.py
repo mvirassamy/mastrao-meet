@@ -13,6 +13,11 @@ from livekit.api import AccessToken, TwirpError, VideoGrants
 from rest_framework.test import APIClient
 
 from ...factories import RoomFactory, UserFactory
+from ...models import RoomSubtitleControl
+from ...services.subtitle_control import (
+    compare_and_set_subtitle_control,
+    ensure_subtitle_control,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -223,6 +228,54 @@ def test_start_subtitle_wrong_signature(settings, mock_livekit_token):
     )
 
     assert response.status_code == 403
+
+
+def test_subtitle_state_requires_a_room_scoped_livekit_token():
+    """Require a room-scoped token for the subtitle snapshot."""
+    room = RoomFactory()
+    client = APIClient()
+
+    response = client.get(f"/api/v1.0/rooms/{room.id}/subtitle-state/")
+
+    assert response.status_code == 403
+
+
+def test_subtitle_state_returns_public_snapshot(mock_livekit_token, mock_room_id):
+    """Return the persisted public snapshot through the room API."""
+    room = RoomFactory(id=mock_room_id)
+    control = ensure_subtitle_control(room, room_sid="RM_api_snapshot")
+    compare_and_set_subtitle_control(
+        control.room_sid,
+        expected_control_generation=0,
+        expected_state_version=0,
+        session_id="session-api",
+        public_state=RoomSubtitleControl.PublicState.LIVE,
+        desired_state=RoomSubtitleControl.DesiredState.ON,
+    )
+    client = APIClient()
+
+    response = client.get(
+        f"/api/v1.0/rooms/{room.id}/subtitle-state/",
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    assert response.json()["subtitle"]["state"] == "live"
+    assert response.json()["subtitle"]["stateVersion"] == 1
+    assert response.json()["subtitle"]["sessionId"] == "session-api"
+
+
+def test_subtitle_state_rejects_a_token_for_another_room(mock_livekit_token):
+    """Reject a valid token scoped to another room."""
+    room = RoomFactory()
+    client = APIClient()
+
+    response = client.get(
+        f"/api/v1.0/rooms/{room.id}/subtitle-state/",
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 403
     assert response.json() == {
-        "detail": "Invalid LiveKit token: Signature verification failed"
+        "detail": "You do not have permission to perform this action."
     }

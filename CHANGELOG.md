@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-29: Add room-scoped subtitle control state, monotone CAS versions,
+  closed reason codes, permissions, and a private snapshot endpoint.
+
 - 2026-09-28: Keep live transcription in one room-scoped store fed by the
   lk.transcription text streams and the legacy transcription events, with
   immutable finals, per-track segment identity, bounded history and gap
