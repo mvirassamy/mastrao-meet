@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-28: End the shared Platform session when a user signs out from Meet,
+  then return to Meet through the state-protected OIDC logout callback.
+
 - 2026-09-28: Keep an invited guest out of the terminal meeting screen when a
   masked or transient lifecycle lookup returns 404, and resume lobby entry as
   soon as the authoritative lifecycle confirms that the meeting is open.
