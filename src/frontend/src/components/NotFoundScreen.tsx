@@ -7,8 +7,10 @@ import { JoinMeetingDialog } from '@/features/home/components/JoinMeetingDialog'
 
 /** Unknown route: usually a mistyped meeting link. */
 export const NotFoundScreen = () => {
-  const { t } = useTranslation()
-  const example = `${window.location.host}/abc-defg-hij`
+  // Preload "home" so opening the join dialog never suspends the page.
+  const { t } = useTranslation(['global', 'home'])
+  // Same format as the join dialog accepts (origin + code).
+  const example = `${window.location.origin}/abc-defg-hij`
 
   return (
     <Screen layout="centered">
