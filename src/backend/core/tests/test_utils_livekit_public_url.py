@@ -66,6 +66,8 @@ def test_live_transcript_panel_configuration_requires_both_flags(
     settings, subtitle_enabled, panel_enabled, expected_panel_enabled
 ):
     """The live panel is exposed only when subtitles and the panel are enabled."""
+    settings.LIVEKIT_CONFIGURATION = {"url": "http://livekit:7880"}
+    settings.LIVEKIT_PUBLIC_URL = ""
     settings.ROOM_SUBTITLE_ENABLED = subtitle_enabled
     settings.LIVE_TRANSCRIPT_PANEL_ENABLED = panel_enabled
 
