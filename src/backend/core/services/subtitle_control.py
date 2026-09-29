@@ -1,8 +1,9 @@
 """Room-scoped subtitle control state and its public snapshot."""
+# pylint: disable=cyclic-import
 
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from ..models import Room, RoomSubtitleControl
 
@@ -37,6 +38,7 @@ _MUTABLE_FIELDS = {
     "attempts",
     "next_retry_at",
     "desired_state",
+    "room_finished_at",
 }
 
 
@@ -49,6 +51,81 @@ def _check_room_sid(room_sid):
         raise SubtitleControlContractError(str(error)) from error
 
 
+def _room_id_for_sid(room_sid):
+    """Resolve a SID without taking a blocking business-row lock."""
+
+    room_id = (
+        RoomSubtitleControl.objects.filter(room_sid=room_sid)
+        .values_list("room_id", flat=True)
+        .first()
+    )
+    if room_id is None:
+        raise SubtitleControlContractError(
+            "The LiveKit room SID has not been acquired."
+        )
+    return room_id
+
+
+def lock_room_and_control(room, *, room_sid=None, current_only=True):
+    """Lock Room then its subtitle control inside an existing transaction."""
+
+    locked_room = Room.objects.select_for_update().get(pk=room.pk)
+    controls = RoomSubtitleControl.objects.select_for_update().filter(room=locked_room)
+    if room_sid is not None:
+        controls = controls.filter(room_sid=room_sid)
+    if current_only:
+        controls = controls.filter(is_current=True)
+    return locked_room, controls.first()
+
+
+def _apply_locked_cas(
+    locked_room,
+    control,
+    *,
+    expected_control_generation,
+    expected_state_version,
+    new_intent=False,
+    **changes,
+):
+    """Apply a CAS after the caller acquired Room then Control."""
+
+    if control is None or control.room_id != locked_room.pk:
+        raise SubtitleControlContractError(
+            "The LiveKit room SID has not been acquired for this room."
+        )
+    unknown_fields = set(changes) - _MUTABLE_FIELDS
+    if unknown_fields:
+        raise SubtitleControlContractError(
+            f"Unsupported subtitle control fields: {sorted(unknown_fields)}"
+        )
+    if (
+        control.control_generation != expected_control_generation
+        or control.state_version != expected_state_version
+    ):
+        raise SubtitleControlConflict(
+            "Subtitle control state changed before this transition was applied."
+        )
+
+    desired_state_changed = (
+        "desired_state" in changes and changes["desired_state"] != control.desired_state
+    )
+    for field, value in changes.items():
+        setattr(control, field, value)
+    control.state_version += 1
+    if desired_state_changed or new_intent:
+        control.control_generation += 1
+    try:
+        control.save()
+    except ValidationError as error:
+        raise SubtitleControlContractError(str(error)) from error
+    from .subtitle_reconciliation import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        queue_subtitle_snapshot,
+    )
+
+    queue_subtitle_snapshot(control.room_id)
+    return control
+
+
 @transaction.atomic
 def ensure_subtitle_control(room: Room, *, room_sid: str) -> RoomSubtitleControl:
     """Acquire a control row for an already-resolved LiveKit room SID.
@@ -59,6 +136,16 @@ def ensure_subtitle_control(room: Room, *, room_sid: str) -> RoomSubtitleControl
     """
 
     _check_room_sid(room_sid)
+    existing_room_id = (
+        RoomSubtitleControl.objects.filter(room_sid=room_sid)
+        .values_list("room_id", flat=True)
+        .first()
+    )
+    if existing_room_id is not None and existing_room_id != room.pk:
+        raise SubtitleControlContractError(
+            "The LiveKit room SID is already bound to another room."
+        )
+
     locked_room = Room.objects.select_for_update().get(pk=room.pk)
     control = (
         RoomSubtitleControl.objects.select_for_update()
@@ -77,7 +164,16 @@ def ensure_subtitle_control(room: Room, *, room_sid: str) -> RoomSubtitleControl
             is_current=False,
         )
         try:
-            control.save()
+            with transaction.atomic():
+                control.save()
+        except IntegrityError as error:
+            control = RoomSubtitleControl.objects.select_for_update().get(
+                room_sid=room_sid
+            )
+            if control.room_id != locked_room.pk:
+                raise SubtitleControlContractError(
+                    "The LiveKit room SID is already bound to another room."
+                ) from error
         except ValidationError as error:
             raise SubtitleControlContractError(str(error)) from error
 
@@ -108,6 +204,7 @@ def compare_and_set_subtitle_control(
     expected_control_generation: int,
     expected_state_version: int,
     new_intent: bool = False,
+    current_only: bool = False,
     **changes,
 ) -> RoomSubtitleControl:
     """Apply one state transition using generation and version CAS.
@@ -118,44 +215,49 @@ def compare_and_set_subtitle_control(
     """
 
     _check_room_sid(room_sid)
-    unknown_fields = set(changes) - _MUTABLE_FIELDS
-    if unknown_fields:
-        raise SubtitleControlContractError(
-            f"Unsupported subtitle control fields: {sorted(unknown_fields)}"
-        )
-
+    room_id = _room_id_for_sid(room_sid)
+    locked_room = Room.objects.select_for_update().get(pk=room_id)
+    controls = RoomSubtitleControl.objects.select_for_update().filter(
+        room=locked_room,
+        room_sid=room_sid,
+    )
+    if current_only:
+        controls = controls.filter(is_current=True)
     try:
-        control = (
-            RoomSubtitleControl.objects.select_for_update()
-            .select_related("room")
-            .get(room_sid=room_sid)
-        )
+        control = controls.get()
     except RoomSubtitleControl.DoesNotExist as error:
         raise SubtitleControlContractError(
             "The LiveKit room SID has not been acquired."
         ) from error
-
-    if (
-        control.control_generation != expected_control_generation
-        or control.state_version != expected_state_version
-    ):
-        raise SubtitleControlConflict(
-            "Subtitle control state changed before this transition was applied."
-        )
-
-    desired_state_changed = (
-        "desired_state" in changes and changes["desired_state"] != control.desired_state
+    return _apply_locked_cas(
+        locked_room,
+        control,
+        expected_control_generation=expected_control_generation,
+        expected_state_version=expected_state_version,
+        new_intent=new_intent,
+        **changes,
     )
-    for field, value in changes.items():
-        setattr(control, field, value)
-    control.state_version += 1
-    if desired_state_changed or new_intent:
-        control.control_generation += 1
-    try:
-        control.save()
-    except ValidationError as error:
-        raise SubtitleControlContractError(str(error)) from error
-    return control
+
+
+def compare_and_set_subtitle_control_locked(
+    locked_room,
+    control,
+    *,
+    expected_control_generation,
+    expected_state_version,
+    new_intent=False,
+    **changes,
+):
+    """Apply a CAS without opening a nested transaction."""
+
+    return _apply_locked_cas(
+        locked_room,
+        control,
+        expected_control_generation=expected_control_generation,
+        expected_state_version=expected_state_version,
+        new_intent=new_intent,
+        **changes,
+    )
 
 
 def _serialize_control(control: RoomSubtitleControl | None) -> dict:

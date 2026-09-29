@@ -1432,6 +1432,46 @@ class Base(Configuration):
         environ_name="ROOM_SUBTITLE_AGENT_NAME",
         environ_prefix=None,
     )
+    ROOM_SUBTITLE_PROVIDER = values.Value(
+        "legacy",
+        environ_name="ROOM_SUBTITLE_PROVIDER",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_LOCK_NAMESPACE = values.IntegerValue(
+        218,
+        environ_name="ROOM_SUBTITLE_LOCK_NAMESPACE",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_LOCK_TIMEOUT_SECONDS = values.FloatValue(
+        0.25,
+        environ_name="ROOM_SUBTITLE_LOCK_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_LOCK_CONNECTION_TIMEOUT_SECONDS = values.FloatValue(
+        2.0,
+        environ_name="ROOM_SUBTITLE_LOCK_CONNECTION_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_LOCK_STATEMENT_TIMEOUT_SECONDS = values.FloatValue(
+        2.0,
+        environ_name="ROOM_SUBTITLE_LOCK_STATEMENT_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_LOCK_MAX_CONNECTIONS = values.PositiveIntegerValue(
+        8,
+        environ_name="ROOM_SUBTITLE_LOCK_MAX_CONNECTIONS",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_SYNC_BUDGET_SECONDS = values.FloatValue(
+        10.0,
+        environ_name="ROOM_SUBTITLE_SYNC_BUDGET_SECONDS",
+        environ_prefix=None,
+    )
+    ROOM_SUBTITLE_CONVERGENCE_MAX_ATTEMPTS = values.PositiveIntegerValue(
+        3,
+        environ_name="ROOM_SUBTITLE_CONVERGENCE_MAX_ATTEMPTS",
+        environ_prefix=None,
+    )
 
     # Metadata collector settings
     METADATA_COLLECTOR_ENABLED = values.BooleanValue(
