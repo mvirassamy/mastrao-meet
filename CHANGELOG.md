@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-29: Make the signed guest invitation boundary part of the canonical
+  Meeting contract and retire the duplicate Meet guest-invitation feature flag.
+
 - 2026-09-29: Stabilize subtitle generations, current-room selection,
   PostgreSQL constraints, and concurrent CAS writes.
 
