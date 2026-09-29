@@ -461,8 +461,7 @@ def test_close_preserves_finalized_recording_during_status_save_race():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_ROOM_ADAPTER_ENABLED=True,
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
     ROOM_TELEPHONY_ENABLED=False,
