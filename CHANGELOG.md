@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-29: Make canonical host close part of the normal Meeting contract,
+  keep explicit provider-room creation mandatory for governed rooms and retire
+  the duplicate Meet close feature flag.
+
 - 2026-09-29: Make exact subtitle-agent convergence the normal behavior and
   retire the ROOM_SUBTITLE_CONVERGENCE_ENABLED flag, and run subtitle
   reconciliation and status-packet retries on the generic backend queue so

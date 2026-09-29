@@ -1,4 +1,4 @@
-"""Temporary host client for the canonical Cabinet Core close transition."""
+"""Host client for the canonical Cabinet Core close transition."""
 
 from django.conf import settings
 from django.db import transaction
@@ -70,8 +70,6 @@ def _persist_closing_fence(grant):
 def request_meeting_close(request, room, close_request_id):
     """Ask Core to commit an irreversible close for the exact active host grant."""
 
-    if not settings.MASTRAO_MEETING_CLOSE_ENABLED:
-        raise RoomCloseRefused()
     grant = active_host_close_grant(request, room)
     if grant is None:
         raise RoomCloseRefused()

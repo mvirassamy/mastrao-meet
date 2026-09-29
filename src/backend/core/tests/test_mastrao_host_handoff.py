@@ -639,7 +639,6 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_HOST_HANDOFF_ENABLED=True,
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
 def test_exact_host_can_end_and_retry_after_tombstone(client):
