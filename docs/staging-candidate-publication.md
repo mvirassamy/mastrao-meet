@@ -73,10 +73,11 @@ through a Kubernetes `secretKeyRef` rather than a literal value.
 
 Serialize every staging mutation with the Scaleway agent. Starting from the
 published receipt, first record the current revision of the `meet` Helm
-release as R0 (`helm history meet`). The backend and the subtitle agent share
-that release, so R0 is the last revision with the previous agent image,
-the previous STT provider and `ROOM_SUBTITLE_ENABLED` off. Then apply the
-canary in this order:
+release as R0 (`helm history meet -n <namespace>`). The backend and the
+subtitle agent share that release. Confirm with
+`helm get values meet -n <namespace> --revision R0` that R0 has the previous
+agent image, the previous STT provider and `ROOM_SUBTITLE_ENABLED` off, and
+record that evidence with R0. Then apply the canary in this order:
 
 1. Set `agentSubtitles.image.repository` and
    `agentSubtitles.image.digest` to the immutable image from the receipt.
@@ -92,8 +93,9 @@ Rollback is ordered to stop new work before restoring the previous release:
 
 1. Turn `ROOM_SUBTITLE_ENABLED` off.
 2. Wait until active subtitle dispatches have been cleaned up.
-3. Run `helm rollback meet R0` with the revision recorded before the canary.
-   Never run `helm rollback meet` without a revision: the immediately
-   previous revision is the canary itself, with subtitles still enabled.
+3. Run `helm rollback meet R0 -n <namespace>` with the revision recorded
+   before the canary. Never run `helm rollback meet` without a revision: the
+   immediately previous revision is the canary itself, with subtitles still
+   enabled.
 4. Revert the staging values to the R0 state in the deployment source as
    well, otherwise the next `helmfile apply` reapplies the canary.

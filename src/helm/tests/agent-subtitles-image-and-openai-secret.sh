@@ -20,6 +20,19 @@ render_chart() {
   exit 1
 }
 
+expect_render_failure() {
+  expected="$1"
+  shift
+  if output="$(render_chart "$@" 2>&1)"; then
+    echo "unsafe_values_rendered: $expected" >&2
+    exit 1
+  fi
+  if ! printf '%s\n' "$output" | grep -Fq "$expected"; then
+    printf 'unexpected_render_failure: %s\n' "$output" >&2
+    exit 1
+  fi
+}
+
 if command -v helm >/dev/null 2>&1; then
   digest_rendered="$(render_chart -f "$fixture")"
 else
@@ -40,14 +53,18 @@ if printf '%s\n' "$digest_rendered" | grep -A 1 'name: "OPENAI_API_KEY"' | grep 
 fi
 printf '%s\n' "$tag_rendered" | grep -Fq 'image: "lasuite/meet-agents:latest"'
 
-if render_chart --set agentSubtitles.image.digest=latest >/dev/null 2>&1; then
-  echo "invalid_agent_digest_rendered" >&2
-  exit 1
-fi
-if render_chart --set-string agentSubtitles.envVars.OPENAI_API_KEY=sk-literal \
-  >/dev/null 2>&1; then
-  echo "openai_key_literal_rendered" >&2
-  exit 1
-fi
+digest_error="agentSubtitles.image.digest must be sha256"
+secret_error="OPENAI_API_KEY must be only a secretKeyRef with name and key"
+secret_ref="agentSubtitles.envVars.OPENAI_API_KEY.secretKeyRef"
+
+expect_render_failure "$digest_error" --set agentSubtitles.image.digest=latest
+expect_render_failure "$secret_error" \
+  --set-string agentSubtitles.envVars.OPENAI_API_KEY=sk-literal
+expect_render_failure "$secret_error" --set-string "$secret_ref=sk-literal"
+expect_render_failure "$secret_error" --set "$secret_ref.name=meet-agent-openai"
+expect_render_failure "$secret_error" \
+  --set "$secret_ref.name=meet-agent-openai" \
+  --set "$secret_ref.key=OPENAI_API_KEY" \
+  --set-string agentSubtitles.envVars.OPENAI_API_KEY.value=sk-leak
 
 echo "agent_subtitles_image_and_openai_secret_ok"

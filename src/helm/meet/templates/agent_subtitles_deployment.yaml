@@ -9,8 +9,12 @@
 {{- $agentEnv := .Values.agentSubtitles.envVars | default dict }}
 {{- if hasKey $agentEnv "OPENAI_API_KEY" }}
 {{- $openaiKey := get $agentEnv "OPENAI_API_KEY" }}
-{{- if not (and (kindIs "map" $openaiKey) (hasKey $openaiKey "secretKeyRef")) }}
-{{- fail "agentSubtitles.envVars.OPENAI_API_KEY must be provided through secretKeyRef" }}
+{{- $openaiRef := dict }}
+{{- if and (kindIs "map" $openaiKey) (eq (len $openaiKey) 1) (hasKey $openaiKey "secretKeyRef") }}
+{{- $openaiRef = get $openaiKey "secretKeyRef" }}
+{{- end }}
+{{- if not (and (kindIs "map" $openaiRef) (get $openaiRef "name") (get $openaiRef "key")) }}
+{{- fail "agentSubtitles.envVars.OPENAI_API_KEY must be only a secretKeyRef with name and key" }}
 {{- end }}
 {{- end }}
 apiVersion: apps/v1
