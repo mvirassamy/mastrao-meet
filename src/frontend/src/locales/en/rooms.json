@@ -474,6 +474,7 @@
       "effects": "Backgrounds and Effects",
       "chat": "Messages in the chat",
       "transcript": "Transcribe",
+      "liveTranscript": "Live transcript",
       "screenRecording": "Record",
       "admin": "Host settings",
       "tools": "More tools",
@@ -484,6 +485,7 @@
       "effects": "Backgrounds and Effects",
       "chat": "messages",
       "transcript": "transcribe",
+      "liveTranscript": "live transcript",
       "screenRecording": "record",
       "admin": "host settings",
       "tools": "more tools",
@@ -504,11 +506,43 @@
         "title": "Transcribe",
         "body": "Turn meetings into text."
       },
+      "liveTranscript": {
+        "title": "Live transcript",
+        "body": "Follow the transcript as the meeting happens."
+      },
       "screenRecording": {
         "title": "Record",
         "body": "Save meetings as video."
       }
     }
+  },
+  "liveTranscript": {
+    "connectionLabel": "Connection",
+    "statusLabel": "Transcription",
+    "connection": {
+      "connected": "Connected",
+      "reconnecting": "Reconnecting",
+      "disconnected": "Disconnected",
+      "disconnectedDescription": "The meeting connection is unavailable. The transcript will resume when it reconnects."
+    },
+    "status": {
+      "unknown": "Waiting for status",
+      "inactive": "Not active",
+      "starting": "Starting",
+      "live": "Live",
+      "reconnecting": "Reconnecting",
+      "degraded": "Degraded",
+      "unavailable": "Unavailable",
+      "stopping": "Stopping",
+      "stopped": "Stopped"
+    },
+    "segmentsLabel": "Live transcript segments",
+    "empty": "Transcript segments will appear here.",
+    "interim": "In progress",
+    "final": "Final",
+    "error": "The transcript status could not be refreshed.",
+    "retry": "Retry",
+    "refreshing": "Refreshing transcript status…"
   },
   "info": {
     "roomInformation": {

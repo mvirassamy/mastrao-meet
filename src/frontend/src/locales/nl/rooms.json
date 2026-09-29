@@ -474,6 +474,7 @@
       "effects": "Effecten",
       "chat": "Berichten in de chat",
       "transcript": "Transcriberen",
+      "liveTranscript": "Live transcript",
       "screenRecording": "Opnemen",
       "admin": "Beheerdersbediening",
       "tools": "Meer tools",
@@ -485,6 +486,7 @@
       "chat": "berichten",
       "screenRecording": "opnemen",
       "transcript": "transcriberen",
+      "liveTranscript": "live transcript",
       "admin": "beheerdersbediening",
       "tools": "meer tools",
       "info": "vergaderinformatie"
@@ -504,11 +506,43 @@
         "title": "Transcriberen",
         "body": "Zet vergaderingen om in tekst."
       },
+      "liveTranscript": {
+        "title": "Live transcript",
+        "body": "Volg het transcript tijdens de vergadering."
+      },
       "screenRecording": {
         "title": "Opnemen",
         "body": "Sla vergaderingen op als video."
       }
     }
+  },
+  "liveTranscript": {
+    "connectionLabel": "Verbinding",
+    "statusLabel": "Transcript",
+    "connection": {
+      "connected": "Verbonden",
+      "reconnecting": "Opnieuw verbinden",
+      "disconnected": "Verbinding verbroken",
+      "disconnectedDescription": "De verbinding met de vergadering is niet beschikbaar. Het transcript wordt hervat zodra de verbinding terug is."
+    },
+    "status": {
+      "unknown": "Status wordt opgehaald",
+      "inactive": "Inactief",
+      "starting": "Starten",
+      "live": "Live",
+      "reconnecting": "Opnieuw verbinden",
+      "degraded": "Beperkt",
+      "unavailable": "Niet beschikbaar",
+      "stopping": "Stoppen",
+      "stopped": "Gestopt"
+    },
+    "segmentsLabel": "Live transcriptsegmenten",
+    "empty": "Transcriptsegmenten verschijnen hier.",
+    "interim": "Voorlopig",
+    "final": "Definitief",
+    "error": "De transcriptstatus kon niet worden vernieuwd.",
+    "retry": "Opnieuw proberen",
+    "refreshing": "Transcriptstatus vernieuwen…"
   },
   "info": {
     "roomInformation": {

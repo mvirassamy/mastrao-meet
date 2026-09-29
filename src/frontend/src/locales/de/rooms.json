@@ -474,6 +474,7 @@
       "effects": "Hintergrund & Effekte",
       "chat": "Nachrichten im Chat",
       "transcript": "Transkribieren",
+      "liveTranscript": "Live-Transkript",
       "screenRecording": "Aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
@@ -484,6 +485,7 @@
       "effects": "Hintergrund & Effekte",
       "chat": "Nachrichten",
       "transcript": "transkribieren",
+      "liveTranscript": "Live-Transkript",
       "screenRecording": "aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
@@ -504,11 +506,43 @@
         "title": "Transkribieren",
         "body": "Wandelt Meetings in Text um."
       },
+      "liveTranscript": {
+        "title": "Live-Transkript",
+        "body": "Verfolge das Transkript während des Meetings."
+      },
       "screenRecording": {
         "title": "Aufnehmen",
         "body": "Speichert Meetings als Video."
       }
     }
+  },
+  "liveTranscript": {
+    "connectionLabel": "Verbindung",
+    "statusLabel": "Transkription",
+    "connection": {
+      "connected": "Verbunden",
+      "reconnecting": "Verbindung wird wiederhergestellt",
+      "disconnected": "Getrennt",
+      "disconnectedDescription": "Die Meeting-Verbindung ist nicht verfügbar. Das Transkript wird nach der Wiederverbindung fortgesetzt."
+    },
+    "status": {
+      "unknown": "Status wird erwartet",
+      "inactive": "Inaktiv",
+      "starting": "Wird gestartet",
+      "live": "Live",
+      "reconnecting": "Verbindung wird wiederhergestellt",
+      "degraded": "Eingeschränkt",
+      "unavailable": "Nicht verfügbar",
+      "stopping": "Wird beendet",
+      "stopped": "Beendet"
+    },
+    "segmentsLabel": "Live-Transkriptsegmente",
+    "empty": "Transkriptsegmente werden hier angezeigt.",
+    "interim": "Vorläufig",
+    "final": "Final",
+    "error": "Der Status des Transkripts konnte nicht aktualisiert werden.",
+    "retry": "Erneut versuchen",
+    "refreshing": "Transkriptstatus wird aktualisiert…"
   },
   "info": {
     "roomInformation": {
