@@ -4,6 +4,11 @@
   finished room as stopped when LiveKit reports it missing, closing database
   state before remote kill-switch calls, and bounding contention retries.
 
+- 2026-09-29: Add an opt-in LiveKit Agents worker path using exactly
+  `gpt-live-transcribe`, with one stream per audio track, versioned interim and
+  final envelopes, gap markers, reconnect handling, and clean shutdown. Keep
+  the existing provider path and the backend activation flag unchanged.
+
 - 2026-09-29: Add a feature-gated live transcription side panel.
 
 - 2026-09-29: Expose the derived Meeting base contract to Django settings so a

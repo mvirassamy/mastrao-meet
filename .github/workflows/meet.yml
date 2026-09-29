@@ -168,6 +168,8 @@ jobs:
         run: uv run ruff format . --diff
       - name: Lint code with ruff
         run: uv run ruff check .
+      - name: Run agent contract tests
+        run: uv run python -m unittest discover -s tests -v
 
   lint-summary:
     runs-on: ubuntu-latest
