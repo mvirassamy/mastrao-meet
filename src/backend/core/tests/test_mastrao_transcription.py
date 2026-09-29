@@ -31,6 +31,7 @@ from core.mastrao_recording_session import (
 from core.mastrao_room_contract import CONTRACT_VERSION, _sha256_canonical
 from core.mastrao_transcription_adapter import (
     _apply_transcription,
+    _assert_transcription_authority,
     _notify_core_artifact,
     _notify_core_failure,
     _prepare_transcription,
@@ -121,6 +122,31 @@ def _finalized_recording_binding(suffix="0123456789abcdef"):
         checksum_algorithm="sha256",
         checksum_digest="d" * 64,
     )
+
+
+def _mark_locally_verified_processing(binding):
+    binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.artifact_verified_at = timezone.now()
+    binding.artifact_receipt_claims = {
+        "artifact_ref": binding.artifact_ref,
+        "object_ref": binding.object_ref,
+        "byte_size": binding.byte_size,
+        "checksum_algorithm": "sha256",
+        "checksum_digest": binding.checksum_digest,
+    }
+    binding.artifact_receipt_digest = canonical_artifact_receipt_digest(
+        binding.artifact_receipt_claims
+    )
+    binding.save(
+        update_fields=[
+            "state",
+            "artifact_verified_at",
+            "artifact_receipt_digest",
+            "artifact_receipt_claims",
+            "updated_at",
+        ]
+    )
+    return binding
 
 
 def _effect(binding, **overrides):
@@ -741,32 +767,69 @@ def test_unfinalized_or_mismatched_artifact_is_refused():
 
 def test_locally_verified_processing_artifact_accepts_core_submit():
     binding = _finalized_recording_binding("core_ack_012345678")
-    binding.state = models.MastraoRecordingBinding.State.PROCESSING
-    binding.artifact_verified_at = timezone.now()
-    binding.artifact_receipt_claims = {
-        "artifact_ref": binding.artifact_ref,
-        "object_ref": binding.object_ref,
-        "byte_size": binding.byte_size,
-        "checksum_algorithm": "sha256",
-        "checksum_digest": binding.checksum_digest,
-    }
-    binding.artifact_receipt_digest = canonical_artifact_receipt_digest(
-        binding.artifact_receipt_claims
-    )
-    binding.save(
-        update_fields=[
-            "state",
-            "artifact_verified_at",
-            "artifact_receipt_digest",
-            "artifact_receipt_claims",
-            "updated_at",
-        ]
-    )
+    _mark_locally_verified_processing(binding)
 
     transcription, effect = _prepare_transcription(_effect(binding))
 
     assert transcription.recording_binding == binding
     assert effect.state == models.MastraoTranscriptionEffect.State.APPLYING
+
+
+def test_processing_authority_accepts_verified_submit_and_replay():
+    binding = _mark_locally_verified_processing(
+        _finalized_recording_binding("authority_replay_0123")
+    )
+    effect = _effect(binding)
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        first = _apply_transcription(effect)
+        transcription = models.MastraoTranscriptionBinding.objects.get()
+        assert _assert_transcription_authority(transcription).pk == transcription.pk
+        second = _apply_transcription(effect)
+        assert _assert_transcription_authority(transcription).pk == transcription.pk
+
+    assert first == second == "receipt.payload.signature"
+    assert models.MastraoTranscriptionEffect.objects.count() == 1
+
+
+def test_processing_authority_refuses_unverified_recording():
+    binding = _finalized_recording_binding("authority_unverified")
+    transcription, _effect_row = _prepare_transcription(_effect(binding))
+    binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.save(update_fields=["state", "updated_at"])
+
+    with pytest.raises(TranscriptionContractRefused) as refusal:
+        _assert_transcription_authority(transcription)
+
+    assert refusal.value.status == 404
+    assert refusal.value.outcome == "deleted"
+
+
+def test_processing_authority_refuses_corrupted_local_proof():
+    binding = _mark_locally_verified_processing(
+        _finalized_recording_binding("authority_corrupt_01")
+    )
+    transcription, _effect_row = _prepare_transcription(_effect(binding))
+    binding.artifact_receipt_digest = "e" * 64
+    binding.save(update_fields=["artifact_receipt_digest", "updated_at"])
+
+    with pytest.raises(TranscriptionContractRefused) as refusal:
+        _assert_transcription_authority(transcription)
+
+    assert refusal.value.status == 404
+    assert refusal.value.outcome == "deleted"
+
+
+def test_finalized_recording_retains_transcription_authority():
+    binding = _finalized_recording_binding("authority_finalized01")
+    transcription, _effect_row = _prepare_transcription(_effect(binding))
+
+    assert _assert_transcription_authority(transcription).pk == transcription.pk
 
 
 @pytest.mark.parametrize(
