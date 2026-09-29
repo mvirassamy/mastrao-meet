@@ -159,7 +159,6 @@ def test_lifecycle_projection_masks_unauthorized_room_existence():
 
 @pytest.mark.django_db(transaction=True)
 @override_settings(
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
 )
 def test_core_close_acceptance_fences_room_before_effect_delivery():
@@ -215,7 +214,6 @@ def test_core_close_acceptance_fences_room_before_effect_delivery():
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("status", [404, 409, 503])
 @override_settings(
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
 )
 def test_refused_or_unaccepted_core_close_does_not_create_local_fence(status):
@@ -258,7 +256,6 @@ def test_refused_or_unaccepted_core_close_does_not_create_local_fence(status):
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_ROOM_ADAPTER_ENABLED=True,
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
@@ -304,7 +301,6 @@ def test_close_tombstones_deletes_and_replays_without_second_provider_call():
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_ROOM_ADAPTER_ENABLED=True,
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     ROOM_TELEPHONY_ENABLED=False,
     ROOMKIT_ENABLED=False,
@@ -336,7 +332,6 @@ def test_provider_failure_keeps_pending_tombstone_that_blocks_creation():
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_ROOM_ADAPTER_ENABLED=True,
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
     ROOM_TELEPHONY_ENABLED=False,
@@ -405,7 +400,6 @@ def test_already_aborted_recording_does_not_block_room_close():
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_ROOM_ADAPTER_ENABLED=True,
-    MASTRAO_MEETING_CLOSE_ENABLED=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
     ROOM_TELEPHONY_ENABLED=False,
@@ -441,15 +435,14 @@ def test_missing_provider_room_is_a_successful_idempotent_close():
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     MASTRAO_ROOM_ADAPTER_ENABLED=True,
-    MASTRAO_MEETING_CLOSE_ENABLED=False,
     LIVEKIT_EXPLICIT_ROOM_CREATION=True,
     MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
     MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
     ROOM_TELEPHONY_ENABLED=False,
     ROOMKIT_ENABLED=False,
 )
-def test_accepted_close_effect_reconciles_after_new_intent_flag_is_disabled():
-    """Rollout rollback gates new intents, never an already accepted Core effect."""
+def test_accepted_close_effect_reconciles_without_a_product_flag():
+    """An accepted Core effect always reaches its idempotent provider outcome."""
 
     binding = _binding("rollback")
     effect = _effect(binding, "rollback")

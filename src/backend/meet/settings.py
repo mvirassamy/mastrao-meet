@@ -77,12 +77,14 @@ MASTRAO_HANDOFF_CREDENTIAL_HEADERS = {
 }
 
 
-def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creation):
-    """Refuse a close rollout that cannot keep stale JWTs from recreating rooms."""
+def validate_mastrao_meeting_close_configuration(
+    room_adapter_enabled, explicit_creation
+):
+    """Refuse a governed room adapter that lets stale JWTs recreate rooms."""
 
-    if close_enabled and not explicit_creation:
+    if room_adapter_enabled and not explicit_creation:
         raise ImproperlyConfigured(
-            "MASTRAO_MEETING_CLOSE_ENABLED requires LIVEKIT_EXPLICIT_ROOM_CREATION=true"
+            "MASTRAO_ROOM_ADAPTER_ENABLED requires LIVEKIT_EXPLICIT_ROOM_CREATION=true"
         )
 
 
@@ -543,9 +545,6 @@ class Base(Configuration):
         5.0,
         environ_name="MASTRAO_CORE_GUEST_TIMEOUT_SECONDS",
         environ_prefix=None,
-    )
-    MASTRAO_MEETING_CLOSE_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_MEETING_CLOSE_ENABLED", environ_prefix=None
     )
     MASTRAO_CORE_MEETING_CLOSE_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_MEETING_CLOSE_ENDPOINT", environ_prefix=None
@@ -1715,7 +1714,7 @@ class Base(Configuration):
         super().post_setup()
 
         validate_mastrao_meeting_close_configuration(
-            cls.MASTRAO_MEETING_CLOSE_ENABLED,
+            cls.MASTRAO_ROOM_ADAPTER_ENABLED,
             cls.LIVEKIT_EXPLICIT_ROOM_CREATION,
         )
 
