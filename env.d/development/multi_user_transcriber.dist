@@ -2,10 +2,14 @@ LIVEKIT_URL=ws://host.docker.internal:7880
 LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=secret
 
-STT_PROVIDER=kyutai # kyutai, deepgram
+STT_PROVIDER=kyutai # kyutai, deepgram, openai-live
 ENABLE_SILERO_VAD=False
 
 DEEPGRAM_API_KEY=
+
+# Opt-in only: exact model is hard-coded to gpt-live-transcribe.
+OPENAI_API_KEY=
+OPENAI_STT_LANGUAGES=fr,en
 
 KYUTAI_STT_BASE_URL=
 KYUTAI_API_KEY=

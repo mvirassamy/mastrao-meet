@@ -25,6 +25,7 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, silero
 
+from live_transcriber import LiveTranscriber
 from observability import configure_sentry, set_job_context
 from tasks import done_callback
 
@@ -35,6 +36,7 @@ logger = logging.getLogger("transcriber")
 TRANSCRIBER_AGENT_NAME = os.getenv("TRANSCRIBER_AGENT_NAME", "multi-user-transcriber")
 STT_PROVIDER = os.getenv("STT_PROVIDER", "deepgram")
 ENABLE_SILERO_VAD = os.getenv("ENABLE_SILERO_VAD", "true").lower() == "true"
+OPENAI_LIVE_PROVIDER = "openai-live"
 
 
 def create_stt_provider():
@@ -160,12 +162,18 @@ async def entrypoint(ctx: JobContext):
     """Initialize and run the multi-user transcriber."""
     set_job_context(room=ctx.room.name, job_id=ctx.job.id)
 
-    transcriber = MultiUserTranscriber(ctx)
+    if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
+        transcriber = LiveTranscriber(ctx)
+    else:
+        transcriber = MultiUserTranscriber(ctx)
     transcriber.start()
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    for participant in ctx.room.remote_participants.values():
-        transcriber.on_participant_connected(participant)
+    if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
+        transcriber.start_existing_tracks()
+    else:
+        for participant in ctx.room.remote_participants.values():
+            transcriber.on_participant_connected(participant)
 
     async def cleanup():
         await transcriber.aclose()
@@ -205,7 +213,7 @@ async def handle_transcriber_job_request(job_req: JobRequest) -> None:
 def prewarm(proc: JobProcess):
     """Preload voice activity detection model."""
     configure_sentry(TRANSCRIBER_AGENT_NAME)
-    if ENABLE_SILERO_VAD:
+    if ENABLE_SILERO_VAD or STT_PROVIDER == OPENAI_LIVE_PROVIDER:
         proc.userdata["vad"] = silero.VAD.load()
 
 
