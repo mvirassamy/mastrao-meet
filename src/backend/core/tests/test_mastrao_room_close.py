@@ -411,6 +411,69 @@ def test_already_aborted_recording_does_not_block_room_close():
     ROOM_TELEPHONY_ENABLED=False,
     ROOMKIT_ENABLED=False,
 )
+def test_close_preserves_finalized_recording_during_status_save_race():
+    """Room close cannot regress a finalized artifact while status is stale."""
+
+    binding = _binding("finalized")
+    effect = _effect(binding, "finalized")
+    recording = models.Recording.objects.create(
+        room=binding.room,
+        status=models.RecordingStatusChoices.ACTIVE,
+        mode=models.RecordingModeChoices.SCREEN_RECORDING,
+        worker_id="EG_finalized",
+    )
+    recording_binding = models.MastraoRecordingBinding.objects.create(
+        room_binding=binding,
+        recording=recording,
+        organization_external_id=effect["organization_external_id"],
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        recording_ref="recording_finalized_0123456789",
+        provider_binding_digest=binding.provider_binding_digest,
+        policy_ref="policy_finalized_0123456789",
+        notice_version="notice_finalized_0123456789",
+        notice_digest="d" * 64,
+        retention_expires_at=timezone.now() + timezone.timedelta(days=30),
+        state=models.MastraoRecordingBinding.State.FINALIZED,
+        provider_recording_ref="EG_finalized",
+    )
+
+    with (
+        mock.patch(
+            "core.mastrao_room_close_adapter.verify_room_close_effect",
+            return_value=effect,
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.get_worker_service"
+        ) as get_worker_service,
+        mock.patch(
+            "core.mastrao_room_close_adapter.sign_room_close_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch("core.mastrao_room_close_adapter.RoomManagement.delete_room"),
+        mock.patch("core.mastrao_room_close_adapter.LobbyService.clear_room_cache"),
+    ):
+        response = close_mastrao_room(_request())
+
+    assert response.status_code == 200
+    get_worker_service.assert_not_called()
+    recording_binding.refresh_from_db()
+    assert recording_binding.state == models.MastraoRecordingBinding.State.FINALIZED
+    assert (
+        models.MastraoRoomClosure.objects.get(room_binding=binding).state
+        == models.MastraoRoomClosure.State.APPLIED
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_ROOM_ADAPTER_ENABLED=True,
+    MASTRAO_MEETING_CLOSE_ENABLED=True,
+    MASTRAO_ROOM_RECEIPT_ISSUER="mastrao-meet-local",
+    MASTRAO_ROOM_RECEIPT_AUDIENCE="cabinet-core-local",
+    ROOM_TELEPHONY_ENABLED=False,
+    ROOMKIT_ENABLED=False,
+)
 def test_missing_provider_room_is_a_successful_idempotent_close():
     """Provider absence proves the requested room state."""
     binding = _binding("missing")

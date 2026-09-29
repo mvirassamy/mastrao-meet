@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-30: Preserve a finalized recording artifact when room closure races
+  with the final internal recording-status save.
+
 - 2026-09-29: Accept a Core-signed transcription submit while a locally
   verified recording artifact is waiting for its Core finalization response.
 
