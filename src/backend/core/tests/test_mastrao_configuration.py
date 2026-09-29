@@ -108,7 +108,8 @@ def test_settings_boot_refuses_room_adapter_without_explicit_room_creation():
                 "from configurations import importer; "
                 "importer.install(); "
                 "from django.conf import settings; "
-                "print(settings.MASTRAO_ROOM_ADAPTER_ENABLED)"
+                "import sys; "
+                "sys.stdout.write(str(settings.MASTRAO_ROOM_ADAPTER_ENABLED))"
             ),
         ],
         check=False,
