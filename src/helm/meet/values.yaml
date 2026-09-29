@@ -1334,11 +1334,13 @@ agentMetadata:
 agentSubtitles:
 
   ## @param agentSubtitles.image.repository Repository to use to pull meet's agentSubtitles container image
+  ## @param agentSubtitles.image.digest Immutable digest; when set, it takes precedence over tag
   ## @param agentSubtitles.image.tag meet's agentSubtitles container tag
   ## @param agentSubtitles.image.pullPolicy agentSubtitles container image pull policy
   image:
     repository: lasuite/meet-agents
     pullPolicy: IfNotPresent
+    digest: ""
     tag: "latest"
 
   ## @param agentSubtitles.dpAnnotations Annotations to add to the agentSubtitles Deployment

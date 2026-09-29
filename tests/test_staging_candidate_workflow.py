@@ -115,7 +115,7 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             build.split("        with:\n", 1)[1].rstrip("\n"),
             "\n".join(
                 (
-                    "          context: source",
+                    "          context: source/${{ steps.recipe.outputs.context }}",
                     "          file: source/${{ steps.recipe.outputs.dockerfile }}",
                     "          target: ${{ steps.recipe.outputs.build_target }}",
                     "          platforms: linux/amd64",
@@ -135,6 +135,8 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("python -m scripts.ci.staging_candidate_readback", readback)
         receipt = self.steps["Render the immutable candidate receipt"]
         self.assertIn("python -m scripts.ci.staging_candidate_receipt", receipt)
+        self.assertIn("CONTEXT: ${{ steps.recipe.outputs.context }}", receipt)
+        self.assertIn('--context "$CONTEXT"', receipt)
         self.assertIn('--build-args "$BUILD_ARGS"', receipt)
 
     def test_run_scripts_never_interpolate_expressions(self):
@@ -166,6 +168,30 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             CI_WORKFLOW.read_text(),
             r"(?m)^  ci-contracts:\n(?:    .*\n|\n)*?"
             r"        run: python -m unittest discover -s tests -t \. -v\n",
+        )
+
+    def test_agent_subtitles_helm_rendering_runs_in_ci(self):
+        workflow = CI_WORKFLOW.read_text()
+        ci_contracts = re.search(
+            r"(?ms)^  ci-contracts:\n(?P<job>.*?)(?=^  [\w-]+:\n)", workflow
+        )
+        self.assertIsNotNone(ci_contracts)
+        self.assertIn("uses: azure/setup-helm@v4", ci_contracts.group("job"))
+        self.assertIn("version: v3.18.4", ci_contracts.group("job"))
+        self.assertIn(
+            "run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh",
+            ci_contracts.group("job"),
+        )
+
+    def test_agent_contract_tests_run_in_ci(self):
+        workflow = CI_WORKFLOW.read_text()
+        lint_agents = re.search(
+            r"(?ms)^  lint-agents:\n(?P<job>.*?)(?=^  [\w-]+:\n)", workflow
+        )
+        self.assertIsNotNone(lint_agents)
+        self.assertIn(
+            "run: uv run python -m unittest discover -s tests -v",
+            lint_agents.group("job"),
         )
 
 

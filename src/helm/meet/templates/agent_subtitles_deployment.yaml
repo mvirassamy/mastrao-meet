@@ -1,6 +1,22 @@
 {{- $envVars := include "meet.common.env" (list . .Values.agentSubtitles) -}}
 {{- $fullName := include "meet.agentSubtitles.fullname" . -}}
 {{- $component := "agent-subtitles" -}}
+{{- with .Values.agentSubtitles.image.digest }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .) }}
+{{- fail "agentSubtitles.image.digest must be sha256:<64 lowercase hex characters>" }}
+{{- end }}
+{{- end }}
+{{- $agentEnv := .Values.agentSubtitles.envVars | default dict }}
+{{- if hasKey $agentEnv "OPENAI_API_KEY" }}
+{{- $openaiKey := get $agentEnv "OPENAI_API_KEY" }}
+{{- $openaiRef := dict }}
+{{- if and (kindIs "map" $openaiKey) (eq (len $openaiKey) 1) (hasKey $openaiKey "secretKeyRef") }}
+{{- $openaiRef = get $openaiKey "secretKeyRef" }}
+{{- end }}
+{{- if not (and (kindIs "map" $openaiRef) (get $openaiRef "name") (get $openaiRef "key")) }}
+{{- fail "agentSubtitles.envVars.OPENAI_API_KEY must be only a secretKeyRef with name and key" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,7 +56,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.agentSubtitles.image | default dict).repository | default .Values.agentSubtitles.image.repository }}:{{ (.Values.agentSubtitles.image | default dict).tag | default .Values.agentSubtitles.image.tag }}"
+          image: "{{ .Values.agentSubtitles.image.repository }}{{ if .Values.agentSubtitles.image.digest }}@{{ .Values.agentSubtitles.image.digest }}{{ else }}:{{ .Values.agentSubtitles.image.tag }}{{ end }}"
           imagePullPolicy: {{ (.Values.agentSubtitles.image | default dict).pullPolicy | default .Values.agentSubtitles.image.pullPolicy }}
           {{- with .Values.agentSubtitles.command }}
           command:

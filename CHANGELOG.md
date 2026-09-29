@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-09-29: Add closed staging candidate publication for the agents image,
+  record its build context in the immutable receipt, and allow the subtitle
+  agent Helm image to be pinned by digest with secret-referenced OpenAI
+  credentials. The chart rejects malformed digests and literal OpenAI keys.
+
 - 2026-09-29: Harden live subtitle shutdown before canary by treating a
   finished room as stopped when LiveKit reports it missing, closing database
   state before remote kill-switch calls, and bounding contention retries.
