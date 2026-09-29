@@ -126,9 +126,59 @@ def _redeem_guest(client, binding, invitation="aaa.bbb.ccc"):
     return response, grant
 
 
+@override_settings(APPLICATION_BASE_URL="http://meet.test")
+def test_guest_session_refuses_a_cross_origin_request_without_the_flag():
+    """Retiring the flag keeps the same-origin boundary mandatory."""
+
+    response = Client().post(
+        reverse("establish_mastrao_guest_session"),
+        data="{}",
+        content_type="application/json",
+        HTTP_ORIGIN="https://attacker.test",
+        HTTP_SEC_FETCH_SITE="cross-site",
+    )
+
+    assert response.status_code == 404
+    assert GUEST_RETRY_COOKIE not in response.cookies
+
+
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
+    MASTRAO_ROOM_EFFECT_PUBLIC_JWK="",
+)
+def test_unverifiable_guest_invitation_fails_closed_before_core():
+    """An unverifiable invitation (no signing key) never reaches Core."""
+
+    client = Client()
+    client.post(
+        reverse("establish_mastrao_guest_session"),
+        data="{}",
+        content_type="application/json",
+        HTTP_ORIGIN="http://meet.test",
+        HTTP_SEC_FETCH_SITE="same-origin",
+    )
+    header = "eyJhbGciOiJFZERTQSJ9"
+    with mock.patch("core.mastrao_guest_handoff._post_core") as post_core:
+        response = client.post(
+            reverse("consume_mastrao_guest_invitation"),
+            data=json.dumps(
+                {
+                    "guest_invitation": f"{header}.e30.c2ln",
+                    "redemption_id": "redemption_" + "0" * 32,
+                }
+            ),
+            content_type="application/json",
+            HTTP_ORIGIN="http://meet.test",
+            HTTP_SEC_FETCH_SITE="same-origin",
+        )
+
+    assert response.status_code in {404, 503}
+    post_core.assert_not_called()
+    assert not models.MastraoGuestGrant.objects.exists()
+
+
+@override_settings(
+    APPLICATION_BASE_URL="http://meet.test",
 )
 def test_guest_retry_cookie_is_established_without_server_session_state():
     """The recovery nonce is host-only and does not allocate Redis session state."""
@@ -153,7 +203,6 @@ def test_guest_retry_cookie_is_established_without_server_session_state():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_exact_redemption_retry_recovers_after_session_response_loss():
     """The pre-established nonce recovers grant session fields after a lost response."""
@@ -182,7 +231,6 @@ def test_exact_redemption_retry_recovers_after_session_response_loss():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_tombstone_revokes_exact_guest_projection():
     """A browser-retained guest credential cannot mint media after closure."""
@@ -227,7 +275,6 @@ def test_tombstone_revokes_exact_guest_projection():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
     """Concurrent invalid credentials cannot occupy every request worker."""
@@ -259,7 +306,6 @@ def test_guest_verification_sheds_load_before_crypto_when_capacity_is_full():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
     MASTRAO_MEETING_CLOSE_ENABLED=False,
     LIVEKIT_EXPLICIT_ROOM_CREATION=False,
 )
@@ -306,7 +352,6 @@ def test_guest_redemption_creates_only_room_bound_anonymous_grant(settings):
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_guest_redemption_rotates_the_anonymous_session_key():
     """A known anonymous session cannot inherit the redeemed guest grant."""
@@ -329,7 +374,6 @@ def test_guest_redemption_rotates_the_anonymous_session_key():
 
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
-    MASTRAO_GUEST_INVITATION_ENABLED=True,
 )
 def test_confirmed_local_allow_is_required_before_guest_media(settings):
     """A guest gets no media until Meet has confirmed the Core decision."""
