@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-29: Accept a Core-signed transcription submit while a locally
+  verified recording artifact is waiting for its Core finalization response.
+
 - 2026-09-29: Accept the Platform staging demo transcription profile (Mistral
   EU, standard retention, test data only) and refuse it if it claims ZDR.
 
