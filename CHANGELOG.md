@@ -1,5 +1,13 @@
 # Changelog
 
+- 2026-09-29: Remove the subtitle start deadlock class by enforcing Room to
+  Control row-lock order, separating durable intent from provider convergence,
+  and adding a permanent exact room-key registry plus bounded PostgreSQL
+  session advisory locks. The robust deduplication path is feature-flagged
+  off by default, OFF cleanup remains serialized, and synchronous callers have
+  a bounded budget. Added real-PostgreSQL lock, deduplication, stop-during-
+  start, and contention coverage; no staging or audio/video pipeline change.
+
 - 2026-09-29: Make the signed guest invitation boundary part of the canonical
   Meeting contract and retire the duplicate Meet guest-invitation feature flag.
 

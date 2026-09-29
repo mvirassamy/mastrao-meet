@@ -54,3 +54,57 @@ def test_stop_subtitle_without_control_is_idempotent():
     room = RoomFactory(name="my room")
 
     assert SubtitleService().stop_subtitle(room) is None
+
+
+def test_celery_start_returns_after_persisting_intent(settings):
+    """Celery mode responds after durable intent and schedules convergence."""
+
+    settings.CELERY_ENABLED = True
+    room = RoomFactory()
+    control = mock.Mock(room_sid="RM_celery_start")
+    with (
+        mock.patch(
+            "core.services.subtitle._resolve_subtitle_room",
+            new=mock.AsyncMock(return_value=(control.room_sid, [])),
+        ),
+        mock.patch(
+            "core.services.subtitle._persist_start_intent", return_value=control
+        ),
+        mock.patch(
+            "core.services.subtitle.schedule_subtitle_reconciliation"
+        ) as schedule,
+        mock.patch("core.services.subtitle.reconcile_subtitle_control") as reconcile,
+    ):
+        assert SubtitleService().start_subtitle(room) is control
+
+    schedule.assert_called_once_with(control.room_sid)
+    reconcile.assert_not_called()
+
+
+def test_synchronous_start_uses_the_explicit_convergence_budget(settings):
+    """The no-Celery path invokes bounded convergence before returning."""
+
+    settings.CELERY_ENABLED = False
+    room = RoomFactory()
+    control = mock.Mock(room_sid="RM_sync_start")
+    with (
+        mock.patch(
+            "core.services.subtitle._resolve_subtitle_room",
+            new=mock.AsyncMock(return_value=(control.room_sid, [])),
+        ),
+        mock.patch(
+            "core.services.subtitle._persist_start_intent", return_value=control
+        ),
+        mock.patch(
+            "core.services.subtitle.schedule_subtitle_reconciliation"
+        ) as schedule,
+        mock.patch(
+            "core.services.subtitle.reconcile_subtitle_control",
+            return_value=control,
+        ) as reconcile,
+    ):
+        assert SubtitleService().start_subtitle(room) is control
+
+    schedule.assert_called_once_with(control.room_sid)
+    reconcile.assert_called_once()
+    assert reconcile.call_args.kwargs["deadline"] > 0

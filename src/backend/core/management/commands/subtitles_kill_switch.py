@@ -5,6 +5,7 @@ from django.db.models import Q
 
 from core import models
 from core.services.subtitle_reconciliation import (
+    SubtitleConvergenceBusy,
     reconcile_subtitle_control,
     request_subtitle_stop,
 )
@@ -34,7 +35,7 @@ class Command(BaseCommand):
 
         converged = 0
         failed = 0
-        for control in controls.select_related("room"):
+        for control in controls.select_related("room").iterator():
             try:
                 request_subtitle_stop(
                     control.room,
@@ -51,6 +52,9 @@ class Command(BaseCommand):
                 else:
                     failed += 1
                     self.stderr.write(f"stopping {control.room_sid}")
+            except SubtitleConvergenceBusy:
+                failed += 1
+                self.stderr.write(f"busy {control.room_sid}")
             except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 failed += 1
                 self.stderr.write(f"failed {control.room_sid}: {error}")

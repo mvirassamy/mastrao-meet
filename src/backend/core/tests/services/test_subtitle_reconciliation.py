@@ -4,6 +4,7 @@
 import asyncio
 import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
@@ -17,6 +18,7 @@ from core.models import RoomSubtitleControl
 from core.services.subtitle_control import ensure_subtitle_control
 from core.services.subtitle_reconciliation import (
     SUBTITLE_STATUS_TOPIC,
+    SubtitleConvergenceBusy,
     SubtitleReconciliationAmbiguous,
     _ProviderResult,
     observe_subtitle_agent,
@@ -25,7 +27,7 @@ from core.services.subtitle_reconciliation import (
     request_subtitle_stop,
 )
 
-pytestmark = pytest.mark.django_db
+pytestmark = pytest.mark.django_db(transaction=True)
 
 
 @pytest.fixture(autouse=True)
@@ -121,7 +123,9 @@ def test_late_leave_from_another_agent_does_not_clear_current_identity():
     assert observed.session_id == "current-agent"
 
 
-def test_reconcile_dispatches_and_persists_observation(mock_livekit_client):
+def test_reconcile_dispatches_and_persists_observation(  # pylint: disable=unused-argument
+    mock_livekit_client,
+):
     """A desired ON row creates one dispatch and records its provider ID."""
     room = RoomFactory()
     control = _turn_on(ensure_subtitle_control(room, room_sid="RM_reconcile"))
@@ -131,6 +135,77 @@ def test_reconcile_dispatches_and_persists_observation(mock_livekit_client):
     assert result.observed_dispatch_ids == ["AD_created"]
     assert result.public_state == RoomSubtitleControl.PublicState.STARTING
     mock_livekit_client.agent_dispatch.create_dispatch.assert_awaited_once()
+
+
+def test_robust_convergence_adopts_legacy_dispatch_without_creating_another(
+    mock_livekit_client,
+    settings,
+):
+    """The rollout path adopts one unannotated legacy dispatch."""
+
+    settings.ROOM_SUBTITLE_CONVERGENCE_ENABLED = True
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_legacy_adopt"))
+    legacy = _dispatch("AD_legacy")
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = [legacy]
+
+    result = reconcile_subtitle_control(control.room_sid)
+
+    assert result.observed_dispatch_ids == ["AD_legacy"]
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+def test_robust_convergence_deduplicates_exact_dispatch_metadata(
+    mock_livekit_client,
+    settings,
+):
+    """The deterministic winner remains after duplicate cleanup and relist."""
+
+    settings.ROOM_SUBTITLE_CONVERGENCE_ENABLED = True
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_deduplicate"))
+    first = _dispatch(
+        "AD_0",
+        room_sid=control.room_sid,
+        generation=control.control_generation,
+    )
+    duplicate = _dispatch(
+        "AD_1",
+        room_sid=control.room_sid,
+        generation=control.control_generation,
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
+        [first, duplicate],
+        [first],
+    ]
+
+    result = reconcile_subtitle_control(control.room_sid)
+
+    assert result.observed_dispatch_ids == ["AD_0"]
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_called_once_with(
+        dispatch_id="AD_1",
+        room_name=str(room.id),
+    )
+
+
+def test_sync_convergence_waits_boundedly_for_a_busy_room_lock(settings):
+    """A synchronous caller retries contention within its explicit budget."""
+
+    settings.CELERY_ENABLED = False
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_busy_retry"))
+    provider_result = _ProviderResult(["AD_busy_retry"])
+    with mock.patch(
+        "core.services.subtitle_reconciliation._provider_reconcile",
+        side_effect=[SubtitleConvergenceBusy(control.room_sid), provider_result],
+    ) as provider_reconcile:
+        result = reconcile_subtitle_control(
+            control.room_sid,
+            deadline=time.monotonic() + 0.2,
+        )
+
+    assert result.observed_dispatch_ids == ["AD_busy_retry"]
+    assert provider_reconcile.call_count == 2
 
 
 def test_reconcile_uses_list_delete_list_for_duplicate_dispatches(

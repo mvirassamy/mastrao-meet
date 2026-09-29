@@ -3,6 +3,7 @@
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass
 from datetime import timedelta
 from logging import getLogger
@@ -22,7 +23,10 @@ from .subtitle_control import (
     SubtitleControlContractError,
     _serialize_control,
     compare_and_set_subtitle_control,
+    compare_and_set_subtitle_control_locked,
+    lock_room_and_control,
 )
+from .subtitle_lock import SubtitleLockUnavailable, try_subtitle_convergence_lock
 
 logger = getLogger(__name__)
 
@@ -32,7 +36,6 @@ PROVIDER_TIMEOUT_SECONDS = 8
 CLEANUP_TIMEOUT_SECONDS = 3
 MAX_RECONCILIATION_ATTEMPTS = 3
 RETRY_DELAYS_SECONDS = (1, 5, 30)
-MAX_INTENT_RECONCILIATIONS = 3
 PACKET_RETRY_DELAYS_SECONDS = (1, 5, 30)
 MAX_PACKET_RETRIES = len(PACKET_RETRY_DELAYS_SECONDS)
 
@@ -58,6 +61,10 @@ class SubtitleProviderActive(RuntimeError):
     """The provider already has a live subtitle dispatch."""
 
     status_code = 409
+
+
+class SubtitleConvergenceBusy(RuntimeError):
+    """Another room-scoped convergence currently owns the provider lock."""
 
 
 @dataclass(frozen=True)
@@ -115,6 +122,9 @@ def dispatch_provider(dispatch):
 def _is_room_dispatch(dispatch, room_sid):
     if not _is_subtitle_dispatch(dispatch):
         return False
+    raw_metadata = getattr(dispatch, "metadata", None)
+    if not raw_metadata:
+        return True
     metadata = _dispatch_metadata(dispatch)
     return metadata is None or metadata.get("roomSid") == room_sid
 
@@ -167,12 +177,130 @@ def _lower_generation_dispatches(dispatches, room_sid, generation):
     ]
 
 
-async def _reconcile_provider(  # noqa: PLR0912  # pylint: disable=too-many-branches
+def _dispatch_sort_key(dispatch):
+    """Use provider creation time, then ID, for a stable duplicate winner."""
+
+    state = getattr(dispatch, "state", None)
+    created_at = getattr(state, "created_at", None) or getattr(
+        dispatch, "created_at", None
+    )
+    if created_at is not None:
+        seconds = getattr(created_at, "seconds", None)
+        nanos = getattr(created_at, "nanos", None)
+        if seconds is not None:
+            try:
+                seconds = int(seconds)
+                nanos = int(nanos or 0)
+            except (TypeError, ValueError):
+                seconds = None
+            if seconds is not None:
+                return (0, seconds, nanos, str(getattr(dispatch, "id", "")))
+        return (1, 0, 0, str(getattr(dispatch, "id", "")))
+    return (1, 0, 0, str(getattr(dispatch, "id", "")))
+
+
+def _dispatch_is_malformed(dispatch, room_sid):
+    """Identify an agent dispatch that cannot be safely adopted."""
+
+    if not _is_room_dispatch(dispatch, room_sid):
+        return False
+    raw_metadata = getattr(dispatch, "metadata", None)
+    if not raw_metadata:
+        return False
+    metadata = _dispatch_metadata(dispatch)
+    if metadata is None or metadata.get("roomSid") != room_sid:
+        return True
+    generation = metadata.get("generation")
+    return any(
+        key not in metadata for key in ("agentName", "provider", "generation")
+    ) or (
+        metadata.get("agentName") != settings.ROOM_SUBTITLE_AGENT_NAME
+        or not isinstance(metadata.get("provider"), str)
+        or isinstance(generation, bool)
+        or not isinstance(generation, int)
+    )
+
+
+def _dispatch_is_current(dispatch, room_sid, generation, provider):
+    raw_metadata = getattr(dispatch, "metadata", None)
+    if not raw_metadata:
+        return True
+    metadata = _dispatch_metadata(dispatch)
+    return bool(
+        metadata
+        and metadata.get("roomSid") == room_sid
+        and metadata.get("agentName") == settings.ROOM_SUBTITLE_AGENT_NAME
+        and metadata.get("provider") == provider
+        and metadata.get("generation") == generation
+    )
+
+
+async def _canonical_current_dispatch(  # noqa: PLR0913, PLR0917  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    client,
+    room_name,
+    room_sid,
+    generation,
+    provider,
+    dispatches,
+):
+    """Adopt one legacy dispatch or deterministically remove duplicates."""
+
+    targeted = [
+        dispatch for dispatch in dispatches if _is_room_dispatch(dispatch, room_sid)
+    ]
+    if any(_dispatch_is_malformed(dispatch, room_sid) for dispatch in targeted):
+        raise SubtitleReconciliationAmbiguous(
+            "LiveKit subtitle dispatch metadata is malformed."
+        )
+    conflicting = [
+        dispatch
+        for dispatch in targeted
+        if getattr(dispatch, "metadata", None)
+        and _dispatch_metadata(dispatch).get("roomSid") == room_sid
+        and _dispatch_metadata(dispatch).get("provider") not in (None, provider)
+    ]
+    if conflicting:
+        raise SubtitleProviderActive(
+            "A different subtitle provider is already active in LiveKit."
+        )
+    candidates = [
+        dispatch
+        for dispatch in targeted
+        if _dispatch_is_current(dispatch, room_sid, generation, provider)
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=_dispatch_sort_key)
+    winner = candidates[0]
+    for duplicate in candidates[1:]:
+        await _delete_dispatch(client, str(duplicate.id), room_name)
+    if len(candidates) > 1:
+        confirmed = [
+            dispatch
+            for dispatch in await _list_dispatches(client, room_name)
+            if _is_room_dispatch(dispatch, room_sid)
+        ]
+        remaining = [
+            dispatch
+            for dispatch in confirmed
+            if _dispatch_is_current(dispatch, room_sid, generation, provider)
+        ]
+        if len(remaining) != 1:
+            raise SubtitleReconciliationAmbiguous(
+                "LiveKit subtitle dispatch deduplication is ambiguous."
+            )
+        winner = remaining[0]
+    return winner
+
+
+async def _reconcile_provider_unlocked(  # noqa: PLR0911, PLR0912, PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements,too-many-branches
     room_name,
     room_sid,
     desired_state,
     generation,
     provider,
+    *,
+    robust=False,
 ):
     client = utils.create_livekit_client()
     try:
@@ -182,6 +310,12 @@ async def _reconcile_provider(  # noqa: PLR0912  # pylint: disable=too-many-bran
         ]
 
         if desired_state == models.RoomSubtitleControl.DesiredState.OFF:
+            if robust and any(
+                _dispatch_is_malformed(dispatch, room_sid) for dispatch in targeted
+            ):
+                raise SubtitleReconciliationAmbiguous(
+                    "LiveKit subtitle dispatch metadata is malformed."
+                )
             for dispatch in targeted:
                 await _delete_dispatch(client, str(dispatch.id), room_name)
             second = [
@@ -218,7 +352,21 @@ async def _reconcile_provider(  # noqa: PLR0912  # pylint: disable=too-many-bran
                     "LiveKit stale subtitle dispatch cleanup is ambiguous."
                 )
 
-        if targeted:
+        if robust:
+            canonical = await _canonical_current_dispatch(
+                client,
+                room_name,
+                room_sid,
+                generation,
+                provider,
+                targeted,
+            )
+            if canonical is not None:
+                return _ProviderResult(
+                    [str(canonical.id)],
+                    had_dispatches=True,
+                )
+        elif targeted:
             return _ProviderResult(
                 _dispatch_ids(targeted),
                 had_dispatches=bool(targeted),
@@ -253,6 +401,23 @@ async def _reconcile_provider(  # noqa: PLR0912  # pylint: disable=too-many-bran
                     if _is_room_dispatch(dispatch, room_sid)
                 ]
                 if confirmed:
+                    if robust:
+                        canonical = await _canonical_current_dispatch(
+                            client,
+                            room_name,
+                            room_sid,
+                            generation,
+                            provider,
+                            confirmed,
+                        )
+                        if canonical is None:
+                            raise SubtitleReconciliationAmbiguous(
+                                "LiveKit did not confirm the created subtitle dispatch."
+                            ) from None
+                        return _ProviderResult(
+                            [str(canonical.id)],
+                            had_dispatches=True,
+                        )
                     return _ProviderResult(
                         _dispatch_ids(confirmed),
                         had_dispatches=True,
@@ -268,19 +433,69 @@ async def _reconcile_provider(  # noqa: PLR0912  # pylint: disable=too-many-bran
                 list_succeeded=True,
                 create_timeout=True,
             )
-        return _ProviderResult([str(dispatch_id)], had_dispatches=True)
+        confirmed = [
+            dispatch
+            for dispatch in await _list_dispatches(client, room_name)
+            if _is_room_dispatch(dispatch, room_sid)
+        ]
+        if robust:
+            canonical = await _canonical_current_dispatch(
+                client,
+                room_name,
+                room_sid,
+                generation,
+                provider,
+                confirmed,
+            )
+            if canonical is None:
+                raise SubtitleReconciliationAmbiguous(
+                    "LiveKit did not confirm the created subtitle dispatch."
+                )
+            return _ProviderResult([str(canonical.id)], had_dispatches=True)
+        return _ProviderResult(
+            _dispatch_ids(confirmed) or [str(dispatch_id)],
+            had_dispatches=True,
+        )
     finally:
         await client.aclose()
 
 
-def _provider_reconcile(room_name, room_sid, desired_state, generation, provider):
-    return async_to_sync(_reconcile_provider)(
-        room_name,
-        room_sid,
-        desired_state,
-        generation,
-        provider,
-    )
+def _provider_reconcile(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    room_name,
+    room_sid,
+    desired_state,
+    generation,
+    provider,
+    *,
+    timeout=None,
+):
+    """Run provider convergence with the rollout flag and OFF safety rules."""
+
+    robust = bool(settings.ROOM_SUBTITLE_CONVERGENCE_ENABLED)
+    must_lock = robust or desired_state == models.RoomSubtitleControl.DesiredState.OFF
+    if not must_lock:
+        return async_to_sync(_reconcile_provider_unlocked)(
+            room_name,
+            room_sid,
+            desired_state,
+            generation,
+            provider,
+            robust=False,
+        )
+    try:
+        with try_subtitle_convergence_lock(room_sid, timeout=timeout) as lock:
+            if lock is None:
+                raise SubtitleConvergenceBusy(room_sid)
+            return async_to_sync(_reconcile_provider_unlocked)(
+                room_name,
+                room_sid,
+                desired_state,
+                generation,
+                provider,
+                robust=robust,
+            )
+    except SubtitleLockUnavailable as error:
+        raise SubtitleConvergenceBusy(room_sid) from error
 
 
 def _packet_payload(control):
@@ -396,10 +611,16 @@ def _failure_state(control, error, *, stopping):
 def _mark_failure(room_sid, *, stopping=False, error=None):
     now = timezone.now()
     with transaction.atomic():
-        control = (
-            models.RoomSubtitleControl.objects.select_for_update()
-            .filter(room_sid=room_sid, is_current=True)
+        room_id = (
+            models.RoomSubtitleControl.objects.filter(room_sid=room_sid)
+            .values_list("room_id", flat=True)
             .first()
+        )
+        if room_id is None:
+            return None
+        locked_room, control = lock_room_and_control(
+            models.Room(pk=room_id),
+            room_sid=room_sid,
         )
         if control is None:
             return None
@@ -415,11 +636,11 @@ def _mark_failure(room_sid, *, stopping=False, error=None):
                 else None
             ),
         }
-        result = compare_and_set_subtitle_control(
-            control.room_sid,
+        result = compare_and_set_subtitle_control_locked(
+            locked_room,
+            control,
             expected_control_generation=control.control_generation,
             expected_state_version=control.state_version,
-            current_only=True,
             **changes,
         )
         if result.next_retry_at is not None:
@@ -494,16 +715,38 @@ def _project_provider_result(control, provider_result):
     }
 
 
-def reconcile_subtitle_control(  # noqa: PLR0912  # pylint: disable=too-many-branches
+def reconcile_subtitle_control(  # noqa: PLR0912, PLR0915  # pylint: disable=too-many-branches,too-many-statements
     room_sid,
+    *,
+    deadline=None,
 ):
     """Converge one current control row without losing a newer intent."""
-    for _ in range(MAX_INTENT_RECONCILIATIONS):
+    for _ in range(max(1, settings.ROOM_SUBTITLE_CONVERGENCE_MAX_ATTEMPTS)):
+        if deadline is not None and time.monotonic() >= deadline:
+            latest = _current_control(room_sid)
+            if latest is not None and settings.CELERY_ENABLED:
+                schedule_subtitle_reconciliation(room_sid)
+            return latest
         control = _current_control(room_sid)
         if control is None:
             return None
 
-        if not settings.ROOM_SUBTITLE_ENABLED and control.desired_state == "ON":
+        if (
+            control.room_finished_at is not None
+            and control.desired_state == models.RoomSubtitleControl.DesiredState.ON
+        ):
+            control = compare_and_set_subtitle_control(
+                control.room_sid,
+                expected_control_generation=control.control_generation,
+                expected_state_version=control.state_version,
+                new_intent=True,
+                desired_state=models.RoomSubtitleControl.DesiredState.OFF,
+                public_state=models.RoomSubtitleControl.PublicState.STOPPING,
+                reason_code=models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED,
+                pending_since=None,
+                room_finished_at=control.room_finished_at,
+            )
+        elif not settings.ROOM_SUBTITLE_ENABLED and control.desired_state == "ON":
             control = compare_and_set_subtitle_control(
                 control.room_sid,
                 expected_control_generation=control.control_generation,
@@ -518,13 +761,29 @@ def reconcile_subtitle_control(  # noqa: PLR0912  # pylint: disable=too-many-bra
         desired_state = control.desired_state
         generation = control.control_generation
         try:
+            provider_kwargs = {}
+            if deadline is not None:
+                provider_kwargs["timeout"] = max(
+                    0.0,
+                    deadline - time.monotonic(),
+                )
             provider_result = _provider_reconcile(
                 str(control.room_id),
                 control.room_sid,
                 desired_state,
                 generation,
                 control.provider or subtitle_provider(),
+                **provider_kwargs,
             )
+        except SubtitleConvergenceBusy:
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining > 0:
+                    time.sleep(min(0.05, remaining))
+                    continue
+            if settings.CELERY_ENABLED:
+                schedule_subtitle_reconciliation(room_sid)
+            return control
         except (SubtitleControlConflict, SubtitleControlContractError):
             raise
         except SubtitleProviderActive:
@@ -555,13 +814,16 @@ def reconcile_subtitle_control(  # noqa: PLR0912  # pylint: disable=too-many-bra
         latest = _current_control(room_sid)
         if latest is None:
             return None
-        return compare_and_set_subtitle_control(
-            latest.room_sid,
-            expected_control_generation=latest.control_generation,
-            expected_state_version=latest.state_version,
-            current_only=True,
-            **_project_provider_result(latest, provider_result),
-        )
+        try:
+            return compare_and_set_subtitle_control(
+                latest.room_sid,
+                expected_control_generation=latest.control_generation,
+                expected_state_version=latest.state_version,
+                current_only=True,
+                **_project_provider_result(latest, provider_result),
+            )
+        except SubtitleControlConflict:
+            continue
 
     latest = _current_control(room_sid)
     if latest is not None and settings.CELERY_ENABLED:
@@ -572,13 +834,21 @@ def reconcile_subtitle_control(  # noqa: PLR0912  # pylint: disable=too-many-bra
 @transaction.atomic
 def observe_subtitle_agent(room_sid, *, participant_identity, present):
     """Project verified LiveKit agent presence into the current control row."""
-    control = (
-        models.RoomSubtitleControl.objects.select_for_update()
-        .filter(room_sid=room_sid, is_current=True)
+    room_id = (
+        models.RoomSubtitleControl.objects.filter(room_sid=room_sid)
+        .values_list("room_id", flat=True)
         .first()
+    )
+    if room_id is None:
+        return None
+    locked_room, control = lock_room_and_control(
+        models.Room(pk=room_id),
+        room_sid=room_sid,
     )
     if control is None:
         return None
+    if control.room_finished_at is not None:
+        return control
     if not present and control.session_id not in (None, participant_identity):
         return control
     if control.desired_state == models.RoomSubtitleControl.DesiredState.OFF:
@@ -596,11 +866,11 @@ def observe_subtitle_agent(room_sid, *, participant_identity, present):
             if present
             else models.RoomSubtitleControl.PublicState.RECONNECTING
         )
-    return compare_and_set_subtitle_control(
-        control.room_sid,
+    return compare_and_set_subtitle_control_locked(
+        locked_room,
+        control,
         expected_control_generation=control.control_generation,
         expected_state_version=control.state_version,
-        current_only=True,
         agent_present=present,
         worker_ready=present,
         worker_observed_at=timezone.now(),
@@ -620,23 +890,34 @@ def observe_subtitle_agent(room_sid, *, participant_identity, present):
 @transaction.atomic
 def request_subtitle_stop(room, *, room_sid=None, reason_code=None):
     """Persist an OFF intent before any provider cleanup is attempted."""
-    control = (
-        models.RoomSubtitleControl.objects.select_for_update()
-        .filter(room=room, is_current=True)
-        .first()
-    )
+    locked_room, control = lock_room_and_control(room, room_sid=room_sid)
     if control is None or (room_sid is not None and control.room_sid != room_sid):
         return None
-    return compare_and_set_subtitle_control(
-        control.room_sid,
+    if (
+        control.desired_state == models.RoomSubtitleControl.DesiredState.OFF
+        and reason_code != models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+    ):
+        return control
+    if (
+        reason_code == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+        and control.room_finished_at is not None
+    ):
+        return control
+    changes = {
+        "desired_state": models.RoomSubtitleControl.DesiredState.OFF,
+        "public_state": models.RoomSubtitleControl.PublicState.STOPPING,
+        "reason_code": reason_code,
+        "pending_since": None,
+    }
+    if reason_code == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED:
+        changes["room_finished_at"] = control.room_finished_at or timezone.now()
+    return compare_and_set_subtitle_control_locked(
+        locked_room,
+        control,
         expected_control_generation=control.control_generation,
         expected_state_version=control.state_version,
-        current_only=True,
         new_intent=True,
-        desired_state=models.RoomSubtitleControl.DesiredState.OFF,
-        public_state=models.RoomSubtitleControl.PublicState.STOPPING,
-        reason_code=reason_code,
-        pending_since=None,
+        **changes,
     )
 
 
