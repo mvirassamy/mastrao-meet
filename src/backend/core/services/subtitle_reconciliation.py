@@ -39,6 +39,7 @@ MAX_RECONCILIATION_ATTEMPTS = 3
 RETRY_DELAYS_SECONDS = (1, 5, 30)
 PACKET_RETRY_DELAYS_SECONDS = (1, 5, 30)
 MAX_PACKET_RETRIES = len(PACKET_RETRY_DELAYS_SECONDS)
+CONVERGENCE_BUSY_BACKOFF_SECONDS = (0.05, 0.1, 0.2)
 
 
 class SubtitleReconciliationAmbiguous(RuntimeError):
@@ -66,6 +67,10 @@ class SubtitleProviderActive(RuntimeError):
 
 class SubtitleConvergenceBusy(RuntimeError):
     """Another room-scoped convergence currently owns the provider lock."""
+
+
+class SubtitleRoomNotFound(RuntimeError):
+    """LiveKit no longer has the room, so its dispatches cannot remain active."""
 
 
 @dataclass(frozen=True)
@@ -143,23 +148,32 @@ def _dispatch_metadata_json(room_sid, generation, provider):
     )
 
 
-async def _list_dispatches(client, room_name):
-    return list(
-        await asyncio.wait_for(
-            client.agent_dispatch.list_dispatch(room_name),
-            timeout=PROVIDER_TIMEOUT_SECONDS,
+async def _list_dispatches(client, room_name, *, not_found_is_empty=False):
+    try:
+        return list(
+            await asyncio.wait_for(
+                client.agent_dispatch.list_dispatch(room_name),
+                timeout=PROVIDER_TIMEOUT_SECONDS,
+            )
         )
-    )
+    except api.TwirpError as error:
+        if not_found_is_empty and error.code == "not_found":
+            raise SubtitleRoomNotFound from error
+        raise
 
 
 async def _delete_dispatch(client, dispatch_id, room_name):
-    await asyncio.wait_for(
-        client.agent_dispatch.delete_dispatch(
-            dispatch_id=dispatch_id,
-            room_name=room_name,
-        ),
-        timeout=CLEANUP_TIMEOUT_SECONDS,
-    )
+    try:
+        await asyncio.wait_for(
+            client.agent_dispatch.delete_dispatch(
+                dispatch_id=dispatch_id,
+                room_name=room_name,
+            ),
+            timeout=CLEANUP_TIMEOUT_SECONDS,
+        )
+    except api.TwirpError as error:
+        if error.code != "not_found":
+            raise
 
 
 def _lower_generation_dispatches(dispatches, room_sid, generation):
@@ -297,7 +311,23 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-
 ):
     client = utils.create_livekit_client()
     try:
-        first = await _list_dispatches(client, room_name)
+        try:
+            first = await _list_dispatches(
+                client,
+                room_name,
+                not_found_is_empty=(
+                    desired_state == models.RoomSubtitleControl.DesiredState.OFF
+                ),
+            )
+        except SubtitleRoomNotFound:
+            if desired_state == models.RoomSubtitleControl.DesiredState.OFF:
+                return _ProviderResult(
+                    [],
+                    list_succeeded=True,
+                    no_dispatch_confirmed=True,
+                    had_dispatches=True,
+                )
+            raise
         targeted = [
             dispatch for dispatch in first if _is_room_dispatch(dispatch, room_sid)
         ]
@@ -309,11 +339,18 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-
                 )
             for dispatch in targeted:
                 await _delete_dispatch(client, str(dispatch.id), room_name)
-            second = [
-                dispatch
-                for dispatch in await _list_dispatches(client, room_name)
-                if _is_room_dispatch(dispatch, room_sid)
-            ]
+            try:
+                second = [
+                    dispatch
+                    for dispatch in await _list_dispatches(
+                        client,
+                        room_name,
+                        not_found_is_empty=True,
+                    )
+                    if _is_room_dispatch(dispatch, room_sid)
+                ]
+            except SubtitleRoomNotFound:
+                second = []
             if second:
                 raise SubtitleReconciliationAmbiguous(
                     "LiveKit subtitle dispatch cleanup is ambiguous."
@@ -739,13 +776,16 @@ def reconcile_subtitle_control(  # noqa: PLR0912, PLR0915  # pylint: disable=too
                 **provider_kwargs,
             )
         except SubtitleConvergenceBusy:
+            backoff = CONVERGENCE_BUSY_BACKOFF_SECONDS[
+                min(_, len(CONVERGENCE_BUSY_BACKOFF_SECONDS) - 1)
+            ]
             if deadline is not None:
                 remaining = deadline - time.monotonic()
                 if remaining > 0:
-                    time.sleep(min(0.05, remaining))
+                    time.sleep(min(backoff, remaining))
                     continue
             if settings.CELERY_ENABLED:
-                schedule_subtitle_reconciliation(room_sid)
+                schedule_subtitle_reconciliation(room_sid, countdown=backoff)
             return control
         except (SubtitleControlConflict, SubtitleControlContractError):
             raise
