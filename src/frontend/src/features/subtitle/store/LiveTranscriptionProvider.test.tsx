@@ -1,9 +1,10 @@
 import { act, cleanup, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { RoomEvent } from 'livekit-client'
+import { DataPacket_Kind, RoomEvent } from 'livekit-client'
 import { LiveTranscriptionProvider } from './LiveTranscriptionProvider'
 import { useLiveTranscription } from './liveTranscriptionContext'
+import { LIVE_TRANSCRIPTION_STATE_TOPIC } from './liveTranscriptionTypes'
 
 const { fetchSubtitleStateMock, useRoomContextMock, useRoomDataMock } =
   vi.hoisted(() => ({
@@ -56,16 +57,19 @@ const createRoom = () => {
 }
 
 const Probe = () => {
-  const { segments, status } = useLiveTranscription()
+  const { segments, status, resyncStatus } = useLiveTranscription()
   return (
-    <output data-testid="transcription-state">
-      {status}:
-      {segments
-        .map(
-          ({ participantIdentity, text }) => `${participantIdentity}:${text}`
-        )
-        .join('|')}
-    </output>
+    <>
+      <output data-testid="transcription-state">
+        {status}:
+        {segments
+          .map(
+            ({ participantIdentity, text }) => `${participantIdentity}:${text}`
+          )
+          .join('|')}
+      </output>
+      <output data-testid="transcription-resync">{resyncStatus}</output>
+    </>
   )
 }
 
@@ -73,13 +77,38 @@ const App = ({ children }: { children?: ReactNode }) => (
   <LiveTranscriptionProvider>{children}</LiveTranscriptionProvider>
 )
 
+const statePacket = (overrides: Record<string, unknown> = {}) =>
+  new TextEncoder().encode(
+    JSON.stringify({
+      schemaVersion: 1,
+      roomSid: 'RM_room-1',
+      state: 'live',
+      stateVersion: 1,
+      eventId: 'event-1',
+      occurredAt: '2026-09-29T00:00:00.000Z',
+      sessionId: 'session-1',
+      reason: null,
+      ...overrides,
+    })
+  )
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
 
 beforeEach(() => {
-  fetchSubtitleStateMock.mockResolvedValue({ subtitle: { state: 'unknown' } })
+  fetchSubtitleStateMock.mockResolvedValue({
+    subtitle: {
+      state: 'unknown',
+      stateVersion: 0,
+      sessionId: null,
+      updatedAt: null,
+      reason: null,
+      desired: 'OFF',
+      roomSid: 'RM_room-1',
+    },
+  })
   useRoomDataMock.mockReturnValue(undefined)
 })
 
@@ -113,9 +142,7 @@ describe('LiveTranscriptionProvider', () => {
           }),
       })
     })
-    expect(view.getByTestId('transcription-state').textContent).toBe(
-      'degraded:'
-    )
+    expect(view.getByTestId('transcription-state').textContent).toBe('unknown:')
 
     view.unmount()
     expect(room.unregisterTextStreamHandler).toHaveBeenCalledWith(
@@ -328,7 +355,17 @@ describe('LiveTranscriptionProvider', () => {
     useRoomDataMock.mockReturnValue({
       livekit: { room: 'room-1', token: 'token-1' },
     })
-    fetchSubtitleStateMock.mockResolvedValue({ subtitle: { state: 'live' } })
+    fetchSubtitleStateMock.mockResolvedValue({
+      subtitle: {
+        state: 'live',
+        stateVersion: 1,
+        sessionId: 'session-1',
+        updatedAt: '2026-09-29T00:00:00.000Z',
+        reason: null,
+        desired: 'ON',
+        roomSid: 'RM_room-1',
+      },
+    })
     const view = render(
       <App>
         <Probe />
@@ -337,20 +374,13 @@ describe('LiveTranscriptionProvider', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    const handler = new Map(
-      room.registerTextStreamHandler.mock.calls.map(
-        ([topic, callback]) => [topic, callback] as const
-      )
-    ).get('lk.transcription')
-
     await act(async () => {
-      await handler?.(
-        {
-          info: { id: 'status-stream', attributes: {} },
-          readAll: async () =>
-            JSON.stringify({ type: 'status', status: 'live' }),
-        },
-        { identity: 'agent' }
+      emit(
+        RoomEvent.DataReceived,
+        statePacket(),
+        undefined,
+        DataPacket_Kind.RELIABLE,
+        LIVE_TRANSCRIPTION_STATE_TOPIC
       )
     })
     expect(view.getByTestId('transcription-state').textContent).toBe('live:')
@@ -364,15 +394,13 @@ describe('LiveTranscriptionProvider', () => {
     expect(view.getByTestId('transcription-state').textContent).toBe('live:')
   })
 
-  it('ignores an API response that is older than a worker status event', async () => {
-    const { room } = createRoom()
+  it('ignores an API response that is older than a backend state packet', async () => {
+    const { room, emit } = createRoom()
     useRoomContextMock.mockReturnValue(room)
     useRoomDataMock.mockReturnValue({
       livekit: { room: 'room-1', token: 'token-1' },
     })
-    let resolveSubtitleState: (response: {
-      subtitle: { state: 'inactive' }
-    }) => void = () => undefined
+    let resolveSubtitleState: (response: unknown) => void = () => undefined
     fetchSubtitleStateMock.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -389,27 +417,107 @@ describe('LiveTranscriptionProvider', () => {
       await Promise.resolve()
     })
 
-    const handler = new Map(
-      room.registerTextStreamHandler.mock.calls.map(
-        ([topic, callback]) => [topic, callback] as const
-      )
-    ).get('lk.transcription')
     await act(async () => {
-      await handler?.(
-        {
-          info: { id: 'stream-status', attributes: {} },
-          readAll: async () =>
-            JSON.stringify({ type: 'status', status: 'live' }),
-        },
-        { identity: 'agent' }
+      emit(
+        RoomEvent.DataReceived,
+        statePacket(),
+        undefined,
+        DataPacket_Kind.RELIABLE,
+        LIVE_TRANSCRIPTION_STATE_TOPIC
       )
     })
 
     await act(async () => {
-      resolveSubtitleState({ subtitle: { state: 'inactive' } })
+      resolveSubtitleState({
+        subtitle: {
+          state: 'inactive',
+          stateVersion: 0,
+          sessionId: null,
+          updatedAt: null,
+          reason: null,
+          desired: 'OFF',
+          roomSid: 'RM_room-1',
+        },
+      })
       await Promise.resolve()
     })
 
     expect(view.getByTestId('transcription-state').textContent).toBe('live:')
+  })
+
+  it('accepts only reliable backend state packets', async () => {
+    const { room, emit } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-1', token: 'token-1' },
+    })
+    const view = render(
+      <App>
+        <Probe />
+      </App>
+    )
+    await act(async () => {
+      await Promise.resolve()
+      emit(
+        RoomEvent.DataReceived,
+        statePacket(),
+        { identity: 'agent' },
+        DataPacket_Kind.RELIABLE,
+        LIVE_TRANSCRIPTION_STATE_TOPIC
+      )
+      emit(
+        RoomEvent.DataReceived,
+        statePacket(),
+        undefined,
+        DataPacket_Kind.LOSSY,
+        LIVE_TRANSCRIPTION_STATE_TOPIC
+      )
+    })
+
+    expect(view.getByTestId('transcription-state').textContent).toBe('unknown:')
+  })
+
+  it('keeps the last reliable state when resync REST fails', async () => {
+    const { room, emit } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-1', token: 'token-1' },
+    })
+    fetchSubtitleStateMock
+      .mockResolvedValueOnce({
+        subtitle: {
+          state: 'live',
+          stateVersion: 1,
+          sessionId: 'session-1',
+          updatedAt: '2026-09-29T00:00:00.000Z',
+          reason: null,
+          desired: 'ON',
+          roomSid: 'RM_room-1',
+        },
+      })
+      .mockRejectedValueOnce(new Error('REST unavailable'))
+    const view = render(
+      <App>
+        <Probe />
+      </App>
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      emit(
+        RoomEvent.DataReceived,
+        statePacket({ stateVersion: 3, eventId: 'event-3' }),
+        undefined,
+        DataPacket_Kind.RELIABLE,
+        LIVE_TRANSCRIPTION_STATE_TOPIC
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(view.getByTestId('transcription-state').textContent).toBe('live:')
+    expect(view.getByTestId('transcription-resync').textContent).toBe('failed')
   })
 })

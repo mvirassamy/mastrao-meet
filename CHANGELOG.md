@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-09-29: Consume backend-only versioned live transcription state
+  packets, validate reliable server attribution, order state transitions by
+  room version, resync on gaps, and preserve the last reliable state when
+  REST fails. Keep lk.transcription focused on segments; no provider or
+  staging changes.
+
 - 2026-09-29: Make canonical host close part of the normal Meeting contract,
   keep explicit provider-room creation mandatory for governed rooms and retire
   the duplicate Meet close feature flag.
