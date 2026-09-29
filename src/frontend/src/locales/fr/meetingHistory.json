@@ -29,16 +29,26 @@
   "participants_other": "{{count}} participants",
   "status": {
     "summary": {
-      "absent": "Sans synthèse",
+      "unknown": "État de synthèse en cours de vérification",
+      "not_started": "Sans synthèse",
+      "waiting_for_audio": "Synthèse en attente de l’audio",
+      "transcribing": "Synthèse en préparation",
       "available": "Synthèse disponible",
-      "failed": "Synthèse indisponible",
-      "processing": "Synthèse en préparation"
+      "completed_empty": "Synthèse vide",
+      "audio_unavailable": "Synthèse impossible sans audio",
+      "partial": "Synthèse partielle",
+      "failed": "Synthèse indisponible"
     },
     "transcript": {
-      "absent": "Sans transcription",
+      "unknown": "État de transcription en cours de vérification",
+      "not_started": "Transcription non démarrée",
+      "waiting_for_audio": "Transcription en attente de l’audio",
+      "transcribing": "Transcription en cours",
       "available": "Transcription disponible",
-      "failed": "Transcription indisponible",
-      "processing": "Transcription en préparation"
+      "completed_empty": "Aucune parole détectée",
+      "audio_unavailable": "Audio indisponible",
+      "partial": "Transcription partielle",
+      "failed": "Transcription indisponible"
     }
   },
   "summary": {
@@ -48,8 +58,8 @@
     },
     "automatic": "Synthèse générée automatiquement à partir de la transcription, sans relecture humaine.",
     "failed": {
-      "description": "La synthèse n’a pas pu être produite pour cette réunion.",
-      "title": "Synthèse indisponible"
+      "description": "Le traitement n’a pas pu aboutir pour cette réunion.",
+      "title": "Traitement indisponible"
     },
     "processing": {
       "description": "Elle apparaîtra ici dès qu’elle sera prête. Cette page se met à jour automatiquement.",
@@ -63,7 +73,32 @@
     "waitingTranscript": {
       "description": "Elle sera préparée dès que la transcription sera disponible. Cette page se met à jour automatiquement.",
       "title": "Synthèse en attente"
-    }
+    },
+    "unknown": {
+      "description": "La page se mettra à jour dès que le service aura confirmé l’état.",
+      "title": "État en cours de vérification"
+    },
+    "not_started": {
+      "description": "La synthèse n’a pas encore été lancée.",
+      "title": "Aucune synthèse"
+    },
+    "waiting_for_audio": {
+      "description": "Le traitement commencera dès que l’audio sera prêt.",
+      "title": "En attente de l’audio"
+    },
+    "transcribing": {
+      "description": "Le contenu apparaîtra ici dès qu’il sera prêt.",
+      "title": "Traitement en cours"
+    },
+    "completed_empty": {
+      "description": "Le traitement est terminé sans contenu exploitable.",
+      "title": "Aucun contenu détecté"
+    },
+    "audio_unavailable": {
+      "description": "Aucun audio exploitable n’est disponible pour cette réunion.",
+      "title": "Audio indisponible"
+    },
+    "partial": "Cette synthèse est incomplète. Certains éléments peuvent manquer."
   },
   "title": "Historique",
   "transcript": {
@@ -72,8 +107,8 @@
       "title": "Aucune transcription"
     },
     "failed": {
-      "description": "La transcription n’a pas pu être produite pour cette réunion.",
-      "title": "Transcription indisponible"
+      "description": "Le traitement n’a pas pu aboutir pour cette réunion.",
+      "title": "Traitement indisponible"
     },
     "processing": {
       "description": "Elle apparaîtra ici dès qu’elle sera prête. Cette page se met à jour automatiquement.",
@@ -81,7 +116,32 @@
     },
     "title": "Transcription",
     "truncated": "Seule une partie de la transcription est affichée.",
-    "unknownSpeaker": "Intervenant"
+    "unknownSpeaker": "Intervenant",
+    "unknown": {
+      "description": "La page se mettra à jour dès que le service aura confirmé l’état.",
+      "title": "État en cours de vérification"
+    },
+    "not_started": {
+      "description": "La transcription n’a pas encore été lancée.",
+      "title": "Aucune transcription"
+    },
+    "waiting_for_audio": {
+      "description": "Le traitement commencera dès que l’audio sera prêt.",
+      "title": "En attente de l’audio"
+    },
+    "transcribing": {
+      "description": "Le contenu apparaîtra ici dès qu’il sera prêt.",
+      "title": "Traitement en cours"
+    },
+    "completed_empty": {
+      "description": "Le traitement est terminé sans contenu exploitable.",
+      "title": "Aucun contenu détecté"
+    },
+    "audio_unavailable": {
+      "description": "Aucun audio exploitable n’est disponible pour cette réunion.",
+      "title": "Audio indisponible"
+    },
+    "partial": "Cette transcription est incomplète. Des passages de la réunion peuvent manquer."
   },
   "untitled": "Réunion sans titre"
 }

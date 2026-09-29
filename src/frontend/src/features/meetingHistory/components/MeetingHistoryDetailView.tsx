@@ -53,6 +53,11 @@ const isNotFoundError = (error: unknown) =>
 /** Local state of the summary request sent when the detail opens. */
 type SummaryRequestState = 'idle' | 'pending' | 'failed'
 
+const isReadableStatus = (
+  status: MeetingContentStatus
+): status is 'available' | 'partial' =>
+  status === 'available' || status === 'partial'
+
 export const MeetingHistoryDetailView = ({
   meetingId,
   timeZone,
@@ -349,6 +354,14 @@ const MeetingContentSection = ({
           {icon}
           {t(`${kind}.title`)}
         </h2>
+        <span
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className={css({ srOnly: true })}
+        >
+          {t(`status.${kind}.${status}`)}
+        </span>
       </div>
       <div className={css({ padding: '1rem 1.125rem 1.25rem' })}>
         {children}
@@ -362,12 +375,22 @@ const UnavailableContent = ({
   status,
 }: {
   kind: MeetingContentKind
-  status: Exclude<MeetingContentStatus, 'available'>
+  status: Exclude<MeetingContentStatus, 'available' | 'partial'>
 }) => {
   const { t } = useTranslation('meetingHistory')
   const visual = {
-    processing: { tone: 'info', icon: <TimeIcon size={18} /> },
-    absent: {
+    unknown: { tone: 'info', icon: <TimeIcon size={18} /> },
+    not_started: {
+      tone: 'neutral',
+      icon: <MinusCircleIcon size={18} />,
+    },
+    waiting_for_audio: { tone: 'info', icon: <TimeIcon size={18} /> },
+    transcribing: { tone: 'info', icon: <TimeIcon size={18} /> },
+    completed_empty: {
+      tone: 'neutral',
+      icon: <MinusCircleIcon size={18} />,
+    },
+    audio_unavailable: {
       tone: 'neutral',
       icon: <MinusCircleIcon size={18} />,
     },
@@ -391,6 +414,31 @@ const bodyTextClass = css({
   overflowWrap: 'anywhere',
 })
 
+const PartialContentWarning = ({ kind }: { kind: MeetingContentKind }) => {
+  const { t } = useTranslation('meetingHistory')
+
+  return (
+    <p
+      className={css({
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '0.375rem',
+        margin: 0,
+        padding: '0.625rem 0.75rem',
+        borderRadius: '8px',
+        backgroundColor: 'info',
+        color: 'info-foreground',
+        fontSize: '0.8125rem',
+        lineHeight: '1.25rem',
+        '& svg': { flexShrink: 0, marginTop: '0.125rem' },
+      })}
+    >
+      <InformationIcon size={15} aria-hidden="true" />
+      {t(`${kind}.partial`)}
+    </p>
+  )
+}
+
 const SummaryBody = ({
   summary,
   transcriptStatus,
@@ -403,9 +451,9 @@ const SummaryBody = ({
   onRetry: () => void
 }) => {
   const { t } = useTranslation('meetingHistory')
-  if (summary.status === 'absent') {
+  if (summary.status === 'not_started') {
     if (requestState === 'pending')
-      return <UnavailableContent kind="summary" status="processing" />
+      return <UnavailableContent kind="summary" status="transcribing" />
     if (requestState === 'failed')
       return (
         <MeetingSectionState
@@ -425,7 +473,11 @@ const SummaryBody = ({
           }
         />
       )
-    if (transcriptStatus === 'processing')
+    if (
+      ['unknown', 'waiting_for_audio', 'transcribing'].includes(
+        transcriptStatus
+      )
+    )
       return (
         <MeetingSectionState
           tone="info"
@@ -435,7 +487,7 @@ const SummaryBody = ({
         />
       )
   }
-  if (summary.status !== 'available')
+  if (!isReadableStatus(summary.status))
     return <UnavailableContent kind="summary" status={summary.status} />
 
   return (
@@ -446,6 +498,7 @@ const SummaryBody = ({
         gap: '1rem',
       })}
     >
+      {summary.status === 'partial' && <PartialContentWarning kind="summary" />}
       <p
         className={css({
           display: 'flex',
@@ -523,11 +576,14 @@ const groupTurns = (segments: MeetingTranscriptSegment[]) =>
 
 const TranscriptBody = ({ transcript }: { transcript: MeetingTranscript }) => {
   const { t } = useTranslation('meetingHistory')
-  if (transcript.status !== 'available')
+  if (!isReadableStatus(transcript.status))
     return <UnavailableContent kind="transcript" status={transcript.status} />
 
   return (
     <>
+      {transcript.status === 'partial' && (
+        <PartialContentWarning kind="transcript" />
+      )}
       <ol
         className={css({
           display: 'flex',
@@ -536,6 +592,7 @@ const TranscriptBody = ({ transcript }: { transcript: MeetingTranscript }) => {
           margin: 0,
           padding: 0,
           listStyle: 'none',
+          marginTop: transcript.status === 'partial' ? '1rem' : 0,
         })}
       >
         {groupTurns(transcript.segments).map((turn) => (
