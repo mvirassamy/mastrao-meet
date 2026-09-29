@@ -95,16 +95,16 @@ describe('automatic summary request', () => {
     })
     renderDetail()
 
-    expect(await screen.findByText('summary.processing.title')).toBeTruthy()
+    expect(await screen.findByText('summary.transcribing.title')).toBeTruthy()
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(calls(SUMMARY_URL, 'POST')).toBe(1)
   })
 
   it.each([
-    ['absent', 'absent', 'summary.absent.title'],
+    ['absent', 'absent', 'summary.not_started.title'],
     ['failed', 'available', 'summary.failed.title'],
     ['absent', 'processing', 'summary.waitingTranscript.title'],
-    ['absent', 'failed', 'summary.absent.title'],
+    ['absent', 'failed', 'summary.not_started.title'],
   ])(
     'does not ask when summary=%s and transcript=%s',
     async (summary, transcript, message) => {
@@ -156,12 +156,13 @@ describe('automatic summary request', () => {
 })
 
 describe('processing refresh', () => {
-  it('polls every 15 s only while something is processing', async () => {
+  it('polls only while something is processing', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-09-20T09:00:00Z'))
     let summaryStatus = 'processing'
     serve({ detail: () => detail(summaryStatus, 'available') })
     renderDetail()
-    await screen.findByText('summary.processing.title')
+    await screen.findByText('summary.transcribing.title')
     expect(calls(DETAIL_URL)).toBe(1)
 
     summaryStatus = 'available'

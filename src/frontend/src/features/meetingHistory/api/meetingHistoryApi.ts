@@ -1,6 +1,7 @@
 import { fetchApi } from '@/api/fetchApi'
 import {
   meetingContentStatuses,
+  type MeetingContentProjection,
   type MeetingContentStatus,
   type MeetingHistoryDetail,
   type MeetingHistoryItem,
@@ -26,10 +27,197 @@ const asDate = (value: unknown) => {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+const SHA256_DIGEST = /^[a-f0-9]{64}$/u
+
 export const normalizeContentStatus = (value: unknown): MeetingContentStatus =>
   meetingContentStatuses.includes(value as MeetingContentStatus)
     ? (value as MeetingContentStatus)
-    : 'absent'
+    : value === 'processing'
+      ? 'transcribing'
+      : 'unknown'
+
+const legacyProjectionState = (
+  value: unknown,
+  kind: 'summary' | 'transcript'
+): MeetingContentStatus => {
+  if (value === 'available' || value === 'failed') return value
+  if (value === 'processing') return 'transcribing'
+  if (value === 'absent')
+    return kind === 'summary' ? 'not_started' : 'audio_unavailable'
+  return normalizeContentStatus(value)
+}
+
+const asRevision = (value: unknown) =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0
+
+const asDigest = (value: unknown) =>
+  typeof value === 'string' && SHA256_DIGEST.test(value) ? value : null
+
+const normalizeProjection = (
+  value: unknown,
+  fallbackStatus: unknown,
+  kind: 'summary' | 'transcript'
+): MeetingContentProjection => {
+  const record = isRecord(value) ? value : null
+  const source = record && isRecord(record.source) ? record.source : null
+  const sourceDigest = asDigest(source?.digest)
+  return {
+    version: 1,
+    state: record
+      ? normalizeContentStatus(record.state)
+      : legacyProjectionState(fallbackStatus, kind),
+    revision: asRevision(record?.revision),
+    digest: asDigest(record?.digest),
+    source: sourceDigest
+      ? { revision: asRevision(source?.revision), digest: sourceDigest }
+      : null,
+    refreshPending: false,
+  }
+}
+
+const isReadable = (projection: MeetingContentProjection) =>
+  projection.state === 'available' || projection.state === 'partial'
+
+const sameSource = (
+  left: MeetingContentProjection['source'],
+  right: MeetingContentProjection['source']
+) =>
+  left === right ||
+  (left !== null &&
+    right !== null &&
+    left.revision === right.revision &&
+    left.digest === right.digest)
+
+const sameProjectionIdentity = (
+  left: MeetingContentProjection,
+  right: MeetingContentProjection
+) =>
+  left.state === right.state &&
+  left.digest === right.digest &&
+  sameSource(left.source, right.source)
+
+const summaryMatchesTranscript = (
+  summary: MeetingContentProjection,
+  transcript: MeetingContentProjection
+) =>
+  summary.source !== null &&
+  transcript.digest !== null &&
+  summary.source.revision === transcript.revision &&
+  summary.source.digest === transcript.digest
+
+export const mergeContentProjection = (
+  current: MeetingContentProjection,
+  incoming: MeetingContentProjection
+): MeetingContentProjection => {
+  const observedRevision = Math.max(
+    current.revision,
+    current.pendingRevision ?? current.revision
+  )
+  if (incoming.revision > observedRevision) {
+    if (isReadable(current) && incoming.state === 'unknown') {
+      return {
+        ...current,
+        refreshPending: true,
+        pendingRevision: incoming.revision,
+      }
+    }
+    return incoming
+  }
+  if (incoming.revision < observedRevision) return current
+  if (incoming.revision > current.revision) {
+    return isReadable(current) && incoming.state === 'unknown'
+      ? {
+          ...current,
+          refreshPending: true,
+          pendingRevision: incoming.revision,
+        }
+      : incoming
+  }
+  if (isReadable(current) && !isReadable(incoming)) {
+    return incoming.state === 'unknown'
+      ? { ...current, refreshPending: true }
+      : current
+  }
+  if (
+    isReadable(current) &&
+    isReadable(incoming) &&
+    !sameProjectionIdentity(current, incoming)
+  ) {
+    return { ...current, refreshPending: true }
+  }
+  return incoming
+}
+
+export const mergeHistoryItem = (
+  current: MeetingHistoryItem,
+  incoming: MeetingHistoryItem
+): MeetingHistoryItem => {
+  const summaryProjection = mergeContentProjection(
+    current.summaryProjection,
+    incoming.summaryProjection
+  )
+  const transcriptProjection = mergeContentProjection(
+    current.transcriptProjection,
+    incoming.transcriptProjection
+  )
+  return {
+    ...incoming,
+    summaryStatus: summaryProjection.state,
+    transcriptStatus: transcriptProjection.state,
+    summaryProjection,
+    transcriptProjection,
+  }
+}
+
+export const mergeHistoryDetail = (
+  current: MeetingHistoryDetail,
+  incoming: MeetingHistoryDetail
+): MeetingHistoryDetail => {
+  const item = mergeHistoryItem(current, incoming)
+  const coherentSummaryProjection =
+    item.summaryProjection.sourceRequired === true &&
+    isReadable(item.summaryProjection) &&
+    !summaryMatchesTranscript(item.summaryProjection, item.transcriptProjection)
+      ? {
+          ...item.summaryProjection,
+          state: 'unknown' as const,
+          refreshPending: true,
+        }
+      : item.summaryProjection
+  const dropSummary = coherentSummaryProjection !== item.summaryProjection
+  const keepSummary =
+    coherentSummaryProjection === current.summaryProjection ||
+    (coherentSummaryProjection.refreshPending &&
+      summaryMatchesTranscript(
+        current.summaryProjection,
+        item.transcriptProjection
+      ) &&
+      isReadable(current.summaryProjection))
+  const keepTranscript =
+    item.transcriptProjection === current.transcriptProjection ||
+    (item.transcriptProjection.refreshPending &&
+      isReadable(current.transcriptProjection))
+  return {
+    ...incoming,
+    ...item,
+    summaryStatus: coherentSummaryProjection.state,
+    summaryProjection: coherentSummaryProjection,
+    summary: keepSummary
+      ? { ...current.summary, projection: coherentSummaryProjection }
+      : dropSummary
+        ? {
+            ...incoming.summary,
+            status: coherentSummaryProjection.state,
+            projection: coherentSummaryProjection,
+            paragraphs: [],
+            sections: [],
+          }
+        : { ...incoming.summary, projection: coherentSummaryProjection },
+    transcript: keepTranscript
+      ? { ...current.transcript, projection: item.transcriptProjection }
+      : { ...incoming.transcript, projection: item.transcriptProjection },
+  }
+}
 
 const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
   if (!isRecord(raw)) return null
@@ -41,14 +229,26 @@ const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
       ? raw.participant_count
       : null
 
+  const summaryProjection = normalizeProjection(
+    raw.summary_projection,
+    raw.summary_status,
+    'summary'
+  )
+  const transcriptProjection = normalizeProjection(
+    raw.transcript_projection,
+    raw.transcript_status,
+    'transcript'
+  )
   return {
     id,
     title: asString(raw.title),
     startedAt,
     endedAt: asDate(raw.ended_at),
     participantCount,
-    summaryStatus: normalizeContentStatus(raw.summary_status),
-    transcriptStatus: normalizeContentStatus(raw.transcript_status),
+    summaryStatus: summaryProjection.state,
+    transcriptStatus: transcriptProjection.state,
+    summaryProjection,
+    transcriptProjection,
   }
 }
 
@@ -103,10 +303,7 @@ const normalizeSegments = (value: unknown): MeetingTranscriptSegment[] =>
     })
     .sort((left, right) => left.startMs - right.startMs)
 
-/**
- * "available" without readable content is shown as absent so the interface
- * never presents an empty block as a finished summary or transcript.
- */
+/** Old responses without projections are refined locally during rollout. */
 export const normalizeHistoryDetail = (
   raw: unknown
 ): MeetingHistoryDetail | null => {
@@ -115,9 +312,15 @@ export const normalizeHistoryDetail = (
   const rawSummary = isRecord(raw.summary) ? raw.summary : {}
   const rawTranscript = isRecord(raw.transcript) ? raw.transcript : {}
 
-  const summaryStatus = normalizeContentStatus(
-    rawSummary.status ?? item.summaryStatus
+  let summaryProjection = normalizeProjection(
+    raw.summary_projection ?? rawSummary.projection,
+    rawSummary.status ?? raw.summary_status,
+    'summary'
   )
+  summaryProjection = {
+    ...summaryProjection,
+    sourceRequired: isRecord(raw.summary_projection),
+  }
   const paragraphs = (asString(rawSummary.text) ?? '')
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
@@ -125,32 +328,60 @@ export const normalizeHistoryDetail = (
   const sections = normalizeSections(rawSummary.sections)
   const hasSummaryContent = paragraphs.length > 0 || sections.length > 0
 
-  const transcriptStatus = normalizeContentStatus(
-    rawTranscript.status ?? item.transcriptStatus
+  let transcriptProjection = normalizeProjection(
+    raw.transcript_projection ?? rawTranscript.projection,
+    rawTranscript.status ?? raw.transcript_status,
+    'transcript'
   )
   const segments = normalizeSegments(rawTranscript.segments)
 
+  const hasExplicitSummaryProjection = isRecord(raw.summary_projection)
+  if (
+    hasExplicitSummaryProjection &&
+    isReadable(summaryProjection) &&
+    !summaryMatchesTranscript(summaryProjection, transcriptProjection)
+  ) {
+    summaryProjection = {
+      ...summaryProjection,
+      state: 'unknown',
+      refreshPending: true,
+    }
+  }
+
+  if (
+    !isRecord(raw.summary_projection) &&
+    summaryProjection.state === 'available' &&
+    !hasSummaryContent
+  ) {
+    summaryProjection = { ...summaryProjection, state: 'completed_empty' }
+  }
+  if (
+    !isRecord(raw.transcript_projection) &&
+    transcriptProjection.state === 'available' &&
+    segments.length === 0
+  ) {
+    transcriptProjection = { ...transcriptProjection, state: 'completed_empty' }
+  }
+
   const summary = {
-    status:
-      summaryStatus === 'available' && !hasSummaryContent
-        ? ('absent' as const)
-        : summaryStatus,
-    paragraphs: summaryStatus === 'available' ? paragraphs : [],
-    sections: summaryStatus === 'available' ? sections : [],
+    status: summaryProjection.state,
+    projection: summaryProjection,
+    paragraphs: isReadable(summaryProjection) ? paragraphs : [],
+    sections: isReadable(summaryProjection) ? sections : [],
   }
   const transcript = {
-    status:
-      transcriptStatus === 'available' && segments.length === 0
-        ? ('absent' as const)
-        : transcriptStatus,
-    segments: transcriptStatus === 'available' ? segments : [],
+    status: transcriptProjection.state,
+    projection: transcriptProjection,
+    segments: isReadable(transcriptProjection) ? segments : [],
     truncated: rawTranscript.truncated === true,
   }
 
   return {
     ...item,
-    summaryStatus: summary.status,
-    transcriptStatus: transcript.status,
+    summaryStatus: summaryProjection.state,
+    transcriptStatus: transcriptProjection.state,
+    summaryProjection,
+    transcriptProjection,
     summary,
     transcript,
   }
@@ -201,5 +432,7 @@ export const requestMeetingSummary = async (
     (isRecord(record.summary) ? record.summary.status : undefined)
   return meetingContentStatuses.includes(rawStatus as MeetingContentStatus)
     ? (rawStatus as MeetingContentStatus)
-    : 'processing'
+    : rawStatus === 'processing'
+      ? 'transcribing'
+      : 'unknown'
 }

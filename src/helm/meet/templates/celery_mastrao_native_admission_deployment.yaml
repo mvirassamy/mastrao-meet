@@ -1,0 +1,83 @@
+{{- if .Values.celeryMastraoNativeAdmission.enabled }}
+{{- $envVars := include "meet.env.transformDict" (mergeOverwrite (default dict .Values.backend.envVars) (default dict .Values.celeryMastraoNativeAdmission.envVars)) -}}
+{{- $fullName := include "meet.celeryMastraoNativeAdmission.fullname" . -}}
+{{- $component := "celery-mastrao-native-admission" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}
+  annotations:
+   {{- with .Values.celeryMastraoNativeAdmission.dpAnnotations }}
+   {{- toYaml . | nindent 4 }}
+   {{- end }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . $component) | nindent 4 }}
+spec:
+  replicas: {{ .Values.celeryMastraoNativeAdmission.replicas }}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.celeryMastraoNativeAdmission.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "meet.common.selectorLabels" (list . $component) | nindent 8 }}
+    spec:
+      {{- if $.Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" $.Values.image.credentials) }}
+      {{- end }}
+      shareProcessNamespace: {{ .Values.celeryMastraoNativeAdmission.shareProcessNamespace }}
+      {{- with .Values.celeryMastraoNativeAdmission.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        {{- with .Values.celeryMastraoNativeAdmission.sidecars }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        - name: {{ .Chart.Name }}
+          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+          imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
+          {{- with .Values.celeryMastraoNativeAdmission.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.celeryMastraoNativeAdmission.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if $envVars }}
+            {{- $envVars | indent 12 }}
+            {{- end }}
+          {{- with .Values.celeryMastraoNativeAdmission.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.celeryMastraoNativeAdmission.service.targetPort }}
+              protocol: TCP
+          {{- with .Values.celeryMastraoNativeAdmission.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+{{ if .Values.celeryMastraoNativeAdmission.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
+{{ end }}
+{{- end }}
