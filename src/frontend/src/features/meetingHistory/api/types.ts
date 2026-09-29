@@ -3,13 +3,32 @@
  * Paths and field names stay provisional until the backend confirms them.
  */
 export const meetingContentStatuses = [
-  'processing',
+  'unknown',
+  'not_started',
+  'waiting_for_audio',
+  'transcribing',
   'available',
-  'absent',
+  'completed_empty',
+  'audio_unavailable',
+  'partial',
   'failed',
 ] as const
 
 export type MeetingContentStatus = (typeof meetingContentStatuses)[number]
+
+export type MeetingContentProjection = {
+  version: 1
+  state: MeetingContentStatus
+  revision: number
+  digest: string | null
+  source: { revision: number; digest: string } | null
+  /** Client-only: a newer projection was temporarily unreadable. */
+  refreshPending?: boolean
+  /** Client-only: highest canonical revision observed while retaining old content. */
+  pendingRevision?: number
+  /** Client-only: this server projection must be bound to a transcript source. */
+  sourceRequired?: boolean
+}
 
 export type MeetingHistoryItem = {
   id: string
@@ -19,6 +38,8 @@ export type MeetingHistoryItem = {
   participantCount: number | null
   summaryStatus: MeetingContentStatus
   transcriptStatus: MeetingContentStatus
+  summaryProjection: MeetingContentProjection
+  transcriptProjection: MeetingContentProjection
 }
 
 export type MeetingHistoryPage = {
@@ -33,6 +54,7 @@ export type MeetingSummarySection = {
 
 export type MeetingSummary = {
   status: MeetingContentStatus
+  projection: MeetingContentProjection
   paragraphs: string[]
   sections: MeetingSummarySection[]
 }
@@ -46,6 +68,7 @@ export type MeetingTranscriptSegment = {
 
 export type MeetingTranscript = {
   status: MeetingContentStatus
+  projection: MeetingContentProjection
   segments: MeetingTranscriptSegment[]
   truncated: boolean
 }

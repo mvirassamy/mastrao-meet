@@ -88,7 +88,7 @@ describe('Meet history backend contract', () => {
       id: 'meeting_01',
       title: null,
       participantCount: null,
-      summaryStatus: 'absent',
+      summaryStatus: 'not_started',
       transcriptStatus: 'available',
     })
 
@@ -103,7 +103,7 @@ describe('Meet history backend contract', () => {
     expect(fetchApiMock).toHaveBeenLastCalledWith(
       'meetings/history/meeting_01/'
     )
-    expect(detail.summary.status).toBe('absent')
+    expect(detail.summary.status).toBe('not_started')
     expect(detail.transcript.segments[0]).toMatchObject({
       speaker: 'Matthias',
       startMs: 1200,
@@ -111,7 +111,7 @@ describe('Meet history backend contract', () => {
 
     fetchApiMock.mockResolvedValueOnce({ summary_status: 'processing' })
     await expect(requestMeetingSummary('meeting_01')).resolves.toBe(
-      'processing'
+      'transcribing'
     )
     expect(fetchApiMock).toHaveBeenLastCalledWith(
       'meetings/history/meeting_01/summary/',
@@ -149,7 +149,7 @@ describe('Meet history backend contract', () => {
     renderWithClient(<MeetingHistoryDetailView meetingId="meeting_01" />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'error.retry' }))
-    expect(await screen.findByText('summary.processing.title')).toBeTruthy()
+    expect(await screen.findByText('summary.transcribing.title')).toBeTruthy()
     expect(attempts).toBe(2)
   })
 })

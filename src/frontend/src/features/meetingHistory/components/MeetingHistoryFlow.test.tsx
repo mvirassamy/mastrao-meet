@@ -75,7 +75,10 @@ const renderHistory = (path = MEETING_HISTORY_PATH) => {
 beforeEach(() => {
   fetchApiMock.mockReset()
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 
 describe('meeting history flow', () => {
   it('lists past meetings from most recent, opens a detail and returns', async () => {
@@ -110,7 +113,7 @@ describe('meeting history flow', () => {
       'Réunion recente',
       'Réunion ancienne',
     ])
-    expect(screen.getByText('status.summary.processing')).toBeTruthy()
+    expect(screen.getByText('status.summary.transcribing')).toBeTruthy()
 
     fireEvent.click(links[0])
     const heading = await screen.findByRole('heading', {
@@ -122,7 +125,7 @@ describe('meeting history flow', () => {
     expect(
       screen.getByRole('region', { name: 'transcript.title' })
     ).toBeTruthy()
-    expect(screen.getByText('summary.processing.title')).toBeTruthy()
+    expect(screen.getByText('summary.transcribing.title')).toBeTruthy()
     expect(screen.getByText('Bonjour')).toBeTruthy()
     expect(screen.getByText('00:03')).toBeTruthy()
 
@@ -138,6 +141,62 @@ describe('meeting history flow', () => {
     fetchApiMock.mockResolvedValue({ results: [], next_cursor: null })
     renderHistory()
     expect(await screen.findByText('empty.title')).toBeTruthy()
+  })
+
+  it('keeps polling while an automatic summary has not started', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-09-20T09:00:00Z'))
+    let summaryStatus = 'absent'
+    fetchApiMock.mockImplementation(async () => ({
+      results: [
+        item('recente', '2026-09-20T08:00:00Z', {
+          summary_status: summaryStatus,
+        }),
+      ],
+      next_cursor: null,
+    }))
+    renderHistory()
+
+    expect(await screen.findByText('status.summary.not_started')).toBeTruthy()
+    summaryStatus = 'available'
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    expect(await screen.findByText('status.summary.available')).toBeTruthy()
+    expect(fetchApiMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('labels partial content and exposes concise live status updates', async () => {
+    const digest = 'a'.repeat(64)
+    fetchApiMock.mockResolvedValue({
+      ...item('partielle', '2026-09-20T08:00:00Z'),
+      summary_projection: {
+        version: 1,
+        state: 'available',
+        revision: 2,
+        digest,
+        source: { revision: 2, digest },
+      },
+      transcript_projection: {
+        version: 1,
+        state: 'partial',
+        revision: 2,
+        digest,
+        source: null,
+      },
+      summary: { status: 'available', text: 'Résumé.' },
+      transcript: {
+        status: 'available',
+        segments: [{ id: 's1', start_ms: 0, speaker: 'A', text: 'Extrait' }],
+      },
+    })
+    renderHistory(`${MEETING_HISTORY_PATH}/partielle`)
+
+    expect(await screen.findByText('transcript.partial')).toBeTruthy()
+    expect(
+      screen
+        .getAllByRole('status')
+        .some((status) => status.textContent === 'status.transcript.partial')
+    ).toBe(true)
   })
 
   it('shows an error with a working retry', async () => {
@@ -184,7 +243,7 @@ describe('meeting history flow', () => {
       transcript: { status: 'failed' },
     })
     renderHistory(`${MEETING_HISTORY_PATH}/vide`)
-    expect(await screen.findByText('summary.absent.title')).toBeTruthy()
+    expect(await screen.findByText('summary.not_started.title')).toBeTruthy()
     expect(screen.getByText('transcript.failed.title')).toBeTruthy()
   })
 })
