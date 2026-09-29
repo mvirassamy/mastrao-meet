@@ -7,6 +7,10 @@ from core.tasks.native_capture import (
     process_native_asr,
     process_native_sources,
 )
+from core.tasks.subtitle import (
+    process_subtitle_reconciliation,
+    process_subtitle_snapshot_publication,
+)
 from core.tasks.transcription import process_mastrao_transcription
 
 __all__ = (
@@ -15,5 +19,7 @@ __all__ = (
     "process_native_admissions",
     "process_native_asr",
     "process_native_sources",
+    "process_subtitle_reconciliation",
+    "process_subtitle_snapshot_publication",
     "process_mastrao_transcription",
 )

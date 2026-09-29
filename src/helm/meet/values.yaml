@@ -791,11 +791,52 @@ celeryBackend:
   pdb:
     enabled: false
 
+## @section celeryMastraoNativeAdmission
+
+celeryMastraoNativeAdmission:
+  ## @param celeryMastraoNativeAdmission.enabled Deploy the latency-sensitive native admission worker
+  enabled: true
+  dpAnnotations: {}
+  command:
+    - "celery"
+    - "-A"
+    - "meet.celery_app"
+    - "worker"
+    - "--pool=solo"
+    - "--concurrency=1"
+    - "--loglevel=info"
+    - "-Q"
+    - "mastrao-native-admission"
+  args: []
+  replicas: 1
+  shareProcessNamespace: false
+  sidecars: []
+  securityContext: null
+  podSecurityContext: null
+  envVars:
+    <<: *commonEnvVars
+  podAnnotations: {}
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+    annotations: {}
+  probes: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  persistence: {}
+  extraVolumeMounts: []
+  extraVolumes: []
+  pdb:
+    enabled: false
+
 ## @section celeryMastraoTranscription
 
 celeryMastraoTranscription:
   ## @param celeryMastraoTranscription.enabled Deploy the dedicated Mastrao transcription worker
-  enabled: false
+  enabled: true
 
   ## @param celeryMastraoTranscription.dpAnnotations Annotations to add to the celeryMastraoTranscription Deployment
   dpAnnotations: {}

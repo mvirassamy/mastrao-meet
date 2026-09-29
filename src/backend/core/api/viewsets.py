@@ -129,7 +129,11 @@ from core.services.room_roles import (
     RoomRoleError,
     RoomRoleService,
 )
-from core.services.subtitle import SubtitleException, SubtitleService
+from core.services.subtitle import (
+    SubtitleAlreadyActive,
+    SubtitleException,
+    SubtitleService,
+)
 from core.services.subtitle_control import get_subtitle_snapshot
 from core.tasks.connection_test import delete_connection_test_room
 from core.tasks.file import process_file_deletion
@@ -1061,12 +1065,39 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
 
         try:
             SubtitleService().start_subtitle(room)
+        except SubtitleAlreadyActive as error:
+            return drf_response.Response(
+                {"error": str(error)}, status=drf_status.HTTP_409_CONFLICT
+            )
         except SubtitleException:
             return drf_response.Response(
                 {"error": f"Subtitles failed to start for room {room.slug}"},
                 status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        return drf_response.Response(
+            {"status": "success"}, status=drf_status.HTTP_200_OK
+        )
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="stop-subtitle",
+        permission_classes=[permissions.CanControlSubtitles],
+        authentication_classes=[LiveKitTokenAuthentication],
+    )
+    @FeatureFlag.require("subtitle")
+    def stop_subtitle(self, request, pk=None):  # pylint: disable=unused-argument
+        """Stop the room subtitle agent and persist the OFF intent."""
+
+        room = self.get_object()
+        try:
+            SubtitleService().stop_subtitle(room)
+        except SubtitleException:
+            return drf_response.Response(
+                {"error": f"Subtitles failed to stop for room {room.slug}"},
+                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         return drf_response.Response(
             {"status": "success"}, status=drf_status.HTTP_200_OK
         )

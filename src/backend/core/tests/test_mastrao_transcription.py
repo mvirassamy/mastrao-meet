@@ -20,6 +20,7 @@ import pytest
 
 from core import models
 from core.factories import RoomFactory, UserFactory
+from core.mastrao_recording_artifact import canonical_artifact_receipt_digest
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
     _validate_status,
@@ -286,6 +287,45 @@ def test_managed_profile_requires_v3_reservation(settings):
     ):
         assert verify_transcription_submit_effect("header.payload.signature") == effect
     effect["tariff_catalog_version"] = "substituted-tariff"
+    effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
+    with (
+        mock.patch(
+            "core.mastrao_transcription_contract._verify",
+            side_effect=[RecordingContractRefused(), effect],
+        ),
+        pytest.raises(TranscriptionContractRefused),
+    ):
+        verify_transcription_submit_effect("header.payload.signature")
+
+
+@pytest.mark.parametrize(
+    ("profile_ref", "suffix"),
+    [
+        ("mistral-eu-standard-native-test-v1", "managed_demo_01234"),
+        ("mistral-eu-zdr-voxtral-mini-2602-canary-v1", "managed_zdr_m_0123"),
+        ("openai-eu-zdr-gpt-transcribe-canary-v1", "managed_zdr_o_0123"),
+    ],
+)
+def test_managed_v3_accepts_each_platform_profile(settings, profile_ref, suffix):
+    """Every profile Platform can deploy must be accepted with its exact binding."""
+    binding = _finalized_recording_binding(suffix)
+    effect = _contract_effect(binding, settings, operation_version=3)
+    effect.update(asr_profile_ref=profile_ref, **MANAGED_PROFILE_BINDINGS[profile_ref])
+    effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
+    with mock.patch(
+        "core.mastrao_transcription_contract._verify",
+        side_effect=[RecordingContractRefused(), effect],
+    ):
+        assert verify_transcription_submit_effect("header.payload.signature") == effect
+
+
+def test_managed_demo_profile_cannot_claim_zero_data_retention(settings):
+    binding = _finalized_recording_binding("managed_demo_zdr_01")
+    effect = _contract_effect(binding, settings, operation_version=3)
+    profile_ref = "mistral-eu-standard-native-test-v1"
+    effect.update(asr_profile_ref=profile_ref, **MANAGED_PROFILE_BINDINGS[profile_ref])
+    # A standard-retention demo must never pass as the ZDR-approved profile.
+    effect["data_control_ref"] = "mistral-zdr-approved-v1"
     effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
     with (
         mock.patch(
@@ -695,6 +735,80 @@ def test_unfinalized_or_mismatched_artifact_is_refused():
         _prepare_transcription(_effect(binding, recording_checksum_digest="f" * 64))
     binding.state = models.MastraoRecordingBinding.State.PROCESSING
     binding.save(update_fields=["state", "updated_at"])
+    with pytest.raises(TranscriptionContractRefused):
+        _prepare_transcription(_effect(binding))
+
+
+def test_locally_verified_processing_artifact_accepts_core_submit():
+    binding = _finalized_recording_binding("core_ack_012345678")
+    binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.artifact_verified_at = timezone.now()
+    binding.artifact_receipt_claims = {
+        "artifact_ref": binding.artifact_ref,
+        "object_ref": binding.object_ref,
+        "byte_size": binding.byte_size,
+        "checksum_algorithm": "sha256",
+        "checksum_digest": binding.checksum_digest,
+    }
+    binding.artifact_receipt_digest = canonical_artifact_receipt_digest(
+        binding.artifact_receipt_claims
+    )
+    binding.save(
+        update_fields=[
+            "state",
+            "artifact_verified_at",
+            "artifact_receipt_digest",
+            "artifact_receipt_claims",
+            "updated_at",
+        ]
+    )
+
+    transcription, effect = _prepare_transcription(_effect(binding))
+
+    assert transcription.recording_binding == binding
+    assert effect.state == models.MastraoTranscriptionEffect.State.APPLYING
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "missing_verified_at",
+        "receipt_digest",
+        "binding_algorithm",
+        "claim_algorithm",
+        "artifact_ref",
+        "object_ref",
+        "byte_size",
+        "checksum_digest",
+    ],
+)
+def test_processing_artifact_requires_exact_receipt_integrity(corruption):
+    binding = _finalized_recording_binding(f"integrity_{corruption}")
+    binding.state = models.MastraoRecordingBinding.State.PROCESSING
+    binding.artifact_verified_at = timezone.now()
+    claims = {
+        "artifact_ref": binding.artifact_ref,
+        "object_ref": binding.object_ref,
+        "byte_size": binding.byte_size,
+        "checksum_algorithm": "sha256",
+        "checksum_digest": binding.checksum_digest,
+    }
+    if corruption == "missing_verified_at":
+        binding.artifact_verified_at = None
+    elif corruption == "binding_algorithm":
+        binding.checksum_algorithm = "sha512"
+    elif corruption == "claim_algorithm":
+        claims["checksum_algorithm"] = "sha512"
+    elif corruption in {"artifact_ref", "object_ref", "checksum_digest"}:
+        claims[corruption] = f"different_{corruption}"
+    elif corruption == "byte_size":
+        claims["byte_size"] = binding.byte_size + 1
+    binding.artifact_receipt_claims = claims
+    binding.artifact_receipt_digest = canonical_artifact_receipt_digest(claims)
+    if corruption == "receipt_digest":
+        binding.artifact_receipt_digest = "e" * 64
+    binding.save()
+
     with pytest.raises(TranscriptionContractRefused):
         _prepare_transcription(_effect(binding))
 

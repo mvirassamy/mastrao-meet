@@ -12,14 +12,68 @@
   keep explicit provider-room creation mandatory for governed rooms and retire
   the duplicate Meet close feature flag.
 
+- 2026-09-29: Make exact subtitle-agent convergence the normal behavior and
+  retire the ROOM_SUBTITLE_CONVERGENCE_ENABLED flag, and run subtitle
+  reconciliation and status-packet retries on the generic backend queue so
+  stops and cleanup never wait behind serial ASR jobs.
+
+- 2026-09-29: Remove the subtitle start deadlock class by enforcing Room to
+  Control row-lock order, separating durable intent from provider convergence,
+  and adding a permanent exact room-key registry plus bounded PostgreSQL
+  session advisory locks. The robust deduplication path is feature-flagged
+  off by default, OFF cleanup remains serialized, and synchronous callers have
+  a bounded budget. Added real-PostgreSQL lock, deduplication, stop-during-
+  start, and contention coverage; no staging or audio/video pipeline change.
+
+- 2026-09-29: Accept a Core-signed transcription submit while a locally
+  verified recording artifact is waiting for its Core finalization response.
+
+- 2026-09-29: Accept the Platform staging demo transcription profile (Mistral
+  EU, standard retention, test data only) and refuse it if it claims ZDR.
+
+- 2026-09-29: Isolate latency-sensitive native audio admission on its own
+  Celery worker so unrelated backend jobs cannot delay post-meeting capture.
+
 - 2026-09-29: Make the signed guest invitation boundary part of the canonical
   Meeting contract and retire the duplicate Meet guest-invitation feature flag.
+
+- 2026-09-29: Make subtitle starts retry CAS conflicts idempotently for the
+  same provider, reserve 409 for an active provider switch, and keep the
+  default control provider as legacy until the provider-specific integration
+  lands. Add concurrent-start and provider-scoped kill-switch coverage.
+
+- 2026-09-29: Harden Backend B subtitle convergence: repeated starts are
+  idempotent, provider changes return 409, dispatch generations and exact
+  agent identity fence cleanup, OFF transitions use list-delete-list, late
+  creates remain stoppable, DataPackets use the versioned reliable topic with
+  bounded retry, and the provider-scoped kill switch is available. Added
+  PostgreSQL concurrency and publication regression coverage. No staging,
+  frontend, audio/video pipeline, or real transcription provider claim.
+
+- 2026-09-29: Add the isolated Backend B subtitle-agent reconciler: durable
+  participant readiness and identity, desired/observed/pending projection,
+  reliable post-commit LiveKit status packets, list-delete-list cleanup,
+  bounded Celery retries, room-finished shutdown, CAS fencing, kill-switch
+  handling, and provider-active conflict protection. Backend-only; no
+  staging, frontend, audio/video pipeline, or OpenAI provider changes.
 
 - 2026-09-29: Stabilize subtitle generations, current-room selection,
   PostgreSQL constraints, and concurrent CAS writes.
 
 - 2026-09-29: Add room-scoped subtitle control state, monotone CAS versions,
   closed reason codes, permissions, and a private snapshot endpoint.
+
+- 2026-09-29: Preserve the last readable meeting-history content while a newer
+  artifact is temporarily unavailable, poll recent processing states with
+  bounded backoff and jitter, and announce localized partial-content states
+  accessibly.
+
+- 2026-09-29: Preserve monotonic transcript and summary history states across
+  polling, distinguish processing, empty, unavailable and partial results, and
+  bind summaries to the exact transcript digest and revision they summarize.
+
+- 2026-09-28: Route latency-sensitive native audio admission through a
+  dedicated short-task queue consumed outside the serial ASR worker.
 
 - 2026-09-28: Keep live transcription in one room-scoped store fed by the
   lk.transcription text streams and the legacy transcription events, with

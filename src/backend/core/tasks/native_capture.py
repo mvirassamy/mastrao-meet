@@ -3,9 +3,9 @@
 from core.tasks._task import task
 
 
-@task(name="core.process_native_admissions", queue="mastrao-transcription")
+@task(name="core.process_native_admissions", queue="mastrao-native-admission")
 def process_native_admissions(connection_id):
-    """Reconcile one durable native admission after its RTC event."""
+    """Reconcile one durable native admission without waiting behind ASR work."""
 
     from core.mastrao_native_admission import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
         reconcile_native_admissions,

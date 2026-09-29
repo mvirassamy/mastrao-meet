@@ -29,16 +29,26 @@
   "participants_other": "{{count}} deelnemers",
   "status": {
     "summary": {
-      "absent": "Geen samenvatting",
+      "unknown": "Status van samenvatting wordt gecontroleerd",
+      "not_started": "Geen samenvatting",
+      "waiting_for_audio": "Samenvatting wacht op audio",
+      "transcribing": "Samenvatting in voorbereiding",
       "available": "Samenvatting beschikbaar",
-      "failed": "Samenvatting niet beschikbaar",
-      "processing": "Samenvatting in voorbereiding"
+      "completed_empty": "Lege samenvatting",
+      "audio_unavailable": "Samenvatting niet mogelijk zonder audio",
+      "partial": "Gedeeltelijke samenvatting",
+      "failed": "Samenvatting niet beschikbaar"
     },
     "transcript": {
-      "absent": "Geen transcriptie",
+      "unknown": "Status van transcriptie wordt gecontroleerd",
+      "not_started": "Transcriptie niet gestart",
+      "waiting_for_audio": "Transcriptie wacht op audio",
+      "transcribing": "Transcriptie bezig",
       "available": "Transcriptie beschikbaar",
-      "failed": "Transcriptie niet beschikbaar",
-      "processing": "Transcriptie in voorbereiding"
+      "completed_empty": "Geen spraak gedetecteerd",
+      "audio_unavailable": "Audio niet beschikbaar",
+      "partial": "Gedeeltelijke transcriptie",
+      "failed": "Transcriptie niet beschikbaar"
     }
   },
   "summary": {
@@ -48,8 +58,8 @@
     },
     "automatic": "Automatisch gegenereerde samenvatting op basis van de transcriptie, niet door een persoon nagelezen.",
     "failed": {
-      "description": "De samenvatting kon voor deze vergadering niet worden gemaakt.",
-      "title": "Samenvatting niet beschikbaar"
+      "description": "De verwerking kon niet worden voltooid.",
+      "title": "Verwerking niet beschikbaar"
     },
     "processing": {
       "description": "Ze verschijnt hier zodra ze klaar is. Deze pagina wordt automatisch bijgewerkt.",
@@ -63,7 +73,32 @@
     "waitingTranscript": {
       "description": "Ze wordt gemaakt zodra de transcriptie beschikbaar is. Deze pagina wordt automatisch bijgewerkt.",
       "title": "Samenvatting in afwachting"
-    }
+    },
+    "unknown": {
+      "description": "Deze pagina wordt bijgewerkt zodra de dienst de status bevestigt.",
+      "title": "Status wordt gecontroleerd"
+    },
+    "not_started": {
+      "description": "De samenvatting is nog niet gestart.",
+      "title": "Geen samenvatting"
+    },
+    "waiting_for_audio": {
+      "description": "De verwerking start zodra de audio klaar is.",
+      "title": "Wachten op audio"
+    },
+    "transcribing": {
+      "description": "De inhoud verschijnt hier zodra die klaar is.",
+      "title": "Verwerking bezig"
+    },
+    "completed_empty": {
+      "description": "De verwerking is voltooid zonder bruikbare inhoud.",
+      "title": "Geen inhoud gedetecteerd"
+    },
+    "audio_unavailable": {
+      "description": "Er is geen bruikbare audio beschikbaar voor deze vergadering.",
+      "title": "Audio niet beschikbaar"
+    },
+    "partial": "Deze samenvatting is onvolledig. Sommige inhoud kan ontbreken."
   },
   "title": "Geschiedenis",
   "transcript": {
@@ -72,8 +107,8 @@
       "title": "Geen transcriptie"
     },
     "failed": {
-      "description": "De transcriptie kon voor deze vergadering niet worden gemaakt.",
-      "title": "Transcriptie niet beschikbaar"
+      "description": "De verwerking kon niet worden voltooid.",
+      "title": "Verwerking niet beschikbaar"
     },
     "processing": {
       "description": "Ze verschijnt hier zodra ze klaar is. Deze pagina wordt automatisch bijgewerkt.",
@@ -81,7 +116,32 @@
     },
     "title": "Transcriptie",
     "truncated": "Slechts een deel van de transcriptie wordt weergegeven.",
-    "unknownSpeaker": "Spreker"
+    "unknownSpeaker": "Spreker",
+    "unknown": {
+      "description": "Deze pagina wordt bijgewerkt zodra de dienst de status bevestigt.",
+      "title": "Status wordt gecontroleerd"
+    },
+    "not_started": {
+      "description": "De transcriptie is nog niet gestart.",
+      "title": "Geen transcriptie"
+    },
+    "waiting_for_audio": {
+      "description": "De verwerking start zodra de audio klaar is.",
+      "title": "Wachten op audio"
+    },
+    "transcribing": {
+      "description": "De inhoud verschijnt hier zodra die klaar is.",
+      "title": "Verwerking bezig"
+    },
+    "completed_empty": {
+      "description": "De verwerking is voltooid zonder bruikbare inhoud.",
+      "title": "Geen inhoud gedetecteerd"
+    },
+    "audio_unavailable": {
+      "description": "Er is geen bruikbare audio beschikbaar voor deze vergadering.",
+      "title": "Audio niet beschikbaar"
+    },
+    "partial": "Deze transcriptie is onvolledig. Delen van de vergadering kunnen ontbreken."
   },
   "untitled": "Vergadering zonder titel"
 }
