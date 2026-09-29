@@ -11,6 +11,8 @@ import {
   ScreenRecordingSidePanel,
 } from '@/features/recording'
 import { useConfig } from '@/api/useConfig'
+import { LiveTranscriptSidePanel } from '@/features/subtitle/component/LiveTranscriptSidePanel'
+import { useAreSubtitlesAvailable } from '@/features/subtitle/hooks/useAreSubtitlesAvailable'
 
 export interface ToolsButtonProps {
   icon: ReactNode
@@ -107,6 +109,7 @@ export const Tools = () => {
   const { data } = useConfig()
   const {
     openTranscript,
+    openLiveTranscript,
     openScreenRecording,
     activeSubPanelId,
     isToolsOpen,
@@ -138,10 +141,13 @@ export const Tools = () => {
   const isScreenRecordingEnabled = useIsRecordingModeEnabled(
     RecordingMode.ScreenRecording
   )
+  const areLiveSubtitlesAvailable = useAreSubtitlesAvailable()
 
   switch (activeSubPanelId) {
     case SubPanelId.TRANSCRIPT:
       return <TranscriptSidePanel />
+    case SubPanelId.LIVE_TRANSCRIPT:
+      return <LiveTranscriptSidePanel />
     case SubPanelId.SCREEN_RECORDING:
       return <ScreenRecordingSidePanel />
     default:
@@ -187,6 +193,14 @@ export const Tools = () => {
           title={t('tools.transcript.title')}
           description={t('tools.transcript.body')}
           onPress={() => openTranscript()}
+        />
+      )}
+      {areLiveSubtitlesAvailable && (
+        <ToolButton
+          icon={<Icon name="speech_to_text" />}
+          title={t('tools.liveTranscript.title')}
+          description={t('tools.liveTranscript.body')}
+          onPress={() => openLiveTranscript()}
         />
       )}
       {isScreenRecordingEnabled && (

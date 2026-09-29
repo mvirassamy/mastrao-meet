@@ -474,6 +474,7 @@
       "effects": "Arrière-plans et effets",
       "chat": "Messages dans l'appel",
       "transcript": "Transcrire",
+      "liveTranscript": "Transcription en direct",
       "screenRecording": "Enregistrer",
       "admin": "Commandes de l'organisateur",
       "tools": "Outils de réunion",
@@ -484,6 +485,7 @@
       "effects": "les effets",
       "chat": "les messages",
       "transcript": "transcrire",
+      "liveTranscript": "la transcription en direct",
       "screenRecording": "enregistrer",
       "admin": "commandes de l'organisateur",
       "tools": "outils de réunion",
@@ -504,11 +506,43 @@
         "title": "Transcrire",
         "body": "Transcrire la réunion."
       },
+      "liveTranscript": {
+        "title": "Transcription en direct",
+        "body": "Suivre la transcription pendant la réunion."
+      },
       "screenRecording": {
         "title": "Enregistrer",
         "body": "Enregistrer la réunion en vidéo."
       }
     }
+  },
+  "liveTranscript": {
+    "connectionLabel": "Connexion",
+    "statusLabel": "Transcription",
+    "connection": {
+      "connected": "Connecté",
+      "reconnecting": "Reconnexion en cours",
+      "disconnected": "Déconnecté",
+      "disconnectedDescription": "La connexion à la réunion est indisponible. La transcription reprendra à la reconnexion."
+    },
+    "status": {
+      "unknown": "Statut en attente",
+      "inactive": "Inactive",
+      "starting": "Démarrage",
+      "live": "En direct",
+      "reconnecting": "Reconnexion",
+      "degraded": "Dégradée",
+      "unavailable": "Indisponible",
+      "stopping": "Arrêt",
+      "stopped": "Arrêtée"
+    },
+    "segmentsLabel": "Segments de transcription en direct",
+    "empty": "Les segments apparaîtront ici.",
+    "interim": "En cours",
+    "final": "Définitif",
+    "error": "Le statut de la transcription n'a pas pu être actualisé.",
+    "retry": "Réessayer",
+    "refreshing": "Actualisation du statut…"
   },
   "info": {
     "roomInformation": {

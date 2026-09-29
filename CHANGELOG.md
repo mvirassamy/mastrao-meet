@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-09-29: Add a feature-gated live transcription side panel.
+
 - 2026-09-29: Expose the derived Meeting base contract to Django settings so a
   complete configuration really enables it, and drop the lone close endpoint
   from the env templates so installations without Mastrao still start.
