@@ -11,7 +11,15 @@ export type ApiSubtitleLifecycleState =
   | 'stopped'
 
 export type ApiSubtitleStateResponse = {
-  subtitle?: { state?: ApiSubtitleLifecycleState }
+  subtitle?: {
+    state?: ApiSubtitleLifecycleState
+    stateVersion?: number
+    sessionId?: string | null
+    updatedAt?: string | null
+    reason?: string | null
+    desired?: 'ON' | 'OFF'
+    roomSid?: string | null
+  }
 }
 
 export const fetchSubtitleState = (

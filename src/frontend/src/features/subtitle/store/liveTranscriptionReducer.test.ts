@@ -3,6 +3,7 @@ import {
   MAX_ACTIVE_TRANSCRIPTION_SEGMENTS,
   MAX_FINAL_TRANSCRIPTION_SEGMENTS,
   type LiveTranscriptionSegmentInput,
+  type LiveTranscriptionStatePacket,
 } from './liveTranscriptionTypes'
 import {
   createLiveTranscriptionState,
@@ -30,6 +31,20 @@ const ingest = (
     type: 'ingest',
     event: { type: 'segments', segments },
   })
+
+const statePacket = (
+  overrides: Partial<LiveTranscriptionStatePacket> = {}
+): LiveTranscriptionStatePacket => ({
+  schemaVersion: 1,
+  roomSid: 'RM_room-1',
+  state: 'live',
+  stateVersion: 1,
+  eventId: 'event-1',
+  occurredAt: '2026-09-29T00:00:00.000Z',
+  sessionId: 'session-1',
+  reason: null,
+  ...overrides,
+})
 
 describe('liveTranscriptionReducer', () => {
   it.each(['inactive', 'stopped', 'live'] as const)(
@@ -163,14 +178,14 @@ describe('liveTranscriptionReducer', () => {
     ).toHaveLength(MAX_ACTIVE_TRANSCRIPTION_SEGMENTS)
   })
 
-  it('exposes degraded gaps and purges on room reset', () => {
+  it('exposes gaps without changing public state and purges on room reset', () => {
     let state = ingest(createLiveTranscriptionState('room-1'), [segment()])
     state = liveTranscriptionReducer(state, {
       type: 'gap',
       gap: { id: 'gap-1', reason: 'reconnect', receivedAt: 10 },
     })
 
-    expect(state.status).toBe('degraded')
+    expect(state.status).toBe('unknown')
     expect(state.gaps).toHaveLength(1)
 
     const reset = liveTranscriptionReducer(state, {
@@ -178,5 +193,92 @@ describe('liveTranscriptionReducer', () => {
       roomId: 'room-2',
     })
     expect(reset).toMatchObject({ roomId: 'room-2', segments: [], gaps: [] })
+  })
+
+  it('orders state packets, ignores duplicates, and requests REST on a gap', () => {
+    let state = createLiveTranscriptionState('room-1')
+    state = liveTranscriptionReducer(state, {
+      type: 'state-packet',
+      packet: statePacket(),
+    })
+    const accepted = state
+
+    const duplicate = liveTranscriptionReducer(state, {
+      type: 'state-packet',
+      packet: statePacket(),
+    })
+    expect(duplicate).toBe(accepted)
+
+    const stale = liveTranscriptionReducer(state, {
+      type: 'state-packet',
+      packet: statePacket({ stateVersion: 0, eventId: 'event-0' }),
+    })
+    expect(stale).toBe(accepted)
+
+    const gap = liveTranscriptionReducer(state, {
+      type: 'state-packet',
+      packet: statePacket({ stateVersion: 3, eventId: 'event-3' }),
+    })
+    expect(gap).toMatchObject({
+      status: 'live',
+      stateVersion: 1,
+      resyncStatus: 'pending',
+      resyncRequestId: 1,
+    })
+  })
+
+  it('clears room state when an accepted packet belongs to a new room SID', () => {
+    let state = createLiveTranscriptionState('room-1')
+    state = liveTranscriptionReducer(state, {
+      type: 'ingest',
+      event: { type: 'segments', segments: [segment({ text: 'ancien' })] },
+    })
+    state = liveTranscriptionReducer(state, {
+      type: 'state-packet',
+      packet: statePacket({ roomSid: 'RM_room-1', stateVersion: 1 }),
+    })
+
+    const changedRoom = liveTranscriptionReducer(state, {
+      type: 'state-packet',
+      packet: statePacket({
+        roomSid: 'RM_room-2',
+        stateVersion: 1,
+        eventId: 'event-room-2',
+      }),
+    })
+
+    expect(changedRoom).toMatchObject({
+      roomId: 'room-1',
+      roomSid: 'RM_room-2',
+      stateVersion: 1,
+      segments: [],
+      gaps: [],
+      status: 'live',
+    })
+  })
+
+  it('keeps the reliable state when a snapshot is stale', () => {
+    let state = liveTranscriptionReducer(
+      createLiveTranscriptionState('room-1'),
+      { type: 'state-packet', packet: statePacket() }
+    )
+    state = liveTranscriptionReducer(state, {
+      type: 'snapshot',
+      snapshot: {
+        roomSid: 'RM_room-1',
+        state: 'inactive',
+        stateVersion: 0,
+        sessionId: null,
+        occurredAt: null,
+        reason: null,
+      },
+    })
+
+    expect(state).toMatchObject({
+      status: 'live',
+      roomSid: 'RM_room-1',
+      stateVersion: 1,
+      resyncStatus: 'idle',
+    })
   })
 })

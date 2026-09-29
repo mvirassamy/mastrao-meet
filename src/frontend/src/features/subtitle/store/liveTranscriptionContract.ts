@@ -7,7 +7,6 @@ import {
   LIVE_TRANSCRIPTION_SCHEMA_VERSION,
   type LiveTranscriptionGap,
   type LiveTranscriptionSegmentInput,
-  type LiveTranscriptionStatus,
   type LiveTranscriptionTextStreamReader,
   type LiveTranscriptionTransportEvent,
 } from './liveTranscriptionTypes'
@@ -132,24 +131,6 @@ const toSegment = (
   }
 }
 
-const parseStatus = (value: Record<string, unknown>) => {
-  const status = value.status
-  if (
-    status === 'unknown' ||
-    status === 'inactive' ||
-    status === 'starting' ||
-    status === 'live' ||
-    status === 'reconnecting' ||
-    status === 'degraded' ||
-    status === 'unavailable' ||
-    status === 'stopped' ||
-    status === 'stopping'
-  ) {
-    return status satisfies LiveTranscriptionStatus
-  }
-  return null
-}
-
 const parseGap = (
   value: Record<string, unknown>
 ): LiveTranscriptionGap | null => {
@@ -208,16 +189,6 @@ const parsePayload = (
     schemaVersion !== LIVE_TRANSCRIPTION_SCHEMA_VERSION
   ) {
     return []
-  }
-
-  if (record.type === 'status') {
-    const status = parseStatus(record)
-    return status ? [{ type: 'status', status }] : []
-  }
-
-  if (record.type === 'gap') {
-    const gap = parseGap(record)
-    return gap ? [{ type: 'gap', gap }] : []
   }
 
   if (Array.isArray(record.segments)) {

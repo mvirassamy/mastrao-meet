@@ -4,6 +4,8 @@ import {
   type LiveTranscriptionAction,
   type LiveTranscriptionSegment,
   type LiveTranscriptionSegmentInput,
+  type LiveTranscriptionStatePacket,
+  type LiveTranscriptionStateSnapshot,
   type LiveTranscriptionState,
 } from './liveTranscriptionTypes'
 
@@ -11,13 +13,86 @@ export const createLiveTranscriptionState = (
   roomId: string
 ): LiveTranscriptionState => ({
   roomId,
+  roomSid: null,
   status: 'unknown',
+  stateVersion: null,
+  stateEventId: null,
+  stateOccurredAt: null,
+  stateReason: null,
+  resyncStatus: 'idle',
+  resyncRequestId: 0,
   connectionStatus: 'connected',
   segments: [],
   gaps: [],
   truncated: false,
   nextSequence: 0,
 })
+
+const applyStatePacket = (
+  state: LiveTranscriptionState,
+  packet: LiveTranscriptionStatePacket
+): LiveTranscriptionState => {
+  const roomChanged = state.roomSid !== null && state.roomSid !== packet.roomSid
+  const baseState = roomChanged
+    ? createLiveTranscriptionState(state.roomId)
+    : state
+
+  if (!roomChanged && baseState.stateVersion !== null) {
+    if (packet.stateVersion <= baseState.stateVersion) return baseState
+    if (baseState.resyncStatus === 'pending') return baseState
+    if (packet.stateVersion > baseState.stateVersion + 1) {
+      return {
+        ...baseState,
+        resyncStatus: 'pending',
+        resyncRequestId: baseState.resyncRequestId + 1,
+      }
+    }
+  }
+
+  return {
+    ...baseState,
+    roomSid: packet.roomSid,
+    status: packet.state,
+    stateVersion: packet.stateVersion,
+    stateEventId: packet.eventId,
+    stateOccurredAt: packet.occurredAt,
+    stateReason: packet.reason ?? null,
+    resyncStatus: 'idle',
+  }
+}
+
+const applySnapshot = (
+  state: LiveTranscriptionState,
+  snapshot: LiveTranscriptionStateSnapshot
+): LiveTranscriptionState => {
+  if (
+    state.roomSid !== null &&
+    snapshot.roomSid !== null &&
+    state.roomSid !== snapshot.roomSid
+  ) {
+    return state
+  }
+  if (state.roomSid !== null && snapshot.roomSid === null) {
+    return { ...state, resyncStatus: 'idle' }
+  }
+  if (
+    state.stateVersion !== null &&
+    snapshot.stateVersion < state.stateVersion
+  ) {
+    return { ...state, resyncStatus: 'idle' }
+  }
+
+  return {
+    ...state,
+    roomSid: snapshot.roomSid ?? state.roomSid,
+    status: snapshot.state,
+    stateVersion: snapshot.stateVersion,
+    stateEventId: null,
+    stateOccurredAt: snapshot.occurredAt,
+    stateReason: snapshot.reason,
+    resyncStatus: 'idle',
+  }
+}
 
 export const getLiveTranscriptionSegmentKey = (
   segment: Pick<
@@ -139,17 +214,27 @@ export const liveTranscriptionReducer = (
   switch (action.type) {
     case 'reset':
       return createLiveTranscriptionState(action.roomId)
+    case 'state-packet':
+      return applyStatePacket(state, action.packet)
+    case 'snapshot':
+      return applySnapshot(state, action.snapshot)
+    case 'request-resync':
+      if (state.resyncStatus === 'pending') return state
+      return {
+        ...state,
+        resyncStatus: 'pending',
+        resyncRequestId: state.resyncRequestId + 1,
+      }
+    case 'resync-failed':
+      return { ...state, resyncStatus: 'failed' }
     case 'status':
       return { ...state, status: action.status }
     case 'connection':
       return { ...state, connectionStatus: action.status }
     case 'gap':
       if (state.gaps.some((gap) => gap.id === action.gap.id)) return state
-      return { ...state, gaps: [...state.gaps, action.gap], status: 'degraded' }
+      return { ...state, gaps: [...state.gaps, action.gap] }
     case 'ingest':
-      if (action.event.type === 'status') {
-        return { ...state, status: action.event.status }
-      }
       if (action.event.type === 'gap') {
         return liveTranscriptionReducer(state, {
           type: 'gap',
