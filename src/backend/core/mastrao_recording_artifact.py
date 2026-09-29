@@ -40,7 +40,9 @@ class _ArtifactSnapshot:
     replay_claims: dict | None = None
 
 
-def _canonical_digest(value):
+def canonical_artifact_receipt_digest(value):
+    """Digest the exact locally persisted artifact receipt claims."""
+
     encoded = json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode()
@@ -143,7 +145,7 @@ def _persist_artifact_receipt(snapshot, size, checksum):
                 jti=f"artifact_{uuid4().hex}",
             )
             binding.artifact_receipt_claims = claims
-            binding.artifact_receipt_digest = _canonical_digest(claims)
+            binding.artifact_receipt_digest = canonical_artifact_receipt_digest(claims)
             binding.save(
                 update_fields=[
                     "artifact_receipt_claims",
@@ -194,7 +196,7 @@ def _persist_artifact_receipt(snapshot, size, checksum):
         binding.lifecycle_policy_ref = claims["lifecycle_policy_ref"]
         binding.artifact_verified_at = timezone.now()
         binding.artifact_receipt_claims = claims
-        binding.artifact_receipt_digest = _canonical_digest(claims)
+        binding.artifact_receipt_digest = canonical_artifact_receipt_digest(claims)
         binding.state = binding.State.PROCESSING
         binding.save()
         return claims
@@ -236,7 +238,8 @@ def finalize_mastrao_artifact(recording):
         if (
             binding.artifact_ref != claims["artifact_ref"]
             or binding.artifact_receipt_claims != claims
-            or binding.artifact_receipt_digest != _canonical_digest(claims)
+            or binding.artifact_receipt_digest
+            != canonical_artifact_receipt_digest(claims)
         ):
             raise RecordingContractRefused(status=503)
         binding.state = binding.State.FINALIZED

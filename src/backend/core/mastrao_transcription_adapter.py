@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from core import models
 from core.mastrao_core_http import post_core_json
+from core.mastrao_recording_artifact import canonical_artifact_receipt_digest
 from core.mastrao_recording_contract import compact_digest
 from core.mastrao_transcription_artifact import (
     extract_verified_audio_file,
@@ -94,6 +95,31 @@ def _read_effect(request):
     return verify_transcription_submit_effect(body["transcription_submit_effect"])
 
 
+def _locally_verified_for_transcription(binding):
+    """Recognize the narrow Core-callback window after local verification."""
+
+    if (
+        binding is None
+        or binding.state != models.MastraoRecordingBinding.State.PROCESSING
+        or binding.artifact_verified_at is None
+        or binding.checksum_algorithm != "sha256"
+    ):
+        return False
+    claims = binding.artifact_receipt_claims
+    if (
+        not isinstance(claims, dict)
+        or binding.artifact_receipt_digest != canonical_artifact_receipt_digest(claims)
+        or claims.get("checksum_algorithm") != "sha256"
+    ):
+        return False
+    return (
+        claims.get("artifact_ref") == binding.artifact_ref
+        and claims.get("object_ref") == binding.object_ref
+        and claims.get("byte_size") == binding.byte_size
+        and claims.get("checksum_digest") == binding.checksum_digest
+    )
+
+
 def _recording_binding(effect):
     """Bind the effect to one exact finalized, verified recording artifact."""
 
@@ -107,13 +133,18 @@ def _recording_binding(effect):
             recording_ref=effect["recording_ref"],
             provider_binding_digest=effect["provider_binding_digest"],
             artifact_ref=effect["recording_artifact_ref"],
-            state=models.MastraoRecordingBinding.State.FINALIZED,
         )
         .first()
     )
+    if binding is None:
+        raise TranscriptionContractRefused()
     if (
-        binding is None
-        or binding.object_ref is None
+        binding.state != models.MastraoRecordingBinding.State.FINALIZED
+        and not _locally_verified_for_transcription(binding)
+    ):
+        raise TranscriptionContractRefused()
+    if (
+        binding.object_ref is None
         or binding.byte_size is None
         or binding.checksum_digest != effect["recording_checksum_digest"]
     ):
