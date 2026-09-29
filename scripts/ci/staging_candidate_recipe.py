@@ -18,6 +18,7 @@ OUTPUT_DELIMITER = "MEET_CANDIDATE_BUILD_ARGS"
 class Recipe:
     """How one candidate image is built and where it is pushed."""
 
+    context: str
     dockerfile: str
     build_target: str
     repository: str
@@ -26,6 +27,7 @@ class Recipe:
 
 TARGETS = {
     "meet-frontend": Recipe(
+        context=".",
         dockerfile="src/frontend/Dockerfile",
         build_target="frontend-production",
         repository="rg.fr-par.scw.cloud/mastrao-staging/meet-frontend",
@@ -36,9 +38,17 @@ TARGETS = {
         ),
     ),
     "meet-backend": Recipe(
+        context=".",
         dockerfile="Dockerfile",
         build_target="backend-production",
         repository="rg.fr-par.scw.cloud/mastrao-staging/meet-backend",
+        build_args=("DOCKER_USER=10001:10001",),
+    ),
+    "meet-agents": Recipe(
+        context="src/agents",
+        dockerfile="src/agents/Dockerfile",
+        build_target="production",
+        repository="rg.fr-par.scw.cloud/mastrao-staging/meet-agents",
         build_args=("DOCKER_USER=10001:10001",),
     ),
 }
@@ -55,6 +65,7 @@ def github_outputs(recipe: Recipe) -> str:
     """Render the recipe as GitHub step outputs."""
     return "".join(
         (
+            f"context={recipe.context}\n",
             f"dockerfile={recipe.dockerfile}\n",
             f"build_target={recipe.build_target}\n",
             f"repository={recipe.repository}\n",

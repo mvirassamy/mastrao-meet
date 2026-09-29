@@ -11,6 +11,7 @@ on:
         options:
           - meet-frontend
           - meet-backend
+          - meet-agents
       source_sha:
         description: Full commit SHA to publish; it must be reachable from develop
         required: true
@@ -97,7 +98,7 @@ jobs:
         id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
-          context: source
+          context: source/${{ steps.recipe.outputs.context }}
           file: source/${{ steps.recipe.outputs.dockerfile }}
           target: ${{ steps.recipe.outputs.build_target }}
           platforms: linux/amd64
@@ -127,6 +128,7 @@ jobs:
           SOURCE_SHA: ${{ inputs.source_sha }}
           SOURCE_TREE: ${{ steps.source.outputs.tree }}
           SOURCE_ARCHIVE_SHA256: ${{ steps.source.outputs.archive_sha256 }}
+          CONTEXT: ${{ steps.recipe.outputs.context }}
           DOCKERFILE: ${{ steps.recipe.outputs.dockerfile }}
           BUILD_TARGET: ${{ steps.recipe.outputs.build_target }}
           REPOSITORY: ${{ steps.recipe.outputs.repository }}
@@ -140,6 +142,7 @@ jobs:
             --source-sha "$SOURCE_SHA" \
             --source-tree "$SOURCE_TREE" \
             --source-archive-sha256 "$SOURCE_ARCHIVE_SHA256" \
+            --context "$CONTEXT" \
             --dockerfile "$DOCKERFILE" \
             --build-target "$BUILD_TARGET" \
             --repository "$REPOSITORY" \

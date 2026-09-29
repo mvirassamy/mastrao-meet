@@ -40,7 +40,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.agentSubtitles.image | default dict).repository | default .Values.agentSubtitles.image.repository }}:{{ (.Values.agentSubtitles.image | default dict).tag | default .Values.agentSubtitles.image.tag }}"
+          image: "{{ .Values.agentSubtitles.image.repository }}{{ if .Values.agentSubtitles.image.digest }}@{{ .Values.agentSubtitles.image.digest }}{{ else }}:{{ .Values.agentSubtitles.image.tag }}{{ end }}"
           imagePullPolicy: {{ (.Values.agentSubtitles.image | default dict).pullPolicy | default .Values.agentSubtitles.image.pullPolicy }}
           {{- with .Values.agentSubtitles.command }}
           command:

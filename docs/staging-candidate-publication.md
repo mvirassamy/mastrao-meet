@@ -2,9 +2,9 @@
 
 The `Publish one Meet staging candidate` workflow
 (`.github/workflows/staging-candidate.yml`) builds exactly one Meet image,
-`meet-frontend` or `meet-backend`, from a full commit SHA reachable from
-`develop`, pushes it to the Scaleway staging registry and uploads a
-digest-pinned receipt. It never deploys: every receipt records
+`meet-frontend`, `meet-backend` or `meet-agents`, from a full commit SHA
+reachable from `develop`, pushes it to the Scaleway staging registry and
+uploads a digest-pinned receipt. It never deploys: every receipt records
 `PUBLISHED_NOT_DEPLOYED` and `deploymentApplied: false`.
 
 ## What the workflow proves
@@ -16,8 +16,9 @@ digest-pinned receipt. It never deploys: every receipt records
   lowercase hex characters, is the checked-out `HEAD`, is an ancestor of a
   freshly fetched `origin/develop` and leaves a clean worktree. Its Git tree
   and `git archive` SHA-256 are recorded.
-- The build recipe (Dockerfile, target, repository and every build argument)
-  comes from the closed table in `scripts/ci/staging_candidate_recipe.py`.
+- The build recipe (context, Dockerfile, target, repository and every build
+  argument) comes from the closed table in
+  `scripts/ci/staging_candidate_recipe.py`.
   The build step's inputs are fixed to that recipe (a unit test pins them),
   and the receipt rejects any recipe passed to the build that differs from
   the table. The receipt records the recipe passed to the build; what
@@ -60,3 +61,10 @@ actual security boundary.
 Dispatch the workflow from `develop` with the target and the full source
 SHA, then download the `meet-<target>-<sha>-candidate-receipt` artifact and
 promote the image only by its `image.reference` (`repository@digest`).
+
+`meet-agents` is built from the closed `src/agents` context with
+`src/agents/Dockerfile`, the `production` target and an unprivileged
+`DOCKER_USER`. Publication does not update Helm values or Kubernetes. A later,
+serialized staging change must set `agentSubtitles.image.repository` and
+`agentSubtitles.image.digest` from the receipt, and provide `OPENAI_API_KEY`
+through a Kubernetes `secretKeyRef` rather than a literal value.

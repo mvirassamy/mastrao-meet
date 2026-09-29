@@ -1,0 +1,10 @@
+agentSubtitles:
+  image:
+    repository: rg.fr-par.scw.cloud/mastrao-staging/meet-agents
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    tag: ignored-by-digest
+  envVars:
+    OPENAI_API_KEY:
+      secretKeyRef:
+        name: meet-agent-openai
+        key: OPENAI_API_KEY

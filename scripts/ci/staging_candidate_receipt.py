@@ -100,6 +100,7 @@ def build_receipt(
             "archiveSha256": source.archive_sha256,
         },
         "recipe": {
+            "context": built.context,
             "dockerfile": built.dockerfile,
             "buildTarget": built.build_target,
             "buildArgs": list(built.build_args),
@@ -132,6 +133,7 @@ def main() -> None:
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--source-tree", required=True)
     parser.add_argument("--source-archive-sha256", required=True)
+    parser.add_argument("--context", required=True)
     parser.add_argument("--dockerfile", required=True)
     parser.add_argument("--build-target", required=True)
     parser.add_argument("--repository", required=True)
@@ -150,6 +152,7 @@ def main() -> None:
             archive_sha256=args.source_archive_sha256,
         ),
         built=Recipe(
+            context=args.context,
             dockerfile=args.dockerfile,
             build_target=args.build_target,
             repository=args.repository,

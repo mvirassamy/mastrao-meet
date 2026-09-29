@@ -54,6 +54,7 @@ class StagingCandidateReceiptTests(unittest.TestCase):
                 )
                 self.assertEqual(receipt["status"], "PUBLISHED_NOT_DEPLOYED")
                 self.assertEqual(receipt["source"]["tree"], SOURCE.tree)
+                self.assertEqual(receipt["recipe"]["context"], recipe.context)
                 self.assertEqual(
                     receipt["recipe"]["buildArgs"], list(recipe.build_args)
                 )
@@ -73,6 +74,7 @@ class StagingCandidateReceiptTests(unittest.TestCase):
             ("source", replace(SOURCE, tree="z" * 40), "source tree"),
             ("source", replace(SOURCE, archive_sha256="d" * 63), "archive digest"),
             ("built", replace(frontend, repository="docker.io/x"), "built recipe"),
+            ("built", replace(frontend, context="src/agents"), "built recipe"),
             ("built", replace(frontend, dockerfile="Dockerfile"), "built recipe"),
             (
                 "built",
@@ -143,6 +145,8 @@ class StagingCandidateReceiptTests(unittest.TestCase):
                 SOURCE.tree,
                 "--source-archive-sha256",
                 SOURCE.archive_sha256,
+                "--context",
+                recipe.context,
                 "--dockerfile",
                 recipe.dockerfile,
                 "--build-target",
