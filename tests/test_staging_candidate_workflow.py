@@ -170,6 +170,17 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             r"        run: python -m unittest discover -s tests -t \. -v\n",
         )
 
+    def test_agent_subtitles_helm_rendering_runs_in_ci(self):
+        workflow = CI_WORKFLOW.read_text()
+        ci_contracts = re.search(
+            r"(?ms)^  ci-contracts:\n(?P<job>.*?)(?=^  [\w-]+:\n)", workflow
+        )
+        self.assertIsNotNone(ci_contracts)
+        self.assertIn(
+            "run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh",
+            ci_contracts.group("job"),
+        )
+
     def test_agent_contract_tests_run_in_ci(self):
         workflow = CI_WORKFLOW.read_text()
         lint_agents = re.search(

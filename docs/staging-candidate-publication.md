@@ -68,3 +68,25 @@ promote the image only by its `image.reference` (`repository@digest`).
 serialized staging change must set `agentSubtitles.image.repository` and
 `agentSubtitles.image.digest` from the receipt, and provide `OPENAI_API_KEY`
 through a Kubernetes `secretKeyRef` rather than a literal value.
+
+## Canary activation and rollback
+
+Serialize every staging mutation with the Scaleway agent. Starting from the
+published receipt, apply the canary in this order:
+
+1. Set `agentSubtitles.image.repository` and
+   `agentSubtitles.image.digest` to the immutable image from the receipt.
+2. Set the agent environment to `STT_PROVIDER=openai-live` and
+   `OPENAI_STT_LANGUAGES=fr,en`.
+3. Project `OPENAI_API_KEY` into the agent through a Kubernetes
+   `secretKeyRef`. Do not put its value in Helm values, Git, workflow inputs
+   or the candidate receipt.
+4. Deploy and verify the agent while `ROOM_SUBTITLE_ENABLED` remains off.
+5. Enable `ROOM_SUBTITLE_ENABLED` last to admit live subtitle dispatches.
+
+Rollback is ordered to stop new work before restoring the previous release:
+
+1. Turn `ROOM_SUBTITLE_ENABLED` off.
+2. Wait until active subtitle dispatches have been cleaned up.
+3. Run Helm rollback to the previous revision, restoring both the prior agent
+   image and its previous STT provider configuration.
