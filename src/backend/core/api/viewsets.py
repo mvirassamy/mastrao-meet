@@ -1083,7 +1083,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         detail=True,
         methods=["post"],
         url_path="stop-subtitle",
-        permission_classes=[permissions.HasLiveKitRoomAccess],
+        permission_classes=[permissions.CanControlSubtitles],
         authentication_classes=[LiveKitTokenAuthentication],
     )
     @FeatureFlag.require("subtitle")

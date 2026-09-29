@@ -192,7 +192,7 @@ def test_start_subtitle_valid_token(
     assert call_args.room == "d2aeb774-1ecd-4d73-a3ac-3d3530cad7ff"
 
 
-def test_start_subtitle_returns_conflict_when_provider_is_already_active(
+def test_start_subtitle_is_idempotent_when_provider_is_already_active(
     settings, mock_livekit_client, mock_livekit_token, mock_room_id
 ):
     """Do not create a second subtitle provider dispatch."""
@@ -210,9 +210,36 @@ def test_start_subtitle_returns_conflict_when_provider_is_already_active(
         HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
     )
 
+    assert response.status_code == 200
+    assert response.json() == {"status": "success"}
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+def test_start_subtitle_rejects_a_different_active_provider(
+    settings, mock_livekit_client, mock_livekit_token, mock_room_id
+):
+    """A requested provider cannot replace a different active provider."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(id=mock_room_id)
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = [
+        SimpleNamespace(
+            id="AD_other",
+            agent_name="multi-user-transcriber",
+            metadata='{"provider":"mistral","roomSid":"RM_api"}',
+        )
+    ]
+    client = APIClient()
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/start-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
     assert response.status_code == 409
     assert response.json() == {
-        "error": "A subtitle agent is already active for this room."
+        "error": "A different subtitle provider is already active for this room."
     }
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
 
@@ -352,9 +379,18 @@ def test_stop_subtitle_persists_off_and_cleans_provider(
         expected_state_version=0,
         desired_state=RoomSubtitleControl.DesiredState.ON,
         public_state=RoomSubtitleControl.PublicState.LIVE,
+        session_id="session-api",
+        agent_present=True,
+        worker_ready=True,
     )
     mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
-        [SimpleNamespace(id="AD_api", agent_name="multi-user-transcriber")],
+        [
+            SimpleNamespace(
+                id="AD_api",
+                agent_name="multi-user-transcriber",
+                metadata=None,
+            )
+        ],
         [],
     ]
     client = APIClient()
@@ -368,10 +404,28 @@ def test_stop_subtitle_persists_off_and_cleans_provider(
     assert response.status_code == 200
     control.refresh_from_db()
     assert control.desired_state == RoomSubtitleControl.DesiredState.OFF
-    assert control.public_state == RoomSubtitleControl.PublicState.INACTIVE
+    assert control.public_state == RoomSubtitleControl.PublicState.STOPPED
     mock_livekit_client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
         dispatch_id="AD_api", room_name=str(room.id)
     )
+
+
+def test_stop_subtitle_requires_a_room_administrator(
+    settings, mock_livekit_participant_token, mock_room_id
+):
+    """A regular room participant cannot change the subtitle control intent."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(id=mock_room_id)
+    client = APIClient()
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/stop-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_participant_token}",
+    )
+
+    assert response.status_code == 403
 
 
 def test_subtitle_state_rejects_a_token_for_another_room(mock_livekit_token):

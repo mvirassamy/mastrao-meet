@@ -17,9 +17,12 @@ from core.services.subtitle_control import (
 )
 from core.services.subtitle_reconciliation import (
     SubtitleProviderActive,
+    dispatch_provider,
+    is_subtitle_agent_dispatch,
     reconcile_subtitle_control,
     request_subtitle_stop,
     schedule_subtitle_reconciliation,
+    subtitle_provider,
 )
 
 logger = getLogger(__name__)
@@ -55,8 +58,7 @@ class SubtitleService:
             active = [
                 dispatch
                 for dispatch in dispatches
-                if getattr(dispatch, "agent_name", None)
-                == settings.ROOM_SUBTITLE_AGENT_NAME
+                if is_subtitle_agent_dispatch(dispatch)
             ]
         except SubtitleException:
             raise
@@ -69,41 +71,61 @@ class SubtitleService:
         control = await sync_to_async(ensure_subtitle_control, thread_sensitive=True)(
             room, room_sid=room_sid
         )
-        if active or control.desired_state == "ON":
+        requested_provider = subtitle_provider()
+        active_provider_conflict = any(
+            dispatch_provider(dispatch) not in (None, requested_provider)
+            for dispatch in active
+        )
+        control_provider_conflict = (
+            control.provider not in (None, requested_provider)
+            and control.desired_state == "ON"
+        )
+        if active_provider_conflict or control_provider_conflict:
             raise SubtitleAlreadyActive(
-                "A subtitle agent is already active for this room."
+                "A different subtitle provider is already active for this room."
             )
-        try:
-            control = await sync_to_async(
-                compare_and_set_subtitle_control,
-                thread_sensitive=True,
-            )(
-                control.room_sid,
-                expected_control_generation=control.control_generation,
-                expected_state_version=control.state_version,
-                new_intent=True,
-                desired_state="ON",
-                public_state="starting",
-                reason_code=None,
-                pending_since=timezone.now(),
-                attempts=0,
-                next_retry_at=None,
-                current_only=True,
-            )
-        except SubtitleControlConflict as error:
-            raise SubtitleAlreadyActive(
-                "A subtitle start intent is already active for this room."
-            ) from error
+        needs_intent = control.desired_state != "ON"
+        needs_contract_fields = (
+            control.provider != requested_provider
+            or control.agent_name != settings.ROOM_SUBTITLE_AGENT_NAME
+        )
+        if needs_intent or needs_contract_fields:
+            try:
+                control = await sync_to_async(
+                    compare_and_set_subtitle_control,
+                    thread_sensitive=True,
+                )(
+                    control.room_sid,
+                    expected_control_generation=control.control_generation,
+                    expected_state_version=control.state_version,
+                    new_intent=needs_intent,
+                    desired_state="ON",
+                    public_state=("starting" if needs_intent else control.public_state),
+                    reason_code=None,
+                    pending_since=timezone.now(),
+                    attempts=0,
+                    next_retry_at=None,
+                    provider=requested_provider,
+                    agent_name=settings.ROOM_SUBTITLE_AGENT_NAME,
+                    current_only=True,
+                )
+            except SubtitleControlConflict as error:
+                raise SubtitleAlreadyActive(
+                    "A subtitle start intent is already active for this room."
+                ) from error
 
         try:
-            if settings.CELERY_ENABLED:
-                await sync_to_async(schedule_subtitle_reconciliation)(control.room_sid)
-            else:
+            await sync_to_async(schedule_subtitle_reconciliation)(control.room_sid)
+            if not settings.CELERY_ENABLED:
                 await sync_to_async(reconcile_subtitle_control, thread_sensitive=True)(
                     control.room_sid
                 )
-        except SubtitleProviderActive as error:
-            raise SubtitleAlreadyActive(str(error)) from error
+        except SubtitleProviderActive:
+            # A race with the same provider is idempotent; the next list/retry
+            # will observe its dispatch without exposing a provider switch.
+            if settings.CELERY_ENABLED:
+                return control
+            await sync_to_async(schedule_subtitle_reconciliation)(control.room_sid)
         except Exception as error:
             raise SubtitleException("Failed to reconcile subtitle agent") from error
         return control

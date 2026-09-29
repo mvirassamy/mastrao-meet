@@ -1,5 +1,13 @@
 # Changelog
 
+- 2026-09-29: Harden Backend B subtitle convergence: repeated starts are
+  idempotent, provider changes return 409, dispatch generations and exact
+  agent identity fence cleanup, OFF transitions use list-delete-list, late
+  creates remain stoppable, DataPackets use the versioned reliable topic with
+  bounded retry, and the provider-scoped kill switch is available. Added
+  PostgreSQL concurrency and publication regression coverage. No staging,
+  frontend, audio/video pipeline, or real transcription provider claim.
+
 - 2026-09-29: Add the isolated Backend B subtitle-agent reconciler: durable
   participant readiness and identity, desired/observed/pending projection,
   reliable post-commit LiveKit status packets, list-delete-list cleanup,

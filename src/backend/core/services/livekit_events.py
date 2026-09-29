@@ -33,6 +33,7 @@ from core.services.subtitle_reconciliation import (
     observe_subtitle_agent,
     request_subtitle_stop,
     schedule_subtitle_reconciliation,
+    subtitle_agent_identity,
 )
 
 from .lobby import LobbyService
@@ -376,9 +377,13 @@ class LiveKitEventsService:
         participant = getattr(data, "participant", None)
         if participant is None or participant.kind != ParticipantInfo.AGENT:
             return
-        room_sid = getattr(getattr(data, "room", None), "sid", None)
+        room = getattr(data, "room", None)
+        room_sid = getattr(room, "sid", None)
+        room_name = getattr(room, "name", None)
         identity = getattr(participant, "identity", None)
-        if not room_sid or not identity:
+        if not room_sid or not room_name or not identity:
+            return
+        if identity != subtitle_agent_identity(room_name):
             return
         control = observe_subtitle_agent(
             room_sid,

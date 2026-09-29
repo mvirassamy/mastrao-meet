@@ -1,9 +1,14 @@
 """Tests for the durable subtitle agent reconciler."""
 # pylint: disable=redefined-outer-name
 
+import asyncio
+import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
-from django.db import transaction
+from django.core.management import call_command
+from django.db import close_old_connections, transaction
 
 import pytest
 
@@ -13,7 +18,9 @@ from core.services.subtitle_control import ensure_subtitle_control
 from core.services.subtitle_reconciliation import (
     SUBTITLE_STATUS_TOPIC,
     SubtitleReconciliationAmbiguous,
+    _ProviderResult,
     observe_subtitle_agent,
+    publish_subtitle_snapshot,
     reconcile_subtitle_control,
     request_subtitle_stop,
 )
@@ -27,8 +34,25 @@ def enable_subtitles(settings):
     settings.ROOM_SUBTITLE_ENABLED = True
 
 
-def _dispatch(dispatch_id, *, agent_name="multi-user-transcriber"):
-    return mock.Mock(id=dispatch_id, agent_name=agent_name)
+def _dispatch(
+    dispatch_id,
+    *,
+    room_sid=None,
+    generation=None,
+    provider="openai",
+    agent_name="multi-user-transcriber",
+):
+    metadata = None
+    if room_sid is not None and generation is not None:
+        metadata = json.dumps(
+            {
+                "agentName": agent_name,
+                "generation": generation,
+                "provider": provider,
+                "roomSid": room_sid,
+            }
+        )
+    return mock.Mock(id=dispatch_id, agent_name=agent_name, metadata=metadata)
 
 
 @pytest.fixture
@@ -116,8 +140,11 @@ def test_reconcile_uses_list_delete_list_for_duplicate_dispatches(
     room = RoomFactory()
     control = _turn_on(ensure_subtitle_control(room, room_sid="RM_duplicate"))
     mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
-        [_dispatch("AD_keep"), _dispatch("AD_delete")],
-        [_dispatch("AD_keep")],
+        [
+            _dispatch("AD_keep", room_sid="RM_duplicate", generation=0),
+            _dispatch("AD_delete", room_sid="RM_duplicate", generation=-1),
+        ],
+        [_dispatch("AD_keep", room_sid="RM_duplicate", generation=0)],
     ]
 
     result = reconcile_subtitle_control(control.room_sid)
@@ -152,6 +179,83 @@ def test_cleanup_timeout_is_ambiguous_and_keeps_retry_budget(mock_livekit_client
     assert control.next_retry_at is not None
 
 
+def test_desired_off_deletes_all_generations_and_legacy_dispatches(
+    mock_livekit_client,
+):
+    """OFF removes every subtitle generation but never another agent."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_all_generations"))
+    control.pending_since = control.updated_at
+    control.save(update_fields=["pending_since", "updated_at"])
+    request_subtitle_stop(room, room_sid=control.room_sid)
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
+        [
+            _dispatch("AD_current", room_sid=control.room_sid, generation=2),
+            _dispatch("AD_old", room_sid=control.room_sid, generation=1),
+            _dispatch("AD_legacy"),
+            _dispatch("AD_other", agent_name="other-agent"),
+        ],
+        [],
+    ]
+
+    result = reconcile_subtitle_control(control.room_sid)
+
+    assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
+    assert [
+        call.kwargs["dispatch_id"]
+        for call in mock_livekit_client.agent_dispatch.delete_dispatch.call_args_list
+    ] == [
+        "AD_current",
+        "AD_old",
+        "AD_legacy",
+    ]
+    assert mock_livekit_client.agent_dispatch.list_dispatch.await_count == 2
+
+
+def test_create_timeout_but_dispatch_created_then_stop_deletes_it(
+    mock_livekit_client,
+):
+    """A provider create timeout with a late dispatch remains safely stoppable."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_timeout_orphan"))
+    control.pending_since = control.updated_at
+    control.save(update_fields=["pending_since", "updated_at"])
+    dispatch = _dispatch(
+        "AD_orphan",
+        room_sid=control.room_sid,
+        generation=control.control_generation,
+    )
+    provider_dispatches = []
+
+    async def create_with_late_dispatch(*args, **kwargs):
+        provider_dispatches.append(dispatch)
+        raise asyncio.TimeoutError("response lost after create")
+
+    mock_livekit_client.agent_dispatch.create_dispatch.side_effect = (
+        create_with_late_dispatch
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
+        [],
+        provider_dispatches,
+        [],
+    ]
+
+    with pytest.raises(SubtitleReconciliationAmbiguous):
+        reconcile_subtitle_control(control.room_sid)
+    control.refresh_from_db()
+    assert control.public_state == RoomSubtitleControl.PublicState.STARTING
+
+    request_subtitle_stop(room, room_sid=control.room_sid)
+    result = reconcile_subtitle_control(control.room_sid)
+
+    assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+        dispatch_id="AD_orphan", room_name=str(room.id)
+    )
+
+
 def test_snapshot_packet_is_reliable_and_runs_after_commit(
     mock_livekit_client, django_capture_on_commit_callbacks
 ):
@@ -179,7 +283,137 @@ def test_snapshot_packet_is_reliable_and_runs_after_commit(
     assert request.kind == 0
     assert request.topic == SUBTITLE_STATUS_TOPIC
     assert request.room == str(room.id)
+    payload = json.loads(request.data)
+    assert payload["roomSid"] == control.room_sid
+    assert payload["state"] == RoomSubtitleControl.PublicState.LIVE
+    assert payload["stateVersion"] == 1
+    assert payload["eventId"] == f"subtitle-state-{control.room_sid}-1"
+    assert payload["occurredAt"]
     assert RoomSubtitleControl.objects.get(pk=control.pk).state_version == 1
+
+
+def test_create_timeout_remains_starting_and_retryable(mock_livekit_client):
+    """A timed-out create never projects degraded or unavailable prematurely."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_create_timeout"))
+
+    async def timeout(*args, **kwargs):
+        raise asyncio.TimeoutError("create timed out")
+
+    mock_livekit_client.agent_dispatch.create_dispatch.side_effect = timeout
+
+    with pytest.raises(SubtitleReconciliationAmbiguous):
+        reconcile_subtitle_control(control.room_sid)
+
+    control.refresh_from_db()
+    assert control.public_state == RoomSubtitleControl.PublicState.STARTING
+    assert control.public_state != RoomSubtitleControl.PublicState.DEGRADED
+    assert control.next_retry_at is not None
+
+
+def test_failed_packet_publication_schedules_a_bounded_retry(
+    mock_livekit_client,
+):
+    """A packet failure schedules a bounded retry of the latest committed state."""
+
+    room = RoomFactory()
+    _turn_on(ensure_subtitle_control(room, room_sid="RM_packet_retry"))
+    mock_livekit_client.room.send_data.side_effect = RuntimeError("network down")
+
+    with mock.patch(
+        "core.services.subtitle_reconciliation._schedule_snapshot_retry"
+    ) as schedule_retry:
+        publish_subtitle_snapshot(room.id)
+
+    schedule_retry.assert_called_once_with(room.id, 1)
+
+
+def test_stop_during_start_reconciles_the_new_off_intent():
+    """A stop arriving during provider work fences the stale create result."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_stop_during_start"))
+    control.observed_dispatch_ids = ["AD_pending"]
+    control.save(update_fields=["observed_dispatch_ids", "updated_at"])
+
+    calls = []
+
+    def provider_call(_room_name, room_sid, desired_state, _generation, _provider):
+        calls.append(desired_state)
+        if len(calls) == 1:
+            request_subtitle_stop(room, room_sid=room_sid)
+            return _ProviderResult(["AD_orphan"])
+        return _ProviderResult([])
+
+    with mock.patch(
+        "core.services.subtitle_reconciliation._provider_reconcile",
+        side_effect=provider_call,
+    ):
+        result = reconcile_subtitle_control(control.room_sid)
+
+    assert calls == [
+        RoomSubtitleControl.DesiredState.ON,
+        RoomSubtitleControl.DesiredState.OFF,
+    ]
+    assert result.desired_state == RoomSubtitleControl.DesiredState.OFF
+    assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_stop_during_start_across_two_connections(mock_livekit_client, settings):
+    """A public stop on another PostgreSQL connection fences a blocked start."""
+
+    settings.CELERY_ENABLED = False
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_two_connections"))
+    control.pending_since = control.updated_at
+    control.save(update_fields=["pending_since", "updated_at"])
+    provider_dispatches = []
+    entered = threading.Event()
+    release = threading.Event()
+
+    async def list_dispatches(*args, **kwargs):
+        return list(provider_dispatches)
+
+    async def blocked_create(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=5)
+        dispatch = _dispatch(
+            "AD_two_connection",
+            room_sid=control.room_sid,
+            generation=control.control_generation,
+        )
+        provider_dispatches.append(dispatch)
+        return dispatch
+
+    async def delete_dispatch(dispatch_id, **kwargs):
+        provider_dispatches[:] = [
+            dispatch for dispatch in provider_dispatches if dispatch.id != dispatch_id
+        ]
+
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = list_dispatches
+    mock_livekit_client.agent_dispatch.create_dispatch.side_effect = blocked_create
+    mock_livekit_client.agent_dispatch.delete_dispatch.side_effect = delete_dispatch
+
+    def run_start():
+        close_old_connections()
+        try:
+            return reconcile_subtitle_control(control.room_sid)
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(run_start)
+        assert entered.wait(timeout=5)
+        stopped = request_subtitle_stop(room, room_sid=control.room_sid)
+        assert stopped.public_state == RoomSubtitleControl.PublicState.STOPPING
+        release.set()
+        result = future.result(timeout=10)
+
+    assert result.desired_state == RoomSubtitleControl.DesiredState.OFF
+    assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
+    assert not provider_dispatches
 
 
 def test_old_sid_observation_cannot_reactivate_the_current_sid(mock_livekit_client):
@@ -216,8 +450,30 @@ def test_room_finished_requests_stop_and_preserves_terminal_reason():
     )
 
     assert stopped.desired_state == RoomSubtitleControl.DesiredState.OFF
-    assert stopped.public_state == RoomSubtitleControl.PublicState.STOPPED
+    assert stopped.public_state == RoomSubtitleControl.PublicState.STOPPING
     assert stopped.reason_code == RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+
+
+def test_room_finished_blocks_late_agent_presence():
+    """A late join after room closure cannot reactivate subtitle state."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_finished_late"))
+    request_subtitle_stop(
+        room,
+        room_sid=control.room_sid,
+        reason_code=RoomSubtitleControl.ReasonCode.ROOM_FINISHED,
+    )
+
+    observed = observe_subtitle_agent(
+        control.room_sid,
+        participant_identity="late-agent",
+        present=True,
+    )
+
+    assert observed.desired_state == RoomSubtitleControl.DesiredState.OFF
+    assert observed.public_state == RoomSubtitleControl.PublicState.STOPPING
+    assert observed.agent_present is False
 
 
 def test_reconcile_retries_are_bounded_without_beat(mock_livekit_client, settings):
@@ -249,3 +505,32 @@ def test_kill_switch_converges_an_on_intent_to_off(mock_livekit_client, settings
     assert result.public_state == RoomSubtitleControl.PublicState.INACTIVE
     assert result.reason_code == RoomSubtitleControl.ReasonCode.PROVIDER_UNAVAILABLE
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+def test_kill_switch_command_filters_provider_and_room(  # pylint: disable=unused-argument
+    mock_livekit_client, settings, capsys
+):
+    """The operational command only converges the selected provider and room."""
+    settings.ROOM_SUBTITLE_ENABLED = True
+    selected_room = RoomFactory()
+    other_room = RoomFactory()
+    selected = _turn_on(
+        ensure_subtitle_control(selected_room, room_sid="RM_kill_selected")
+    )
+    selected.provider = "openai"
+    selected.save(update_fields=["provider", "updated_at"])
+    other = _turn_on(ensure_subtitle_control(other_room, room_sid="RM_kill_other"))
+    other.provider = "mistral"
+    other.save(update_fields=["provider", "updated_at"])
+
+    call_command(
+        "subtitles_kill_switch",
+        provider="openai",
+        room_sid=selected.room_sid,
+    )
+
+    selected.refresh_from_db()
+    other.refresh_from_db()
+    assert selected.desired_state == RoomSubtitleControl.DesiredState.OFF
+    assert other.desired_state == RoomSubtitleControl.DesiredState.ON
+    assert "converged=1 failed=0" in capsys.readouterr().out

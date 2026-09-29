@@ -1,7 +1,7 @@
 """
 Test LiveKitEvents service.
 """
-# pylint: disable=W0621,W0613, W0212, E0611
+# pylint: disable=W0621,W0613, W0212, E0611, C0302
 
 import uuid
 from unittest import mock
@@ -29,6 +29,7 @@ from core.services.sip_management import (
     SIPException,
     SIPManagement,
 )
+from core.services.subtitle_reconciliation import subtitle_agent_identity
 from core.utils import NotificationError
 
 pytestmark = pytest.mark.django_db
@@ -556,8 +557,9 @@ def test_handle_subtitle_agent_join_and_leave(mock_observe, mock_schedule, servi
     mock_observe.return_value = mock.Mock(room_sid="RM_event")
     mock_data = mock.MagicMock()
     mock_data.room.sid = "RM_event"
+    mock_data.room.name = str(uuid.uuid4())
     mock_data.participant.kind = ParticipantInfo.AGENT
-    mock_data.participant.identity = "subtitle-agent"
+    mock_data.participant.identity = subtitle_agent_identity(mock_data.room.name)
 
     service._handle_participant_joined(mock_data)
     service._handle_participant_left(mock_data)
@@ -565,16 +567,31 @@ def test_handle_subtitle_agent_join_and_leave(mock_observe, mock_schedule, servi
     assert mock_observe.call_args_list == [
         mock.call(
             "RM_event",
-            participant_identity="subtitle-agent",
+            participant_identity=mock_data.participant.identity,
             present=True,
         ),
         mock.call(
             "RM_event",
-            participant_identity="subtitle-agent",
+            participant_identity=mock_data.participant.identity,
             present=False,
         ),
     ]
     mock_schedule.assert_called_once_with("RM_event")
+
+
+@mock.patch("core.services.livekit_events.observe_subtitle_agent")
+def test_metadata_collector_agent_is_not_subtitle_agent(mock_observe, service):
+    """A different LiveKit agent identity cannot mutate subtitle state."""
+
+    mock_data = mock.MagicMock()
+    mock_data.room.sid = "RM_event"
+    mock_data.room.name = str(uuid.uuid4())
+    mock_data.participant.kind = ParticipantInfo.AGENT
+    mock_data.participant.identity = "metadata-collector"
+
+    service._handle_participant_joined(mock_data)
+
+    mock_observe.assert_not_called()
 
 
 @mock.patch.object(LobbyService, "clear_room_cache")

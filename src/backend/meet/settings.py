@@ -1435,6 +1435,11 @@ class Base(Configuration):
         environ_name="ROOM_SUBTITLE_AGENT_NAME",
         environ_prefix=None,
     )
+    ROOM_SUBTITLE_PROVIDER = values.Value(
+        "openai",
+        environ_name="ROOM_SUBTITLE_PROVIDER",
+        environ_prefix=None,
+    )
 
     # Metadata collector settings
     METADATA_COLLECTOR_ENABLED = values.BooleanValue(
