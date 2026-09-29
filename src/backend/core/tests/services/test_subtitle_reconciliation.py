@@ -12,6 +12,7 @@ from django.core.management import call_command
 from django.db import close_old_connections, transaction
 
 import pytest
+from livekit import api
 
 from core.factories import RoomFactory
 from core.models import RoomSubtitleControl
@@ -205,10 +206,13 @@ def test_sync_convergence_waits_boundedly_for_a_busy_room_lock(settings):
     room = RoomFactory()
     control = _turn_on(ensure_subtitle_control(room, room_sid="RM_busy_retry"))
     provider_result = _ProviderResult(["AD_busy_retry"])
-    with mock.patch(
-        "core.services.subtitle_reconciliation._provider_reconcile",
-        side_effect=[SubtitleConvergenceBusy(control.room_sid), provider_result],
-    ) as provider_reconcile:
+    with (
+        mock.patch(
+            "core.services.subtitle_reconciliation._provider_reconcile",
+            side_effect=[SubtitleConvergenceBusy(control.room_sid), provider_result],
+        ) as provider_reconcile,
+        mock.patch("core.services.subtitle_reconciliation.time.sleep") as sleep,
+    ):
         result = reconcile_subtitle_control(
             control.room_sid,
             deadline=time.monotonic() + 0.2,
@@ -216,6 +220,8 @@ def test_sync_convergence_waits_boundedly_for_a_busy_room_lock(settings):
 
     assert result.observed_dispatch_ids == ["AD_busy_retry"]
     assert provider_reconcile.call_count == 2
+    assert sleep.call_count == 1
+    assert 0 < sleep.call_args.args[0] <= 0.05
 
 
 def test_reconcile_uses_list_delete_list_for_duplicate_dispatches(
@@ -559,6 +565,29 @@ def test_room_finished_blocks_late_agent_presence():
     assert observed.desired_state == RoomSubtitleControl.DesiredState.OFF
     assert observed.public_state == RoomSubtitleControl.PublicState.STOPPING
     assert observed.agent_present is False
+
+
+def test_room_finished_not_found_is_confirmed_stopped(mock_livekit_client):
+    """A deleted LiveKit room confirms cleanup after room_finished."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_finished_404"))
+    request_subtitle_stop(
+        room,
+        room_sid=control.room_sid,
+        reason_code=RoomSubtitleControl.ReasonCode.ROOM_FINISHED,
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = api.TwirpError(
+        msg="room not found",
+        code="not_found",
+        status=404,
+    )
+
+    result = reconcile_subtitle_control(control.room_sid)
+
+    assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
+    assert result.desired_state == RoomSubtitleControl.DesiredState.OFF
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_not_awaited()
 
 
 def test_reconcile_retries_are_bounded_without_beat(mock_livekit_client, settings):

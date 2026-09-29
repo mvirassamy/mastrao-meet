@@ -243,7 +243,7 @@ def test_two_concurrent_starts_same_provider_are_both_idempotent(
     mock_livekit_token,
     mock_room_id,
 ):
-    """Two PostgreSQL transactions start one legacy provider dispatch."""
+    """Twenty PostgreSQL transactions start one legacy provider dispatch."""
 
     settings.ROOM_SUBTITLE_ENABLED = True
     settings.CELERY_ENABLED = False
@@ -283,10 +283,10 @@ def test_two_concurrent_starts_same_provider_are_both_idempotent(
         finally:
             close_old_connections()
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        responses = list(executor.map(lambda _: start(), (1, 2)))
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        responses = list(executor.map(lambda _: start(), range(20)))
 
-    assert [response.status_code for response in responses] == [200, 200], [
+    assert [response.status_code for response in responses] == [200] * 20, [
         response.data for response in responses
     ]
     assert len(dispatches) == 1

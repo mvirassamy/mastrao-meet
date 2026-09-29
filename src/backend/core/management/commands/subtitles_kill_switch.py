@@ -1,6 +1,7 @@
 """Disable subtitle providers and converge their affected rooms."""
 
 from django.core.management.base import BaseCommand
+from django.db import close_old_connections
 from django.db.models import Q
 
 from core import models
@@ -35,7 +36,11 @@ class Command(BaseCommand):
 
         converged = 0
         failed = 0
-        for control in controls.select_related("room").iterator():
+        # Materialize before calling LiveKit so the queryset iterator/cursor is
+        # not held open while provider connections are being drained.
+        controls = list(controls.select_related("room"))
+        for control in controls:
+            close_old_connections()
             try:
                 request_subtitle_stop(
                     control.room,
@@ -58,5 +63,7 @@ class Command(BaseCommand):
             except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 failed += 1
                 self.stderr.write(f"failed {control.room_sid}: {error}")
+            finally:
+                close_old_connections()
 
         self.stdout.write(f"provider={provider} converged={converged} failed={failed}")

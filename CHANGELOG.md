@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-29: Harden live subtitle shutdown before canary by treating a
+  finished room as stopped when LiveKit reports it missing, closing database
+  state before remote kill-switch calls, and bounding contention retries.
+
 - 2026-09-29: Add a feature-gated live transcription side panel.
 
 - 2026-09-29: Expose the derived Meeting base contract to Django settings so a
