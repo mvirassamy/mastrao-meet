@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-30: Preserve a finalized recording artifact when room closure races
+  with the final internal recording-status save.
+
 - 2026-09-29: Add closed staging candidate publication for the agents image,
   record its build context in the immutable receipt, and allow the subtitle
   agent Helm image to be pinned by digest with secret-referenced OpenAI
