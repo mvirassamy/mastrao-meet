@@ -83,7 +83,7 @@ def record_verified_rtc_observation(event, verified_body):
     Serialize facts per room; a retry leaves the original row untouched. A DB error
     propagates rather than acknowledging an event that was not persisted.
     """
-    if not settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return
     if event.event not in OBSERVED_EVENTS:
         return

@@ -46,7 +46,7 @@ class Command(BaseCommand):
     def _qualify(self, configuration, room_effects, result_path):
 
         with override_settings(
-            MASTRAO_ROOM_ADAPTER_ENABLED=True,
+            MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
             MASTRAO_ROOM_EFFECT_ISSUER=configuration["effect_issuer"],
             MASTRAO_ROOM_EFFECT_AUDIENCE=configuration["effect_audience"],
             MASTRAO_ROOM_EFFECT_PUBLIC_JWK=json.dumps(

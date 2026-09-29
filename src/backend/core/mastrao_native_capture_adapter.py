@@ -135,7 +135,7 @@ def _prepare(effect):
     if (
         effect["resolve_only"]
         or not settings.MASTRAO_NATIVE_CAPTURE_START_ENABLED
-        or not settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED
+        or not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
         or binding.closing_at is not None
         or hasattr(binding, "closure")
     ):

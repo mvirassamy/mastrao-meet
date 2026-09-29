@@ -49,4 +49,5 @@ LIVEKIT_API_KEY=meet
 LIVEKIT_API_URL=https://${LIVEKIT_HOST}
 LIVEKIT_EXPLICIT_ROOM_CREATION=true
 ALLOW_UNREGISTERED_ROOMS=False
-MASTRAO_CORE_MEETING_CLOSE_ENDPOINT=http://cabinet-core:3911/internal/v1/meetings/close
+# Mastrao meeting integration is all-or-nothing: set every value listed in
+# MASTRAO_BASE_CONTRACT_SETTINGS (meet/settings.py) or none of them.

@@ -66,7 +66,7 @@ class Command(BaseCommand):
     def _qualify(self, configuration, room_effect, host_handoff, result_path):
         ensure_room(room_effect)
         with override_settings(
-            MASTRAO_HOST_HANDOFF_ENABLED=True,
+            MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
             MASTRAO_PLATFORM_ORIGIN=configuration["platform_origin"],
             MASTRAO_CORE_REDEMPTION_ENDPOINT=configuration["core_redemption_endpoint"],
             MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS=10,

@@ -153,7 +153,7 @@ def test_local_stop_triggers_survive_admission_rollback(  # noqa: PLR0913,PLR091
     assert _post(client, signer, effect).status_code == 200
     _stop_provider(provider)
     settings.MASTRAO_NATIVE_CAPTURE_START_ENABLED = False
-    settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = False
+    settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = False
     if reason == "room":
         _closed()
     elif reason == "epoch":

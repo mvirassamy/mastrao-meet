@@ -42,7 +42,7 @@ def _digest(value):
 @pytest.fixture(autouse=True)
 def isolated_binding_settings(settings):
     """Use no app cache or external service in this integration fixture."""
-    settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = True
+    settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = True
     settings.CACHES = {
         "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
     }
@@ -202,7 +202,7 @@ def test_repeated_issuance_has_distinct_receipts_for_same_grant(host):
 
 
 def test_disabled_binding_keeps_existing_token_without_journal(host, settings):
-    settings.MASTRAO_MEDIA_TOKEN_BINDING_ENABLED = False
+    settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = False
     result = _host_config(host)
     assert "mastrao.media_token_binding_ref" not in _claims(result)["attributes"]
     assert not models.MastraoMediaTokenBinding.objects.exists()

@@ -92,7 +92,7 @@ def _configured_json(setting_name):
 
 
 def _validate_configuration():
-    if not settings.MASTRAO_ROOM_ADAPTER_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         raise RoomEffectRefused()
     names = (
         "MASTRAO_ROOM_EFFECT_ISSUER",
