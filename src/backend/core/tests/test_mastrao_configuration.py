@@ -136,7 +136,8 @@ def _load_development_setting(name, overrides):
                 "from configurations import importer; "
                 "importer.install(); "
                 "from django.conf import settings; "
-                f"print(settings.{name})"
+                "import sys; "
+                f"sys.stdout.write(str(settings.{name}))"
             ),
         ],
         check=False,
