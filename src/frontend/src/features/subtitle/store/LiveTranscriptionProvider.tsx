@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useRoomContext } from '@livekit/components-react'
-import { RoomEvent } from 'livekit-client'
+import { RoomEvent, type RoomEventCallbacks } from 'livekit-client'
 import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
 import { fetchSubtitleState } from '../api/fetchSubtitleState'
 import {
@@ -15,12 +15,18 @@ import {
   parseLiveTranscriptionGapStream,
 } from './liveTranscriptionContract'
 import {
+  isReliableBackendStatePacket,
+  parseLiveTranscriptionStatePacket,
+  parseLiveTranscriptionStateSnapshot,
+} from './liveTranscriptionStateContract'
+import {
   createLiveTranscriptionState,
   liveTranscriptionReducer,
 } from './liveTranscriptionReducer'
 import { getParticipantForTrack } from './liveTranscriptionParticipants'
 import {
   LIVE_TRANSCRIPTION_GAP_TOPIC,
+  LIVE_TRANSCRIPTION_STATE_TOPIC,
   LIVE_TRANSCRIPTION_TOPIC,
   type LiveTranscriptionTextStreamReader,
   type LiveTranscriptionTransportEvent,
@@ -43,6 +49,7 @@ export const LiveTranscriptionProvider = ({
   const subtitleRoomIdRef = useRef(subtitleRoomId)
   const subtitleTokenRef = useRef(subtitleToken)
   const subtitleStateRequestIdRef = useRef(0)
+  const handledResyncRequestRef = useRef<string | null>(null)
   subtitleRoomIdRef.current = subtitleRoomId
   subtitleTokenRef.current = subtitleToken
   const [state, dispatch] = useReducer(
@@ -64,13 +71,17 @@ export const LiveTranscriptionProvider = ({
     try {
       const response = await fetchSubtitleState(currentRoomId, currentToken)
       if (requestId !== subtitleStateRequestIdRef.current) return
-      dispatch({
-        type: 'status',
-        status: response.subtitle?.state ?? 'unknown',
-      })
+      const snapshotResult = parseLiveTranscriptionStateSnapshot(
+        response.subtitle
+      )
+      if (!snapshotResult.ok) {
+        dispatch({ type: 'resync-failed' })
+        return
+      }
+      dispatch({ type: 'snapshot', snapshot: snapshotResult.snapshot })
     } catch {
       if (requestId !== subtitleStateRequestIdRef.current) return
-      dispatch({ type: 'status', status: 'unknown' })
+      dispatch({ type: 'resync-failed' })
     }
   }, [])
 
@@ -89,10 +100,8 @@ export const LiveTranscriptionProvider = ({
       dispatch({ type: 'reset', roomId })
       dispatch({ type: 'connection', status: 'disconnected' })
     }
-    const ingestEvent = (event: LiveTranscriptionTransportEvent) => {
-      if (event.type === 'status') subtitleStateRequestIdRef.current += 1
+    const ingestEvent = (event: LiveTranscriptionTransportEvent) =>
       dispatch({ type: 'ingest', event })
-    }
     const handleTextStream = async (
       reader: LiveTranscriptionTextStreamReader,
       participantInfo: { identity: string }
@@ -144,10 +153,29 @@ export const LiveTranscriptionProvider = ({
         // A lost gap marker must not break the transcript itself.
       }
     }
+    const handleDataReceived = (
+      ...args: Parameters<RoomEventCallbacks['dataReceived']>
+    ) => {
+      const [payload, participant, kind, topic] = args
+      if (
+        topic !== LIVE_TRANSCRIPTION_STATE_TOPIC ||
+        !isReliableBackendStatePacket(participant, kind)
+      ) {
+        return
+      }
+
+      const result = parseLiveTranscriptionStatePacket(payload)
+      if (!result.ok) {
+        dispatch({ type: 'request-resync' })
+        return
+      }
+      dispatch({ type: 'state-packet', packet: result.packet })
+    }
 
     room.on(RoomEvent.Reconnecting, handleReconnecting)
     room.on(RoomEvent.Reconnected, handleReconnected)
     room.on(RoomEvent.Disconnected, handleDisconnected)
+    room.on(RoomEvent.DataReceived, handleDataReceived)
     room.registerTextStreamHandler(LIVE_TRANSCRIPTION_TOPIC, handleTextStream)
     room.registerTextStreamHandler(
       LIVE_TRANSCRIPTION_GAP_TOPIC,
@@ -158,15 +186,30 @@ export const LiveTranscriptionProvider = ({
       room.off(RoomEvent.Reconnecting, handleReconnecting)
       room.off(RoomEvent.Reconnected, handleReconnected)
       room.off(RoomEvent.Disconnected, handleDisconnected)
+      room.off(RoomEvent.DataReceived, handleDataReceived)
       room.unregisterTextStreamHandler(LIVE_TRANSCRIPTION_TOPIC)
       room.unregisterTextStreamHandler(LIVE_TRANSCRIPTION_GAP_TOPIC)
     }
-  }, [room, roomId, syncSubtitleState])
+  }, [room, roomId, subtitleRoomId, syncSubtitleState])
 
   const hasSubtitleToken = Boolean(subtitleToken)
   useEffect(() => {
     void syncSubtitleState()
-  }, [roomId, hasSubtitleToken, syncSubtitleState])
+  }, [roomId, hasSubtitleToken, subtitleRoomId, syncSubtitleState])
+
+  useEffect(() => {
+    if (state.resyncStatus !== 'pending') return
+    const requestKey = `${roomId}:${state.roomSid ?? 'unbound'}:${state.resyncRequestId}`
+    if (handledResyncRequestRef.current === requestKey) return
+    handledResyncRequestRef.current = requestKey
+    void syncSubtitleState()
+  }, [
+    roomId,
+    state.resyncRequestId,
+    state.resyncStatus,
+    state.roomSid,
+    syncSubtitleState,
+  ])
 
   const value = useMemo(
     () => ({ ...state, dispatch, syncSubtitleState }),
