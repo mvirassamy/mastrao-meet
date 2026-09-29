@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-29: Accept the Platform staging demo transcription profile (Mistral
+  EU, standard retention, test data only) and refuse it if it claims ZDR.
+
 - 2026-09-29: Isolate latency-sensitive native audio admission on its own
   Celery worker so unrelated backend jobs cannot delay post-meeting capture.
 
