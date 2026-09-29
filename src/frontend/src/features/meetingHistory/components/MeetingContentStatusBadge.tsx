@@ -21,18 +21,34 @@ const badge = cva({
   },
   variants: {
     status: {
+      unknown: { backgroundColor: 'info', color: 'info-foreground' },
+      not_started: { backgroundColor: 'muted', color: 'muted-foreground' },
+      waiting_for_audio: { backgroundColor: 'info', color: 'info-foreground' },
+      transcribing: { backgroundColor: 'info', color: 'info-foreground' },
       available: { backgroundColor: 'success', color: 'success-foreground' },
-      processing: { backgroundColor: 'info', color: 'info-foreground' },
-      absent: { backgroundColor: 'muted', color: 'muted-foreground' },
+      completed_empty: {
+        backgroundColor: 'muted',
+        color: 'muted-foreground',
+      },
+      audio_unavailable: {
+        backgroundColor: 'muted',
+        color: 'muted-foreground',
+      },
+      partial: { backgroundColor: 'info', color: 'info-foreground' },
       failed: { backgroundColor: 'recording', color: 'recording-foreground' },
     },
   },
 })
 
 const icons = {
+  unknown: TimeIcon,
+  not_started: MinusCircleIcon,
+  waiting_for_audio: TimeIcon,
+  transcribing: TimeIcon,
   available: CheckCircleIcon,
-  processing: TimeIcon,
-  absent: MinusCircleIcon,
+  completed_empty: MinusCircleIcon,
+  audio_unavailable: MinusCircleIcon,
+  partial: TimeIcon,
   failed: ErrorIcon,
 } as const
 

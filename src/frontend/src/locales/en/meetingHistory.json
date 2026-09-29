@@ -29,16 +29,26 @@
   "participants_other": "{{count}} participants",
   "status": {
     "summary": {
-      "absent": "No summary",
+      "unknown": "Summary status being verified",
+      "not_started": "No summary",
+      "waiting_for_audio": "Summary waiting for audio",
+      "transcribing": "Summary in progress",
       "available": "Summary available",
-      "failed": "Summary unavailable",
-      "processing": "Summary in progress"
+      "completed_empty": "Empty summary",
+      "audio_unavailable": "Summary unavailable without audio",
+      "partial": "Partial summary",
+      "failed": "Summary unavailable"
     },
     "transcript": {
-      "absent": "No transcript",
+      "unknown": "Transcript status being verified",
+      "not_started": "Transcript not started",
+      "waiting_for_audio": "Transcript waiting for audio",
+      "transcribing": "Transcription in progress",
       "available": "Transcript available",
-      "failed": "Transcript unavailable",
-      "processing": "Transcript in progress"
+      "completed_empty": "No speech detected",
+      "audio_unavailable": "Audio unavailable",
+      "partial": "Partial transcript",
+      "failed": "Transcript unavailable"
     }
   },
   "summary": {
@@ -48,8 +58,8 @@
     },
     "automatic": "Summary generated automatically from the transcript, not reviewed by a person.",
     "failed": {
-      "description": "The summary could not be produced for this meeting.",
-      "title": "Summary unavailable"
+      "description": "Processing could not complete for this meeting.",
+      "title": "Processing unavailable"
     },
     "processing": {
       "description": "It will appear here as soon as it is ready. This page updates automatically.",
@@ -63,7 +73,32 @@
     "waitingTranscript": {
       "description": "It will be prepared as soon as the transcript is available. This page updates automatically.",
       "title": "Summary pending"
-    }
+    },
+    "unknown": {
+      "description": "This page will update when the service confirms the status.",
+      "title": "Status being verified"
+    },
+    "not_started": {
+      "description": "The summary has not started yet.",
+      "title": "No summary"
+    },
+    "waiting_for_audio": {
+      "description": "Processing will start as soon as the audio is ready.",
+      "title": "Waiting for audio"
+    },
+    "transcribing": {
+      "description": "The content will appear here as soon as it is ready.",
+      "title": "Processing"
+    },
+    "completed_empty": {
+      "description": "Processing completed without usable content.",
+      "title": "No content detected"
+    },
+    "audio_unavailable": {
+      "description": "No usable audio is available for this meeting.",
+      "title": "Audio unavailable"
+    },
+    "partial": "This summary is incomplete. Some content may be missing."
   },
   "title": "History",
   "transcript": {
@@ -72,8 +107,8 @@
       "title": "No transcript"
     },
     "failed": {
-      "description": "The transcript could not be produced for this meeting.",
-      "title": "Transcript unavailable"
+      "description": "Processing could not complete for this meeting.",
+      "title": "Processing unavailable"
     },
     "processing": {
       "description": "It will appear here as soon as it is ready. This page updates automatically.",
@@ -81,7 +116,32 @@
     },
     "title": "Transcript",
     "truncated": "Only part of the transcript is displayed.",
-    "unknownSpeaker": "Speaker"
+    "unknownSpeaker": "Speaker",
+    "unknown": {
+      "description": "This page will update when the service confirms the status.",
+      "title": "Status being verified"
+    },
+    "not_started": {
+      "description": "The transcript has not started yet.",
+      "title": "No transcript"
+    },
+    "waiting_for_audio": {
+      "description": "Processing will start as soon as the audio is ready.",
+      "title": "Waiting for audio"
+    },
+    "transcribing": {
+      "description": "The content will appear here as soon as it is ready.",
+      "title": "Processing"
+    },
+    "completed_empty": {
+      "description": "Processing completed without usable content.",
+      "title": "No content detected"
+    },
+    "audio_unavailable": {
+      "description": "No usable audio is available for this meeting.",
+      "title": "Audio unavailable"
+    },
+    "partial": "This transcript is incomplete. Parts of the meeting may be missing."
   },
   "untitled": "Untitled meeting"
 }

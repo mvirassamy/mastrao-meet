@@ -227,8 +227,6 @@ def establish_mastrao_guest_session(request):
     """Establish a stable anonymous browser nonce before any Core mutation."""
 
     headers = _safe_headers()
-    if not settings.MASTRAO_GUEST_INVITATION_ENABLED:
-        return JsonResponse({"message": "Not found"}, status=404, headers=headers)
     try:
         if request.user.is_authenticated or not _same_origin(request):
             raise GuestHandoffRefused()
@@ -275,8 +273,6 @@ def consume_mastrao_guest_invitation(request):
     """Redeem only after the guest explicitly submits the fragment capability."""
 
     headers = _safe_headers()
-    if not settings.MASTRAO_GUEST_INVITATION_ENABLED:
-        return JsonResponse({"message": "Not found"}, status=404, headers=headers)
     try:
         if request.user.is_authenticated:
             raise GuestHandoffRefused()

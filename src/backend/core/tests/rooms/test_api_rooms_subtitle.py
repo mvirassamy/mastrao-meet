@@ -3,10 +3,14 @@ Test rooms API endpoints in the Meet core app: start subtitle.
 """
 # pylint: disable=W0621
 
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from unittest import mock
 
 from django.conf import settings
+from django.db import close_old_connections
 
 import pytest
 from livekit.api import AccessToken, TwirpError, VideoGrants
@@ -78,6 +82,27 @@ def mock_livekit_client():
     """Mock LiveKit API client."""
     with mock.patch("core.utils.create_livekit_client") as mock_create:
         mock_client = mock.AsyncMock()
+        mock_client.room.list_rooms = mock.AsyncMock(
+            return_value=SimpleNamespace(rooms=[SimpleNamespace(sid="RM_api")])
+        )
+        mock_client.agent_dispatch.list_dispatch = mock.AsyncMock(return_value=[])
+
+        async def create_dispatch(request):
+            # LiveKit lists a created dispatch with the exact metadata it got.
+            created = SimpleNamespace(
+                id="AD_api",
+                agent_name=request.agent_name,
+                metadata=request.metadata,
+            )
+            mock_client.agent_dispatch.list_dispatch.return_value = [
+                *mock_client.agent_dispatch.list_dispatch.return_value,
+                created,
+            ]
+            return created
+
+        mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
+            side_effect=create_dispatch
+        )
         mock_create.return_value = mock_client
         yield mock_client
 
@@ -156,6 +181,8 @@ def test_start_subtitle_disabled_by_default(mock_livekit_token):
     assert response.json() == {"detail": "Not found."}
 
 
+# Provider convergence runs outside Django transactions by design.
+@pytest.mark.django_db(transaction=True)
 def test_start_subtitle_valid_token(
     settings, mock_livekit_client, mock_livekit_token, mock_room_id
 ):
@@ -180,6 +207,120 @@ def test_start_subtitle_valid_token(
     call_args = mock_livekit_client.agent_dispatch.create_dispatch.call_args[0][0]
     assert call_args.agent_name == "multi-user-transcriber"
     assert call_args.room == "d2aeb774-1ecd-4d73-a3ac-3d3530cad7ff"
+    assert (
+        RoomSubtitleControl.objects.get(room=room, is_current=True).provider == "legacy"
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_start_subtitle_is_idempotent_when_provider_is_already_active(
+    settings, mock_livekit_client, mock_livekit_token, mock_room_id
+):
+    """Do not create a second subtitle provider dispatch."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(id=mock_room_id)
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = [
+        SimpleNamespace(id="AD_existing", agent_name="multi-user-transcriber")
+    ]
+    client = APIClient()
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/start-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "success"}
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_two_concurrent_starts_same_provider_are_both_idempotent(
+    settings,
+    mock_livekit_client,
+    mock_livekit_token,
+    mock_room_id,
+):
+    """Two PostgreSQL transactions start one legacy provider dispatch."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    settings.CELERY_ENABLED = False
+    room = RoomFactory(id=mock_room_id)
+    ensure_subtitle_control(room, room_sid="RM_api")
+    dispatches = []
+    dispatch_lock = threading.Lock()
+
+    async def list_dispatches(*args, **kwargs):
+        with dispatch_lock:
+            return list(dispatches)
+
+    async def create_dispatch(request):
+        with dispatch_lock:
+            dispatch = SimpleNamespace(
+                id=f"AD_concurrent_{len(dispatches)}"
+                if dispatches
+                else "AD_concurrent",
+                agent_name=request.agent_name,
+                metadata=request.metadata,
+            )
+            dispatches.append(dispatch)
+            return dispatch
+
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = list_dispatches
+    mock_livekit_client.agent_dispatch.create_dispatch.side_effect = create_dispatch
+
+    def start():
+        close_old_connections()
+        try:
+            client = APIClient()
+            return client.post(
+                f"/api/v1.0/rooms/{room.id}/start-subtitle/",
+                {},
+                HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+            )
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(lambda _: start(), (1, 2)))
+
+    assert [response.status_code for response in responses] == [200, 200], [
+        response.data for response in responses
+    ]
+    assert len(dispatches) == 1
+    control = RoomSubtitleControl.objects.get(room=room, is_current=True)
+    assert control.provider == "legacy"
+
+
+def test_start_subtitle_rejects_a_different_active_provider(
+    settings, mock_livekit_client, mock_livekit_token, mock_room_id
+):
+    """A requested provider cannot replace a different active provider."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(id=mock_room_id)
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = [
+        SimpleNamespace(
+            id="AD_other",
+            agent_name="multi-user-transcriber",
+            metadata='{"provider":"mistral","roomSid":"RM_api"}',
+        )
+    ]
+    client = APIClient()
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/start-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "error": "A different subtitle provider is already active for this room."
+    }
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
 
 
 def test_start_subtitle_twirp_error(
@@ -208,6 +349,7 @@ def test_start_subtitle_twirp_error(
     }
 
 
+@pytest.mark.django_db(transaction=True)
 def test_start_subtitle_allows_a_room_participant(
     settings, mock_livekit_client, mock_livekit_participant_token, mock_room_id
 ):
@@ -301,6 +443,70 @@ def test_subtitle_state_returns_public_snapshot(mock_livekit_token, mock_room_id
     assert response.json()["subtitle"]["state"] == "live"
     assert response.json()["subtitle"]["stateVersion"] == 1
     assert response.json()["subtitle"]["sessionId"] == "session-api"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_stop_subtitle_persists_off_and_cleans_provider(
+    settings, mock_livekit_client, mock_livekit_token, mock_room_id
+):
+    """Stopping through the API persists OFF before provider cleanup."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(id=mock_room_id)
+    control = ensure_subtitle_control(room, room_sid="RM_api")
+    compare_and_set_subtitle_control(
+        control.room_sid,
+        expected_control_generation=0,
+        expected_state_version=0,
+        desired_state=RoomSubtitleControl.DesiredState.ON,
+        public_state=RoomSubtitleControl.PublicState.LIVE,
+        session_id="session-api",
+        agent_present=True,
+        worker_ready=True,
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
+        [
+            SimpleNamespace(
+                id="AD_api",
+                agent_name="multi-user-transcriber",
+                metadata=None,
+            )
+        ],
+        [],
+    ]
+    client = APIClient()
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/stop-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+    )
+
+    assert response.status_code == 200
+    control.refresh_from_db()
+    assert control.desired_state == RoomSubtitleControl.DesiredState.OFF
+    assert control.public_state == RoomSubtitleControl.PublicState.STOPPED
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+        dispatch_id="AD_api", room_name=str(room.id)
+    )
+
+
+def test_stop_subtitle_requires_a_room_administrator(
+    settings, mock_livekit_participant_token, mock_room_id
+):
+    """A regular room participant cannot change the subtitle control intent."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    room = RoomFactory(id=mock_room_id)
+    client = APIClient()
+
+    response = client.post(
+        f"/api/v1.0/rooms/{room.id}/stop-subtitle/",
+        {},
+        HTTP_AUTHORIZATION=f"Bearer {mock_livekit_participant_token}",
+    )
+
+    assert response.status_code == 403
 
 
 def test_subtitle_state_rejects_a_token_for_another_room(mock_livekit_token):

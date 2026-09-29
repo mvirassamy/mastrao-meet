@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 """
 Test rooms API endpoints in the Meet core app: participants management.
 """

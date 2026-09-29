@@ -29,16 +29,26 @@
   "participants_other": "{{count}} Teilnehmende",
   "status": {
     "summary": {
-      "absent": "Keine Zusammenfassung",
+      "unknown": "Status der Zusammenfassung wird geprüft",
+      "not_started": "Keine Zusammenfassung",
+      "waiting_for_audio": "Zusammenfassung wartet auf Audio",
+      "transcribing": "Zusammenfassung in Arbeit",
       "available": "Zusammenfassung verfügbar",
-      "failed": "Zusammenfassung nicht verfügbar",
-      "processing": "Zusammenfassung in Arbeit"
+      "completed_empty": "Leere Zusammenfassung",
+      "audio_unavailable": "Zusammenfassung ohne Audio nicht möglich",
+      "partial": "Teilweise Zusammenfassung",
+      "failed": "Zusammenfassung nicht verfügbar"
     },
     "transcript": {
-      "absent": "Kein Transkript",
+      "unknown": "Status des Transkripts wird geprüft",
+      "not_started": "Transkript nicht gestartet",
+      "waiting_for_audio": "Transkript wartet auf Audio",
+      "transcribing": "Transkription läuft",
       "available": "Transkript verfügbar",
-      "failed": "Transkript nicht verfügbar",
-      "processing": "Transkript in Arbeit"
+      "completed_empty": "Keine Sprache erkannt",
+      "audio_unavailable": "Audio nicht verfügbar",
+      "partial": "Teilweises Transkript",
+      "failed": "Transkript nicht verfügbar"
     }
   },
   "summary": {
@@ -48,8 +58,8 @@
     },
     "automatic": "Automatisch aus dem Transkript erstellte Zusammenfassung, nicht von einer Person geprüft.",
     "failed": {
-      "description": "Die Zusammenfassung konnte für diese Besprechung nicht erstellt werden.",
-      "title": "Zusammenfassung nicht verfügbar"
+      "description": "Die Verarbeitung konnte nicht abgeschlossen werden.",
+      "title": "Verarbeitung nicht verfügbar"
     },
     "processing": {
       "description": "Sie erscheint hier, sobald sie fertig ist. Diese Seite aktualisiert sich automatisch.",
@@ -63,7 +73,32 @@
     "waitingTranscript": {
       "description": "Sie wird erstellt, sobald das Transkript verfügbar ist. Diese Seite aktualisiert sich automatisch.",
       "title": "Zusammenfassung ausstehend"
-    }
+    },
+    "unknown": {
+      "description": "Diese Seite wird aktualisiert, sobald der Dienst den Status bestätigt.",
+      "title": "Status wird geprüft"
+    },
+    "not_started": {
+      "description": "Die Zusammenfassung wurde noch nicht gestartet.",
+      "title": "Keine Zusammenfassung"
+    },
+    "waiting_for_audio": {
+      "description": "Die Verarbeitung startet, sobald das Audio bereit ist.",
+      "title": "Warten auf Audio"
+    },
+    "transcribing": {
+      "description": "Der Inhalt erscheint hier, sobald er fertig ist.",
+      "title": "Verarbeitung läuft"
+    },
+    "completed_empty": {
+      "description": "Die Verarbeitung wurde ohne verwertbaren Inhalt abgeschlossen.",
+      "title": "Kein Inhalt erkannt"
+    },
+    "audio_unavailable": {
+      "description": "Für diese Besprechung ist kein verwertbares Audio verfügbar.",
+      "title": "Audio nicht verfügbar"
+    },
+    "partial": "Diese Zusammenfassung ist unvollständig. Einige Inhalte können fehlen."
   },
   "title": "Verlauf",
   "transcript": {
@@ -72,8 +107,8 @@
       "title": "Kein Transkript"
     },
     "failed": {
-      "description": "Das Transkript konnte für diese Besprechung nicht erstellt werden.",
-      "title": "Transkript nicht verfügbar"
+      "description": "Die Verarbeitung konnte nicht abgeschlossen werden.",
+      "title": "Verarbeitung nicht verfügbar"
     },
     "processing": {
       "description": "Es erscheint hier, sobald es fertig ist. Diese Seite aktualisiert sich automatisch.",
@@ -81,7 +116,32 @@
     },
     "title": "Transkript",
     "truncated": "Es wird nur ein Teil des Transkripts angezeigt.",
-    "unknownSpeaker": "Sprecher"
+    "unknownSpeaker": "Sprecher",
+    "unknown": {
+      "description": "Diese Seite wird aktualisiert, sobald der Dienst den Status bestätigt.",
+      "title": "Status wird geprüft"
+    },
+    "not_started": {
+      "description": "Das Transkript wurde noch nicht gestartet.",
+      "title": "Kein Transkript"
+    },
+    "waiting_for_audio": {
+      "description": "Die Verarbeitung startet, sobald das Audio bereit ist.",
+      "title": "Warten auf Audio"
+    },
+    "transcribing": {
+      "description": "Der Inhalt erscheint hier, sobald er fertig ist.",
+      "title": "Verarbeitung läuft"
+    },
+    "completed_empty": {
+      "description": "Die Verarbeitung wurde ohne verwertbaren Inhalt abgeschlossen.",
+      "title": "Kein Inhalt erkannt"
+    },
+    "audio_unavailable": {
+      "description": "Für diese Besprechung ist kein verwertbares Audio verfügbar.",
+      "title": "Audio nicht verfügbar"
+    },
+    "partial": "Dieses Transkript ist unvollständig. Teile der Besprechung können fehlen."
   },
   "untitled": "Besprechung ohne Titel"
 }

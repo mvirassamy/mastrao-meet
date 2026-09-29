@@ -600,6 +600,7 @@ class RoomSubtitleControl(BaseModel):
         choices=DesiredState.choices,
         default=DesiredState.OFF,
     )
+    room_finished_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = "meet_room_subtitle_control"
@@ -666,6 +667,28 @@ class RoomSubtitleControl(BaseModel):
             raise ValidationError(
                 {"observed_dispatch_ids": ("At most 32 dispatch ids may be observed.")}
             )
+
+
+class RoomSubtitleAdvisoryKey(BaseModel):
+    """Permanent exact registry for one subtitle advisory-lock key."""
+
+    room_sid = models.CharField(
+        max_length=128,
+        unique=True,
+        validators=[
+            validators.RegexValidator(
+                regex=r"^RM_[A-Za-z0-9_-]{1,124}$",
+                message="room_sid must be a LiveKit room SID.",
+            )
+        ],
+    )
+    lock_key = models.PositiveIntegerField(unique=True)
+
+    class Meta:
+        db_table = "meet_room_subtitle_advisory_key"
+
+    def __str__(self):
+        return f"Subtitle advisory key {self.room_sid}"
 
 
 class MastraoRoomBinding(BaseModel):
