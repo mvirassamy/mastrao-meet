@@ -3,11 +3,14 @@ Test rooms API endpoints in the Meet core app: start subtitle.
 """
 # pylint: disable=W0621
 
+import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest import mock
 
 from django.conf import settings
+from django.db import close_old_connections
 
 import pytest
 from livekit.api import AccessToken, TwirpError, VideoGrants
@@ -190,6 +193,9 @@ def test_start_subtitle_valid_token(
     call_args = mock_livekit_client.agent_dispatch.create_dispatch.call_args[0][0]
     assert call_args.agent_name == "multi-user-transcriber"
     assert call_args.room == "d2aeb774-1ecd-4d73-a3ac-3d3530cad7ff"
+    assert (
+        RoomSubtitleControl.objects.get(room=room, is_current=True).provider == "legacy"
+    )
 
 
 def test_start_subtitle_is_idempotent_when_provider_is_already_active(
@@ -213,6 +219,65 @@ def test_start_subtitle_is_idempotent_when_provider_is_already_active(
     assert response.status_code == 200
     assert response.json() == {"status": "success"}
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_two_concurrent_starts_same_provider_are_both_idempotent(
+    settings, mock_livekit_client, mock_livekit_token, mock_room_id
+):
+    """Two PostgreSQL transactions start one legacy provider dispatch."""
+
+    settings.ROOM_SUBTITLE_ENABLED = True
+    settings.CELERY_ENABLED = False
+    room = RoomFactory(id=mock_room_id)
+    ensure_subtitle_control(room, room_sid="RM_api")
+    dispatches = []
+    dispatch_lock = threading.Lock()
+
+    async def list_dispatches(*args, **kwargs):
+        with dispatch_lock:
+            return list(dispatches)
+
+    async def create_dispatch(request):
+        with dispatch_lock:
+            if dispatches:
+                raise TwirpError(
+                    msg="already exists",
+                    code="already_exists",
+                    status=409,
+                )
+            dispatch = SimpleNamespace(
+                id="AD_concurrent",
+                agent_name=request.agent_name,
+                metadata=request.metadata,
+            )
+            dispatches.append(dispatch)
+            return dispatch
+
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = list_dispatches
+    mock_livekit_client.agent_dispatch.create_dispatch.side_effect = create_dispatch
+
+    def start():
+        close_old_connections()
+        try:
+            client = APIClient()
+            return client.post(
+                f"/api/v1.0/rooms/{room.id}/start-subtitle/",
+                {},
+                HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}",
+            )
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(lambda _: start(), (1, 2)))
+
+    assert [response.status_code for response in responses] == [200, 200], [
+        response.data for response in responses
+    ]
+    assert len(dispatches) == 1
+    control = RoomSubtitleControl.objects.get(room=room, is_current=True)
+    assert control.provider == "legacy"
 
 
 def test_start_subtitle_rejects_a_different_active_provider(

@@ -27,7 +27,7 @@ from .subtitle_control import (
 logger = getLogger(__name__)
 
 SUBTITLE_STATUS_TOPIC = "mastrao.transcription.state.v1"
-DEFAULT_SUBTITLE_PROVIDER = "openai"
+DEFAULT_SUBTITLE_PROVIDER = "legacy"
 PROVIDER_TIMEOUT_SECONDS = 8
 CLEANUP_TIMEOUT_SECONDS = 3
 MAX_RECONCILIATION_ATTEMPTS = 3
@@ -167,7 +167,7 @@ def _lower_generation_dispatches(dispatches, room_sid, generation):
     ]
 
 
-async def _reconcile_provider(
+async def _reconcile_provider(  # noqa: PLR0912  # pylint: disable=too-many-branches
     room_name,
     room_sid,
     desired_state,
@@ -247,6 +247,16 @@ async def _reconcile_provider(
             ) from error
         except api.TwirpError as error:
             if error.code == "already_exists":
+                confirmed = [
+                    dispatch
+                    for dispatch in await _list_dispatches(client, room_name)
+                    if _is_room_dispatch(dispatch, room_sid)
+                ]
+                if confirmed:
+                    return _ProviderResult(
+                        _dispatch_ids(confirmed),
+                        had_dispatches=True,
+                    )
                 raise SubtitleProviderActive(
                     "A subtitle agent is already active in LiveKit."
                 ) from error
@@ -484,7 +494,9 @@ def _project_provider_result(control, provider_result):
     }
 
 
-def reconcile_subtitle_control(room_sid):
+def reconcile_subtitle_control(  # noqa: PLR0912  # pylint: disable=too-many-branches
+    room_sid,
+):
     """Converge one current control row without losing a newer intent."""
     for _ in range(MAX_INTENT_RECONCILIATIONS):
         control = _current_control(room_sid)
@@ -517,6 +529,8 @@ def reconcile_subtitle_control(room_sid):
             raise
         except SubtitleProviderActive:
             if _intent_changed(room_sid, generation, desired_state):
+                continue
+            if desired_state == models.RoomSubtitleControl.DesiredState.ON:
                 continue
             _mark_failure(room_sid, error=SubtitleProviderActive("active"))
             raise

@@ -39,7 +39,7 @@ def _dispatch(
     *,
     room_sid=None,
     generation=None,
-    provider="openai",
+    provider="legacy",
     agent_name="multi-user-transcriber",
 ):
     metadata = None
@@ -534,3 +534,19 @@ def test_kill_switch_command_filters_provider_and_room(  # pylint: disable=unuse
     assert selected.desired_state == RoomSubtitleControl.DesiredState.OFF
     assert other.desired_state == RoomSubtitleControl.DesiredState.ON
     assert "converged=1 failed=0" in capsys.readouterr().out
+
+
+def test_openai_kill_switch_does_not_touch_legacy_sessions(mock_livekit_client, capsys):
+    """Provider-scoped shutdown leaves legacy subtitle sessions unchanged."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_legacy"))
+    control.provider = "legacy"
+    control.save(update_fields=["provider", "updated_at"])
+
+    call_command("subtitles_kill_switch", provider="openai")
+
+    control.refresh_from_db()
+    assert control.desired_state == RoomSubtitleControl.DesiredState.ON
+    assert "converged=0 failed=0" in capsys.readouterr().out
+    mock_livekit_client.agent_dispatch.list_dispatch.assert_not_awaited()

@@ -3,6 +3,11 @@
 - 2026-09-29: Make the signed guest invitation boundary part of the canonical
   Meeting contract and retire the duplicate Meet guest-invitation feature flag.
 
+- 2026-09-29: Make subtitle starts retry CAS conflicts idempotently for the
+  same provider, reserve 409 for an active provider switch, and keep the
+  default control provider as legacy until the provider-specific integration
+  lands. Add concurrent-start and provider-scoped kill-switch coverage.
+
 - 2026-09-29: Harden Backend B subtitle convergence: repeated starts are
   idempotent, provider changes return 409, dispatch generations and exact
   agent identity fence cleanup, OFF transitions use list-delete-list, late

@@ -1433,7 +1433,7 @@ class Base(Configuration):
         environ_prefix=None,
     )
     ROOM_SUBTITLE_PROVIDER = values.Value(
-        "openai",
+        "legacy",
         environ_name="ROOM_SUBTITLE_PROVIDER",
         environ_prefix=None,
     )
