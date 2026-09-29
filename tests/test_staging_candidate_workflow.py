@@ -176,6 +176,8 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             r"(?ms)^  ci-contracts:\n(?P<job>.*?)(?=^  [\w-]+:\n)", workflow
         )
         self.assertIsNotNone(ci_contracts)
+        self.assertIn("uses: azure/setup-helm@v4", ci_contracts.group("job"))
+        self.assertIn("version: v3.18.4", ci_contracts.group("job"))
         self.assertIn(
             "run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh",
             ci_contracts.group("job"),

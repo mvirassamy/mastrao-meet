@@ -40,4 +40,14 @@ if printf '%s\n' "$digest_rendered" | grep -A 1 'name: "OPENAI_API_KEY"' | grep 
 fi
 printf '%s\n' "$tag_rendered" | grep -Fq 'image: "lasuite/meet-agents:latest"'
 
+if render_chart --set agentSubtitles.image.digest=latest >/dev/null 2>&1; then
+  echo "invalid_agent_digest_rendered" >&2
+  exit 1
+fi
+if render_chart --set-string agentSubtitles.envVars.OPENAI_API_KEY=sk-literal \
+  >/dev/null 2>&1; then
+  echo "openai_key_literal_rendered" >&2
+  exit 1
+fi
+
 echo "agent_subtitles_image_and_openai_secret_ok"

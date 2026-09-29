@@ -1,6 +1,18 @@
 {{- $envVars := include "meet.common.env" (list . .Values.agentSubtitles) -}}
 {{- $fullName := include "meet.agentSubtitles.fullname" . -}}
 {{- $component := "agent-subtitles" -}}
+{{- with .Values.agentSubtitles.image.digest }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .) }}
+{{- fail "agentSubtitles.image.digest must be sha256:<64 lowercase hex characters>" }}
+{{- end }}
+{{- end }}
+{{- $agentEnv := .Values.agentSubtitles.envVars | default dict }}
+{{- if hasKey $agentEnv "OPENAI_API_KEY" }}
+{{- $openaiKey := get $agentEnv "OPENAI_API_KEY" }}
+{{- if not (and (kindIs "map" $openaiKey) (hasKey $openaiKey "secretKeyRef")) }}
+{{- fail "agentSubtitles.envVars.OPENAI_API_KEY must be provided through secretKeyRef" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
