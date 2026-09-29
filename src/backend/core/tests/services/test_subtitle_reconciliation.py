@@ -63,8 +63,22 @@ def mock_livekit_client():
     with mock.patch("core.utils.create_livekit_client") as create_client:
         client = mock.AsyncMock()
         client.agent_dispatch.list_dispatch = mock.AsyncMock(return_value=[])
+
+        async def create_dispatch(request):
+            # LiveKit lists a created dispatch with the exact metadata it got.
+            created = mock.Mock(
+                id="AD_created",
+                agent_name=request.agent_name,
+                metadata=request.metadata,
+            )
+            client.agent_dispatch.list_dispatch.return_value = [
+                *client.agent_dispatch.list_dispatch.return_value,
+                created,
+            ]
+            return created
+
         client.agent_dispatch.create_dispatch = mock.AsyncMock(
-            return_value=_dispatch("AD_created")
+            side_effect=create_dispatch
         )
         client.agent_dispatch.delete_dispatch = mock.AsyncMock()
         client.room.send_data = mock.AsyncMock()
@@ -137,13 +151,11 @@ def test_reconcile_dispatches_and_persists_observation(  # pylint: disable=unuse
     mock_livekit_client.agent_dispatch.create_dispatch.assert_awaited_once()
 
 
-def test_robust_convergence_adopts_legacy_dispatch_without_creating_another(
+def test_convergence_adopts_legacy_dispatch_without_creating_another(
     mock_livekit_client,
-    settings,
 ):
-    """The rollout path adopts one unannotated legacy dispatch."""
+    """Convergence adopts one unannotated legacy dispatch."""
 
-    settings.ROOM_SUBTITLE_CONVERGENCE_ENABLED = True
     room = RoomFactory()
     control = _turn_on(ensure_subtitle_control(room, room_sid="RM_legacy_adopt"))
     legacy = _dispatch("AD_legacy")
@@ -155,13 +167,11 @@ def test_robust_convergence_adopts_legacy_dispatch_without_creating_another(
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
 
 
-def test_robust_convergence_deduplicates_exact_dispatch_metadata(
+def test_convergence_deduplicates_exact_dispatch_metadata(
     mock_livekit_client,
-    settings,
 ):
     """The deterministic winner remains after duplicate cleanup and relist."""
 
-    settings.ROOM_SUBTITLE_CONVERGENCE_ENABLED = True
     room = RoomFactory()
     control = _turn_on(ensure_subtitle_control(room, room_sid="RM_deduplicate"))
     first = _dispatch(

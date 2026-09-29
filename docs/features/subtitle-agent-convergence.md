@@ -4,26 +4,24 @@ This document describes the isolated subtitle-agent convergence path. It does
 not change the Meet audio/video media pipeline and it does not claim that a
 provider performed a real transcription.
 
-## Rollout
+## Convergence
 
-`ROOM_SUBTITLE_CONVERGENCE_ENABLED` is `false` by default. With the flag off,
-ON keeps the legacy list/create behavior; OFF cleanup is still serialized and
-always uses list-delete-list. Set the flag to `true` before a canary so the
-robust path is active for the canary itself. The robust path uses one exact
-LiveKit room SID, an exact dispatch metadata contract, a permanent PostgreSQL
-room-key registry, a process gate, and a dedicated PostgreSQL session advisory
-lock.
+Every ON and OFF convergence runs under one room-scoped PostgreSQL session
+advisory lock. It uses one exact LiveKit room SID, an exact dispatch metadata
+contract, a permanent PostgreSQL room-key registry and a process gate. OFF
+cleanup always uses list-delete-list.
 
-The uniqueness guarantee applies only while the flag is on and only for
-dispatches carrying the exact room, agent, provider, generation (and any
-deployment) metadata. Legacy unannotated dispatches are adopted when they are
-unambiguous; malformed metadata is treated as unsafe and remains visible as an
-ambiguous state.
+The uniqueness guarantee applies to dispatches carrying the exact room, agent,
+provider, generation (and any deployment) metadata. Legacy unannotated
+dispatches are adopted when they are unambiguous; malformed metadata is
+treated as unsafe and remains visible as an ambiguous state.
 
-## Rollback and operations
+## Operations
 
-To roll back the robust path, set
-`ROOM_SUBTITLE_CONVERGENCE_ENABLED=false` and continue draining OFF intents.
+Reconciliation and status-packet retries run on the `meet-backend` queue,
+not on the serial `mastrao-transcription` ASR worker, so a stop or a cleanup
+never waits behind a long transcription. To stop a provider, use the
+`subtitles_kill_switch` command and keep draining OFF intents.
 The registry is append-only: room SIDs never reuse advisory keys, and the
 namespace is configurable but must remain stable for a deployment. Lock
 contention is bounded; Celery is only a wakeup/retry mechanism and never the

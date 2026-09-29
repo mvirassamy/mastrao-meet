@@ -86,10 +86,22 @@ def mock_livekit_client():
             return_value=SimpleNamespace(rooms=[SimpleNamespace(sid="RM_api")])
         )
         mock_client.agent_dispatch.list_dispatch = mock.AsyncMock(return_value=[])
-        mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
-            return_value=SimpleNamespace(
-                id="AD_api", agent_name="multi-user-transcriber"
+
+        async def create_dispatch(request):
+            # LiveKit lists a created dispatch with the exact metadata it got.
+            created = SimpleNamespace(
+                id="AD_api",
+                agent_name=request.agent_name,
+                metadata=request.metadata,
             )
+            mock_client.agent_dispatch.list_dispatch.return_value = [
+                *mock_client.agent_dispatch.list_dispatch.return_value,
+                created,
+            ]
+            return created
+
+        mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
+            side_effect=create_dispatch
         )
         mock_create.return_value = mock_client
         yield mock_client
@@ -169,6 +181,8 @@ def test_start_subtitle_disabled_by_default(mock_livekit_token):
     assert response.json() == {"detail": "Not found."}
 
 
+# Provider convergence runs outside Django transactions by design.
+@pytest.mark.django_db(transaction=True)
 def test_start_subtitle_valid_token(
     settings, mock_livekit_client, mock_livekit_token, mock_room_id
 ):
@@ -198,6 +212,7 @@ def test_start_subtitle_valid_token(
     )
 
 
+@pytest.mark.django_db(transaction=True)
 def test_start_subtitle_is_idempotent_when_provider_is_already_active(
     settings, mock_livekit_client, mock_livekit_token, mock_room_id
 ):
@@ -221,20 +236,17 @@ def test_start_subtitle_is_idempotent_when_provider_is_already_active(
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
 
 
-@pytest.mark.parametrize("robust_convergence", [False, True])
 @pytest.mark.django_db(transaction=True)
 def test_two_concurrent_starts_same_provider_are_both_idempotent(
     settings,
     mock_livekit_client,
     mock_livekit_token,
     mock_room_id,
-    robust_convergence,
 ):
     """Two PostgreSQL transactions start one legacy provider dispatch."""
 
     settings.ROOM_SUBTITLE_ENABLED = True
     settings.CELERY_ENABLED = False
-    settings.ROOM_SUBTITLE_CONVERGENCE_ENABLED = robust_convergence
     room = RoomFactory(id=mock_room_id)
     ensure_subtitle_control(room, room_sid="RM_api")
     dispatches = []
@@ -246,22 +258,10 @@ def test_two_concurrent_starts_same_provider_are_both_idempotent(
 
     async def create_dispatch(request):
         with dispatch_lock:
-            if dispatches:
-                if robust_convergence:
-                    dispatch = SimpleNamespace(
-                        id=f"AD_concurrent_{len(dispatches)}",
-                        agent_name=request.agent_name,
-                        metadata=request.metadata,
-                    )
-                    dispatches.append(dispatch)
-                    return dispatch
-                raise TwirpError(
-                    msg="already exists",
-                    code="already_exists",
-                    status=409,
-                )
             dispatch = SimpleNamespace(
-                id="AD_concurrent",
+                id=f"AD_concurrent_{len(dispatches)}"
+                if dispatches
+                else "AD_concurrent",
                 agent_name=request.agent_name,
                 metadata=request.metadata,
             )
@@ -349,6 +349,7 @@ def test_start_subtitle_twirp_error(
     }
 
 
+@pytest.mark.django_db(transaction=True)
 def test_start_subtitle_allows_a_room_participant(
     settings, mock_livekit_client, mock_livekit_participant_token, mock_room_id
 ):

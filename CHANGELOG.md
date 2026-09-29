@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-09-29: Make exact subtitle-agent convergence the normal behavior and
+  retire the ROOM_SUBTITLE_CONVERGENCE_ENABLED flag, and run subtitle
+  reconciliation and status-packet retries on the generic backend queue so
+  stops and cleanup never wait behind serial ASR jobs.
+
 - 2026-09-29: Remove the subtitle start deadlock class by enforcing Room to
   Control row-lock order, separating durable intent from provider convergence,
   and adding a permanent exact room-key registry plus bounded PostgreSQL

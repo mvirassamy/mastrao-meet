@@ -17,6 +17,7 @@ from livekit import api
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from core import models, utils
+from core.tasks.subtitle import SUBTITLE_CONTROL_QUEUE
 
 from .subtitle_control import (
     SubtitleControlConflict,
@@ -127,12 +128,6 @@ def _is_room_dispatch(dispatch, room_sid):
         return True
     metadata = _dispatch_metadata(dispatch)
     return metadata is None or metadata.get("roomSid") == room_sid
-
-
-def _dispatch_ids(dispatches):
-    return [
-        str(dispatch.id) for dispatch in dispatches if getattr(dispatch, "id", None)
-    ]
 
 
 def _dispatch_metadata_json(room_sid, generation, provider):
@@ -293,14 +288,12 @@ async def _canonical_current_dispatch(  # noqa: PLR0913, PLR0917  # pylint: disa
     return winner
 
 
-async def _reconcile_provider_unlocked(  # noqa: PLR0911, PLR0912, PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements,too-many-branches
+async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements,too-many-branches
     room_name,
     room_sid,
     desired_state,
     generation,
     provider,
-    *,
-    robust=False,
 ):
     client = utils.create_livekit_client()
     try:
@@ -310,9 +303,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0911, PLR0912, PLR0913  # py
         ]
 
         if desired_state == models.RoomSubtitleControl.DesiredState.OFF:
-            if robust and any(
-                _dispatch_is_malformed(dispatch, room_sid) for dispatch in targeted
-            ):
+            if any(_dispatch_is_malformed(dispatch, room_sid) for dispatch in targeted):
                 raise SubtitleReconciliationAmbiguous(
                     "LiveKit subtitle dispatch metadata is malformed."
                 )
@@ -352,24 +343,18 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0911, PLR0912, PLR0913  # py
                     "LiveKit stale subtitle dispatch cleanup is ambiguous."
                 )
 
-        if robust:
-            canonical = await _canonical_current_dispatch(
-                client,
-                room_name,
-                room_sid,
-                generation,
-                provider,
-                targeted,
-            )
-            if canonical is not None:
-                return _ProviderResult(
-                    [str(canonical.id)],
-                    had_dispatches=True,
-                )
-        elif targeted:
+        canonical = await _canonical_current_dispatch(
+            client,
+            room_name,
+            room_sid,
+            generation,
+            provider,
+            targeted,
+        )
+        if canonical is not None:
             return _ProviderResult(
-                _dispatch_ids(targeted),
-                had_dispatches=bool(targeted),
+                [str(canonical.id)],
+                had_dispatches=True,
             )
 
         try:
@@ -401,25 +386,20 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0911, PLR0912, PLR0913  # py
                     if _is_room_dispatch(dispatch, room_sid)
                 ]
                 if confirmed:
-                    if robust:
-                        canonical = await _canonical_current_dispatch(
-                            client,
-                            room_name,
-                            room_sid,
-                            generation,
-                            provider,
-                            confirmed,
-                        )
-                        if canonical is None:
-                            raise SubtitleReconciliationAmbiguous(
-                                "LiveKit did not confirm the created subtitle dispatch."
-                            ) from None
-                        return _ProviderResult(
-                            [str(canonical.id)],
-                            had_dispatches=True,
-                        )
+                    canonical = await _canonical_current_dispatch(
+                        client,
+                        room_name,
+                        room_sid,
+                        generation,
+                        provider,
+                        confirmed,
+                    )
+                    if canonical is None:
+                        raise SubtitleReconciliationAmbiguous(
+                            "LiveKit did not confirm the created subtitle dispatch."
+                        ) from None
                     return _ProviderResult(
-                        _dispatch_ids(confirmed),
+                        [str(canonical.id)],
                         had_dispatches=True,
                     )
                 raise SubtitleProviderActive(
@@ -438,24 +418,19 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0911, PLR0912, PLR0913  # py
             for dispatch in await _list_dispatches(client, room_name)
             if _is_room_dispatch(dispatch, room_sid)
         ]
-        if robust:
-            canonical = await _canonical_current_dispatch(
-                client,
-                room_name,
-                room_sid,
-                generation,
-                provider,
-                confirmed,
-            )
-            if canonical is None:
-                raise SubtitleReconciliationAmbiguous(
-                    "LiveKit did not confirm the created subtitle dispatch."
-                )
-            return _ProviderResult([str(canonical.id)], had_dispatches=True)
-        return _ProviderResult(
-            _dispatch_ids(confirmed) or [str(dispatch_id)],
-            had_dispatches=True,
+        canonical = await _canonical_current_dispatch(
+            client,
+            room_name,
+            room_sid,
+            generation,
+            provider,
+            confirmed,
         )
+        if canonical is None:
+            raise SubtitleReconciliationAmbiguous(
+                "LiveKit did not confirm the created subtitle dispatch."
+            )
+        return _ProviderResult([str(canonical.id)], had_dispatches=True)
     finally:
         await client.aclose()
 
@@ -469,19 +444,8 @@ def _provider_reconcile(  # noqa: PLR0913  # pylint: disable=too-many-arguments,
     *,
     timeout=None,
 ):
-    """Run provider convergence with the rollout flag and OFF safety rules."""
+    """Run provider convergence under the room-scoped advisory lock."""
 
-    robust = bool(settings.ROOM_SUBTITLE_CONVERGENCE_ENABLED)
-    must_lock = robust or desired_state == models.RoomSubtitleControl.DesiredState.OFF
-    if not must_lock:
-        return async_to_sync(_reconcile_provider_unlocked)(
-            room_name,
-            room_sid,
-            desired_state,
-            generation,
-            provider,
-            robust=False,
-        )
     try:
         with try_subtitle_convergence_lock(room_sid, timeout=timeout) as lock:
             if lock is None:
@@ -492,7 +456,6 @@ def _provider_reconcile(  # noqa: PLR0913  # pylint: disable=too-many-arguments,
                 desired_state,
                 generation,
                 provider,
-                robust=robust,
             )
     except SubtitleLockUnavailable as error:
         raise SubtitleConvergenceBusy(room_sid) from error
@@ -538,7 +501,7 @@ def _schedule_snapshot_retry(room_id, attempt):
 
     process_subtitle_snapshot_publication.apply_async(
         args=[room_id, attempt + 1],
-        queue="mastrao-transcription",
+        queue=SUBTITLE_CONTROL_QUEUE,
         countdown=delay,
     )
 
@@ -932,7 +895,7 @@ def schedule_subtitle_reconciliation(room_sid, *, countdown=0):
     try:
         process_subtitle_reconciliation.apply_async(
             args=[room_sid],
-            queue="mastrao-transcription",
+            queue=SUBTITLE_CONTROL_QUEUE,
             countdown=countdown,
         )
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught

@@ -1437,11 +1437,6 @@ class Base(Configuration):
         environ_name="ROOM_SUBTITLE_PROVIDER",
         environ_prefix=None,
     )
-    ROOM_SUBTITLE_CONVERGENCE_ENABLED = values.BooleanValue(
-        False,
-        environ_name="ROOM_SUBTITLE_CONVERGENCE_ENABLED",
-        environ_prefix=None,
-    )
     ROOM_SUBTITLE_LOCK_NAMESPACE = values.IntegerValue(
         218,
         environ_name="ROOM_SUBTITLE_LOCK_NAMESPACE",

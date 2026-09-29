@@ -23,15 +23,29 @@ def mock_livekit_client():
             return_value=SimpleNamespace(rooms=[SimpleNamespace(sid="RM_service")])
         )
         mock_client.agent_dispatch.list_dispatch = mock.AsyncMock(return_value=[])
-        mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
-            return_value=SimpleNamespace(
-                id="AD_service", agent_name="fake-subtitle-agent-name"
+
+        async def create_dispatch(request):
+            # LiveKit lists a created dispatch with the exact metadata it got.
+            created = SimpleNamespace(
+                id="AD_service",
+                agent_name=request.agent_name,
+                metadata=request.metadata,
             )
+            mock_client.agent_dispatch.list_dispatch.return_value = [
+                *mock_client.agent_dispatch.list_dispatch.return_value,
+                created,
+            ]
+            return created
+
+        mock_client.agent_dispatch.create_dispatch = mock.AsyncMock(
+            side_effect=create_dispatch
         )
         mock_create.return_value = mock_client
         yield mock_client
 
 
+# Provider convergence runs outside Django transactions by design.
+@pytest.mark.django_db(transaction=True)
 def test_start_subtitle_settings(mock_livekit_client, settings):
     """Test that start_subtitle uses the configured agent name from Django settings."""
 
