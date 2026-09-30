@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-01: Restore the exact managed Mistral transcription contract after
+  the diarization merge so Platform submissions reach the post-meeting worker.
+
 - 2026-10-01: Remove the in-video captions control from the meeting bar and
   present live transcript entries as compact speaker bubbles inside meeting
   tools.
