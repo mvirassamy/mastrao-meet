@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-01: Give the live subtitle agent a writable, memory-backed `/tmp`
+  capped at 256 MiB while preserving its read-only root filesystem, and
+  document the temporary staging placement on the `capture` node pool.
+
 - 2026-09-30: Start the live subtitle intent when opening the live transcript,
   deduplicate concurrent CC/panel requests, and gate controls on runtime
   subtitle capability.

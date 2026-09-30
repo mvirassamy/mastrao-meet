@@ -38,7 +38,9 @@ if command -v helm >/dev/null 2>&1; then
 else
   digest_rendered="$(render_chart -f /work/tests/fixtures/agent-subtitles-openai.yaml)"
 fi
-tag_rendered="$(render_chart)"
+tag_rendered="$(
+  render_chart --set agentSubtitles.securityContext.readOnlyRootFilesystem=true
+)"
 
 digest="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 image="rg.fr-par.scw.cloud/mastrao-staging/meet-agents@$digest"
@@ -52,6 +54,11 @@ if printf '%s\n' "$digest_rendered" | grep -A 1 'name: "OPENAI_API_KEY"' | grep 
   exit 1
 fi
 printf '%s\n' "$tag_rendered" | grep -Fq 'image: "lasuite/meet-agents:latest"'
+printf '%s\n' "$tag_rendered" | grep -Fq 'readOnlyRootFilesystem: true'
+test "$(printf '%s\n' "$tag_rendered" | grep -Fc 'name: runtime-tmp')" -eq 2
+printf '%s\n' "$tag_rendered" | grep -A 2 'name: runtime-tmp' | grep -Fq 'mountPath: /tmp'
+printf '%s\n' "$tag_rendered" | grep -A 3 'name: runtime-tmp' | grep -Fq 'medium: "Memory"'
+printf '%s\n' "$tag_rendered" | grep -A 3 'name: runtime-tmp' | grep -Fq 'sizeLimit: "256Mi"'
 
 digest_error="agentSubtitles.image.digest must be sha256"
 secret_error="OPENAI_API_KEY must be only a secretKeyRef with name and key"
