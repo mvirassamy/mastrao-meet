@@ -327,7 +327,7 @@ def test_managed_profile_requires_v3_reservation(settings):
 @pytest.mark.parametrize(
     ("profile_ref", "suffix"),
     [
-        ("mistral-eu-standard-native-test-v1", "managed_demo_01234"),
+        ("mistral-eu-standard-managed-demo-v1", "managed_demo_01234"),
         ("mistral-eu-zdr-voxtral-mini-2602-canary-v1", "managed_zdr_m_0123"),
         ("openai-eu-zdr-gpt-transcribe-canary-v1", "managed_zdr_o_0123"),
     ],
@@ -348,7 +348,7 @@ def test_managed_v3_accepts_each_platform_profile(settings, profile_ref, suffix)
 def test_managed_demo_profile_cannot_claim_zero_data_retention(settings):
     binding = _finalized_recording_binding("managed_demo_zdr_01")
     effect = _contract_effect(binding, settings, operation_version=3)
-    profile_ref = "mistral-eu-standard-native-test-v1"
+    profile_ref = "mistral-eu-standard-managed-demo-v1"
     effect.update(asr_profile_ref=profile_ref, **MANAGED_PROFILE_BINDINGS[profile_ref])
     # A standard-retention demo must never pass as the ZDR-approved profile.
     effect["data_control_ref"] = "mistral-zdr-approved-v1"

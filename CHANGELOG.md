@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-30: Align the managed Mistral demo transcription profile reference
+  and digest with the exact Platform contract.
+
 - 2026-09-30: Preserve a finalized recording artifact when room closure races
   with the final internal recording-status save.
 
