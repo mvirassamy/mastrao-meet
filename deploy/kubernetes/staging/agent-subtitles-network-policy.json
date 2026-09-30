@@ -1,0 +1,93 @@
+{
+  "apiVersion": "cilium.io/v2",
+  "kind": "CiliumNetworkPolicy",
+  "metadata": {
+    "name": "metadata-collector-private-v1",
+    "namespace": "mastrao-staging"
+  },
+  "spec": {
+    "egress": [
+      {
+        "toEndpoints": [
+          {
+            "matchLabels": {
+              "k8s:io.kubernetes.pod.namespace": "kube-system",
+              "k8s:k8s-app": "kube-dns"
+            }
+          }
+        ],
+        "toPorts": [
+          {
+            "ports": [
+              {
+                "port": "53",
+                "protocol": "ANY"
+              }
+            ],
+            "rules": {
+              "dns": [
+                {
+                  "matchName": "livekit-signal.mastrao-staging.svc.cluster.local"
+                },
+                {
+                  "matchName": "api.openai.com"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "toEntities": [
+          "remote-node",
+          "host"
+        ],
+        "toPorts": [
+          {
+            "ports": [
+              {
+                "port": "7880",
+                "protocol": "TCP"
+              },
+              {
+                "port": "7881",
+                "protocol": "TCP"
+              },
+              {
+                "port": "7882",
+                "protocol": "UDP"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "toFQDNs": [
+          {
+            "matchName": "api.openai.com"
+          }
+        ],
+        "toPorts": [
+          {
+            "ports": [
+              {
+                "port": "443",
+                "protocol": "TCP"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "enableDefaultDeny": {
+      "egress": true,
+      "ingress": true
+    },
+    "endpointSelector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "metadata-collector"
+      }
+    },
+    "ingress": []
+  }
+}
