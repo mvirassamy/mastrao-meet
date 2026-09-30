@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-09-30: Accept the managed Mistral demo transcription profile while
+  preserving the separate native test profile contract.
+
 - 2026-09-30: Preserve a finalized recording artifact when room closure races
   with the final internal recording-status save.
 

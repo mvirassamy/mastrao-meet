@@ -148,6 +148,15 @@ V2_PROFILE_MANIFEST = {
 MANAGED_PROFILE_BINDINGS = {
     # Staging demo on Mistral's EU endpoint with standard retention: only
     # fictional test data, never presented as a zero-data-retention profile.
+    "mistral-eu-standard-managed-demo-v1": {
+        "asr_provider_ref": "mistral",
+        "requested_model_ref": "voxtral-mini-2602",
+        "processing_region_ref": "mistral-eu",
+        "data_control_ref": "mistral-standard-retention-test-data-v1",
+        "request_config_digest": "5e835721dbe255ce5624926927b0363f6529f41d8197750e5950942b5accca65",
+        "asr_profile_digest": "6c7483beb3aa6119bc81e046d989b51bc78dd3aa47652ba8c429d5a6a440b3b7",
+        "tariff_catalog_version": "asr-tariff-v2",
+    },
     "mistral-eu-standard-native-test-v1": {
         "asr_provider_ref": "mistral",
         "requested_model_ref": "voxtral-mini-2602",
