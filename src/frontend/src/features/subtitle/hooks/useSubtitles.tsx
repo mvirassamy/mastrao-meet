@@ -1,24 +1,19 @@
 import { useSnapshot } from 'valtio'
 import { layoutStore } from '@/stores/layout'
-import { useStartSubtitle } from '../api/startSubtitle'
-import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
 import { useRoomContext } from '@livekit/components-react'
 import { useEffect } from 'react'
 import { RoomEvent } from 'livekit-client'
+import { useLiveTranscription } from '../store/liveTranscriptionContext'
 
 export const useSubtitles = () => {
   const layoutSnap = useSnapshot(layoutStore)
 
   const room = useRoomContext()
-  const apiRoomData = useRoomData()
-  const { mutateAsync: startSubtitleRoom, isPending } = useStartSubtitle()
+  const { ensureSubtitleStarted, subtitleStartStatus } = useLiveTranscription()
 
   const toggleSubtitles = async () => {
-    if (!layoutSnap.showSubtitles && apiRoomData?.livekit) {
-      await startSubtitleRoom({
-        id: apiRoomData?.livekit?.room,
-        token: apiRoomData?.livekit?.token,
-      })
+    if (!layoutSnap.showSubtitles) {
+      await ensureSubtitleStarted()
     }
 
     layoutStore.showSubtitles = !layoutSnap.showSubtitles
@@ -39,6 +34,6 @@ export const useSubtitles = () => {
   return {
     areSubtitlesOpen: layoutSnap.showSubtitles,
     toggleSubtitles,
-    areSubtitlesPending: isPending,
+    areSubtitlesPending: subtitleStartStatus === 'pending',
   }
 }

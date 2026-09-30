@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
 
 const syncSubtitleState = vi.fn()
+const ensureSubtitleStarted = vi.fn()
 const useLiveTranscriptionMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../store/liveTranscriptionContext', () => ({
@@ -86,15 +87,22 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+const liveTranscriptionState = (overrides: Record<string, unknown> = {}) => ({
+  status: 'live',
+  connectionStatus: 'connected',
+  resyncStatus: 'idle',
+  segments: [],
+  ensureSubtitleStarted,
+  subtitleStartStatus: 'idle',
+  syncSubtitleState,
+  ...overrides,
+})
+
 describe('LiveTranscriptSidePanel', () => {
   it('shows connection, transcript state, and progressive segments', () => {
-    useLiveTranscriptionMock.mockReturnValue({
-      status: 'live',
-      connectionStatus: 'connected',
-      resyncStatus: 'idle',
-      segments: [segment],
-      syncSubtitleState,
-    })
+    useLiveTranscriptionMock.mockReturnValue(
+      liveTranscriptionState({ segments: [segment] })
+    )
 
     render(<LiveTranscriptSidePanel />)
 
@@ -107,20 +115,18 @@ describe('LiveTranscriptSidePanel', () => {
     expect(screen.getByTestId('live-transcript-panel')).toBeTruthy()
   })
 
-  it('offers retry when the state refresh failed', () => {
-    useLiveTranscriptionMock.mockReturnValue({
-      status: 'live',
-      connectionStatus: 'connected',
-      resyncStatus: 'failed',
-      segments: [],
-      syncSubtitleState,
-    })
+  it('offers retry when the state refresh failed', async () => {
+    ensureSubtitleStarted.mockResolvedValue(undefined)
+    useLiveTranscriptionMock.mockReturnValue(
+      liveTranscriptionState({ resyncStatus: 'failed' })
+    )
 
     render(<LiveTranscriptSidePanel />)
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(screen.getByRole('alert').textContent).toContain('Refresh failed')
-    expect(syncSubtitleState).toHaveBeenCalledOnce()
+    expect(ensureSubtitleStarted).toHaveBeenCalledOnce()
+    await waitFor(() => expect(syncSubtitleState).toHaveBeenCalledOnce())
   })
 
   it('disables retry while a refresh is in flight', async () => {
@@ -131,13 +137,10 @@ describe('LiveTranscriptSidePanel', () => {
           resolveRefresh = resolve
         })
     )
-    useLiveTranscriptionMock.mockReturnValue({
-      status: 'live',
-      connectionStatus: 'connected',
-      resyncStatus: 'failed',
-      segments: [],
-      syncSubtitleState,
-    })
+    ensureSubtitleStarted.mockResolvedValue(undefined)
+    useLiveTranscriptionMock.mockReturnValue(
+      liveTranscriptionState({ resyncStatus: 'failed' })
+    )
 
     render(<LiveTranscriptSidePanel />)
     const retryButton = screen.getByRole('button', {
@@ -148,5 +151,20 @@ describe('LiveTranscriptSidePanel', () => {
     await waitFor(() => expect(retryButton.disabled).toBe(true))
     resolveRefresh?.()
     await waitFor(() => expect(retryButton.disabled).toBe(false))
+  })
+
+  it('shows a retry action when starting transcription fails', async () => {
+    ensureSubtitleStarted.mockResolvedValue(undefined)
+    syncSubtitleState.mockResolvedValue(undefined)
+    useLiveTranscriptionMock.mockReturnValue(
+      liveTranscriptionState({ subtitleStartStatus: 'error' })
+    )
+
+    render(<LiveTranscriptSidePanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(screen.getByRole('alert').textContent).toContain('Refresh failed')
+    await waitFor(() => expect(ensureSubtitleStarted).toHaveBeenCalledOnce())
+    expect(syncSubtitleState).toHaveBeenCalledOnce()
   })
 })

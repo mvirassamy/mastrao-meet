@@ -25,6 +25,11 @@ export type LiveTranscriptionConnectionStatus =
 
 export type LiveTranscriptionSegmentState = 'interim' | 'final'
 export type LiveTranscriptionResyncStatus = 'idle' | 'pending' | 'failed'
+export type LiveTranscriptionStartStatus =
+  | 'idle'
+  | 'pending'
+  | 'error'
+  | 'success'
 export type LiveTranscriptionMetadataSource =
   | 'envelope'
   | 'livekit-attributes'

@@ -4,6 +4,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
   type ReactNode,
 } from 'react'
 import { useRoomContext } from '@livekit/components-react'
@@ -28,10 +29,12 @@ import {
   LIVE_TRANSCRIPTION_GAP_TOPIC,
   LIVE_TRANSCRIPTION_STATE_TOPIC,
   LIVE_TRANSCRIPTION_TOPIC,
+  type LiveTranscriptionStartStatus,
   type LiveTranscriptionTextStreamReader,
   type LiveTranscriptionTransportEvent,
 } from './liveTranscriptionTypes'
 import { LiveTranscriptionContext } from './liveTranscriptionContext'
+import { useStartSubtitle } from '../api/startSubtitle'
 
 const getRoomId = (room: ReturnType<typeof useRoomContext>) =>
   room.name || 'unknown-room'
@@ -50,6 +53,8 @@ export const LiveTranscriptionProvider = ({
   const subtitleTokenRef = useRef(subtitleToken)
   const subtitleStateRequestIdRef = useRef(0)
   const handledResyncRequestRef = useRef<string | null>(null)
+  const subtitleStartRequestRef = useRef<Promise<void> | null>(null)
+  const subtitleStartSucceededKeyRef = useRef<string | null>(null)
   subtitleRoomIdRef.current = subtitleRoomId
   subtitleTokenRef.current = subtitleToken
   const [state, dispatch] = useReducer(
@@ -57,6 +62,66 @@ export const LiveTranscriptionProvider = ({
     roomId,
     createLiveTranscriptionState
   )
+  const { mutateAsync: startSubtitle } = useStartSubtitle()
+  const [subtitleStartStatus, setSubtitleStartStatus] =
+    useState<LiveTranscriptionStartStatus>('idle')
+
+  const ensureSubtitleStarted = useCallback(() => {
+    if (
+      state.status === 'starting' ||
+      state.status === 'live' ||
+      state.status === 'reconnecting' ||
+      state.status === 'degraded'
+    ) {
+      return Promise.resolve()
+    }
+
+    if (subtitleStartRequestRef.current) {
+      return subtitleStartRequestRef.current
+    }
+
+    const currentToken = subtitleTokenRef.current
+    const currentRoomId = subtitleRoomIdRef.current
+    const startKey = `${currentRoomId}:${currentToken ?? ''}`
+    if (subtitleStartSucceededKeyRef.current === startKey) {
+      return Promise.resolve()
+    }
+    if (!currentToken) {
+      setSubtitleStartStatus('error')
+      return Promise.reject(new Error('Missing LiveKit room token'))
+    }
+
+    setSubtitleStartStatus('pending')
+    const request = startSubtitle({
+      id: currentRoomId,
+      token: currentToken,
+    })
+      .then(() => {
+        subtitleStartSucceededKeyRef.current = startKey
+        setSubtitleStartStatus('success')
+      })
+      .catch((error: unknown) => {
+        setSubtitleStartStatus('error')
+        throw error
+      })
+      .finally(() => {
+        if (subtitleStartRequestRef.current === request) {
+          subtitleStartRequestRef.current = null
+        }
+      })
+    subtitleStartRequestRef.current = request
+    return request
+  }, [startSubtitle, state.status])
+
+  useEffect(() => {
+    if (
+      state.status === 'inactive' ||
+      state.status === 'stopped' ||
+      state.status === 'unavailable'
+    ) {
+      subtitleStartSucceededKeyRef.current = null
+    }
+  }, [state.status])
 
   const syncSubtitleState = useCallback(async () => {
     const requestId = ++subtitleStateRequestIdRef.current
@@ -212,8 +277,14 @@ export const LiveTranscriptionProvider = ({
   ])
 
   const value = useMemo(
-    () => ({ ...state, dispatch, syncSubtitleState }),
-    [state, syncSubtitleState]
+    () => ({
+      ...state,
+      dispatch,
+      ensureSubtitleStarted,
+      subtitleStartStatus,
+      syncSubtitleState,
+    }),
+    [ensureSubtitleStarted, state, subtitleStartStatus, syncSubtitleState]
   )
   return (
     <LiveTranscriptionContext.Provider value={value}>

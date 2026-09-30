@@ -1,11 +1,14 @@
 import { createContext, useContext } from 'react'
 import type {
   LiveTranscriptionAction,
+  LiveTranscriptionStartStatus,
   LiveTranscriptionState,
 } from './liveTranscriptionTypes'
 
 export type LiveTranscriptionContextValue = LiveTranscriptionState & {
   dispatch: (action: LiveTranscriptionAction) => void
+  ensureSubtitleStarted: () => Promise<void>
+  subtitleStartStatus: LiveTranscriptionStartStatus
   syncSubtitleState: () => Promise<void>
 }
 

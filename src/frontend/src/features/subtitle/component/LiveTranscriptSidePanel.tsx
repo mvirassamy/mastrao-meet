@@ -141,17 +141,26 @@ export const LiveTranscriptSidePanel = () => {
     connectionStatus,
     resyncStatus,
     segments,
+    ensureSubtitleStarted,
+    subtitleStartStatus,
     syncSubtitleState,
   } = useLiveTranscription()
 
-  const isRetrying = resyncStatus === 'pending' || isRetryingLocally
+  const hasError = resyncStatus === 'failed' || subtitleStartStatus === 'error'
+  const isRetrying =
+    resyncStatus === 'pending' ||
+    subtitleStartStatus === 'pending' ||
+    isRetryingLocally
   const hasSegments = segments.length > 0
 
   const handleRetry = async () => {
     if (isRetrying) return
     setIsRetryingLocally(true)
     try {
+      await ensureSubtitleStarted()
       await syncSubtitleState()
+    } catch {
+      // The shared start mutation exposes the failure in this panel.
     } finally {
       setIsRetryingLocally(false)
     }
@@ -175,7 +184,7 @@ export const LiveTranscriptSidePanel = () => {
         statusLabelTitle={t('statusLabel')}
       />
 
-      {resyncStatus === 'failed' && (
+      {hasError && (
         <div
           className={css({
             display: 'flex',

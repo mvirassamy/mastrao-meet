@@ -1,4 +1,4 @@
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DataPacket_Kind, RoomEvent } from 'livekit-client'
@@ -6,12 +6,24 @@ import { LiveTranscriptionProvider } from './LiveTranscriptionProvider'
 import { useLiveTranscription } from './liveTranscriptionContext'
 import { LIVE_TRANSCRIPTION_STATE_TOPIC } from './liveTranscriptionTypes'
 
-const { fetchSubtitleStateMock, useRoomContextMock, useRoomDataMock } =
-  vi.hoisted(() => ({
-    fetchSubtitleStateMock: vi.fn(),
-    useRoomContextMock: vi.fn(),
-    useRoomDataMock: vi.fn(),
-  }))
+const {
+  fetchSubtitleStateMock,
+  startSubtitleMock,
+  useRoomContextMock,
+  useRoomDataMock,
+} = vi.hoisted(() => ({
+  fetchSubtitleStateMock: vi.fn(),
+  startSubtitleMock: vi.fn(),
+  useRoomContextMock: vi.fn(),
+  useRoomDataMock: vi.fn(),
+}))
+
+vi.mock('../api/startSubtitle', () => ({
+  useStartSubtitle: () => ({
+    mutateAsync: startSubtitleMock,
+    status: 'idle',
+  }),
+}))
 
 vi.mock('../api/fetchSubtitleState', () => ({
   fetchSubtitleState: fetchSubtitleStateMock,
@@ -57,9 +69,13 @@ const createRoom = () => {
 }
 
 const Probe = () => {
-  const { segments, status, resyncStatus } = useLiveTranscription()
+  const { ensureSubtitleStarted, segments, status, resyncStatus } =
+    useLiveTranscription()
   return (
     <>
+      <button type="button" onClick={() => void ensureSubtitleStarted()}>
+        Start
+      </button>
       <output data-testid="transcription-state">
         {status}:
         {segments
@@ -98,6 +114,7 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  startSubtitleMock.mockResolvedValue(undefined)
   fetchSubtitleStateMock.mockResolvedValue({
     subtitle: {
       state: 'unknown',
@@ -113,6 +130,57 @@ beforeEach(() => {
 })
 
 describe('LiveTranscriptionProvider', () => {
+  it('deduplicates concurrent starts from the panel and compact captions', async () => {
+    const { room } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-api-id', token: 'livekit-token' },
+    })
+    let resolveStart: (() => void) | undefined
+    startSubtitleMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStart = resolve
+        })
+    )
+    const view = render(
+      <App>
+        <Probe />
+      </App>
+    )
+
+    fireEvent.click(view.getByRole('button', { name: 'Start' }))
+    fireEvent.click(view.getByRole('button', { name: 'Start' }))
+
+    expect(startSubtitleMock).toHaveBeenCalledOnce()
+    expect(startSubtitleMock).toHaveBeenCalledWith({
+      id: 'room-api-id',
+      token: 'livekit-token',
+    })
+    await act(async () => resolveStart?.())
+  })
+
+  it('reuses a successful start while backend state propagation is pending', async () => {
+    const { room } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-api-id', token: 'livekit-token' },
+    })
+    const view = render(
+      <App>
+        <Probe />
+      </App>
+    )
+
+    await act(async () => {
+      fireEvent.click(view.getByRole('button', { name: 'Start' }))
+      await Promise.resolve()
+    })
+    fireEvent.click(view.getByRole('button', { name: 'Start' }))
+
+    expect(startSubtitleMock).toHaveBeenCalledOnce()
+  })
+
   it('listens to the transcript and gap topics and releases both', async () => {
     const { room } = createRoom()
     useRoomContextMock.mockReturnValue(room)

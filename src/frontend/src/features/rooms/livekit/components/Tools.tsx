@@ -13,6 +13,7 @@ import {
 import { useConfig } from '@/api/useConfig'
 import { LiveTranscriptSidePanel } from '@/features/subtitle/component/LiveTranscriptSidePanel'
 import { useAreSubtitlesAvailable } from '@/features/subtitle/hooks/useAreSubtitlesAvailable'
+import { useLiveTranscription } from '@/features/subtitle/store/liveTranscriptionContext'
 
 export interface ToolsButtonProps {
   icon: ReactNode
@@ -116,6 +117,14 @@ export const Tools = () => {
     isSidePanelOpen,
   } = useSidePanel()
   const { t } = useTranslation('rooms', { keyPrefix: 'moreTools' })
+  const { ensureSubtitleStarted, syncSubtitleState } = useLiveTranscription()
+
+  const handleOpenLiveTranscript = () => {
+    openLiveTranscript()
+    void ensureSubtitleStarted()
+      .then(syncSubtitleState)
+      .catch(() => undefined)
+  }
 
   // Restore focus to the element that opened the Tools panel
   // following the same pattern as Chat.
@@ -200,7 +209,7 @@ export const Tools = () => {
           icon={<Icon name="speech_to_text" />}
           title={t('tools.liveTranscript.title')}
           description={t('tools.liveTranscript.body')}
-          onPress={() => openLiveTranscript()}
+          onPress={handleOpenLiveTranscript}
         />
       )}
       {isScreenRecordingEnabled && (
