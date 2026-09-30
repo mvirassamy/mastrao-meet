@@ -12,6 +12,14 @@ import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
 const syncSubtitleState = vi.fn()
 const ensureSubtitlesStarted = vi.fn()
 const useLiveTranscriptionMock = vi.hoisted(() => vi.fn())
+const roomMock = vi.hoisted(() => ({
+  localParticipant: { identity: 'local', name: 'Local participant' },
+  getParticipantByIdentity: vi.fn(),
+}))
+
+vi.mock('@livekit/components-react', () => ({
+  useRoomContext: () => roomMock,
+}))
 
 vi.mock('../store/liveTranscriptionContext', () => ({
   useLiveTranscription: useLiveTranscriptionMock,
@@ -36,6 +44,7 @@ vi.mock('react-i18next', () => ({
         startError: 'Start failed',
         retry: 'Retry',
         refreshing: 'Refreshing',
+        unknown: 'Unknown participant',
       })[key] ?? key,
   }),
 }))
@@ -94,6 +103,11 @@ afterEach(() => {
 
 beforeEach(() => {
   ensureSubtitlesStarted.mockResolvedValue(undefined)
+  roomMock.getParticipantByIdentity.mockImplementation((identity: string) =>
+    identity === 'alice'
+      ? { identity: 'alice', name: 'Alice Martin' }
+      : undefined
+  )
 })
 
 describe('LiveTranscriptSidePanel', () => {
@@ -127,8 +141,26 @@ describe('LiveTranscriptSidePanel', () => {
     expect(
       screen.getByRole('log', { name: 'Live transcript segments' }).textContent
     ).toContain('Hello from the meeting')
+    expect(screen.getByText('Alice Martin')).toBeTruthy()
+    expect(screen.queryByText('alice')).toBeNull()
     expect(screen.getByText('In progress')).toBeTruthy()
     expect(screen.getByTestId('live-transcript-panel')).toBeTruthy()
+  })
+
+  it('uses a readable fallback when the LiveKit participant is unavailable', () => {
+    roomMock.getParticipantByIdentity.mockReturnValue(undefined)
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [{ ...segment, participantIdentity: 'user_9d46b8f2' }],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Unknown participant')).toBeTruthy()
+    expect(screen.queryByText('user_9d46b8f2')).toBeNull()
   })
 
   it('offers retry when the state refresh failed', () => {
