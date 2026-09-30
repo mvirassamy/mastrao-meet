@@ -108,6 +108,7 @@ def _apply_tombstone(closure_id, effect):
     if (
         recording_binding
         and recording_binding.recording
+        and recording_binding.state != models.MastraoRecordingBinding.State.FINALIZED
         and recording_binding.recording.status == models.RecordingStatusChoices.ACTIVE
     ):
         try:
