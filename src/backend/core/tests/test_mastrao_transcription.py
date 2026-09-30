@@ -327,6 +327,7 @@ def test_managed_profile_requires_v3_reservation(settings):
 @pytest.mark.parametrize(
     ("profile_ref", "suffix"),
     [
+        ("mistral-eu-standard-managed-demo-v1", "managed_deploy_0123"),
         ("mistral-eu-standard-native-test-v1", "managed_demo_01234"),
         ("mistral-eu-zdr-voxtral-mini-2602-canary-v1", "managed_zdr_m_0123"),
         ("openai-eu-zdr-gpt-transcribe-canary-v1", "managed_zdr_o_0123"),
@@ -345,13 +346,20 @@ def test_managed_v3_accepts_each_platform_profile(settings, profile_ref, suffix)
         assert verify_transcription_submit_effect("header.payload.signature") == effect
 
 
-def test_managed_demo_profile_cannot_claim_zero_data_retention(settings):
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("asr_profile_digest", "0" * 64),
+        ("data_control_ref", "mistral-zdr-approved-v1"),
+        ("asr_profile_ref", "mistral-eu-standard-native-test-v1"),
+    ],
+)
+def test_managed_demo_profile_refuses_divergent_binding(settings, field, value):
     binding = _finalized_recording_binding("managed_demo_zdr_01")
     effect = _contract_effect(binding, settings, operation_version=3)
-    profile_ref = "mistral-eu-standard-native-test-v1"
+    profile_ref = "mistral-eu-standard-managed-demo-v1"
     effect.update(asr_profile_ref=profile_ref, **MANAGED_PROFILE_BINDINGS[profile_ref])
-    # A standard-retention demo must never pass as the ZDR-approved profile.
-    effect["data_control_ref"] = "mistral-zdr-approved-v1"
+    effect[field] = value
     effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
     with (
         mock.patch(
@@ -361,6 +369,17 @@ def test_managed_demo_profile_cannot_claim_zero_data_retention(settings):
         pytest.raises(TranscriptionContractRefused),
     ):
         verify_transcription_submit_effect("header.payload.signature")
+
+
+def test_managed_demo_profile_does_not_alias_native_test_profile():
+    managed_demo = MANAGED_PROFILE_BINDINGS["mistral-eu-standard-managed-demo-v1"]
+    native_test = MANAGED_PROFILE_BINDINGS["mistral-eu-standard-native-test-v1"]
+
+    assert managed_demo["asr_profile_digest"] == (
+        "6c7483beb3aa6119bc81e046d989b51bc78dd3aa47652ba8c429d5a6a440b3b7"
+    )
+    assert managed_demo is not native_test
+    assert managed_demo["asr_profile_digest"] != native_test["asr_profile_digest"]
 
 
 def test_fake_asr_is_deterministic_and_schema_valid():
