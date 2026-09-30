@@ -15,3 +15,11 @@ kubectl --context "$KUBE_CONTEXT" apply \
 
 Review `kubectl diff` against the same file before the supervised apply. A Meet
 image rollout updates only the Deployments and must leave this policy intact.
+
+## Live transcription worker placement
+
+The staging `agent-subtitles` worker currently runs on the `capture` node pool
+because the `general` pool reported `DiskPressure` during the live transcription
+canary. This is a temporary operational placement. Keep
+`agentSubtitles.nodeSelector` unset in the chart defaults and move the worker
+back to the intended general-purpose pool after its disk pressure is resolved.

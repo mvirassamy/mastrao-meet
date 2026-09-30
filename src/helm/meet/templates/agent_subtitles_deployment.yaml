@@ -79,6 +79,8 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
             {{- range $index, $value := .Values.mountFiles }}
             - name: "files-{{ $index }}"
               mountPath: {{ $value.path }}
@@ -107,6 +109,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
+        - name: runtime-tmp
+          emptyDir:
+            medium: {{ .Values.agentSubtitles.runtimeTmp.medium | quote }}
+            sizeLimit: {{ .Values.agentSubtitles.runtimeTmp.sizeLimit | quote }}
         {{- range $index, $value := .Values.agentSubtitles.mountFiles }}
         - name: "files-{{ $index }}"
           configMap:

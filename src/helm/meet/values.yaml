@@ -1397,6 +1397,12 @@ agentSubtitles:
   ## @param agentSubtitles.resources Resource requirements for the agentSubtitles container
   resources: {}
 
+  ## @param agentSubtitles.runtimeTmp.medium Storage medium for the writable /tmp volume required by LiveKit worker processes
+  ## @param agentSubtitles.runtimeTmp.sizeLimit Maximum size of the writable /tmp volume
+  runtimeTmp:
+    medium: Memory
+    sizeLimit: 256Mi
+
   ## @param agentSubtitles.nodeSelector Node selector for the agentSubtitles Pod
   nodeSelector: {}
 
