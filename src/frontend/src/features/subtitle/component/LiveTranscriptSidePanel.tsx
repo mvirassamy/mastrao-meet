@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useLiveTranscription } from '../store/liveTranscriptionContext'
+import { useSubtitles } from '../hooks/useSubtitles'
 import type {
   LiveTranscriptionConnectionStatus,
   LiveTranscriptionSegment,
@@ -136,6 +137,7 @@ const StatusRow = ({
 export const LiveTranscriptSidePanel = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
   const [isRetryingLocally, setIsRetryingLocally] = useState(false)
+  const { ensureSubtitlesStarted } = useSubtitles()
   const {
     status,
     connectionStatus,
@@ -146,6 +148,10 @@ export const LiveTranscriptSidePanel = () => {
 
   const isRetrying = resyncStatus === 'pending' || isRetryingLocally
   const hasSegments = segments.length > 0
+
+  useEffect(() => {
+    void ensureSubtitlesStarted().catch(() => undefined)
+  }, [ensureSubtitlesStarted])
 
   const handleRetry = async () => {
     if (isRetrying) return

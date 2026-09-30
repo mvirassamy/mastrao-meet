@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-09-30: Start the live subtitle intent when opening the live transcript,
+  deduplicate concurrent CC/panel requests, and gate controls on runtime
+  subtitle capability.
+
 - 2026-09-30: Accept the managed Mistral demo transcription profile while
   preserving the separate native test profile contract.
 
