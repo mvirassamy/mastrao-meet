@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-01: Persist the staging subtitle agent network policy required for
+  LiveKit signalling and media plus OpenAI live transcription.
+
 - 2026-09-30: Start the live subtitle intent when opening the live transcript,
   deduplicate concurrent CC/panel requests, and gate controls on runtime
   subtitle capability.
