@@ -33,6 +33,7 @@ vi.mock('react-i18next', () => ({
         interim: 'In progress',
         final: 'Final',
         error: 'Refresh failed',
+        startError: 'Start failed',
         retry: 'Retry',
         refreshing: 'Refreshing',
       })[key] ?? key,
@@ -171,5 +172,52 @@ describe('LiveTranscriptSidePanel', () => {
     await waitFor(() => expect(retryButton.disabled).toBe(true))
     resolveRefresh?.()
     await waitFor(() => expect(retryButton.disabled).toBe(false))
+  })
+
+  it('surfaces a failed start and retries the ON intent before resync', async () => {
+    ensureSubtitlesStarted
+      .mockRejectedValueOnce(new Error('subtitle unavailable'))
+      .mockResolvedValueOnce(undefined)
+    syncSubtitleState.mockResolvedValue(undefined)
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'inactive',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Start failed')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(ensureSubtitlesStarted).toHaveBeenCalledTimes(2)
+    expect(syncSubtitleState).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the start failure visible when the retry fails again', async () => {
+    ensureSubtitlesStarted.mockRejectedValue(new Error('subtitle unavailable'))
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'inactive',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Start failed')
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(ensureSubtitlesStarted).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('alert').textContent).toContain('Start failed')
+    expect(syncSubtitleState).not.toHaveBeenCalled()
   })
 })

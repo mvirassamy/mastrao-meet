@@ -541,6 +541,7 @@
     "interim": "En cours",
     "final": "Définitif",
     "error": "Le statut de la transcription n'a pas pu être actualisé.",
+    "startError": "La transcription en direct n'a pas pu démarrer.",
     "retry": "Réessayer",
     "refreshing": "Actualisation du statut…"
   },

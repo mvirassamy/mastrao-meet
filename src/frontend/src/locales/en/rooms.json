@@ -541,6 +541,7 @@
     "interim": "In progress",
     "final": "Final",
     "error": "The transcript status could not be refreshed.",
+    "startError": "Live transcription could not be started.",
     "retry": "Retry",
     "refreshing": "Refreshing transcript status…"
   },

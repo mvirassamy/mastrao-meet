@@ -137,6 +137,7 @@ const StatusRow = ({
 export const LiveTranscriptSidePanel = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
   const [isRetryingLocally, setIsRetryingLocally] = useState(false)
+  const [hasStartFailed, setHasStartFailed] = useState(false)
   const { ensureSubtitlesStarted } = useSubtitles()
   const {
     status,
@@ -148,15 +149,30 @@ export const LiveTranscriptSidePanel = () => {
 
   const isRetrying = resyncStatus === 'pending' || isRetryingLocally
   const hasSegments = segments.length > 0
+  const hasFailed = hasStartFailed || resyncStatus === 'failed'
 
   useEffect(() => {
-    void ensureSubtitlesStarted().catch(() => undefined)
+    let isCurrent = true
+    ensureSubtitlesStarted().catch(() => {
+      if (isCurrent) setHasStartFailed(true)
+    })
+    return () => {
+      isCurrent = false
+    }
   }, [ensureSubtitlesStarted])
 
   const handleRetry = async () => {
     if (isRetrying) return
     setIsRetryingLocally(true)
     try {
+      if (hasStartFailed) {
+        try {
+          await ensureSubtitlesStarted()
+          setHasStartFailed(false)
+        } catch {
+          return
+        }
+      }
       await syncSubtitleState()
     } finally {
       setIsRetryingLocally(false)
@@ -181,7 +197,7 @@ export const LiveTranscriptSidePanel = () => {
         statusLabelTitle={t('statusLabel')}
       />
 
-      {resyncStatus === 'failed' && (
+      {hasFailed && (
         <div
           className={css({
             display: 'flex',
@@ -195,7 +211,7 @@ export const LiveTranscriptSidePanel = () => {
           role="alert"
         >
           <Text as="span" variant="warning" margin={false}>
-            {t('error')}
+            {t(hasStartFailed ? 'startError' : 'error')}
           </Text>
           <Button
             variant="outline"
