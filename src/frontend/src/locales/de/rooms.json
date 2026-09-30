@@ -541,6 +541,7 @@
     "interim": "Vorläufig",
     "final": "Final",
     "error": "Der Status des Transkripts konnte nicht aktualisiert werden.",
+    "startError": "Die Live-Transkription konnte nicht gestartet werden.",
     "retry": "Erneut versuchen",
     "refreshing": "Transkriptstatus wird aktualisiert…"
   },

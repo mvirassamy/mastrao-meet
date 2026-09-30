@@ -541,6 +541,7 @@
     "interim": "Voorlopig",
     "final": "Definitief",
     "error": "De transcriptstatus kon niet worden vernieuwd.",
+    "startError": "De live transcriptie kon niet worden gestart.",
     "retry": "Opnieuw proberen",
     "refreshing": "Transcriptstatus vernieuwen…"
   },

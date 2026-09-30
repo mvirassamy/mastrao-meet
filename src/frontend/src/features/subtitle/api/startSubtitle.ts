@@ -8,16 +8,28 @@ export interface StartSubtitleParams {
   token: string
 }
 
-const startSubtitle = ({
+const pendingStartSubtitleRequests = new Map<string, Promise<ApiRoom>>()
+
+export const startSubtitle = ({
   id,
   token,
 }: StartSubtitleParams): Promise<ApiRoom> => {
-  return fetchApi(`rooms/${id}/start-subtitle/`, {
+  const pendingRequest = pendingStartSubtitleRequests.get(id)
+  if (pendingRequest) return pendingRequest
+
+  const request = fetchApi<ApiRoom>(`rooms/${id}/start-subtitle/`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  }).finally(() => {
+    if (pendingStartSubtitleRequests.get(id) === request) {
+      pendingStartSubtitleRequests.delete(id)
+    }
   })
+
+  pendingStartSubtitleRequests.set(id, request)
+  return request
 }
 
 export function useStartSubtitle(
