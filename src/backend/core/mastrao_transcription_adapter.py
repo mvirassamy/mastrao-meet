@@ -276,7 +276,10 @@ def _assert_transcription_authority(transcription_binding):
         locked = models.MastraoTranscriptionBinding.objects.select_for_update().get(
             pk=transcription_binding.pk
         )
-        if recording.state != models.MastraoRecordingBinding.State.FINALIZED:
+        if (
+            recording.state != models.MastraoRecordingBinding.State.FINALIZED
+            and not _locally_verified_for_transcription(recording)
+        ):
             raise TranscriptionContractRefused(status=404, outcome="deleted")
         if locked.state == models.MastraoTranscriptionBinding.State.FAILED:
             raise TranscriptionContractRefused(status=409, outcome="conflict")
