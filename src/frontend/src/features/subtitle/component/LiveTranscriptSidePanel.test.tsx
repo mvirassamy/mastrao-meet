@@ -53,7 +53,6 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@/primitives', () => ({
-  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
     isDisabled,
@@ -83,6 +82,12 @@ vi.mock('@/primitives', () => ({
     const Component = as
     return <Component {...props}>{children}</Component>
   },
+}))
+
+vi.mock('@/components/Avatar', () => ({
+  Avatar: ({ name }: { name: string }) => (
+    <span data-testid="speaker-avatar" data-name={name} />
+  ),
 }))
 
 const segment = {
@@ -124,7 +129,7 @@ describe('LiveTranscriptSidePanel', () => {
     await waitFor(() => expect(ensureSubtitlesStarted).toHaveBeenCalledOnce())
   })
 
-  it('shows connection, transcript state, and progressive segments', () => {
+  it('shows connection, transcript state, and compact speaker bubbles', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
       connectionStatus: 'connected',
@@ -140,7 +145,12 @@ describe('LiveTranscriptSidePanel', () => {
     expect(
       screen.getByRole('log', { name: 'Live transcript segments' }).textContent
     ).toContain('Hello from the meeting')
-    expect(screen.getByText('In progress')).toBeTruthy()
+    expect(screen.getByText('Unknown participant')).toBeTruthy()
+    expect(screen.getByTestId('speaker-avatar').dataset.name).toBe(
+      'Unknown participant'
+    )
+    expect(screen.queryByText('In progress')).toBeNull()
+    expect(screen.queryByText('Final')).toBeNull()
     expect(screen.getByTestId('live-transcript-panel')).toBeTruthy()
   })
 

@@ -5,7 +5,6 @@ import { LeaveButton } from '../../components/controls/LeaveButton'
 import { Track } from 'livekit-client'
 import { HandToggle } from '../../components/controls/HandToggle'
 import { ScreenShareToggle } from '../../components/controls/ScreenShareToggle'
-import { SubtitlesToggle } from '../../components/controls/SubtitlesToggle'
 import { OptionsButton } from '../../components/controls/Options/OptionsButton'
 import { StartMediaButton } from '../../components/controls/StartMediaButton'
 import { MoreOptions } from './MoreOptions'
@@ -106,9 +105,6 @@ export function DesktopControlBar({
             '@media (max-width: 1099px)': { display: 'none' },
           })}
         />
-        {/* This controls captions over the video. The full live transcript is
-            intentionally exposed from the meeting tools panel. */}
-        <SubtitlesToggle />
         <HandToggle />
         <ReactionsToggle />
         {browserSupportsScreenSharing && (

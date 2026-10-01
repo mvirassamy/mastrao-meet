@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRoomContext } from '@livekit/components-react'
-import { Badge, Button, Text } from '@/primitives'
+import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { Avatar } from '@/components/Avatar'
 import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
+import {
+  DEFAULT_PARTICIPANT_COLOR,
+  getParticipantColor,
+} from '@/features/rooms/utils/getParticipantColor'
 import { useLiveTranscription } from '../store/liveTranscriptionContext'
 import { getParticipantForTranscription } from '../store/liveTranscriptionParticipants'
 import { useSubtitles } from '../hooks/useSubtitles'
@@ -29,13 +34,11 @@ const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
 const Segment = ({
   segment,
   speakerLabel,
-  finalLabel,
-  interimLabel,
+  speakerColor,
 }: {
   segment: LiveTranscriptionSegment
   speakerLabel: string
-  finalLabel: string
-  interimLabel: string
+  speakerColor: string
 }) => {
   const isFinal = segment.state === 'final'
 
@@ -43,29 +46,26 @@ const Segment = ({
     <article
       className={css({
         display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
-        padding: '0.75rem',
-        borderWidth: '1px',
-        borderStyle: isFinal ? 'solid' : 'dashed',
-        borderColor: isFinal ? 'box.border' : 'primary',
-        borderRadius: '8px',
-        backgroundColor: isFinal ? 'box.bg' : 'accent',
+        alignItems: 'flex-start',
+        gap: '0.625rem',
+        width: '100%',
       })}
       data-segment-state={segment.state}
       data-segment-key={segment.key}
     >
+      <Avatar name={speakerLabel} bgColor={speakerColor} context="list" />
       <div
         className={css({
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.75rem',
+          flexDirection: 'column',
+          gap: '0.25rem',
+          minWidth: 0,
+          flex: 1,
         })}
       >
         <Text
           as="span"
-          variant="note"
+          variant="bodyXsMedium"
           margin={false}
           className={css({
             minWidth: 0,
@@ -76,11 +76,25 @@ const Segment = ({
         >
           {speakerLabel}
         </Text>
-        <Badge size="sm">{isFinal ? finalLabel : interimLabel}</Badge>
+        <Text
+          as="p"
+          variant="sm"
+          margin={false}
+          wrap="pretty"
+          className={css({
+            width: 'fit-content',
+            maxWidth: '100%',
+            padding: '0.375rem 0.5rem',
+            borderRadius: '6px',
+            backgroundColor: 'muted',
+            color: 'foreground',
+            whiteSpace: 'pre-wrap',
+            opacity: isFinal ? 1 : 0.72,
+          })}
+        >
+          {segment.text}
+        </Text>
       </div>
-      <Text as="p" margin={false} wrap="pretty">
-        {segment.text}
-      </Text>
     </article>
   )
 }
@@ -292,14 +306,16 @@ export const LiveTranscriptSidePanel = () => {
             const speakerLabel = participant
               ? getParticipantName(participant)
               : tParticipants('unknown')
+            const speakerColor = participant
+              ? getParticipantColor(participant)
+              : DEFAULT_PARTICIPANT_COLOR
 
             return (
               <Segment
                 key={segment.key}
                 segment={segment}
                 speakerLabel={speakerLabel}
-                finalLabel={t('final')}
-                interimLabel={t('interim')}
+                speakerColor={speakerColor}
               />
             )
           })
