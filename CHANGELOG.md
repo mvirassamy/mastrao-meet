@@ -4,6 +4,10 @@
   transcripts by rebuilding missing terminal speaker evidence from durable
   host and admitted guest grants.
 
+- 2026-10-01: Prevent live transcript panel remounts from restarting subtitles
+  after the room has already started successfully in the current LiveKit
+  session, while a new session of the same room starts again.
+
 - 2026-10-01: Keep subtitle startup stable across refreshed room JWTs while
   retaining the latest token for explicit retries.
 
