@@ -55,6 +55,10 @@ SPEAKER_EVIDENCE_REPLAY_ONLY_STATES = {
     models.MastraoRecordingBinding.State.PROCESSING,
     models.MastraoRecordingBinding.State.FINALIZED,
 }
+SPEAKER_EVIDENCE_ROSTER_FALLBACK_STATES = {
+    models.MastraoRecordingBinding.State.STOPPING,
+    *SPEAKER_EVIDENCE_REPLAY_ONLY_STATES,
+}
 
 
 def _digest(*parts: str) -> str:
@@ -169,17 +173,6 @@ def _local_roster_snapshot_enabled():
     )
 
 
-def _late_roster_snapshot_fallback_enabled(binding_state):
-    return os.getenv("METADATA_COLLECTOR_ENABLE_VAD", "true").lower() == "false" and (
-        binding_state
-        in {
-            models.MastraoRecordingBinding.State.STOPPING,
-            models.MastraoRecordingBinding.State.PROCESSING,
-            models.MastraoRecordingBinding.State.FINALIZED,
-        }
-    )
-
-
 def _bounded_label(raw_label: str):
     label = raw_label.strip()
     if not label:
@@ -199,10 +192,14 @@ async def _list_livekit_participants(room_id: str):
         await lkapi.aclose()
 
 
-def _server_roster_participants(recording):
-    room_id = str(recording.room.id)
+def _server_roster_participants(recording, *, include_live_participants=True):
     participants = {}
-    for index, participant in enumerate(_list_livekit_participants(room_id), start=1):
+    live_participants = (
+        _list_livekit_participants(str(recording.room.id))
+        if include_live_participants
+        else []
+    )
+    for index, participant in enumerate(live_participants, start=1):
         participant_kind = getattr(participant, "kind", None)
         participant_kind_name = getattr(participant_kind, "name", "") or str(
             participant_kind
@@ -368,8 +365,10 @@ def _server_roster_artifact_claims(effect, payload, data):
     }
 
 
-def _save_server_roster_artifact(recording, effect):
-    participants = _server_roster_participants(recording)
+def _save_server_roster_artifact(recording, effect, *, include_live_participants=True):
+    participants = _server_roster_participants(
+        recording, include_live_participants=include_live_participants
+    )
     payload = {
         "version": 1,
         "recording_ref": effect["recording_ref"],
@@ -400,10 +399,13 @@ def _save_server_roster_artifact(recording, effect):
             "speaker_evidence_artifact_receipt_claims_digest": _sidecar_digest(claims),
         }
     )
-    if not default_storage.exists(object_ref):
-        default_storage.save(object_ref, ContentFile(data))
-    if not default_storage.exists(sidecar_ref):
-        default_storage.save(sidecar_ref, ContentFile(sidecar_body))
+    try:
+        if not default_storage.exists(object_ref):
+            default_storage.save(object_ref, ContentFile(data))
+        if not default_storage.exists(sidecar_ref):
+            default_storage.save(sidecar_ref, ContentFile(sidecar_body))
+    except (BotoCoreError, ClientError, OSError, ValueError) as error:
+        raise RecordingContractRefused(status=503) from error
     result = post_core_json(
         endpoint=settings.MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT,
         expected_path="/internal/v1/meetings/speaker-evidence/artifacts/finalize",
@@ -545,6 +547,8 @@ def _claim_recording_for_capture(effect):
     if binding.state in SPEAKER_EVIDENCE_REPLAY_ONLY_STATES:
         if dispatch_id and not _is_pending_dispatch(dispatch_id):
             return recording, False, None, binding.state
+        if not dispatch_id:
+            return recording, False, None, binding.state
         raise RecordingContractRefused(status=503)
     if dispatch_id:
         if _is_pending_dispatch(dispatch_id) and _pending_dispatch_expired(dispatch_id):
@@ -629,9 +633,15 @@ def _apply_capture(effect):
                 models.MastraoRecordingBinding.State.FINALIZED,
             }:
                 _clear_terminal_dispatch(recording)
-            if not _late_roster_snapshot_fallback_enabled(binding_state):
+            if binding_state not in SPEAKER_EVIDENCE_ROSTER_FALLBACK_STATES:
                 raise RecordingContractRefused(status=503)
-            artifact_ref = _save_server_roster_artifact(recording, effect)
+            artifact_ref = _save_server_roster_artifact(
+                recording,
+                effect,
+                include_live_participants=(
+                    binding_state not in SPEAKER_EVIDENCE_REPLAY_ONLY_STATES
+                ),
+            )
             _store_terminal_dispatch(recording, artifact_ref)
             return sign_capture_receipt(
                 build_capture_receipt_claims(effect, "accepted")

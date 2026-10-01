@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-01: Preserve authenticated participant names in post-meeting
+  transcripts by rebuilding missing terminal speaker evidence from durable
+  host and admitted guest grants.
+
 - 2026-10-01: Prevent live transcript panel remounts from restarting subtitles
   after the room has already started successfully in the current LiveKit
   session, while a new session of the same room starts again.
