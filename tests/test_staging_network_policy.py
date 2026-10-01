@@ -128,15 +128,15 @@ class StagingWorkerNetworkPolicyTests(unittest.TestCase):
         self.assertEqual(
             self.agent["spec"]["endpointSelector"]["matchLabels"],
             {
+                "app.kubernetes.io/name": "meet",
                 "app.kubernetes.io/component": "agent-subtitles",
-                "app.kubernetes.io/name": "metadata-collector",
             },
         )
         self.assertEqual(
             self.collector["spec"]["endpointSelector"]["matchLabels"],
             {
-                "app.kubernetes.io/component": "metadata-collector",
-                "app.kubernetes.io/name": "metadata-collector",
+                "app.kubernetes.io/name": "meet",
+                "app.kubernetes.io/component": "agent-metadata",
             },
         )
 

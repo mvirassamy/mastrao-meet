@@ -8,8 +8,8 @@
   "spec": {
     "endpointSelector": {
       "matchLabels": {
-        "app.kubernetes.io/component": "agent-subtitles",
-        "app.kubernetes.io/name": "metadata-collector"
+        "app.kubernetes.io/name": "meet",
+        "app.kubernetes.io/component": "agent-subtitles"
       }
     },
     "enableDefaultDeny": {
