@@ -4,6 +4,10 @@
   present live transcript entries as compact speaker bubbles inside meeting
   tools.
 
+- 2026-10-01: Send the signed managed-profile diarization setting to the ASR
+  gateway so post-meeting transcripts keep separate acoustic speakers for
+  participant-name mapping.
+
 - 2026-10-01: Retry post-meeting transcription when local temporary storage
   cannot create or copy the verified recording source.
 

@@ -153,8 +153,8 @@ MANAGED_PROFILE_BINDINGS = {
         "requested_model_ref": "voxtral-mini-2602",
         "processing_region_ref": "mistral-eu",
         "data_control_ref": "mistral-standard-retention-test-data-v1",
-        "request_config_digest": "5e835721dbe255ce5624926927b0363f6529f41d8197750e5950942b5accca65",
-        "asr_profile_digest": "6c7483beb3aa6119bc81e046d989b51bc78dd3aa47652ba8c429d5a6a440b3b7",
+        "request_config_digest": "fbd5c361d5f80e3eae99b7168b227681f89f936287060d981043bff15188ae61",
+        "asr_profile_digest": "cc18cd892f73b63f40345243704c43d1ae90f29fc8a09f3919868637ef296cd0",
         "tariff_catalog_version": "asr-tariff-v2",
     },
     "mistral-eu-standard-native-test-v1": {
@@ -185,6 +185,7 @@ MANAGED_PROFILE_BINDINGS = {
         "tariff_catalog_version": "asr-tariff-v2",
     },
 }
+DIARIZED_MANAGED_PROFILE_REFS = frozenset({"mistral-eu-standard-managed-demo-v1"})
 
 
 class TranscriptionContractRefused(RecordingContractRefused):

@@ -376,7 +376,7 @@ def test_managed_demo_profile_does_not_alias_native_test_profile():
     native_test = MANAGED_PROFILE_BINDINGS["mistral-eu-standard-native-test-v1"]
 
     assert managed_demo["asr_profile_digest"] == (
-        "6c7483beb3aa6119bc81e046d989b51bc78dd3aa47652ba8c429d5a6a440b3b7"
+        "cc18cd892f73b63f40345243704c43d1ae90f29fc8a09f3919868637ef296cd0"
     )
     assert managed_demo is not native_test
     assert managed_demo["asr_profile_digest"] != native_test["asr_profile_digest"]
