@@ -26,7 +26,10 @@ from django.utils import timezone
 
 import requests
 
-from core.mastrao_transcription_contract import TranscriptionContractRefused
+from core.mastrao_transcription_contract import (
+    DIARIZED_MANAGED_PROFILE_REFS,
+    TranscriptionContractRefused,
+)
 
 logger = logging.getLogger(__name__)
 FAKE_ENGINE_REF = "fake-asr-deterministic-v1"
@@ -184,6 +187,15 @@ def _validated_transcript(transcript):
     return transcript
 
 
+def _gateway_diarize(attempt):
+    """Return the immutable diarization setting signed into the effect profile."""
+
+    effect = getattr(attempt, "effect", None)
+    binding = getattr(effect, "transcription_binding", None)
+    profile_ref = getattr(binding, "asr_profile_ref", None)
+    return profile_ref in DIARIZED_MANAGED_PROFILE_REFS
+
+
 def _gateway_fingerprint(extracted, attempt, language=""):
     return _fingerprint(
         attempt,
@@ -218,7 +230,7 @@ def _fingerprint(attempt, *, audio_sha256, audio_duration_ms, audio_codec, langu
                 attempt.request_config_digest,
                 language or "",
                 "",
-                "0",
+                "1" if _gateway_diarize(attempt) else "0",
             ]
         ).encode()
     ).hexdigest()
@@ -238,6 +250,7 @@ def _gateway_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
     if not token:
         raise TranscriptionContractRefused(status=503)
     language = "fr"
+    diarize = _gateway_diarize(attempt)
     metadata = {
         "attempt_ref": attempt.attempt_ref,
         "fingerprint": _gateway_fingerprint(
@@ -254,6 +267,7 @@ def _gateway_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
         "normalization_schema_version": "1",
         "request_config_digest": attempt.request_config_digest,
         "language": language,
+        "diarize": diarize,
     }
     headers = {}
     if token:
