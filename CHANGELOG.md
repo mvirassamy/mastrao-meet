@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-01: Keep subtitle startup stable across refreshed room JWTs while
+  retaining the latest token for explicit retries.
+
 - 2026-10-01: Show participant display names in the live transcript panel,
   label departed speakers as unknown instead of exposing their technical
   identity, and stop repeating the subtitle start request on room polling.
