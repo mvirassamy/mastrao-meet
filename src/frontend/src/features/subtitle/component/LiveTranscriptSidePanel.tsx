@@ -16,6 +16,7 @@ import type {
   LiveTranscriptionConnectionStatus,
   LiveTranscriptionSegment,
 } from '../store/liveTranscriptionTypes'
+import { groupConsecutiveSpeakerSegments } from './liveTranscriptTurns'
 
 const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
   css({
@@ -172,6 +173,7 @@ export const LiveTranscriptSidePanel = () => {
 
   const isRetrying = resyncStatus === 'pending' || isRetryingLocally
   const hasSegments = segments.length > 0
+  const speakerTurns = groupConsecutiveSpeakerSegments(segments)
   const hasFailed = hasStartFailed || resyncStatus === 'failed'
 
   useEffect(() => {
@@ -298,7 +300,7 @@ export const LiveTranscriptSidePanel = () => {
             {t('empty')}
           </Text>
         ) : (
-          segments.map((segment) => {
+          speakerTurns.map((segment) => {
             const participant = getParticipantForTranscription(
               room,
               segment.participantIdentity
