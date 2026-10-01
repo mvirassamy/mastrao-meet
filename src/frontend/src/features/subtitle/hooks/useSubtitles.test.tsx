@@ -24,12 +24,16 @@ const room = {
   on: vi.fn(),
   off: vi.fn(),
 }
+let roomSequence = 0
+let currentRoomId: string
 
 beforeEach(() => {
+  roomSequence += 1
+  currentRoomId = `room-id-${roomSequence}`
   layoutStore.showSubtitles = false
   useRoomContextMock.mockReturnValue(room)
   useRoomDataMock.mockReturnValue({
-    livekit: { room: 'room-id', token: 'room-token' },
+    livekit: { room: currentRoomId, token: 'room-token' },
   })
   useStartSubtitleMock.mockReturnValue({
     mutateAsync: startSubtitleMock,
@@ -79,7 +83,7 @@ describe('useSubtitles', () => {
     const initialCallback = result.current.ensureSubtitlesStarted
 
     useRoomDataMock.mockReturnValue({
-      livekit: { room: 'room-id', token: 'refreshed-room-token' },
+      livekit: { room: currentRoomId, token: 'refreshed-room-token' },
     })
     rerender()
 
@@ -89,20 +93,62 @@ describe('useSubtitles', () => {
       await initialCallback()
     })
     expect(startSubtitleMock).toHaveBeenCalledWith({
-      id: 'room-id',
+      id: currentRoomId,
       token: 'refreshed-room-token',
+    })
+  })
+
+  it('starts once when the panel remounts after a token refresh', async () => {
+    const firstPanel = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await firstPanel.result.current.ensureSubtitlesStarted()
+    })
+    firstPanel.unmount()
+
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: currentRoomId, token: 'refreshed-room-token' },
+    })
+    const remountedPanel = renderHook(() => useSubtitles())
+    await act(async () => {
+      await remountedPanel.result.current.ensureSubtitlesStarted()
+    })
+
+    expect(startSubtitleMock).toHaveBeenCalledOnce()
+  })
+
+  it('starts again when the participant enters a new room', async () => {
+    const { result, rerender } = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+
+    const nextRoomId = `${currentRoomId}-next`
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: nextRoomId, token: 'next-room-token' },
+    })
+    rerender()
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+
+    expect(startSubtitleMock).toHaveBeenCalledTimes(2)
+    expect(startSubtitleMock).toHaveBeenLastCalledWith({
+      id: nextRoomId,
+      token: 'next-room-token',
     })
   })
 
   it('changes the start callback when credentials become available', () => {
     useRoomDataMock.mockReturnValue({
-      livekit: { room: 'room-id', token: undefined },
+      livekit: { room: currentRoomId, token: undefined },
     })
     const { result, rerender } = renderHook(() => useSubtitles())
     const unavailableCallback = result.current.ensureSubtitlesStarted
 
     useRoomDataMock.mockReturnValue({
-      livekit: { room: 'room-id', token: 'room-token' },
+      livekit: { room: currentRoomId, token: 'room-token' },
     })
     rerender()
 
