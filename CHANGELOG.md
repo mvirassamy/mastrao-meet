@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-01: Show participant display names in the live transcript panel,
+  label departed speakers as unknown instead of exposing their technical
+  identity, and stop repeating the subtitle start request on room polling.
+
 - 2026-09-30: Start the live subtitle intent when opening the live transcript,
   deduplicate concurrent CC/panel requests, and gate controls on runtime
   subtitle capability.

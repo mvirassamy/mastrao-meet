@@ -12,16 +12,17 @@ export const useSubtitles = () => {
   const room = useRoomContext()
   const apiRoomData = useRoomData()
   const { mutateAsync: startSubtitleRoom, isPending } = useStartSubtitle()
+  const livekitRoom = apiRoomData?.livekit?.room
+  const livekitToken = apiRoomData?.livekit?.token
 
   const ensureSubtitlesStarted = useCallback(async () => {
-    const livekit = apiRoomData?.livekit
-    if (!livekit) return
+    if (!livekitRoom || !livekitToken) return
 
     await startSubtitleRoom({
-      id: livekit.room,
-      token: livekit.token,
+      id: livekitRoom,
+      token: livekitToken,
     })
-  }, [apiRoomData?.livekit, startSubtitleRoom])
+  }, [livekitRoom, livekitToken, startSubtitleRoom])
 
   const toggleSubtitles = useCallback(async () => {
     if (!layoutSnap.showSubtitles) await ensureSubtitlesStarted()

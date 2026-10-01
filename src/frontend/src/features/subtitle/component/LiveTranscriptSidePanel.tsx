@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useRoomContext } from '@livekit/components-react'
 import { Badge, Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
 import { useLiveTranscription } from '../store/liveTranscriptionContext'
+import { getParticipantForTranscription } from '../store/liveTranscriptionParticipants'
 import { useSubtitles } from '../hooks/useSubtitles'
 import type {
   LiveTranscriptionConnectionStatus,
@@ -25,10 +28,12 @@ const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
 
 const Segment = ({
   segment,
+  speakerLabel,
   finalLabel,
   interimLabel,
 }: {
   segment: LiveTranscriptionSegment
+  speakerLabel: string
   finalLabel: string
   interimLabel: string
 }) => {
@@ -69,7 +74,7 @@ const Segment = ({
             whiteSpace: 'nowrap',
           })}
         >
-          {segment.participantIdentity}
+          {speakerLabel}
         </Text>
         <Badge size="sm">{isFinal ? finalLabel : interimLabel}</Badge>
       </div>
@@ -136,6 +141,10 @@ const StatusRow = ({
 
 export const LiveTranscriptSidePanel = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
+  const { t: tParticipants } = useTranslation('rooms', {
+    keyPrefix: 'participants',
+  })
+  const room = useRoomContext()
   const [isRetryingLocally, setIsRetryingLocally] = useState(false)
   const [hasStartFailed, setHasStartFailed] = useState(false)
   const { ensureSubtitlesStarted } = useSubtitles()
@@ -275,14 +284,25 @@ export const LiveTranscriptSidePanel = () => {
             {t('empty')}
           </Text>
         ) : (
-          segments.map((segment) => (
-            <Segment
-              key={segment.key}
-              segment={segment}
-              finalLabel={t('final')}
-              interimLabel={t('interim')}
-            />
-          ))
+          segments.map((segment) => {
+            const participant = getParticipantForTranscription(
+              room,
+              segment.participantIdentity
+            )
+            const speakerLabel = participant
+              ? getParticipantName(participant)
+              : tParticipants('unknown')
+
+            return (
+              <Segment
+                key={segment.key}
+                segment={segment}
+                speakerLabel={speakerLabel}
+                finalLabel={t('final')}
+                interimLabel={t('interim')}
+              />
+            )
+          })
         )}
       </div>
     </div>
