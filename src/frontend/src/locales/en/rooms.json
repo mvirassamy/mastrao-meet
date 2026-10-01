@@ -308,8 +308,8 @@
       "lower": "Lower hand"
     },
     "subtitles": {
-      "closed": "Show subtitles",
-      "open": "Hide subtitles"
+      "closed": "Show captions over the video",
+      "open": "Hide captions over the video"
     },
     "screenShare": {
       "start": "Share screen",

@@ -106,6 +106,8 @@ export function DesktopControlBar({
             '@media (max-width: 1099px)': { display: 'none' },
           })}
         />
+        {/* This controls captions over the video. The full live transcript is
+            intentionally exposed from the meeting tools panel. */}
         <SubtitlesToggle />
         <HandToggle />
         <ReactionsToggle />

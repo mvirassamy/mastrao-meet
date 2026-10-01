@@ -308,8 +308,8 @@
       "lower": "Hand senken"
     },
     "subtitles": {
-      "closed": "Untertitel anzeigen",
-      "open": "Untertitel ausblenden"
+      "closed": "Untertitel im Video anzeigen",
+      "open": "Untertitel im Video ausblenden"
     },
     "screenShare": {
       "start": "Bildschirm freigeben",
