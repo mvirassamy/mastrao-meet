@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-01: Keep the live transcript inside the extensible meeting tools
+  panel, preserve the separate in-video captions control, and clarify its
+  accessible label.
+
 - 2026-10-01: Preserve authenticated participant names in post-meeting
   transcripts by rebuilding missing terminal speaker evidence from durable
   host and admitted guest grants.
