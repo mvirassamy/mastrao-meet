@@ -106,20 +106,26 @@ def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
     """Extract mono 16 kHz FLAC to a temp file without buffering it in RAM."""
 
     # The FLAC must outlive this function; ExtractedAudio.close() owns cleanup.
-    workdir = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
-        prefix="mastrao_transcribe_"
-    )
+    try:
+        workdir = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
+            prefix="mastrao_transcribe_"
+        )
+    except OSError as error:
+        raise TranscriptionContractRefused(status=503) from error
     created = False
     try:
         source_path = Path(workdir.name) / "verified-source.mp4"
         audio_path = Path(workdir.name) / "audio-16k-mono.flac"
-        stream = _open_verified_stream(object_ref, expected_size, expected_checksum)
         try:
-            with source_path.open("wb") as destination:
-                while chunk := stream.read(1024 * 1024):
-                    destination.write(chunk)
-        finally:
-            stream.close()
+            stream = _open_verified_stream(object_ref, expected_size, expected_checksum)
+            try:
+                with source_path.open("wb") as destination:
+                    while chunk := stream.read(1024 * 1024):
+                        destination.write(chunk)
+            finally:
+                stream.close()
+        except OSError as error:
+            raise TranscriptionContractRefused(status=503) from error
         command = [
             "ffmpeg",
             "-v",
