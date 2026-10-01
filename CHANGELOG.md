@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-01: Remove the in-video captions control from the meeting bar and
+  present live transcript entries as compact speaker bubbles inside meeting
+  tools.
+
 - 2026-10-01: Retry post-meeting transcription when local temporary storage
   cannot create or copy the verified recording source.
 
