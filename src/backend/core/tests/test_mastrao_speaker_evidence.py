@@ -379,11 +379,43 @@ def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
     start.assert_not_called()
 
 
-def test_terminal_roster_artifact_maps_authenticated_name_into_canonical_transcript():
-    binding = _active_recording_binding()
+def _guest_grant(binding, *, suffix, display_name, admitted):
+    now = timezone.now()
+    decision = (
+        {
+            "admission_state": models.MastraoGuestGrant.AdmissionState.ALLOWED,
+            "decision_ref": f"decision_{suffix}",
+            "decision_allow": True,
+            "decision_confirmed_at": now,
+        }
+        if admitted
+        else {}
+    )
+    return models.MastraoGuestGrant.objects.create(
+        grant_ref=f"guestgrant_{suffix}",
+        redemption_id=f"redemption_{suffix}",
+        invitation_ref=f"invitation_{suffix}",
+        guest_ref=f"guest_{suffix}",
+        organization_external_id=binding.organization_external_id,
+        grant_digest="a" * 64,
+        credential_digest="b" * 64,
+        meeting_ref=binding.meeting_ref,
+        room_ref=binding.room_ref,
+        provider_binding_digest=binding.provider_binding_digest,
+        display_name=display_name,
+        room_binding=binding.room_binding,
+        session_nonce_digest="c" * 64,
+        issued_at=now,
+        expires_at=now + timezone.timedelta(hours=1),
+        **decision,
+    )
+
+
+def _terminal_roster_evidence(binding):
+    """Capture a first terminal roster and return the signed evidence bytes."""
+
     binding.state = models.MastraoRecordingBinding.State.FINALIZED
     binding.save(update_fields=["state"])
-    _host_grant(binding, display_name="Matthias")
     with (
         mock.patch(
             "core.mastrao_speaker_evidence_adapter._list_livekit_participants"
@@ -414,7 +446,10 @@ def test_terminal_roster_artifact_maps_authenticated_name_into_canonical_transcr
     list_livekit.assert_not_called()
     saved_content = save.call_args_list[0].args[1]
     saved_content.seek(0)
-    evidence = json.loads(saved_content.read())
+    return json.loads(saved_content.read())
+
+
+def _single_voice_speaker(evidence):
     mapped = map_speakers(
         {
             "segments": [
@@ -430,7 +465,49 @@ def test_terminal_roster_artifact_maps_authenticated_name_into_canonical_transcr
         evidence,
     )
     artifact = _canonical_artifact("transcription_0123456789ab", mapped)
-    assert artifact["segments"][0]["speaker"] == {
+    return artifact["segments"][0]["speaker"]
+
+
+def test_terminal_roster_artifact_maps_authenticated_name_into_canonical_transcript():
+    binding = _active_recording_binding()
+    _host_grant(binding, display_name="Matthias")
+
+    evidence = _terminal_roster_evidence(binding)
+
+    assert _single_voice_speaker(evidence) == {
+        "kind": "participant",
+        "label": "Matthias",
+    }
+
+
+def test_terminal_roster_keeps_an_ambiguous_single_voice_anonymous():
+    binding = _active_recording_binding()
+    _host_grant(binding, display_name="Matthias")
+    _guest_grant(binding, suffix="admitted_0001", display_name="Martine", admitted=True)
+
+    evidence = _terminal_roster_evidence(binding)
+
+    assert sorted(
+        event["label"]
+        for participant in evidence["participants"]
+        for event in participant["display_name_events"]
+    ) == ["Martine", "Matthias"]
+    assert _single_voice_speaker(evidence) == {"kind": "anonymous", "index": 1}
+
+
+def test_terminal_roster_excludes_guests_who_were_not_admitted():
+    binding = _active_recording_binding()
+    _host_grant(binding, display_name="Matthias")
+    _guest_grant(binding, suffix="waiting_0001", display_name="Paul", admitted=False)
+
+    evidence = _terminal_roster_evidence(binding)
+
+    assert [
+        event["label"]
+        for participant in evidence["participants"]
+        for event in participant["display_name_events"]
+    ] == ["Matthias"]
+    assert _single_voice_speaker(evidence) == {
         "kind": "participant",
         "label": "Matthias",
     }
