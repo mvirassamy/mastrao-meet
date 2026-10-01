@@ -308,8 +308,8 @@
       "lower": "Baisser la main"
     },
     "subtitles": {
-      "closed": "Afficher les sous-titres",
-      "open": "Masquer les sous-titres"
+      "closed": "Afficher les sous-titres sur la vidéo",
+      "open": "Masquer les sous-titres sur la vidéo"
     },
     "screenShare": {
       "start": "Partager l'écran",
