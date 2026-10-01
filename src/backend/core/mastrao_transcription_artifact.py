@@ -342,7 +342,6 @@ def _speaker_participant_mapping(transcript, speaker_evidence):
             )
 
     mapping = {}
-    claimed_participants = set()
     for speaker_ref, participant_scores in scores.items():
         ranked = sorted(
             participant_scores.items(), key=lambda item: item[1], reverse=True
@@ -352,9 +351,8 @@ def _speaker_participant_mapping(transcript, speaker_evidence):
         if len(ranked) > 1 and ranked[0][1] <= ranked[1][1]:
             continue
         participant_ref = ranked[0][0]
-        if participant_ref in claimed_participants or participant_ref not in labels:
+        if participant_ref not in labels:
             continue
-        claimed_participants.add(participant_ref)
         mapping[speaker_ref] = labels[participant_ref]
     return mapping
 

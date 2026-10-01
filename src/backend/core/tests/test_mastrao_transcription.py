@@ -765,6 +765,73 @@ def test_speaker_mapping_uses_speech_timeline_for_multiple_participants():
     ]
 
 
+def test_speaker_mapping_merges_overclustered_voices_into_real_participants():
+    transcript = {
+        "segments": [
+            {
+                "segment_id": f"segment_{index:012d}",
+                "start_ms": start_ms,
+                "end_ms": start_ms + 1_000,
+                "speaker": {"kind": "acoustic", "ref": speaker_ref},
+                "text": f"segment {index}",
+            }
+            for index, (start_ms, speaker_ref) in enumerate(
+                [
+                    (0, "SPEAKER_00"),
+                    (1_000, "SPEAKER_01"),
+                    (3_000, "SPEAKER_02"),
+                    (4_000, "SPEAKER_03"),
+                ]
+            )
+        ],
+        "language": "fr",
+    }
+    evidence = {
+        "timeline_ended_at_ms": 5_000,
+        "participants": [
+            {
+                "participant_ref": "participant_matt",
+                "display_name_events": [{"effective_at_ms": 0, "label": "Matt"}],
+            },
+            {
+                "participant_ref": "participant_martine",
+                "display_name_events": [{"effective_at_ms": 0, "label": "Martine"}],
+            },
+        ],
+        "events": [
+            {
+                "at_ms": 0,
+                "type": "speech_start",
+                "participant_ref": "participant_matt",
+            },
+            {
+                "at_ms": 2_000,
+                "type": "speech_end",
+                "participant_ref": "participant_matt",
+            },
+            {
+                "at_ms": 3_000,
+                "type": "speech_start",
+                "participant_ref": "participant_martine",
+            },
+            {
+                "at_ms": 5_000,
+                "type": "speech_end",
+                "participant_ref": "participant_martine",
+            },
+        ],
+    }
+
+    mapped = map_speakers(json.loads(json.dumps(transcript)), evidence)
+
+    assert [segment["speaker"] for segment in mapped["segments"]] == [
+        {"kind": "participant", "label": "Matt"},
+        {"kind": "participant", "label": "Matt"},
+        {"kind": "participant", "label": "Martine"},
+        {"kind": "participant", "label": "Martine"},
+    ]
+
+
 def test_feature_off_refuses_new_effects_without_side_effects(settings):
     settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED = False
     binding = _finalized_recording_binding("feature_off_0123456")
