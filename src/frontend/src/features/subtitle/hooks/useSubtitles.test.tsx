@@ -74,15 +74,38 @@ describe('useSubtitles', () => {
     expect(layoutStore.showSubtitles).toBe(true)
   })
 
-  it('keeps the start callback stable across equivalent room refreshes', () => {
+  it('keeps the start callback stable across room token refreshes', async () => {
     const { result, rerender } = renderHook(() => useSubtitles())
     const initialCallback = result.current.ensureSubtitlesStarted
+
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-id', token: 'refreshed-room-token' },
+    })
+    rerender()
+
+    expect(result.current.ensureSubtitlesStarted).toBe(initialCallback)
+
+    await act(async () => {
+      await initialCallback()
+    })
+    expect(startSubtitleMock).toHaveBeenCalledWith({
+      id: 'room-id',
+      token: 'refreshed-room-token',
+    })
+  })
+
+  it('changes the start callback when credentials become available', () => {
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-id', token: undefined },
+    })
+    const { result, rerender } = renderHook(() => useSubtitles())
+    const unavailableCallback = result.current.ensureSubtitlesStarted
 
     useRoomDataMock.mockReturnValue({
       livekit: { room: 'room-id', token: 'room-token' },
     })
     rerender()
 
-    expect(result.current.ensureSubtitlesStarted).toBe(initialCallback)
+    expect(result.current.ensureSubtitlesStarted).not.toBe(unavailableCallback)
   })
 })
