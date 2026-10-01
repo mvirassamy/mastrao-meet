@@ -34,6 +34,7 @@ from core.mastrao_speaker_evidence_adapter import (
     _sidecar_digest,
 )
 from core.mastrao_speaker_evidence_contract import validate_artifact_receipt_claims
+from core.mastrao_transcription_artifact import _canonical_artifact, map_speakers
 from core.models import RoomAccessLevel
 from core.utils import generate_token
 
@@ -378,18 +379,61 @@ def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
     start.assert_not_called()
 
 
-def test_speaker_evidence_capture_refuses_late_fresh_start():
+def test_terminal_roster_artifact_maps_authenticated_name_into_canonical_transcript():
     binding = _active_recording_binding()
     binding.state = models.MastraoRecordingBinding.State.FINALIZED
     binding.save(update_fields=["state"])
+    _host_grant(binding, display_name="Matthias")
+    with (
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter._list_livekit_participants"
+        ) as list_livekit,
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=False,
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.save",
+        ) as save,
+        mock.patch("core.mastrao_speaker_evidence_adapter.default_storage.delete"),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_artifact_receipt",
+            return_value="artifact.receipt.signature",
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.post_core_json",
+            return_value={"state": "available", "outcome": "available"},
+        ),
+        mock.patch(
+            "core.mastrao_speaker_evidence_adapter.sign_capture_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
 
-    with mock.patch(
-        "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
-    ) as start:
-        with pytest.raises(RecordingContractRefused):
-            _apply_capture(_effect(binding))
-
-    start.assert_not_called()
+    list_livekit.assert_not_called()
+    saved_content = save.call_args_list[0].args[1]
+    saved_content.seek(0)
+    evidence = json.loads(saved_content.read())
+    mapped = map_speakers(
+        {
+            "segments": [
+                {
+                    "segment_id": "segment_1",
+                    "start_ms": 0,
+                    "end_ms": 1000,
+                    "speaker": {"kind": "acoustic", "ref": "speaker_0"},
+                    "text": "Bonjour",
+                }
+            ]
+        },
+        evidence,
+    )
+    artifact = _canonical_artifact("transcription_0123456789ab", mapped)
+    assert artifact["segments"][0]["speaker"] == {
+        "kind": "participant",
+        "label": "Matthias",
+    }
 
 
 def test_speaker_evidence_capture_replays_existing_sidecar_without_second_start():

@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-01: Preserve authenticated participant names in post-meeting
+  transcripts by rebuilding missing terminal speaker evidence from durable
+  host and admitted guest grants.
+
 - 2026-10-01: Keep subtitle startup stable across refreshed room JWTs while
   retaining the latest token for explicit retries.
 
