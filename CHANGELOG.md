@@ -1,7 +1,43 @@
 # Changelog
 
 - 2026-10-01: Persist separate staging network policies for the subtitle agent
-  and metadata collector, with OpenAI egress limited to live transcription.
+  and metadata collector, preserve the collector's Core and S3 access, and
+  limit OpenAI egress to live transcription.
+
+- 2026-10-01: Group consecutive live transcript segments from the same
+  participant and microphone into one readable speaker turn.
+
+- 2026-10-01: Map multiple acoustic voice clusters back to the same real
+  participant when the speaker timeline provides unambiguous evidence.
+- 2026-10-01: Remove the in-video captions control from the meeting bar and
+  present live transcript entries as compact speaker bubbles inside meeting
+  tools.
+
+- 2026-10-01: Send the signed managed-profile diarization setting to the ASR
+  gateway so post-meeting transcripts keep separate acoustic speakers for
+  participant-name mapping.
+
+- 2026-10-01: Retry post-meeting transcription when local temporary storage
+  cannot create or copy the verified recording source.
+
+- 2026-10-01: Keep the live transcript inside the extensible meeting tools
+  panel, preserve the separate in-video captions control, and clarify its
+  accessible label.
+
+- 2026-10-01: Preserve authenticated participant names in post-meeting
+  transcripts by rebuilding missing terminal speaker evidence from durable
+  host and admitted guest grants.
+
+- 2026-10-01: Prevent live transcript panel remounts from restarting subtitles
+  after the room has already started successfully in the current LiveKit
+  session, while a new session of the same room starts again.
+
+- 2026-10-01: Keep subtitle startup stable across refreshed room JWTs while
+  retaining the latest token for explicit retries.
+
+- 2026-10-01: Show participant display names in the live transcript panel,
+  label departed speakers as unknown instead of exposing their technical
+  identity, and stop repeating the subtitle start request on room polling.
 
 - 2026-09-30: Start the live subtitle intent when opening the live transcript,
   deduplicate concurrent CC/panel requests, and gate controls on runtime

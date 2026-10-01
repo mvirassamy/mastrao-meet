@@ -308,8 +308,8 @@
       "lower": "Hand laten zakken"
     },
     "subtitles": {
-      "closed": "Ondertitels weergeven",
-      "open": "Ondertitels verbergen"
+      "closed": "Ondertitels in de video weergeven",
+      "open": "Ondertitels in de video verbergen"
     },
     "screenShare": {
       "start": "Scherm delen",

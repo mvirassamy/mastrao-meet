@@ -12,6 +12,17 @@ import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
 const syncSubtitleState = vi.fn()
 const ensureSubtitlesStarted = vi.fn()
 const useLiveTranscriptionMock = vi.hoisted(() => vi.fn())
+const roomMock = vi.hoisted(() => ({
+  localParticipant: {
+    identity: 'local-user',
+    name: 'Local User',
+  },
+  getParticipantByIdentity: vi.fn(),
+}))
+
+vi.mock('@livekit/components-react', () => ({
+  useRoomContext: () => roomMock,
+}))
 
 vi.mock('../store/liveTranscriptionContext', () => ({
   useLiveTranscription: useLiveTranscriptionMock,
@@ -36,12 +47,12 @@ vi.mock('react-i18next', () => ({
         startError: 'Start failed',
         retry: 'Retry',
         refreshing: 'Refreshing',
+        unknown: 'Unknown participant',
       })[key] ?? key,
   }),
 }))
 
 vi.mock('@/primitives', () => ({
-  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
     isDisabled,
@@ -73,6 +84,12 @@ vi.mock('@/primitives', () => ({
   },
 }))
 
+vi.mock('@/components/Avatar', () => ({
+  Avatar: ({ name }: { name: string }) => (
+    <span data-testid="speaker-avatar" data-name={name} />
+  ),
+}))
+
 const segment = {
   key: 'segment-1',
   participantIdentity: 'alice',
@@ -94,6 +111,7 @@ afterEach(() => {
 
 beforeEach(() => {
   ensureSubtitlesStarted.mockResolvedValue(undefined)
+  roomMock.getParticipantByIdentity.mockReturnValue(undefined)
 })
 
 describe('LiveTranscriptSidePanel', () => {
@@ -111,7 +129,7 @@ describe('LiveTranscriptSidePanel', () => {
     await waitFor(() => expect(ensureSubtitlesStarted).toHaveBeenCalledOnce())
   })
 
-  it('shows connection, transcript state, and progressive segments', () => {
+  it('shows connection, transcript state, and compact speaker bubbles', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
       connectionStatus: 'connected',
@@ -127,8 +145,130 @@ describe('LiveTranscriptSidePanel', () => {
     expect(
       screen.getByRole('log', { name: 'Live transcript segments' }).textContent
     ).toContain('Hello from the meeting')
-    expect(screen.getByText('In progress')).toBeTruthy()
+    expect(screen.getByText('Unknown participant')).toBeTruthy()
+    expect(screen.getByTestId('speaker-avatar').dataset.name).toBe(
+      'Unknown participant'
+    )
+    expect(screen.queryByText('In progress')).toBeNull()
+    expect(screen.queryByText('Final')).toBeNull()
     expect(screen.getByTestId('live-transcript-panel')).toBeTruthy()
+  })
+
+  it('shows the participant display name instead of its technical identity', () => {
+    roomMock.getParticipantByIdentity.mockReturnValue({
+      identity: 'alice',
+      name: 'Alice Martin',
+    })
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [segment],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Alice Martin')).toBeTruthy()
+    expect(screen.queryByText('alice')).toBeNull()
+  })
+
+  it('groups consecutive segments from the same microphone into one speaker turn', () => {
+    roomMock.getParticipantByIdentity.mockImplementation(
+      (identity: string) => ({
+        identity,
+        name: identity === 'alice' ? 'Alice Martin' : 'Bob Dupont',
+      })
+    )
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [
+        { ...segment, state: 'final', text: 'Bonjour', receivedAt: 1_000 },
+        {
+          ...segment,
+          key: 'segment-2',
+          itemId: 'item-2',
+          state: 'final',
+          text: 'comment allez-vous ?',
+          receivedAt: 2_000,
+        },
+        {
+          ...segment,
+          key: 'segment-3',
+          participantIdentity: 'bob',
+          trackSid: 'track-2',
+          itemId: 'item-3',
+          state: 'final',
+          text: 'Très bien',
+          receivedAt: 3_000,
+        },
+        {
+          ...segment,
+          key: 'segment-4',
+          itemId: 'item-4',
+          state: 'final',
+          text: 'Merci',
+          receivedAt: 4_000,
+        },
+      ],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getAllByTestId('speaker-avatar')).toHaveLength(3)
+    expect(screen.getByText('Bonjour comment allez-vous ?')).toBeTruthy()
+    expect(screen.getByText('Très bien')).toBeTruthy()
+    expect(screen.getByText('Merci')).toBeTruthy()
+  })
+
+  it('keeps a long pause in the same bubble as a new paragraph', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [
+        {
+          ...segment,
+          state: 'final',
+          text: 'Premier sujet',
+          receivedAt: 1_000,
+        },
+        {
+          ...segment,
+          key: 'segment-2',
+          itemId: 'item-2',
+          state: 'final',
+          text: 'Deuxième sujet',
+          receivedAt: 7_000,
+        },
+      ],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getAllByTestId('speaker-avatar')).toHaveLength(1)
+    expect(screen.getByRole('log').querySelector('p')?.textContent).toBe(
+      'Premier sujet\n\nDeuxième sujet'
+    )
+  })
+
+  it('does not expose a technical identity after the participant leaves', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [{ ...segment, participantIdentity: 'user_9d46b8f2' }],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Unknown participant')).toBeTruthy()
+    expect(screen.queryByText('user_9d46b8f2')).toBeNull()
   })
 
   it('offers retry when the state refresh failed', () => {

@@ -10,9 +10,10 @@ signalling and media, and OpenAI HTTPS. The media ports are required for the
 agent to join the room after accepting a dispatch.
 
 `metadata-collector-network-policy.json` grants the separate metadata collector
-only LiveKit signalling and media. The component selectors keep OpenAI egress
-limited to the subtitle agent even though both deployments retain the same
-historical application-name label.
+LiveKit signalling and media, Cabinet Core on TCP 8080, and the staging S3
+endpoints on HTTPS. The component selectors keep OpenAI egress limited to the
+subtitle agent even though both deployments retain the same historical
+application-name label.
 
 Validate the rendered object before applying it:
 

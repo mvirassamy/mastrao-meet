@@ -39,11 +39,13 @@ from core.mastrao_transcription_attempt import (
     prepare_attempt,
 )
 from core.mastrao_transcription_contract import (
+    MANAGED_PROFILE_BINDINGS,
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
 )
 from core.mastrao_transcription_pipeline import complete_transcription
 from core.mastrao_transcription_worker import (
+    _gateway_diarize,
     _gateway_fingerprint,
     _gateway_transcribe,
     _validated_transcript,
@@ -127,6 +129,56 @@ def test_gateway_fingerprint_binds_signed_request_configuration():
         _Extracted(),
         _Attempt(),
         language="fr",
+    )
+
+
+def test_managed_mistral_demo_requests_diarization(settings):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+    recording = _finalized_recording_binding("diarizedpost012345")
+    effect = _v3_effect(
+        recording,
+        transcription_ref="transcription_diarizedpost01",
+        asr_profile_ref="mistral-eu-standard-managed-demo-v1",
+        **MANAGED_PROFILE_BINDINGS["mistral-eu-standard-managed-demo-v1"],
+    )
+    with (
+        mock.patch(ENQUEUE),
+        mock.patch(
+            "core.mastrao_transcription_adapter.sign_submit_receipt",
+            return_value="receipt.payload.signature",
+        ),
+    ):
+        _apply_transcription(effect)
+    local_effect = models.MastraoTranscriptionEffect.objects.get()
+
+    class _Extracted:
+        sha256 = "7" * 64
+        duration_ms = 4_000
+        codec = "flac"
+        byte_size = 128
+
+    attempt = prepare_attempt(local_effect, _Extracted())
+
+    assert _gateway_diarize(attempt) is True
+    expected_fingerprint = hashlib.sha256(
+        "|".join(
+            [
+                _Extracted.sha256,
+                "4000",
+                "flac",
+                "mistral",
+                "voxtral-mini-2602",
+                "asr-gateway-v1",
+                "1",
+                attempt.request_config_digest,
+                "fr",
+                "",
+                "1",
+            ]
+        ).encode()
+    ).hexdigest()
+    assert _gateway_fingerprint(_Extracted(), attempt, language="fr") == (
+        expected_fingerprint
     )
 
 

@@ -106,20 +106,26 @@ def extract_verified_audio_file(object_ref, expected_size, expected_checksum):
     """Extract mono 16 kHz FLAC to a temp file without buffering it in RAM."""
 
     # The FLAC must outlive this function; ExtractedAudio.close() owns cleanup.
-    workdir = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
-        prefix="mastrao_transcribe_"
-    )
+    try:
+        workdir = tempfile.TemporaryDirectory(  # pylint: disable=consider-using-with
+            prefix="mastrao_transcribe_"
+        )
+    except OSError as error:
+        raise TranscriptionContractRefused(status=503) from error
     created = False
     try:
         source_path = Path(workdir.name) / "verified-source.mp4"
         audio_path = Path(workdir.name) / "audio-16k-mono.flac"
-        stream = _open_verified_stream(object_ref, expected_size, expected_checksum)
         try:
-            with source_path.open("wb") as destination:
-                while chunk := stream.read(1024 * 1024):
-                    destination.write(chunk)
-        finally:
-            stream.close()
+            stream = _open_verified_stream(object_ref, expected_size, expected_checksum)
+            try:
+                with source_path.open("wb") as destination:
+                    while chunk := stream.read(1024 * 1024):
+                        destination.write(chunk)
+            finally:
+                stream.close()
+        except OSError as error:
+            raise TranscriptionContractRefused(status=503) from error
         command = [
             "ffmpeg",
             "-v",
@@ -336,7 +342,6 @@ def _speaker_participant_mapping(transcript, speaker_evidence):
             )
 
     mapping = {}
-    claimed_participants = set()
     for speaker_ref, participant_scores in scores.items():
         ranked = sorted(
             participant_scores.items(), key=lambda item: item[1], reverse=True
@@ -346,9 +351,8 @@ def _speaker_participant_mapping(transcript, speaker_evidence):
         if len(ranked) > 1 and ranked[0][1] <= ranked[1][1]:
             continue
         participant_ref = ranked[0][0]
-        if participant_ref in claimed_participants or participant_ref not in labels:
+        if participant_ref not in labels:
             continue
-        claimed_participants.add(participant_ref)
         mapping[speaker_ref] = labels[participant_ref]
     return mapping
 

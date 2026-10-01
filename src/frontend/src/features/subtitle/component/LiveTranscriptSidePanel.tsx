@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Text } from '@/primitives'
+import { useRoomContext } from '@livekit/components-react'
+import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { Avatar } from '@/components/Avatar'
+import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
+import {
+  DEFAULT_PARTICIPANT_COLOR,
+  getParticipantColor,
+} from '@/features/rooms/utils/getParticipantColor'
 import { useLiveTranscription } from '../store/liveTranscriptionContext'
+import { getParticipantForTranscription } from '../store/liveTranscriptionParticipants'
 import { useSubtitles } from '../hooks/useSubtitles'
 import type {
   LiveTranscriptionConnectionStatus,
   LiveTranscriptionSegment,
 } from '../store/liveTranscriptionTypes'
+import { groupConsecutiveSpeakerSegments } from './liveTranscriptTurns'
 
 const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
   css({
@@ -25,12 +34,12 @@ const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
 
 const Segment = ({
   segment,
-  finalLabel,
-  interimLabel,
+  speakerLabel,
+  speakerColor,
 }: {
   segment: LiveTranscriptionSegment
-  finalLabel: string
-  interimLabel: string
+  speakerLabel: string
+  speakerColor: string
 }) => {
   const isFinal = segment.state === 'final'
 
@@ -38,29 +47,26 @@ const Segment = ({
     <article
       className={css({
         display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
-        padding: '0.75rem',
-        borderWidth: '1px',
-        borderStyle: isFinal ? 'solid' : 'dashed',
-        borderColor: isFinal ? 'box.border' : 'primary',
-        borderRadius: '8px',
-        backgroundColor: isFinal ? 'box.bg' : 'accent',
+        alignItems: 'flex-start',
+        gap: '0.625rem',
+        width: '100%',
       })}
       data-segment-state={segment.state}
       data-segment-key={segment.key}
     >
+      <Avatar name={speakerLabel} bgColor={speakerColor} context="list" />
       <div
         className={css({
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '0.75rem',
+          flexDirection: 'column',
+          gap: '0.25rem',
+          minWidth: 0,
+          flex: 1,
         })}
       >
         <Text
           as="span"
-          variant="note"
+          variant="bodyXsMedium"
           margin={false}
           className={css({
             minWidth: 0,
@@ -69,13 +75,27 @@ const Segment = ({
             whiteSpace: 'nowrap',
           })}
         >
-          {segment.participantIdentity}
+          {speakerLabel}
         </Text>
-        <Badge size="sm">{isFinal ? finalLabel : interimLabel}</Badge>
+        <Text
+          as="p"
+          variant="sm"
+          margin={false}
+          wrap="pretty"
+          className={css({
+            width: 'fit-content',
+            maxWidth: '100%',
+            padding: '0.375rem 0.5rem',
+            borderRadius: '6px',
+            backgroundColor: 'muted',
+            color: 'foreground',
+            whiteSpace: 'pre-wrap',
+            opacity: isFinal ? 1 : 0.72,
+          })}
+        >
+          {segment.text}
+        </Text>
       </div>
-      <Text as="p" margin={false} wrap="pretty">
-        {segment.text}
-      </Text>
     </article>
   )
 }
@@ -136,6 +156,10 @@ const StatusRow = ({
 
 export const LiveTranscriptSidePanel = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
+  const { t: tParticipants } = useTranslation('rooms', {
+    keyPrefix: 'participants',
+  })
+  const room = useRoomContext()
   const [isRetryingLocally, setIsRetryingLocally] = useState(false)
   const [hasStartFailed, setHasStartFailed] = useState(false)
   const { ensureSubtitlesStarted } = useSubtitles()
@@ -149,6 +173,7 @@ export const LiveTranscriptSidePanel = () => {
 
   const isRetrying = resyncStatus === 'pending' || isRetryingLocally
   const hasSegments = segments.length > 0
+  const speakerTurns = groupConsecutiveSpeakerSegments(segments)
   const hasFailed = hasStartFailed || resyncStatus === 'failed'
 
   useEffect(() => {
@@ -275,14 +300,27 @@ export const LiveTranscriptSidePanel = () => {
             {t('empty')}
           </Text>
         ) : (
-          segments.map((segment) => (
-            <Segment
-              key={segment.key}
-              segment={segment}
-              finalLabel={t('final')}
-              interimLabel={t('interim')}
-            />
-          ))
+          speakerTurns.map((segment) => {
+            const participant = getParticipantForTranscription(
+              room,
+              segment.participantIdentity
+            )
+            const speakerLabel = participant
+              ? getParticipantName(participant)
+              : tParticipants('unknown')
+            const speakerColor = participant
+              ? getParticipantColor(participant)
+              : DEFAULT_PARTICIPANT_COLOR
+
+            return (
+              <Segment
+                key={segment.key}
+                segment={segment}
+                speakerLabel={speakerLabel}
+                speakerColor={speakerColor}
+              />
+            )
+          })
         )}
       </div>
     </div>

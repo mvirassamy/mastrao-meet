@@ -32,9 +32,38 @@
             "ports": [{"port": "53", "protocol": "ANY"}],
             "rules": {
               "dns": [
-                {"matchName": "livekit-signal.mastrao-staging.svc.cluster.local"}
+                {"matchName": "livekit-signal.mastrao-staging.svc.cluster.local"},
+                {"matchName": "cabinet-core.mastrao-staging.svc.cluster.local"},
+                {"matchName": "s3.fr-par.scw.cloud"},
+                {"matchName": "mastrao-staging-meet-egress-captures.s3.fr-par.scw.cloud"}
               ]
             }
+          }
+        ]
+      },
+      {
+        "toEndpoints": [
+          {
+            "matchLabels": {
+              "k8s:io.cilium.k8s.policy.serviceaccount": "cabinet-core",
+              "k8s:io.kubernetes.pod.namespace": "mastrao-staging"
+            }
+          }
+        ],
+        "toPorts": [
+          {
+            "ports": [{"port": "8080", "protocol": "TCP"}]
+          }
+        ]
+      },
+      {
+        "toFQDNs": [
+          {"matchName": "s3.fr-par.scw.cloud"},
+          {"matchName": "mastrao-staging-meet-egress-captures.s3.fr-par.scw.cloud"}
+        ],
+        "toPorts": [
+          {
+            "ports": [{"port": "443", "protocol": "TCP"}]
           }
         ]
       },
