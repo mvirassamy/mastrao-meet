@@ -6,7 +6,18 @@ import { useRoomContext } from '@livekit/components-react'
 import { useCallback, useEffect, useRef } from 'react'
 import { RoomEvent } from 'livekit-client'
 
-const startedSubtitleRooms = new Set<string>()
+// A successful start belongs to one LiveKit connection. A later session of the
+// same persistent Meet room has a new provider SID and needs its own ON intent.
+const startedSubtitleRooms = new WeakMap<object, Set<string>>()
+
+const startedRoomsFor = (connection: object) => {
+  let started = startedSubtitleRooms.get(connection)
+  if (!started) {
+    started = new Set<string>()
+    startedSubtitleRooms.set(connection, started)
+  }
+  return started
+}
 
 export const useSubtitles = () => {
   const layoutSnap = useSnapshot(layoutStore)
@@ -23,14 +34,15 @@ export const useSubtitles = () => {
   const ensureSubtitlesStarted = useCallback(async () => {
     const currentToken = livekitTokenRef.current
     if (!hasLivekitCredentials || !livekitRoom || !currentToken) return
-    if (startedSubtitleRooms.has(livekitRoom)) return
+    const started = startedRoomsFor(room)
+    if (started.has(livekitRoom)) return
 
     await startSubtitleRoom({
       id: livekitRoom,
       token: currentToken,
     })
-    startedSubtitleRooms.add(livekitRoom)
-  }, [hasLivekitCredentials, livekitRoom, startSubtitleRoom])
+    started.add(livekitRoom)
+  }, [hasLivekitCredentials, livekitRoom, room, startSubtitleRoom])
 
   const toggleSubtitles = useCallback(async () => {
     if (!layoutSnap.showSubtitles) await ensureSubtitlesStarted()
@@ -43,6 +55,7 @@ export const useSubtitles = () => {
 
     const closeSubtitles = () => {
       layoutStore.showSubtitles = false
+      startedSubtitleRooms.delete(room)
     }
     room.on(RoomEvent.Disconnected, closeSubtitles)
     return () => {

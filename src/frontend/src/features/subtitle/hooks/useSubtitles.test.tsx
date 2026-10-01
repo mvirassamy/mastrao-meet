@@ -140,6 +140,60 @@ describe('useSubtitles', () => {
     })
   })
 
+  it('starts again in a new LiveKit session of the same room', async () => {
+    const { result, rerender } = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+
+    useRoomContextMock.mockReturnValue({ on: vi.fn(), off: vi.fn() })
+    rerender()
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+
+    expect(startSubtitleMock).toHaveBeenCalledTimes(2)
+    expect(startSubtitleMock).toHaveBeenLastCalledWith({
+      id: currentRoomId,
+      token: 'room-token',
+    })
+  })
+
+  it('starts again after the LiveKit connection disconnects', async () => {
+    const { result } = renderHook(() => useSubtitles())
+
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+    const disconnected = (room.on.mock.calls as [string, () => void][])
+      .filter(([event]) => event === 'disconnected')
+      .at(-1)?.[1]
+    act(() => disconnected?.())
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+
+    expect(disconnected).toBeDefined()
+    expect(startSubtitleMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a failed start retryable in the same session', async () => {
+    const failure = new Error('subtitle unavailable')
+    startSubtitleMock.mockRejectedValueOnce(failure).mockResolvedValueOnce({})
+    const { result } = renderHook(() => useSubtitles())
+
+    await expect(result.current.ensureSubtitlesStarted()).rejects.toBe(failure)
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+    await act(async () => {
+      await result.current.ensureSubtitlesStarted()
+    })
+
+    expect(startSubtitleMock).toHaveBeenCalledTimes(2)
+  })
+
   it('changes the start callback when credentials become available', () => {
     useRoomDataMock.mockReturnValue({
       livekit: { room: currentRoomId, token: undefined },
