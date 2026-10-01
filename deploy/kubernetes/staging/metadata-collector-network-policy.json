@@ -2,13 +2,13 @@
   "apiVersion": "cilium.io/v2",
   "kind": "CiliumNetworkPolicy",
   "metadata": {
-    "name": "agent-subtitles-private-v1",
+    "name": "metadata-collector-private-v1",
     "namespace": "mastrao-staging"
   },
   "spec": {
     "endpointSelector": {
       "matchLabels": {
-        "app.kubernetes.io/component": "agent-subtitles",
+        "app.kubernetes.io/component": "metadata-collector",
         "app.kubernetes.io/name": "metadata-collector"
       }
     },
@@ -32,8 +32,7 @@
             "ports": [{"port": "53", "protocol": "ANY"}],
             "rules": {
               "dns": [
-                {"matchName": "livekit-signal.mastrao-staging.svc.cluster.local"},
-                {"matchName": "api.openai.com"}
+                {"matchName": "livekit-signal.mastrao-staging.svc.cluster.local"}
               ]
             }
           }
@@ -48,14 +47,6 @@
               {"port": "7881", "protocol": "TCP"},
               {"port": "7882", "protocol": "UDP"}
             ]
-          }
-        ]
-      },
-      {
-        "toFQDNs": [{"matchName": "api.openai.com"}],
-        "toPorts": [
-          {
-            "ports": [{"port": "443", "protocol": "TCP"}]
           }
         ]
       }
