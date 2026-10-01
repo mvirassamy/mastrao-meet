@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-02: Attribute post-meeting transcript segments from unique VAD
+  evidence before falling back to the diarizer's reusable acoustic cluster.
+
 - 2026-10-01: Group consecutive live transcript segments from the same
   participant and microphone into one readable speaker turn.
 
