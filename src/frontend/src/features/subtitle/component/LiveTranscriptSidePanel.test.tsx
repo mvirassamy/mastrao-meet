@@ -173,6 +173,89 @@ describe('LiveTranscriptSidePanel', () => {
     expect(screen.queryByText('alice')).toBeNull()
   })
 
+  it('groups consecutive segments from the same microphone into one speaker turn', () => {
+    roomMock.getParticipantByIdentity.mockImplementation(
+      (identity: string) => ({
+        identity,
+        name: identity === 'alice' ? 'Alice Martin' : 'Bob Dupont',
+      })
+    )
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [
+        { ...segment, state: 'final', text: 'Bonjour', receivedAt: 1_000 },
+        {
+          ...segment,
+          key: 'segment-2',
+          itemId: 'item-2',
+          state: 'final',
+          text: 'comment allez-vous ?',
+          receivedAt: 2_000,
+        },
+        {
+          ...segment,
+          key: 'segment-3',
+          participantIdentity: 'bob',
+          trackSid: 'track-2',
+          itemId: 'item-3',
+          state: 'final',
+          text: 'Très bien',
+          receivedAt: 3_000,
+        },
+        {
+          ...segment,
+          key: 'segment-4',
+          itemId: 'item-4',
+          state: 'final',
+          text: 'Merci',
+          receivedAt: 4_000,
+        },
+      ],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getAllByTestId('speaker-avatar')).toHaveLength(3)
+    expect(screen.getByText('Bonjour comment allez-vous ?')).toBeTruthy()
+    expect(screen.getByText('Très bien')).toBeTruthy()
+    expect(screen.getByText('Merci')).toBeTruthy()
+  })
+
+  it('keeps a long pause in the same bubble as a new paragraph', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [
+        {
+          ...segment,
+          state: 'final',
+          text: 'Premier sujet',
+          receivedAt: 1_000,
+        },
+        {
+          ...segment,
+          key: 'segment-2',
+          itemId: 'item-2',
+          state: 'final',
+          text: 'Deuxième sujet',
+          receivedAt: 7_000,
+        },
+      ],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getAllByTestId('speaker-avatar')).toHaveLength(1)
+    expect(screen.getByRole('log').querySelector('p')?.textContent).toBe(
+      'Premier sujet\n\nDeuxième sujet'
+    )
+  })
+
   it('does not expose a technical identity after the participant leaves', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',

@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-01: Group consecutive live transcript segments from the same
+  participant and microphone into one readable speaker turn.
 - 2026-10-01: Remove the in-video captions control from the meeting bar and
   present live transcript entries as compact speaker bubbles inside meeting
   tools.
