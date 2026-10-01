@@ -73,4 +73,16 @@ describe('useSubtitles', () => {
     expect(startSubtitleMock).toHaveBeenCalledTimes(2)
     expect(layoutStore.showSubtitles).toBe(true)
   })
+
+  it('keeps the start callback stable across equivalent room refreshes', () => {
+    const { result, rerender } = renderHook(() => useSubtitles())
+    const initialCallback = result.current.ensureSubtitlesStarted
+
+    useRoomDataMock.mockReturnValue({
+      livekit: { room: 'room-id', token: 'room-token' },
+    })
+    rerender()
+
+    expect(result.current.ensureSubtitlesStarted).toBe(initialCallback)
+  })
 })

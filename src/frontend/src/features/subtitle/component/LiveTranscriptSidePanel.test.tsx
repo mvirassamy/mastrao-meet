@@ -47,6 +47,7 @@ vi.mock('react-i18next', () => ({
         startError: 'Start failed',
         retry: 'Retry',
         refreshing: 'Refreshing',
+        unknown: 'Unknown participant',
       })[key] ?? key,
   }),
 }))
@@ -160,6 +161,21 @@ describe('LiveTranscriptSidePanel', () => {
 
     expect(screen.getByText('Alice Martin')).toBeTruthy()
     expect(screen.queryByText('alice')).toBeNull()
+  })
+
+  it('does not expose a technical identity after the participant leaves', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [{ ...segment, participantIdentity: 'user_9d46b8f2' }],
+      syncSubtitleState,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Unknown participant')).toBeTruthy()
+    expect(screen.queryByText('user_9d46b8f2')).toBeNull()
   })
 
   it('offers retry when the state refresh failed', () => {

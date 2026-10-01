@@ -141,6 +141,9 @@ const StatusRow = ({
 
 export const LiveTranscriptSidePanel = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
+  const { t: tParticipants } = useTranslation('rooms', {
+    keyPrefix: 'participants',
+  })
   const room = useRoomContext()
   const [isRetryingLocally, setIsRetryingLocally] = useState(false)
   const [hasStartFailed, setHasStartFailed] = useState(false)
@@ -288,7 +291,7 @@ export const LiveTranscriptSidePanel = () => {
             )
             const speakerLabel = participant
               ? getParticipantName(participant)
-              : segment.participantIdentity
+              : tParticipants('unknown')
 
             return (
               <Segment
