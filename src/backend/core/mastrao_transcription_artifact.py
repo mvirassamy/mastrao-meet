@@ -313,17 +313,25 @@ def _overlap_ms(segment, interval):
 
 
 def _segment_participant_label(segment, labels, intervals):
-    overlapping = [
-        participant_ref
-        for participant_ref, participant_intervals in intervals.items()
-        if participant_ref in labels
-        and any(
-            _overlap_ms(segment, interval) > 0 for interval in participant_intervals
-        )
-    ]
-    if len(overlapping) != 1:
+    ranked = sorted(
+        (
+            (
+                participant_ref,
+                sum(
+                    _overlap_ms(segment, interval) for interval in participant_intervals
+                ),
+            )
+            for participant_ref, participant_intervals in intervals.items()
+            if participant_ref in labels
+        ),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    if not ranked or ranked[0][1] <= 0:
         return None
-    return labels[overlapping[0]]
+    if len(ranked) > 1 and ranked[0][1] <= ranked[1][1]:
+        return None
+    return labels[ranked[0][0]]
 
 
 def _speaker_participant_mapping(transcript, speaker_evidence):

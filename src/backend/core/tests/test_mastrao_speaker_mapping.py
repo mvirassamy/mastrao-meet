@@ -121,6 +121,91 @@ def test_segment_without_unique_timeline_keeps_global_cluster_fallback():
     ]
 
 
+def test_dominant_segment_overlap_wins_over_short_cross_talk():
+    """Use dominant VAD overlap when short cross-talk makes the cluster ambiguous."""
+    transcript = {
+        "segments": [
+            {
+                "segment_id": "segment_000000000001",
+                "start_ms": 0,
+                "end_ms": 1_000,
+                "speaker": {"kind": "acoustic", "ref": "shared_cluster"},
+                "text": "bonjour de matt",
+            },
+            {
+                "segment_id": "segment_000000000002",
+                "start_ms": 2_000,
+                "end_ms": 3_000,
+                "speaker": {"kind": "acoustic", "ref": "shared_cluster"},
+                "text": "bonjour de vanille",
+            },
+        ],
+        "language": "fr",
+    }
+    evidence = {
+        "timeline_ended_at_ms": 3_000,
+        "participants": [
+            {
+                "participant_ref": "participant_matt",
+                "display_name_events": [{"effective_at_ms": 0, "label": "Matt"}],
+            },
+            {
+                "participant_ref": "participant_vanille",
+                "display_name_events": [{"effective_at_ms": 0, "label": "Vanille"}],
+            },
+        ],
+        "events": [
+            {
+                "at_ms": 0,
+                "type": "speech_start",
+                "participant_ref": "participant_matt",
+            },
+            {
+                "at_ms": 1_000,
+                "type": "speech_end",
+                "participant_ref": "participant_matt",
+            },
+            {
+                "at_ms": 900,
+                "type": "speech_start",
+                "participant_ref": "participant_vanille",
+            },
+            {
+                "at_ms": 1_000,
+                "type": "speech_end",
+                "participant_ref": "participant_vanille",
+            },
+            {
+                "at_ms": 2_000,
+                "type": "speech_start",
+                "participant_ref": "participant_matt",
+            },
+            {
+                "at_ms": 2_100,
+                "type": "speech_end",
+                "participant_ref": "participant_matt",
+            },
+            {
+                "at_ms": 2_000,
+                "type": "speech_start",
+                "participant_ref": "participant_vanille",
+            },
+            {
+                "at_ms": 3_000,
+                "type": "speech_end",
+                "participant_ref": "participant_vanille",
+            },
+        ],
+    }
+
+    mapped = map_speakers(copy.deepcopy(transcript), evidence)
+
+    assert [segment["speaker"] for segment in mapped["segments"]] == [
+        {"kind": "participant", "label": "Matt"},
+        {"kind": "participant", "label": "Vanille"},
+    ]
+
+
 def test_ambiguous_segment_stays_anonymous_without_unambiguous_cluster_fallback():
     """Keep a turn anonymous when its VAD overlap has two participants."""
     transcript = {

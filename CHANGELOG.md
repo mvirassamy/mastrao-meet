@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-02: Prefer the participant with the largest strict VAD overlap for
+  post-meeting transcript segments while keeping true overlap ties anonymous.
+
 - 2026-10-02: Attribute post-meeting transcript segments from unique VAD
   evidence before falling back to the diarizer's reusable acoustic cluster.
 
