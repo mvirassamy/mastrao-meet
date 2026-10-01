@@ -312,6 +312,20 @@ def _overlap_ms(segment, interval):
     )
 
 
+def _segment_participant_label(segment, labels, intervals):
+    overlapping = [
+        participant_ref
+        for participant_ref, participant_intervals in intervals.items()
+        if participant_ref in labels
+        and any(
+            _overlap_ms(segment, interval) > 0 for interval in participant_intervals
+        )
+    ]
+    if len(overlapping) != 1:
+        return None
+    return labels[overlapping[0]]
+
+
 def _speaker_participant_mapping(transcript, speaker_evidence):
     labels = _participant_labels(speaker_evidence)
     if not labels:
@@ -365,6 +379,12 @@ def map_speakers(transcript, speaker_evidence=None):
     """
 
     anonymous = {}
+    labels = (
+        _participant_labels(speaker_evidence) if speaker_evidence is not None else {}
+    )
+    intervals = (
+        _speech_intervals(speaker_evidence) if speaker_evidence is not None else {}
+    )
     participant_mapping = (
         _speaker_participant_mapping(transcript, speaker_evidence)
         if speaker_evidence is not None
@@ -372,7 +392,9 @@ def map_speakers(transcript, speaker_evidence=None):
     )
     for segment in transcript["segments"]:
         speaker = segment["speaker"]
-        label = participant_mapping.get(speaker["ref"])
+        label = _segment_participant_label(segment, labels, intervals)
+        if label is None:
+            label = participant_mapping.get(speaker["ref"])
         if label is not None:
             segment["speaker"] = {"kind": "participant", "label": label}
             continue

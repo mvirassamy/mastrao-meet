@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-02: Attribute post-meeting transcript segments from unique VAD
+  evidence before falling back to the diarizer's reusable acoustic cluster.
+
 - 2026-10-01: Persist separate staging network policies for the subtitle agent
   and metadata collector, preserve the collector's Core and S3 access, and
   limit OpenAI egress to live transcription.
