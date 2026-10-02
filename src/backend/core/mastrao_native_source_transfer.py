@@ -4,7 +4,6 @@
 # pylint: disable=broad-exception-caught,import-outside-toplevel,too-many-boolean-expressions
 # pylint: disable=unidiomatic-typecheck
 
-import base64
 import logging
 from datetime import timedelta
 from uuid import UUID, uuid4
@@ -16,14 +15,9 @@ from django.utils import timezone
 
 from core import models
 from core.mastrao_core_http import post_core_json
-from core.mastrao_native_audio import (
-    materialize_native_audio,
-    native_audio_manifest_digest,
-)
-from core.mastrao_native_capture_adapter import _spool_prefix
 from core.mastrao_native_notice import native_envelope
-from core.mastrao_native_spool import SpoolRefused
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
+from core.mastrao_room_contract import _sha256_canonical
 
 SOURCE_PATH = "/internal/v1/meetings/capture/native/source"
 SOURCE_JOSE = "mastrao-native-audio-source+jws"
@@ -35,10 +29,11 @@ def _eligible_sources(now):
         drained_at__isnull=False,
         provider_job_ref__isnull=False,
         source_receipt__isnull=True,
+        source_manifest__isnull=False,
         source_next_at__lte=now,
         source_attempts__lt=8,
         retention_expires_at__gt=now,
-        observed_status__in=[3, 4, 5, 6],
+        observed_status__in=[3, 6],
         epoch__conflict=False,
         epoch__connection__correlation="correlated",
     ).filter(Q(source_claim_until__isnull=True) | Q(source_claim_until__lte=now))
@@ -69,8 +64,8 @@ def _claim():
     return intent
 
 
-def _send(intent, audio):
-    manifest_digest = native_audio_manifest_digest(audio.manifest)
+def _send(intent):
+    manifest_digest = _sha256_canonical(intent.source_manifest)
     assertion = {
         **native_envelope("mastrao.meet-native-audio-source"),
         "organization_external_id": intent.organization_external_id,
@@ -86,8 +81,7 @@ def _send(intent, audio):
         expected_path=SOURCE_PATH,
         body={
             "request": signed_request,
-            "manifest": audio.manifest,
-            "audio_base64": base64.b64encode(audio.path.read_bytes()).decode("ascii"),
+            "manifest": intent.source_manifest,
         },
         timeout=20,
         headers={"Authorization": f"Bearer {signed_request}"},
@@ -152,13 +146,7 @@ def transfer_next_native_source():
     intent = _claim()
     if intent is None:
         return False
-    audio = None
     try:
-        # Path is derived by the operator's pool root and server UUID only.
-        expected = _spool_prefix(str(intent.capture_ref))
-        if intent.output_prefix != expected:
-            raise SpoolRefused("native_output_binding_mismatch")
-        audio = materialize_native_audio(expected)
         if not models.MastraoNativeCaptureStart.objects.filter(
             pk=intent.pk,
             source_claim=intent.source_claim,
@@ -167,15 +155,12 @@ def transfer_next_native_source():
             epoch__conflict=False,
             epoch__connection__correlation="correlated",
         ).exists():
-            raise SpoolRefused("native_source_authority_changed")
-        return _finish(intent, _send(intent, audio), "")
-    except (SpoolRefused, OSError, ValueError, RecordingContractRefused):
+            raise RecordingContractRefused(status=409)
+        return _finish(intent, _send(intent), "")
+    except (ValueError, RecordingContractRefused):
         _finish(intent, None, "native_source_transfer_failed")
         logger.warning("Native audio source transfer failed; durable retry retained")
         return False
-    finally:
-        if audio is not None:
-            audio.close()
 
 
 def schedule_native_source_transfer():

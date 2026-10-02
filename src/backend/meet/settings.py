@@ -541,10 +541,6 @@ class Base(Configuration):
     MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN = values.Value(
         "", environ_name="MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN", environ_prefix=None
     )
-    # Requires a dedicated Egress volume/pool with NO default cloud destination.
-    MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT = values.Value(
-        "", environ_name="MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT", environ_prefix=None
-    )
     MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE = values.PositiveIntegerValue(
         120,
         environ_name="MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE",

@@ -24,6 +24,7 @@ from livekit import api
 from core import mastrao_native_capture_adapter as adapter
 from core import models
 from core.mastrao_native_capture_drain import (
+    MAX_AUDIO_BYTES,
     TERMINAL,
     _claim_next,
     _finish,
@@ -66,19 +67,22 @@ def test_real_http_start_stop_and_independent_terminal_observation(
         assert reconcile_native_captures() == 0, errors
         assert models.MastraoNativeCaptureStart.objects.get().drained_at is None
         _due()
-        assert reconcile_native_captures() == 1, errors
+        # The HTTP transport fixture returns no FileInfo. A successful provider
+        # status without exact immutable-object metadata is not source-ready.
+        assert reconcile_native_captures() == 0, errors
         with psycopg.connect(**connection.get_connection_params()) as independent:
             row = independent.execute(
-                "SELECT provider_job_ref, observed_status, drained_at "
+                "SELECT provider_job_ref, observed_status, drained_at, source_manifest "
                 "FROM meet_mastrao_native_capture_start"
             ).fetchone()
         assert (
             row[0] == "EG_nativehttp"
-            and row[1] == api.EgressStatus.EGRESS_COMPLETE
-            and row[2]
+            and row[1] in {None, api.EgressStatus.EGRESS_STARTING}
+            and row[2] is None
+            and row[3] is None
         )
         assert calls == [
-            "/twirp/livekit.Egress/StartTrackCompositeEgress",
+            "/twirp/livekit.Egress/StartTrackEgress",
             "/twirp/livekit.Egress/ListEgress",
             "/twirp/livekit.Egress/StopEgress",
             "/twirp/livekit.Egress/ListEgress",
@@ -92,6 +96,19 @@ def _due():
 
 def _closed():
     models.MastraoRoomBinding.objects.update(closing_at=timezone.now())
+
+
+def _terminal_file(job):
+    job.file_results.append(
+        api.FileInfo(
+            filename=job.track.file.filepath,
+            started_at=1_000_000_000,
+            ended_at=3_000_000_000,
+            duration=2_000_000_000,
+            size=4096,
+            location="s3://native-fixture-bucket/" + job.track.file.filepath,
+        )
+    )
 
 
 def _stop_provider(provider, *, lost=False):
@@ -132,6 +149,7 @@ def test_stop_ack_or_lost_reply_never_means_drained(
     assert reconcile_native_captures() == 0  # ENDING does not repeat Stop.
     assert provider.egress.stop_egress.await_count == 1
     provider.jobs[0].status = api.EgressStatus.EGRESS_COMPLETE
+    _terminal_file(provider.jobs[0])
     _due()
     assert reconcile_native_captures() == 1
     intent.refresh_from_db()
@@ -139,8 +157,18 @@ def test_stop_ack_or_lost_reply_never_means_drained(
     assert intent.observed_status == api.EgressStatus.EGRESS_COMPLETE
     assert intent.receipt_claims == original_receipt
     assert intent.receipt_claims["media_durability_proven"] is False
+    assert intent.source_manifest == {
+        "version": 1,
+        "format": "native_track_egress_ogg_opus_v1",
+        "object_ref": f"recordings/{intent.capture_ref}.ogg",
+        "started_at": "1000000000",
+        "ended_at": "3000000000",
+        "duration": "2000000000",
+        "size": 4096,
+        "coverage": "epoch_only",
+    }
     assert reconcile_native_captures() == 0
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
 
 
 @pytest.mark.parametrize(
@@ -185,11 +213,66 @@ def test_natural_terminal_is_not_audio_success(client, signer, effect, provider,
     assert _post(client, signer, effect).status_code == 200
     _stop_provider(provider)
     provider.jobs[0].status = state
+    if state in {
+        api.EgressStatus.EGRESS_COMPLETE,
+        api.EgressStatus.EGRESS_LIMIT_REACHED,
+    }:
+        _terminal_file(provider.jobs[0])
     assert reconcile_native_captures() == 1
     intent = models.MastraoNativeCaptureStart.objects.get()
     assert intent.drained_at and intent.observed_status == state
+    assert (intent.source_manifest is not None) == (
+        state
+        in {
+            api.EgressStatus.EGRESS_COMPLETE,
+            api.EgressStatus.EGRESS_LIMIT_REACHED,
+        }
+    )
     assert not intent.stop_requested_at
     provider.egress.stop_egress.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "absent",
+        "multiple",
+        "backup_storage",
+        "filename",
+        "size",
+        "size_above_limit",
+        "timestamps",
+        "duration",
+    ],
+)
+def test_success_status_requires_one_exact_file_result(
+    client, signer, effect, provider, fault
+):
+    assert _post(client, signer, effect).status_code == 200
+    job = provider.jobs[0]
+    job.status = api.EgressStatus.EGRESS_COMPLETE
+    _terminal_file(job)
+    if fault == "absent":
+        job.file_results.clear()
+    elif fault == "multiple":
+        _terminal_file(job)
+    elif fault == "backup_storage":
+        job.backup_storage_used = True
+    elif fault == "filename":
+        job.file_results[0].filename = "recordings/foreign.ogg"
+    elif fault == "size":
+        job.file_results[0].size = 0
+    elif fault == "size_above_limit":
+        job.file_results[0].size = MAX_AUDIO_BYTES + 1
+    elif fault == "timestamps":
+        job.file_results[0].ended_at = job.file_results[0].started_at
+    else:
+        job.file_results[0].duration += 1
+    assert reconcile_native_captures() == 0
+    intent = models.MastraoNativeCaptureStart.objects.get()
+    assert intent.drained_at is None
+    assert intent.source_manifest is None
+    assert intent.drain_claim is None
 
 
 @pytest.mark.parametrize(
@@ -221,7 +304,7 @@ def test_ambiguous_observations_never_stop_or_drain(
     elif fault == "foreign_room":
         provider.jobs[0].room_id = "RM_foreign"
     elif fault == "foreign_request":
-        provider.jobs[0].track_composite.audio_track_id = "TR_foreign"
+        provider.jobs[0].track.track_id = "TR_foreign"
     else:
         provider.jobs[0].status = 999
     assert reconcile_native_captures() == 0
@@ -229,14 +312,14 @@ def test_ambiguous_observations_never_stop_or_drain(
     assert intent.stop_requested_at and intent.drained_at is None
     assert intent.drain_claim is None
     provider.egress.stop_egress.assert_not_called()
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
 
 
 def test_inflight_start_is_drained_after_lost_response(
     client, signer, effect, provider
 ):
     entered, release = threading.Event(), threading.Event()
-    start = provider.egress.start_track_composite_egress.side_effect
+    start = provider.egress.start_track_egress.side_effect
 
     async def held(request):
         entered.set()
@@ -244,7 +327,7 @@ def test_inflight_start_is_drained_after_lost_response(
         await start(request)
         raise TimeoutError()
 
-    provider.egress.start_track_composite_egress.side_effect = held
+    provider.egress.start_track_egress.side_effect = held
 
     def deliver():
         close_old_connections()
@@ -267,9 +350,10 @@ def test_inflight_start_is_drained_after_lost_response(
     assert reconcile_native_captures() == 0
     provider.egress.stop_egress.assert_awaited_once()
     provider.jobs[0].status = api.EgressStatus.EGRESS_COMPLETE
+    _terminal_file(provider.jobs[0])
     _due()
     assert reconcile_native_captures() == 1
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
 
 
 def test_start_latched_before_send_is_never_sent(
@@ -286,7 +370,7 @@ def test_start_latched_before_send_is_never_sent(
     monkeypatch.setattr(adapter, "_prepare", close_after_prepare)
     assert _post(client, signer, effect).status_code == 503
     assert models.MastraoNativeCaptureStart.objects.get().stop_requested_at
-    provider.egress.start_track_composite_egress.assert_not_called()
+    provider.egress.start_track_egress.assert_not_called()
 
 
 def test_claim_fences_stale_results_and_recovers_after_expiry(
@@ -301,6 +385,7 @@ def test_claim_fences_stale_results_and_recovers_after_expiry(
     second = _claim_next()
     assert second.drain_claim != first.drain_claim
     provider.jobs[0].status = api.EgressStatus.EGRESS_COMPLETE
+    _terminal_file(provider.jobs[0])
     assert _finish(first, provider.jobs[0]) is False
     assert models.MastraoNativeCaptureStart.objects.get().drained_at is None
     assert _finish(second, provider.jobs[0]) is True
@@ -332,6 +417,7 @@ def test_reconciler_consumes_native_without_legacy_video(
     assert "Reconciled 0 Mastrao recording(s)." in output.getvalue()
     provider.egress.stop_egress.assert_awaited_once()
     provider.jobs[0].status = api.EgressStatus.EGRESS_COMPLETE
+    _terminal_file(provider.jobs[0])
     _due()
     call_command("reconcile_mastrao_recordings", limit=1, stdout=output, **options)
     assert "Reconciled 1 Mastrao recording(s)." in output.getvalue()
@@ -373,6 +459,7 @@ def test_failed_terminal_commit_recovers_without_start(
 ):
     assert _post(client, signer, effect).status_code == 200
     provider.jobs[0].status = api.EgressStatus.EGRESS_COMPLETE
+    _terminal_file(provider.jobs[0])
     original = models.MastraoNativeCaptureStart.save
 
     def failing_save(self, *args, **kwargs):
@@ -390,4 +477,4 @@ def test_failed_terminal_commit_recovers_without_start(
         drain_claim_until=timezone.now() - timedelta(seconds=1)
     )
     assert reconcile_native_captures() == 1
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1

@@ -85,10 +85,13 @@ def _twirp_fixture(effect, lose_response, *, lose_stop=False):
                 assert 0 < length < 4096
                 body = self.rfile.read(length)
                 calls.append(self.path)
-                if self.path == "/twirp/livekit.Egress/StartTrackCompositeEgress":
-                    request = api.TrackCompositeEgressRequest.FromString(body)
-                    assert request.audio_track_id == effect["track_sid"]
-                    assert not request.video_track_id
+                if self.path == "/twirp/livekit.Egress/StartTrackEgress":
+                    request = api.TrackEgressRequest.FromString(body)
+                    assert request.track_id == effect["track_sid"]
+                    assert request.file.filepath == (
+                        f"recordings/{effect['capture_ref']}.ogg"
+                    )
+                    assert request.file.s3.bucket == "native-fixture-bucket"
                     with psycopg.connect(**params) as independent:
                         row = independent.execute(
                             "SELECT receipt_claims::text FROM meet_mastrao_native_capture_start "
@@ -100,7 +103,7 @@ def _twirp_fixture(effect, lose_response, *, lose_stop=False):
                         egress_id="EG_nativehttp",
                         room_id=effect["room_sid"],
                         room_name=request.room_name,
-                        track_composite=request,
+                        track=request,
                         status=api.EgressStatus.EGRESS_STARTING,
                     )
                     jobs.append(job)
@@ -189,7 +192,7 @@ def test_real_http_consumer_and_livekit_transport(
         claims = _receipt(response, settings)
         assert claims["provider_job_ref"] == "EG_nativehttp"
         assert models.MastraoNativeCaptureStart.objects.get().receipt_claims == claims
-        assert calls.count("/twirp/livekit.Egress/StartTrackCompositeEgress") == 1
+        assert calls.count("/twirp/livekit.Egress/StartTrackEgress") == 1
         assert len(calls) == (2 if lose_response else 1)
         assert not errors
 
@@ -206,7 +209,12 @@ def signer(settings):
     settings.MASTRAO_RECORDING_RECEIPT_ISSUER = "meet-fixture"
     settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE = "core-fixture"
     settings.MASTRAO_NATIVE_CAPTURE_START_ENABLED = True
-    settings.MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT = "/native-fixture/spool"
+    settings.RECORDING_OUTPUT_FOLDER = "recordings"
+    settings.AWS_S3_ENDPOINT_URL = "https://native-fixture.invalid"
+    settings.AWS_S3_ACCESS_KEY_ID = "native-fixture-access-key"
+    settings.AWS_S3_SECRET_ACCESS_KEY = "native-fixture-secret"
+    settings.AWS_S3_REGION_NAME = "native-fixture-region"
+    settings.AWS_STORAGE_BUCKET_NAME = "native-fixture-bucket"
 
     def sign(payload, typ=JOSE_TYPE):
         protected = _b64(
@@ -318,7 +326,7 @@ def test_host_and_guest_get_distinct_jobs_not_a_room_mix(  # noqa: PLR0913,PLR09
     second_claims = _receipt(second, settings)
     assert first_claims["provider_job_ref"] != second_claims["provider_job_ref"]
     assert first_claims["epoch_ref"] != second_claims["epoch_ref"]
-    assert {job.track_composite.audio_track_id for job in provider.jobs} == {
+    assert {job.track.track_id for job in provider.jobs} == {
         "TR_audio",
         "TR_guest",
     }
@@ -340,12 +348,12 @@ def test_guest_requires_current_confirmed_exact_admission(  # noqa: PLR0913,PLR0
         effect["organization_external_id"] = "other-organization"
         effect["arguments_digest"] = arguments_digest(effect)
     assert _post(client, signer, effect).status_code == 404
-    provider.egress.start_track_composite_egress.assert_not_called()
+    provider.egress.start_track_egress.assert_not_called()
 
 
 def test_two_concurrent_deliveries_send_only_once(client, signer, effect, provider):
     entered, release = threading.Event(), threading.Event()
-    start = provider.egress.start_track_composite_egress.side_effect
+    start = provider.egress.start_track_egress.side_effect
 
     async def held(request):
         job = await start(request)
@@ -353,7 +361,7 @@ def test_two_concurrent_deliveries_send_only_once(client, signer, effect, provid
         assert release.wait(8), "concurrent fixture timed out"
         return job
 
-    provider.egress.start_track_composite_egress.side_effect = held
+    provider.egress.start_track_egress.side_effect = held
 
     def deliver():
         close_old_connections()
@@ -371,7 +379,7 @@ def test_two_concurrent_deliveries_send_only_once(client, signer, effect, provid
         finally:
             release.set()
         assert first.result(timeout=8).content == second.content
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
     assert models.MastraoNativeCaptureStart.objects.count() == 1
 
 
@@ -391,7 +399,7 @@ def test_receipt_commit_failure_recovers_provider_without_resend(  # noqa: PLR09
     assert intent.provider_job_ref is None and intent.receipt_claims == {}
     monkeypatch.setattr(models.MastraoNativeCaptureStart, "save", original_save)
     assert _post(client, signer, effect).status_code == 200
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
 
 
 def test_missing_receipt_signer_prevents_start(
@@ -399,7 +407,7 @@ def test_missing_receipt_signer_prevents_start(
 ):
     settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = ""
     assert _post(client, signer, effect).status_code == 503
-    provider.egress.start_track_composite_egress.assert_not_called()
+    provider.egress.start_track_egress.assert_not_called()
     assert not models.MastraoNativeCaptureStart.objects.exists()
 
 
@@ -412,13 +420,13 @@ def test_model_and_migration_are_in_sync():
 def test_resolution_survives_retention_expiry_without_renewing_authority(
     client, signer, effect, provider, monkeypatch
 ):
-    start = provider.egress.start_track_composite_egress.side_effect
+    start = provider.egress.start_track_egress.side_effect
 
     async def lost(request):
         await start(request)
         raise TimeoutError()
 
-    provider.egress.start_track_composite_egress.side_effect = lost
+    provider.egress.start_track_egress.side_effect = lost
     assert _post(client, signer, effect).status_code == 503
     after_retention = effect["retention_expires_at"] + 1
     monkeypatch.setattr(
@@ -430,11 +438,11 @@ def test_resolution_survives_retention_expiry_without_renewing_authority(
     assert _post(client, signer, effect).status_code == 404
     effect["resolve_only"] = True
     assert _post(client, signer, effect).status_code == 200
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
 
 
 @pytest.fixture
-def provider(monkeypatch, effect):
+def provider(monkeypatch, effect, settings):
     stored = []
     params = connection.get_connection_params()
 
@@ -442,23 +450,27 @@ def provider(monkeypatch, effect):
         # This is outside the request's ORM connection: an uncommitted intent fails.
         with psycopg.connect(**params) as independent:
             row = independent.execute(
-                "SELECT output_prefix, receipt_claims::text FROM meet_mastrao_native_capture_start "
+                "SELECT receipt_claims::text FROM meet_mastrao_native_capture_start "
                 "WHERE capture_ref = %s",
                 [effect["capture_ref"]],
             ).fetchone()
-            assert row is not None and json.loads(row[1]) == {}
-        assert not request.video_track_id
-        assert len(request.segment_outputs) == 1
-        assert not request.file_outputs
-        assert request.segment_outputs[0].WhichOneof("output") is None
-        assert request.segment_outputs[0].playlist_name == row[0] + "/index.m3u8"
-        assert request.audio_track_id == effect["track_sid"]
+            assert row is not None and json.loads(row[0]) == {}
+        assert request.track_id == effect["track_sid"]
+        assert request.WhichOneof("output") == "file"
+        assert request.file.filepath == f"recordings/{effect['capture_ref']}.ogg"
+        assert request.file.WhichOneof("output") == "s3"
+        assert request.file.s3.endpoint == settings.AWS_S3_ENDPOINT_URL
+        assert request.file.s3.access_key == settings.AWS_S3_ACCESS_KEY_ID
+        assert request.file.s3.secret == settings.AWS_S3_SECRET_ACCESS_KEY
+        assert request.file.s3.region == settings.AWS_S3_REGION_NAME
+        assert request.file.s3.bucket == settings.AWS_STORAGE_BUCKET_NAME
+        assert request.file.s3.force_path_style is True
         job = api.EgressInfo(
             egress_id="EG_nativefixture" if not stored else "EG_nativefixture2",
             room_id=effect["room_sid"],
             room_name=request.room_name,
             status=api.EgressStatus.EGRESS_STARTING,
-            track_composite=request,
+            track=request,
         )
         stored.append(job)
         return job
@@ -468,7 +480,7 @@ def provider(monkeypatch, effect):
 
     fake = SimpleNamespace(
         egress=SimpleNamespace(
-            start_track_composite_egress=AsyncMock(side_effect=start),
+            start_track_egress=AsyncMock(side_effect=start),
             list_egress=AsyncMock(side_effect=listed),
         ),
         aclose=AsyncMock(),
@@ -520,40 +532,39 @@ def test_signed_start_commits_intent_before_send_and_receipt_before_ack(
     effect["jti"] = "renewed_claim_" + uuid4().hex
     repeated = _post(client, signer, effect)
     assert repeated.content == response.content
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
     provider.egress.list_egress.assert_not_called()
 
 
 def test_lost_response_resolves_exact_job_without_restarting_after_flag_rollback(
     client, signer, effect, provider, settings
 ):
-    start = provider.egress.start_track_composite_egress.side_effect
+    start = provider.egress.start_track_egress.side_effect
 
     async def lost(request):
         await start(request)
         raise TimeoutError("must-not-leak-provider-secret")
 
-    provider.egress.start_track_composite_egress.side_effect = lost
+    provider.egress.start_track_egress.side_effect = lost
     response = _post(client, signer, effect)
     assert response.status_code == 503
     assert b"secret" not in response.content
     assert models.MastraoNativeCaptureStart.objects.get().receipt_claims == {}
     settings.MASTRAO_NATIVE_CAPTURE_START_ENABLED = False
-    settings.MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT = "/changed/spool"
     models.MastraoRoomBinding.objects.update(closing_at=timezone.now())
     effect["resolve_only"] = True
     assert _post(client, signer, effect).status_code == 200
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
     assert provider.egress.list_egress.await_count == 1
 
 
 def test_crash_before_send_or_absent_job_never_allows_second_attempt(
     client, signer, effect, provider
 ):
-    provider.egress.start_track_composite_egress.side_effect = TimeoutError()
+    provider.egress.start_track_egress.side_effect = TimeoutError()
     assert _post(client, signer, effect).status_code == 503
     assert _post(client, signer, effect).status_code == 503
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
     assert models.MastraoNativeCaptureStart.objects.count() == 1
 
 
@@ -594,7 +605,7 @@ def test_crossed_or_invalid_signed_effect_never_calls_provider(
         effect[mismatch] = "wrong_" + effect[mismatch]
     effect["arguments_digest"] = arguments_digest(effect)
     assert _post(client, signer, effect).status_code == 404
-    provider.egress.start_track_composite_egress.assert_not_called()
+    provider.egress.start_track_egress.assert_not_called()
     assert not models.MastraoNativeCaptureStart.objects.exists()
 
 
@@ -610,7 +621,6 @@ def test_crossed_or_invalid_signed_effect_never_calls_provider(
         "grant_changed",
         "flag_off",
         "resolve_only",
-        "bad_spool",
     ],
 )
 def test_local_denials_do_not_create_intent(  # noqa: PLR0913,PLR0917 - explicit pytest fixtures.
@@ -634,12 +644,8 @@ def test_local_denials_do_not_create_intent(  # noqa: PLR0913,PLR0917 - explicit
         settings.MASTRAO_NATIVE_CAPTURE_START_ENABLED = False
     elif fault == "resolve_only":
         effect["resolve_only"] = True
-    else:
-        settings.MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT = "/"
-    assert _post(client, signer, effect).status_code == (
-        503 if fault == "bad_spool" else 404
-    )
-    provider.egress.start_track_composite_egress.assert_not_called()
+    assert _post(client, signer, effect).status_code == 404
+    provider.egress.start_track_egress.assert_not_called()
     assert not models.MastraoNativeCaptureStart.objects.exists()
 
 
@@ -664,7 +670,7 @@ def test_epoch_cannot_be_restarted_with_another_key_or_authority(
         effect[changed] += "changed"
     effect["arguments_digest"] = arguments_digest(effect)
     assert _post(client, signer, effect).status_code == 409
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
 
 
 def test_database_insert_failure_prevents_external_send(
@@ -675,7 +681,7 @@ def test_database_insert_failure_prevents_external_send(
 
     monkeypatch.setattr(models.MastraoNativeCaptureStart.objects, "create", unavailable)
     assert _post(client, signer, effect).status_code == 503
-    provider.egress.start_track_composite_egress.assert_not_called()
+    provider.egress.start_track_egress.assert_not_called()
 
 
 def test_wrong_signature_extra_fields_and_legacy_jose_refused(
@@ -690,14 +696,14 @@ def test_wrong_signature_extra_fields_and_legacy_jose_refused(
             URL, {"native_start_effect": compact}, content_type="application/json"
         )
         assert response.status_code == 404
-    provider.egress.start_track_composite_egress.assert_not_called()
+    provider.egress.start_track_egress.assert_not_called()
 
 
 @pytest.mark.parametrize("wrong", ["room", "track", "output", "duplicate"])
 def test_reconciliation_requires_exact_provider_job(
     client, signer, effect, provider, wrong
 ):
-    provider.egress.start_track_composite_egress.side_effect = TimeoutError()
+    provider.egress.start_track_egress.side_effect = TimeoutError()
     assert _post(client, signer, effect).status_code == 503
     intent = models.MastraoNativeCaptureStart.objects.get()
     request = native_request(intent)
@@ -705,14 +711,14 @@ def test_reconciliation_requires_exact_provider_job(
         egress_id="EG_nativefixture",
         room_id=effect["room_sid"],
         room_name=request.room_name,
-        track_composite=request,
+        track=request,
     )
     if wrong == "room":
         job.room_id = "RM_wrong"
     elif wrong == "track":
-        job.track_composite.audio_track_id = "TR_wrong"
+        job.track.track_id = "TR_wrong"
     elif wrong == "output":
-        job.track_composite.segment_outputs[0].playlist_name = "/other/index.m3u8"
+        job.track.file.filepath = "recordings/other.ogg"
     provider.jobs.append(job)
     if wrong == "duplicate":
         duplicate = copy.deepcopy(job)
@@ -722,4 +728,4 @@ def test_reconciliation_requires_exact_provider_job(
         409 if wrong == "duplicate" else 503
     )
     assert models.MastraoNativeCaptureStart.objects.get().receipt_claims == {}
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
