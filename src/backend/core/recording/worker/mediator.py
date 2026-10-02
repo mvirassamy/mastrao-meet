@@ -119,7 +119,7 @@ class WorkerServiceMediator:
                     recording.room.slug,
                 )
                 recording.status = RecordingStatusChoices.ABORTED
-                recording.save()
+                recording.save(update_fields=["status", "updated_at"])
                 return
             logger.exception(
                 "Failed to stop recording for room %s: %s", recording.room.slug, e
@@ -129,6 +129,6 @@ class WorkerServiceMediator:
         else:
             recording.status = RecordingStatusChoices[response]
         finally:
-            recording.save()
+            recording.save(update_fields=["status", "updated_at"])
 
         logger.info("Worker stopped for room %s", recording.room)
