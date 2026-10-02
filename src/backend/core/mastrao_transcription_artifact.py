@@ -271,7 +271,17 @@ def _participant_labels(speaker_evidence):
     return labels
 
 
-def _speech_intervals(speaker_evidence):
+def _speech_intervals(speaker_evidence, audio_started_at_ms=None):
+    offset_ms = 0
+    if audio_started_at_ms is not None:
+        evidence_origin = speaker_evidence.get("recording_started_at_ms")
+        if (
+            not isinstance(evidence_origin, int)
+            or isinstance(evidence_origin, bool)
+            or evidence_origin <= 0
+        ):
+            return {}
+        offset_ms = audio_started_at_ms - evidence_origin
     open_since = {}
     intervals = {}
     events = speaker_evidence.get("events", [])
@@ -290,6 +300,8 @@ def _speech_intervals(speaker_evidence):
         at_ms = event.get("at_ms")
         if not isinstance(participant_ref, str) or not isinstance(at_ms, int):
             continue
+        # VAD events use Core's start confirmation; ASR uses the file's start.
+        at_ms -= offset_ms
         if event.get("type") == "speech_start":
             open_since[participant_ref] = at_ms
         elif event.get("type") == "speech_end":
@@ -298,6 +310,7 @@ def _speech_intervals(speaker_evidence):
                 intervals.setdefault(participant_ref, []).append((start_ms, at_ms))
     timeline_end = speaker_evidence.get("timeline_ended_at_ms")
     if isinstance(timeline_end, int):
+        timeline_end -= offset_ms
         for participant_ref, start_ms in open_since.items():
             if timeline_end > start_ms:
                 intervals.setdefault(participant_ref, []).append(
@@ -344,7 +357,9 @@ def _segment_has_labeled_overlap(segment, labels, intervals):
     )
 
 
-def _speaker_participant_mapping(transcript, speaker_evidence):
+def _speaker_participant_mapping(
+    transcript, speaker_evidence, audio_started_at_ms=None
+):
     labels = _participant_labels(speaker_evidence)
     if not labels:
         return {}
@@ -353,7 +368,7 @@ def _speaker_participant_mapping(transcript, speaker_evidence):
         for segment in transcript["segments"]
         if segment.get("speaker", {}).get("kind") == "acoustic"
     }
-    intervals = _speech_intervals(speaker_evidence)
+    intervals = _speech_intervals(speaker_evidence, audio_started_at_ms)
     if not intervals:
         if len(acoustic_refs) == 1 and len(set(labels.values())) == 1:
             speaker_ref = next(iter(acoustic_refs))
@@ -389,7 +404,7 @@ def _speaker_participant_mapping(transcript, speaker_evidence):
     return mapping
 
 
-def map_speakers(transcript, speaker_evidence=None):
+def map_speakers(transcript, speaker_evidence=None, *, audio_started_at_ms=None):
     """Map acoustic speakers to participant labels when evidence is unambiguous.
 
     Anonymous stable indexes remain the fallback when the room evidence is
@@ -401,10 +416,12 @@ def map_speakers(transcript, speaker_evidence=None):
         _participant_labels(speaker_evidence) if speaker_evidence is not None else {}
     )
     intervals = (
-        _speech_intervals(speaker_evidence) if speaker_evidence is not None else {}
+        _speech_intervals(speaker_evidence, audio_started_at_ms)
+        if speaker_evidence is not None
+        else {}
     )
     participant_mapping = (
-        _speaker_participant_mapping(transcript, speaker_evidence)
+        _speaker_participant_mapping(transcript, speaker_evidence, audio_started_at_ms)
         if speaker_evidence is not None
         else {}
     )

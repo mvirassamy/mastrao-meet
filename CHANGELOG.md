@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-02: Align post-transcription speaker activity with the actual media
+  start time so the first phrase of a new speaker keeps the correct name.
+
 - 2026-10-02: Preserve live transcript speaker names across panel toggles and
   participant reconnections, including for non-host participants.
 

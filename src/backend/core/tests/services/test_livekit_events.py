@@ -4,6 +4,7 @@ Test LiveKitEvents service.
 # pylint: disable=W0621,W0613, W0212, E0611, C0302
 
 import uuid
+from types import SimpleNamespace
 from unittest import mock
 
 from django.utils import timezone
@@ -21,6 +22,7 @@ from core.services.livekit_events import (
     InvalidPayloadError,
     LiveKitEventsService,
     UnsupportedEventTypeError,
+    _persist_audio_started_at,
     api,
 )
 from core.services.lobby import LobbyService
@@ -1001,3 +1003,99 @@ def test_receive_ignores_connection_test_room(
 
     mock_handle_room_started.assert_not_called()
     mock_handle_room_finished.assert_not_called()
+
+
+@pytest.mark.parametrize("storage_events", [True, False])
+@pytest.mark.parametrize("mode", ["screen_recording", "transcript"])
+def test_egress_end_persists_audio_origin_before_completion(
+    service, settings, storage_events, mode
+):
+    """Both file modes retain the origin before either completion path."""
+    settings.RECORDING_STORAGE_EVENT_ENABLE = storage_events
+    recording = RecordingFactory(
+        worker_id="origin-worker",
+        mode=mode,
+        status="active",
+        options={"collect_metadata": True},
+    )
+    event = SimpleNamespace(
+        egress_info=SimpleNamespace(
+            egress_id=recording.worker_id,
+            status=EgressStatus.EGRESS_COMPLETE,
+            file_results=[
+                SimpleNamespace(filename=recording.key, started_at=1790950778935944412)
+            ],
+        )
+    )
+
+    def assert_origin(current):
+        current.refresh_from_db()
+        assert current.options == {
+            "collect_metadata": True,
+            "mastrao_audio_started_at_ms": 1790950778935,
+        }
+
+    with (
+        mock.patch("core.services.livekit_events.RoomManagement.update_metadata"),
+        mock.patch(
+            "core.services.livekit_events._stop_metadata_collector_dispatches",
+            side_effect=assert_origin,
+        ),
+        mock.patch.object(
+            service.recording_events, "handle_complete", side_effect=assert_origin
+        ) as complete,
+    ):
+        service._handle_egress_ended(event)
+        service._handle_egress_ended(event)
+    assert_origin(recording)
+    assert complete.call_count == (0 if storage_events else 2)
+
+
+@pytest.mark.parametrize(
+    "started_at, filename, worker_id",
+    [
+        (0, "exact", "origin-worker"),
+        (-1000000, "exact", "origin-worker"),
+        (True, "exact", "origin-worker"),
+        (1790950778935944412.0, "exact", "origin-worker"),
+        (1790950778935944412, "wrong.mp4", "origin-worker"),
+        (1790950778935944412, "exact", "wrong-worker"),
+        (1790950788935944412, "exact", "origin-worker"),
+    ],
+)
+def test_audio_origin_never_overwrites_valid_origin(started_at, filename, worker_id):
+    """Invalid observations and conflicting redeliveries preserve durable evidence."""
+    recording = RecordingFactory(
+        worker_id="origin-worker",
+        options={"mastrao_audio_started_at_ms": 1790950778935},
+    )
+    info = SimpleNamespace(
+        egress_id=worker_id,
+        file_results=[
+            SimpleNamespace(
+                filename=recording.key if filename == "exact" else filename,
+                started_at=started_at,
+            )
+        ],
+    )
+    _persist_audio_started_at(recording, info)
+    recording.refresh_from_db()
+    assert recording.options["mastrao_audio_started_at_ms"] == 1790950778935
+
+
+@pytest.mark.parametrize("started_at", [0, -1, True, "1790950778935944412", 999999])
+def test_audio_origin_rejects_invalid_initial_timestamp(started_at):
+    """An invalid first observation cannot establish the scoring origin."""
+    recording = RecordingFactory(worker_id="origin-worker", options={})
+    info = SimpleNamespace(
+        egress_id=recording.worker_id,
+        file_results=[
+            SimpleNamespace(
+                filename=recording.key,
+                started_at=started_at,
+            )
+        ],
+    )
+    _persist_audio_started_at(recording, info)
+    recording.refresh_from_db()
+    assert "mastrao_audio_started_at_ms" not in recording.options

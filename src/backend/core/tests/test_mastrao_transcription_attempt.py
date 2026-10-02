@@ -16,6 +16,7 @@ from django.utils import timezone
 import pytest
 
 from core import models
+from core.factories import RecordingFactory
 from core.mastrao_transcription_adapter import (
     _accepted_recovery_transcript,
     _apply_transcription,
@@ -1680,3 +1681,52 @@ def test_retry_after_holds_deadline_without_burning_retries():
     assert local_effect.dispatch_state == (
         models.MastraoTranscriptionEffect.DispatchState.DISPATCH_PENDING
     )
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [1790950778935, None, 0, -1, True, "1790950778935", 1790950778935.0, "missing"],
+)
+def test_produce_transcript_uses_only_persisted_valid_audio_origin(origin):
+    """Refresh options at scoring and omit VAD evidence when origin is unavailable."""
+    recording_binding = _finalized_recording_binding("audioorigin012345")
+    recording = RecordingFactory(room=recording_binding.room_binding.room, options={})
+    recording_binding.recording = recording
+    recording_binding.save(update_fields=["recording"])
+    # Populate the relation cache before the webhook's simulated database write.
+    models.Recording.objects.filter(pk=recording.pk).update(
+        options={} if origin == "missing" else {"mastrao_audio_started_at_ms": origin}
+    )
+    binding = mock.Mock(
+        recording_binding=recording_binding,
+        object_ref="transcript.json",
+        transcription_ref="transcription_origin",
+    )
+    transcript = {"segments": []}
+    evidence = {"recording_started_at_ms": 1790950776348}
+    prefix = "core.mastrao_transcription_adapter."
+    with (
+        mock.patch(prefix + "extract_verified_audio_file") as extract,
+        mock.patch(prefix + "_assert_transcription_authority"),
+        mock.patch(prefix + "prepare_attempt"),
+        mock.patch(prefix + "_resume_produced_artifact", return_value=None),
+        mock.patch(prefix + "_resume_or_transcribe", return_value=transcript),
+        mock.patch(
+            prefix + "load_speaker_evidence_for_recording", return_value=evidence
+        ) as load_evidence,
+        mock.patch(prefix + "map_speakers", return_value=transcript) as mapping,
+        mock.patch(prefix + "predeclare_object", return_value="transcript.json"),
+        mock.patch(prefix + "persist_transcript", return_value={"saved": True}),
+    ):
+        assert _produce_transcript(binding) == {"saved": True}
+    valid = type(origin) is int and origin > 0
+    mapping.assert_called_once_with(
+        transcript,
+        speaker_evidence=evidence if valid else None,
+        audio_started_at_ms=origin if valid else None,
+    )
+    if valid:
+        load_evidence.assert_called_once_with(recording_binding.recording_ref)
+    else:
+        load_evidence.assert_not_called()
+    extract.return_value.close.assert_called_once()
