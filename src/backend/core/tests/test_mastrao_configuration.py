@@ -229,8 +229,8 @@ def test_safe_room_adapter_configurations_are_accepted(
     )
 
 
-def test_transcription_disabled_needs_no_asr_configuration():
-    """An untouched deployment stays valid with no ASR endpoint at all."""
+def test_recording_disabled_needs_no_asr_configuration():
+    """A deployment without governed recording needs no ASR endpoint."""
 
     validate_mastrao_transcription_configuration(
         False, "real", "", fake_asr_allowed=False
