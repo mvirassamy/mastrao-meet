@@ -1,3 +1,4 @@
+import type { SpeakerPresentation } from './liveTranscriptSpeakerCache'
 import { createContext, useContext } from 'react'
 import type {
   LiveTranscriptionAction,
@@ -5,6 +6,7 @@ import type {
 } from './liveTranscriptionTypes'
 
 export type LiveTranscriptionContextValue = LiveTranscriptionState & {
+  resolveSpeaker: (identity: string) => SpeakerPresentation | undefined
   dispatch: (action: LiveTranscriptionAction) => void
   syncSubtitleState: () => Promise<void>
 }

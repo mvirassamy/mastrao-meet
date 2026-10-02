@@ -32,6 +32,7 @@ import {
   type LiveTranscriptionTransportEvent,
 } from './liveTranscriptionTypes'
 import { LiveTranscriptionContext } from './liveTranscriptionContext'
+import { useLiveTranscriptSpeakers } from './useLiveTranscriptSpeakers'
 
 const getRoomId = (room: ReturnType<typeof useRoomContext>) =>
   room.name || 'unknown-room'
@@ -56,6 +57,16 @@ export const LiveTranscriptionProvider = ({
     liveTranscriptionReducer,
     roomId,
     createLiveTranscriptionState
+  )
+
+  const speakers = useLiveTranscriptSpeakers(
+    room,
+    subtitleRoomId,
+    state.segments
+  )
+  const resolveSpeaker = useCallback(
+    (identity: string) => speakers?.get(identity),
+    [speakers]
   )
 
   const syncSubtitleState = useCallback(async () => {
@@ -212,8 +223,8 @@ export const LiveTranscriptionProvider = ({
   ])
 
   const value = useMemo(
-    () => ({ ...state, dispatch, syncSubtitleState }),
-    [state, syncSubtitleState]
+    () => ({ ...state, dispatch, syncSubtitleState, resolveSpeaker }),
+    [state, syncSubtitleState, resolveSpeaker]
   )
   return (
     <LiveTranscriptionContext.Provider value={value}>
