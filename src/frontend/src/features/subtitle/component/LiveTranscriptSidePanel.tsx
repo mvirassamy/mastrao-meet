@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRoomContext } from '@livekit/components-react'
 import { Button, Text } from '@/primitives'
@@ -17,6 +17,24 @@ import type {
   LiveTranscriptionSegment,
 } from '../store/liveTranscriptionTypes'
 import { groupConsecutiveSpeakerSegments } from './liveTranscriptTurns'
+
+type SpeakerPresentation = {
+  label: string
+  color: string
+}
+
+const getSpeakerPresentation = (
+  room: ReturnType<typeof useRoomContext>,
+  participantIdentity: string
+): SpeakerPresentation | undefined => {
+  const participant = getParticipantForTranscription(room, participantIdentity)
+  if (!participant) return undefined
+
+  return {
+    label: getParticipantName(participant),
+    color: getParticipantColor(participant),
+  }
+}
 
 const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
   css({
@@ -160,6 +178,7 @@ export const LiveTranscriptSidePanel = () => {
     keyPrefix: 'participants',
   })
   const room = useRoomContext()
+  const knownSpeakersRef = useRef(new Map<string, SpeakerPresentation>())
   const [isRetryingLocally, setIsRetryingLocally] = useState(false)
   const [hasStartFailed, setHasStartFailed] = useState(false)
   const { ensureSubtitlesStarted } = useSubtitles()
@@ -175,6 +194,13 @@ export const LiveTranscriptSidePanel = () => {
   const hasSegments = segments.length > 0
   const speakerTurns = groupConsecutiveSpeakerSegments(segments)
   const hasFailed = hasStartFailed || resyncStatus === 'failed'
+
+  useEffect(() => {
+    segments.forEach(({ participantIdentity }) => {
+      const speaker = getSpeakerPresentation(room, participantIdentity)
+      if (speaker) knownSpeakersRef.current.set(participantIdentity, speaker)
+    })
+  }, [room, segments])
 
   useEffect(() => {
     let isCurrent = true
@@ -301,23 +327,16 @@ export const LiveTranscriptSidePanel = () => {
           </Text>
         ) : (
           speakerTurns.map((segment) => {
-            const participant = getParticipantForTranscription(
-              room,
-              segment.participantIdentity
-            )
-            const speakerLabel = participant
-              ? getParticipantName(participant)
-              : tParticipants('unknown')
-            const speakerColor = participant
-              ? getParticipantColor(participant)
-              : DEFAULT_PARTICIPANT_COLOR
+            const speaker =
+              getSpeakerPresentation(room, segment.participantIdentity) ??
+              knownSpeakersRef.current.get(segment.participantIdentity)
 
             return (
               <Segment
                 key={segment.key}
                 segment={segment}
-                speakerLabel={speakerLabel}
-                speakerColor={speakerColor}
+                speakerLabel={speaker?.label ?? tParticipants('unknown')}
+                speakerColor={speaker?.color ?? DEFAULT_PARTICIPANT_COLOR}
               />
             )
           })
