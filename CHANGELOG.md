@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-03: Document the audited Meet simplification plan and its bounded
+  first wave, with independent review and validation before integration.
+
 - 2026-10-02: Record each participant microphone directly as one private Ogg
   Opus object and send its signed reference to the transcription pipeline.
 
