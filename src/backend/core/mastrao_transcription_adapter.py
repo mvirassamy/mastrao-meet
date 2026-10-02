@@ -312,11 +312,30 @@ def _produce_transcript(transcription_binding):
             return recovered
         transcript = _resume_or_transcribe(extracted, attempt, transcription_binding)
         _assert_transcription_authority(transcription_binding)
+        # The egress webhook stores the origin before its completion path.
+        # With storage webhooks enabled, S3 completion can arrive first: missing
+        # origin deliberately yields anonymous speakers, without a late remap.
+        options = (
+            models.Recording.objects.filter(pk=recording_binding.recording_id)
+            .values_list("options", flat=True)
+            .first()
+        )
+        audio_started_at_ms = (options or {}).get("mastrao_audio_started_at_ms")
+        if (
+            not isinstance(audio_started_at_ms, int)
+            or isinstance(audio_started_at_ms, bool)
+            or audio_started_at_ms <= 0
+        ):
+            audio_started_at_ms = None
+        speaker_evidence = (
+            load_speaker_evidence_for_recording(recording_binding.recording_ref)
+            if audio_started_at_ms is not None
+            else None
+        )
         transcript = map_speakers(
             transcript,
-            speaker_evidence=load_speaker_evidence_for_recording(
-                recording_binding.recording_ref
-            ),
+            speaker_evidence=speaker_evidence,
+            audio_started_at_ms=audio_started_at_ms,
         )
         object_ref = predeclare_object(attempt, transcription_binding.transcription_ref)
         if not transcription_binding.object_ref:

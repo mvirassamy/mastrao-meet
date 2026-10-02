@@ -8,6 +8,7 @@ from enum import Enum
 from logging import getLogger
 
 from django.conf import settings
+from django.db import transaction
 
 from livekit import api
 from livekit.protocol.models import ParticipantInfo
@@ -47,6 +48,39 @@ from .sip_management import SIPException, SIPManagement
 logger = getLogger(__name__)
 
 SPEAKER_EVIDENCE_DISPATCH_KEY = "mastrao_speaker_evidence_dispatch_id"
+
+
+def _persist_audio_started_at(recording, egress_info):
+    """Keep the exact output-file origin from the verified egress webhook."""
+    if egress_info.egress_id != recording.worker_id:
+        return
+    starts = {
+        result.started_at // 1_000_000
+        for result in egress_info.file_results
+        if result.filename == recording.key
+        and isinstance(result.started_at, int)
+        and not isinstance(result.started_at, bool)
+        and result.started_at >= 1_000_000
+    }
+    if len(starts) != 1:
+        return
+    started_at_ms = starts.pop()
+    with transaction.atomic():
+        locked = models.Recording.objects.select_for_update().get(pk=recording.pk)
+        if locked.worker_id != egress_info.egress_id or locked.key != recording.key:
+            return
+        existing = locked.options.get("mastrao_audio_started_at_ms")
+        if (
+            isinstance(existing, int)
+            and not isinstance(existing, bool)
+            and existing > 0
+        ):
+            if existing != started_at_ms:
+                logger.warning("Conflicting audio origin for recording %s", locked.pk)
+        else:
+            locked.options["mastrao_audio_started_at_ms"] = started_at_ms
+            locked.save(update_fields=["options"])
+        recording.options = locked.options
 
 
 def _stop_metadata_collector_dispatches(recording):
@@ -260,6 +294,8 @@ class LiveKitEventsService:
             raise ActionFailedError(
                 f"Recording with worker ID {egress_id} does not exist"
             ) from err
+
+        _persist_audio_started_at(recording, data.egress_info)
 
         try:
             room_name = str(recording.room.id)

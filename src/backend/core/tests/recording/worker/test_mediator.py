@@ -2,10 +2,12 @@
 
 # pylint: disable=redefined-outer-name,unused-argument
 
+from types import SimpleNamespace
 from unittest import mock
 from unittest.mock import Mock
 
 import pytest
+from livekit.api import EgressStatus  # pylint: disable=no-name-in-module
 
 from core.factories import RecordingFactory
 from core.models import RecordingStatusChoices
@@ -18,6 +20,7 @@ from core.recording.worker.exceptions import (
 )
 from core.recording.worker.factories import WorkerService
 from core.recording.worker.mediator import WorkerServiceMediator
+from core.services.livekit_events import LiveKitEventsService
 
 pytestmark = pytest.mark.django_db
 
@@ -197,3 +200,71 @@ def test_mediator_stop_recording_worker_errors(
     # Verify recording updates
     mock_recording.refresh_from_db()
     assert mock_recording.status == RecordingStatusChoices.FAILED_TO_STOP
+
+
+@pytest.mark.parametrize(
+    "outcome, expected_status",
+    [
+        ("success", RecordingStatusChoices.STOPPED),
+        ("terminal", RecordingStatusChoices.ABORTED),
+        ("connection_error", RecordingStatusChoices.FAILED_TO_STOP),
+        ("response_error", RecordingStatusChoices.FAILED_TO_STOP),
+    ],
+)
+def test_stop_preserves_audio_origin_written_by_webhook_during_rpc(
+    mediator, mock_worker_service, settings, outcome, expected_status
+):
+    """A stale stop instance must not erase options persisted during its RPC."""
+    settings.RECORDING_STORAGE_EVENT_ENABLE = False
+    recording = RecordingFactory(
+        status=RecordingStatusChoices.ACTIVE,
+        worker_id="interleaved-worker",
+        options={"collect_metadata": True},
+    )
+    webhook = LiveKitEventsService()
+    event = SimpleNamespace(
+        egress_info=SimpleNamespace(
+            egress_id=recording.worker_id,
+            status=EgressStatus.EGRESS_COMPLETE,
+            file_results=[
+                SimpleNamespace(
+                    filename=recording.key,
+                    started_at=1790950778935944412,
+                )
+            ],
+        )
+    )
+
+    def stop_with_webhook(*, worker_id):
+        assert worker_id == recording.worker_id
+        webhook._handle_egress_ended(event)  # pylint: disable=protected-access
+        # The stop caller still holds the pre-webhook options in memory.
+        assert "mastrao_audio_started_at_ms" not in recording.options
+        if outcome == "terminal":
+            raise WorkerConnectionError(
+                "egress with status EGRESS_ABORTED cannot be stopped"
+            )
+        if outcome == "connection_error":
+            raise WorkerConnectionError("RPC connection failed")
+        if outcome == "response_error":
+            raise WorkerResponseError("RPC response failed")
+        return "STOPPED"
+
+    mock_worker_service.stop.side_effect = stop_with_webhook
+    with (
+        mock.patch("core.services.livekit_events.RoomManagement.update_metadata"),
+        mock.patch.object(webhook.recording_events, "handle_complete") as complete,
+    ):
+        if expected_status == RecordingStatusChoices.FAILED_TO_STOP:
+            with pytest.raises(RecordingStopError):
+                mediator.stop(recording)
+        else:
+            mediator.stop(recording)
+    complete.assert_called_once()
+    mock_worker_service.stop.assert_called_once_with(worker_id=recording.worker_id)
+    recording.refresh_from_db()
+    assert recording.status == expected_status
+    assert recording.options == {
+        "collect_metadata": True,
+        "mastrao_audio_started_at_ms": 1790950778935,
+    }
