@@ -321,7 +321,11 @@ def _produce_transcript(transcription_binding):
             .first()
         )
         audio_started_at_ms = (options or {}).get("mastrao_audio_started_at_ms")
-        if type(audio_started_at_ms) is not int or audio_started_at_ms <= 0:
+        if (
+            not isinstance(audio_started_at_ms, int)
+            or isinstance(audio_started_at_ms, bool)
+            or audio_started_at_ms <= 0
+        ):
             audio_started_at_ms = None
         speaker_evidence = (
             load_speaker_evidence_for_recording(recording_binding.recording_ref)

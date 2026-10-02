@@ -1719,7 +1719,7 @@ def test_produce_transcript_uses_only_persisted_valid_audio_origin(origin):
         mock.patch(prefix + "persist_transcript", return_value={"saved": True}),
     ):
         assert _produce_transcript(binding) == {"saved": True}
-    valid = type(origin) is int and origin > 0
+    valid = isinstance(origin, int) and not isinstance(origin, bool) and origin > 0
     mapping.assert_called_once_with(
         transcript,
         speaker_evidence=evidence if valid else None,

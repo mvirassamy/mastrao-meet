@@ -58,7 +58,8 @@ def _persist_audio_started_at(recording, egress_info):
         result.started_at // 1_000_000
         for result in egress_info.file_results
         if result.filename == recording.key
-        and type(result.started_at) is int
+        and isinstance(result.started_at, int)
+        and not isinstance(result.started_at, bool)
         and result.started_at >= 1_000_000
     }
     if len(starts) != 1:
@@ -69,7 +70,11 @@ def _persist_audio_started_at(recording, egress_info):
         if locked.worker_id != egress_info.egress_id or locked.key != recording.key:
             return
         existing = locked.options.get("mastrao_audio_started_at_ms")
-        if type(existing) is int and existing > 0:
+        if (
+            isinstance(existing, int)
+            and not isinstance(existing, bool)
+            and existing > 0
+        ):
             if existing != started_at_ms:
                 logger.warning("Conflicting audio origin for recording %s", locked.pk)
         else:
