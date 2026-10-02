@@ -1,40 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useRoomContext } from '@livekit/components-react'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { Avatar } from '@/components/Avatar'
-import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
-import {
-  DEFAULT_PARTICIPANT_COLOR,
-  getParticipantColor,
-} from '@/features/rooms/utils/getParticipantColor'
+import { DEFAULT_PARTICIPANT_COLOR } from '@/features/rooms/utils/getParticipantColor'
 import { useLiveTranscription } from '../store/liveTranscriptionContext'
-import { getParticipantForTranscription } from '../store/liveTranscriptionParticipants'
 import { useSubtitles } from '../hooks/useSubtitles'
 import type {
   LiveTranscriptionConnectionStatus,
   LiveTranscriptionSegment,
 } from '../store/liveTranscriptionTypes'
 import { groupConsecutiveSpeakerSegments } from './liveTranscriptTurns'
-
-type SpeakerPresentation = {
-  label: string
-  color: string
-}
-
-const getSpeakerPresentation = (
-  room: ReturnType<typeof useRoomContext>,
-  participantIdentity: string
-): SpeakerPresentation | undefined => {
-  const participant = getParticipantForTranscription(room, participantIdentity)
-  if (!participant) return undefined
-
-  return {
-    label: getParticipantName(participant),
-    color: getParticipantColor(participant),
-  }
-}
 
 const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
   css({
@@ -177,8 +153,6 @@ export const LiveTranscriptSidePanel = () => {
   const { t: tParticipants } = useTranslation('rooms', {
     keyPrefix: 'participants',
   })
-  const room = useRoomContext()
-  const knownSpeakersRef = useRef(new Map<string, SpeakerPresentation>())
   const [isRetryingLocally, setIsRetryingLocally] = useState(false)
   const [hasStartFailed, setHasStartFailed] = useState(false)
   const { ensureSubtitlesStarted } = useSubtitles()
@@ -188,19 +162,13 @@ export const LiveTranscriptSidePanel = () => {
     resyncStatus,
     segments,
     syncSubtitleState,
+    resolveSpeaker,
   } = useLiveTranscription()
 
   const isRetrying = resyncStatus === 'pending' || isRetryingLocally
   const hasSegments = segments.length > 0
   const speakerTurns = groupConsecutiveSpeakerSegments(segments)
   const hasFailed = hasStartFailed || resyncStatus === 'failed'
-
-  useEffect(() => {
-    segments.forEach(({ participantIdentity }) => {
-      const speaker = getSpeakerPresentation(room, participantIdentity)
-      if (speaker) knownSpeakersRef.current.set(participantIdentity, speaker)
-    })
-  }, [room, segments])
 
   useEffect(() => {
     let isCurrent = true
@@ -327,9 +295,7 @@ export const LiveTranscriptSidePanel = () => {
           </Text>
         ) : (
           speakerTurns.map((segment) => {
-            const speaker =
-              getSpeakerPresentation(room, segment.participantIdentity) ??
-              knownSpeakersRef.current.get(segment.participantIdentity)
+            const speaker = resolveSpeaker(segment.participantIdentity)
 
             return (
               <Segment

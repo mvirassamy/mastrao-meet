@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-02: Preserve live transcript speaker names across panel toggles and
+  participant reconnections, including for non-host participants.
+
 - 2026-10-02: Keep each live transcript speaker's display name and color after
   that participant leaves the meeting.
 

@@ -12,17 +12,7 @@ import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
 const syncSubtitleState = vi.fn()
 const ensureSubtitlesStarted = vi.fn()
 const useLiveTranscriptionMock = vi.hoisted(() => vi.fn())
-const roomMock = vi.hoisted(() => ({
-  localParticipant: {
-    identity: 'local-user',
-    name: 'Local User',
-  },
-  getParticipantByIdentity: vi.fn(),
-}))
-
-vi.mock('@livekit/components-react', () => ({
-  useRoomContext: () => roomMock,
-}))
+const resolveSpeaker = vi.fn()
 
 vi.mock('../store/liveTranscriptionContext', () => ({
   useLiveTranscription: useLiveTranscriptionMock,
@@ -76,6 +66,10 @@ vi.mock('@/primitives', () => ({
     ...props
   }: {
     as?: keyof JSX.IntrinsicElements
+    margin?: boolean
+    padding?: boolean
+    variant?: string
+    wrap?: string
     children: ReactNode
     [key: string]: unknown
   }) => {
@@ -111,7 +105,7 @@ afterEach(() => {
 
 beforeEach(() => {
   ensureSubtitlesStarted.mockResolvedValue(undefined)
-  roomMock.getParticipantByIdentity.mockReturnValue(undefined)
+  resolveSpeaker.mockReturnValue(undefined)
 })
 
 describe('LiveTranscriptSidePanel', () => {
@@ -122,6 +116,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'idle',
       segments: [],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -136,6 +131,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'idle',
       segments: [segment],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -155,9 +151,9 @@ describe('LiveTranscriptSidePanel', () => {
   })
 
   it('shows the participant display name instead of its technical identity', () => {
-    roomMock.getParticipantByIdentity.mockReturnValue({
+    resolveSpeaker.mockReturnValue({
       identity: 'alice',
-      name: 'Alice Martin',
+      label: 'Alice Martin',
     })
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
@@ -165,6 +161,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'idle',
       segments: [segment],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -173,36 +170,11 @@ describe('LiveTranscriptSidePanel', () => {
     expect(screen.queryByText('alice')).toBeNull()
   })
 
-  it('keeps the participant display name after they leave the room', () => {
-    roomMock.getParticipantByIdentity.mockReturnValue({
-      identity: 'alice',
-      name: 'Alice Martin',
-    })
-    useLiveTranscriptionMock.mockReturnValue({
-      status: 'live',
-      connectionStatus: 'connected',
-      resyncStatus: 'idle',
-      segments: [segment],
-      syncSubtitleState,
-    })
-
-    const view = render(<LiveTranscriptSidePanel />)
-    expect(screen.getByText('Alice Martin')).toBeTruthy()
-
-    roomMock.getParticipantByIdentity.mockReturnValue(undefined)
-    view.rerender(<LiveTranscriptSidePanel />)
-
-    expect(screen.getByText('Alice Martin')).toBeTruthy()
-    expect(screen.queryByText('Unknown participant')).toBeNull()
-  })
-
   it('groups consecutive segments from the same microphone into one speaker turn', () => {
-    roomMock.getParticipantByIdentity.mockImplementation(
-      (identity: string) => ({
-        identity,
-        name: identity === 'alice' ? 'Alice Martin' : 'Bob Dupont',
-      })
-    )
+    resolveSpeaker.mockImplementation((identity: string) => ({
+      identity,
+      label: identity === 'alice' ? 'Alice Martin' : 'Bob Dupont',
+    }))
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
       connectionStatus: 'connected',
@@ -237,6 +209,7 @@ describe('LiveTranscriptSidePanel', () => {
         },
       ],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -269,6 +242,7 @@ describe('LiveTranscriptSidePanel', () => {
         },
       ],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -286,6 +260,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'idle',
       segments: [{ ...segment, participantIdentity: 'user_9d46b8f2' }],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -301,6 +276,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'failed',
       segments: [],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -324,6 +300,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'failed',
       segments: [],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -348,6 +325,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'idle',
       segments: [],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)
@@ -370,6 +348,7 @@ describe('LiveTranscriptSidePanel', () => {
       resyncStatus: 'idle',
       segments: [],
       syncSubtitleState,
+      resolveSpeaker,
     })
 
     render(<LiveTranscriptSidePanel />)

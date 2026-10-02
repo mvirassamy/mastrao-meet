@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DataPacket_Kind, RoomEvent } from 'livekit-client'
 import { LiveTranscriptionProvider } from './LiveTranscriptionProvider'
 import { useLiveTranscription } from './liveTranscriptionContext'
+import { LiveTranscriptSidePanel } from '../component/LiveTranscriptSidePanel'
 import { LIVE_TRANSCRIPTION_STATE_TOPIC } from './liveTranscriptionTypes'
 
 const { fetchSubtitleStateMock, useRoomContextMock, useRoomDataMock } =
@@ -25,6 +26,72 @@ vi.mock('@/features/rooms/livekit/hooks/useRoomData', () => ({
   useRoomData: useRoomDataMock,
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'connection.connected': 'Connected',
+        'connection.disconnectedDescription': 'Meeting unavailable',
+        'status.live': 'Live',
+        segmentsLabel: 'Live transcript segments',
+        empty: 'No transcript yet',
+        interim: 'In progress',
+        final: 'Final',
+        error: 'Refresh failed',
+        startError: 'Start failed',
+        retry: 'Retry',
+        refreshing: 'Refreshing',
+        unknown: 'Unknown participant',
+      })[key] ?? key,
+  }),
+}))
+
+vi.mock('@/primitives', () => ({
+  Button: ({
+    children,
+    isDisabled,
+    onPress,
+  }: {
+    children: ReactNode
+    isDisabled?: boolean
+    onPress?: () => void
+  }) => (
+    <button disabled={isDisabled} onClick={onPress} type="button">
+      {children}
+    </button>
+  ),
+  Text: ({
+    as = 'p',
+    children,
+    margin: _margin,
+    padding: _padding,
+    variant: _variant,
+    wrap: _wrap,
+    ...props
+  }: {
+    as?: keyof JSX.IntrinsicElements
+    margin?: boolean
+    padding?: boolean
+    variant?: string
+    wrap?: string
+    children: ReactNode
+    [key: string]: unknown
+  }) => {
+    const Component = as
+    return <Component {...props}>{children}</Component>
+  },
+}))
+
+vi.mock('@/components/Avatar', () => ({
+  Avatar: ({ name, bgColor }: { name: string; bgColor: string }) => (
+    <span data-testid="speaker-avatar" data-name={name} data-color={bgColor} />
+  ),
+}))
+
+vi.mock('../hooks/useSubtitles', () => ({
+  useSubtitles: () => ({ ensureSubtitlesStarted: async () => undefined }),
+}))
+
 const createRoom = () => {
   const listeners = new Map<string, (...args: unknown[]) => void>()
   const room = {
@@ -35,6 +102,8 @@ const createRoom = () => {
         'alice',
         {
           identity: 'alice',
+          name: 'Alice Martin',
+          attributes: { color: 'hsl(120, 50%, 40%)' },
           trackPublications: new Map([['TR_alice', {}]]),
         },
       ],
@@ -73,6 +142,43 @@ const Probe = () => {
   )
 }
 
+const speakerSegment = {
+  participantIdentity: 'alice',
+  trackSid: '',
+  legId: 'leg',
+  itemId: 'item',
+  state: 'final' as const,
+  text: 'Hello',
+  sequence: 0,
+  revision: 1,
+  receivedAt: 1,
+  metadataSource: 'envelope' as const,
+}
+const Seed = () => {
+  const { dispatch } = useLiveTranscription()
+  return (
+    <button
+      onClick={() =>
+        dispatch({
+          type: 'ingest',
+          event: { type: 'segments', segments: [speakerSegment] },
+        })
+      }
+    >
+      seed
+    </button>
+  )
+}
+const SpeakerProbe = () => {
+  const context = useLiveTranscription()
+  const speaker = context.resolveSpeaker('alice')
+  return (
+    <output data-testid="speaker">
+      {speaker ? `${speaker.label}:${speaker.color}` : 'unknown'}
+    </output>
+  )
+}
+
 const App = ({ children }: { children?: ReactNode }) => (
   <LiveTranscriptionProvider>{children}</LiveTranscriptionProvider>
 )
@@ -94,10 +200,12 @@ const statePacket = (overrides: Record<string, unknown> = {}) =>
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
 beforeEach(() => {
+  window.sessionStorage.clear()
   fetchSubtitleStateMock.mockResolvedValue({
     subtitle: {
       state: 'unknown',
@@ -113,6 +221,165 @@ beforeEach(() => {
 })
 
 describe('LiveTranscriptionProvider', () => {
+  it('remembers participant names while the transcript panel is closed', () => {
+    const { room, emit } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    render(<App />)
+
+    act(() => {
+      emit(RoomEvent.ParticipantConnected, {
+        identity: 'bob',
+        name: 'Bob Dupont',
+        attributes: { color: 'hsl(120, 50%, 40%)' },
+      })
+    })
+
+    expect(
+      window.sessionStorage.getItem(
+        'mastrao-live-transcript-speakers-v1:room-1'
+      )
+    ).toContain('Bob Dupont')
+  })
+
+  it('keeps speakers through a closed panel, departure and panel remount without storage', () => {
+    vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    const { room, emit } = createRoom()
+    room.name = 'no-storage'
+    useRoomContextMock.mockReturnValue(room)
+    const view = render(<App />)
+    const alice = room.remoteParticipants.get('alice')!
+    room.remoteParticipants.clear()
+    act(() => emit(RoomEvent.ParticipantDisconnected, alice))
+    view.rerender(
+      <App>
+        <Seed />
+        <LiveTranscriptSidePanel />
+      </App>
+    )
+    act(() => view.getByText('seed').click())
+    expect(view.getByText('Alice Martin')).toBeTruthy()
+    view.rerender(<App />)
+    view.rerender(
+      <App>
+        <LiveTranscriptSidePanel />
+      </App>
+    )
+    expect(view.getByText('Alice Martin')).toBeTruthy()
+    view.unmount()
+    const returned = render(
+      <App>
+        <SpeakerProbe />
+      </App>
+    )
+    expect(returned.getByTestId('speaker').textContent).toContain(
+      'Alice Martin'
+    )
+  })
+
+  it('updates name and color without receiving another segment', () => {
+    const { room, emit } = createRoom()
+    room.name = 'updates'
+    useRoomContextMock.mockReturnValue(room)
+    const view = render(
+      <App>
+        <SpeakerProbe />
+      </App>
+    )
+    expect(view.getByTestId('speaker').textContent).toContain('Alice Martin')
+    const alice = room.remoteParticipants.get('alice')!
+    alice.name = 'Alice Updated'
+    act(() => emit(RoomEvent.ParticipantNameChanged, alice.name, alice))
+    expect(view.getByTestId('speaker').textContent).toContain('Alice Updated')
+    alice.attributes.color = 'hsl(200, 60%, 40%)'
+    act(() =>
+      emit(RoomEvent.ParticipantAttributesChanged, alice.attributes, alice)
+    )
+    expect(view.getByTestId('speaker').textContent).toContain(
+      'hsl(200, 60%, 40%)'
+    )
+  })
+
+  it('retains a resolved alias after departure and updates the visible name and color', () => {
+    const { room, emit } = createRoom()
+    room.name = 'alias-room'
+    const alice = room.remoteParticipants.get('alice')!
+    alice.identity = 'canonical-alice'
+    room.getParticipantByIdentity.mockReturnValue(alice)
+    useRoomContextMock.mockReturnValue(room)
+    const view = render(
+      <App>
+        <Seed />
+        <LiveTranscriptSidePanel />
+      </App>
+    )
+    act(() => view.getByText('seed').click())
+    expect(view.getByText('Alice Martin')).toBeTruthy()
+    alice.name = 'Alice Renamed'
+    act(() => emit(RoomEvent.ParticipantNameChanged, alice.name, alice))
+    expect(view.getByText('Alice Renamed')).toBeTruthy()
+    alice.attributes.color = 'hsl(200, 60%, 40%)'
+    act(() =>
+      emit(RoomEvent.ParticipantAttributesChanged, alice.attributes, alice)
+    )
+    expect(view.getByTestId('speaker-avatar').dataset.color).toBe(
+      alice.attributes.color
+    )
+    view.rerender(<App />)
+    room.remoteParticipants.clear()
+    room.getParticipantByIdentity.mockReturnValue(undefined)
+    act(() => emit(RoomEvent.ParticipantDisconnected, alice))
+    view.rerender(
+      <App>
+        <LiveTranscriptSidePanel />
+      </App>
+    )
+    expect(view.getByText('Alice Renamed')).toBeTruthy()
+    view.unmount()
+    const returned = render(
+      <App>
+        <Seed />
+        <LiveTranscriptSidePanel />
+      </App>
+    )
+    act(() => returned.getByText('seed').click())
+    expect(returned.getByText('Alice Renamed')).toBeTruthy()
+  })
+
+  it('restores a remounted Provider and isolates room changes', () => {
+    const { room } = createRoom()
+    room.name = 'restore'
+    useRoomContextMock.mockReturnValue(room)
+    const first = render(
+      <App>
+        <SpeakerProbe />
+      </App>
+    )
+    first.unmount()
+    room.remoteParticipants.clear()
+    const view = render(
+      <App>
+        <SpeakerProbe />
+      </App>
+    )
+    expect(view.getByTestId('speaker').textContent).toContain('Alice Martin')
+    room.name = 'different-room'
+    view.rerender(
+      <App>
+        <SpeakerProbe />
+      </App>
+    )
+    expect(view.getByTestId('speaker').textContent).toBe('unknown')
+    room.name = 'restore'
+    view.rerender(
+      <App>
+        <SpeakerProbe />
+      </App>
+    )
+    expect(view.getByTestId('speaker').textContent).toContain('Alice Martin')
+  })
+
   it('listens to the transcript and gap topics and releases both', async () => {
     const { room } = createRoom()
     useRoomContextMock.mockReturnValue(room)
