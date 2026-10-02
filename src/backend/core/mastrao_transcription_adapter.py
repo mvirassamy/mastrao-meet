@@ -215,10 +215,7 @@ def _prepare_transcription(effect):
         ):
             raise TranscriptionContractRefused(status=409)
     else:
-        if not (
-            settings.MASTRAO_MEETING_RECORDING_ENABLED
-            and settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED
-        ):
+        if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
             raise TranscriptionContractRefused()
         transcription_binding = models.MastraoTranscriptionBinding.objects.create(
             recording_binding=recording_binding,
@@ -283,10 +280,7 @@ def _assert_transcription_authority(transcription_binding):
             raise TranscriptionContractRefused(status=404, outcome="deleted")
         if locked.state == models.MastraoTranscriptionBinding.State.FAILED:
             raise TranscriptionContractRefused(status=409, outcome="conflict")
-        if not (
-            settings.MASTRAO_MEETING_RECORDING_ENABLED
-            and settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED
-        ):
+        if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
             raise TranscriptionContractRefused(status=404, outcome="deleted")
         return locked
 

@@ -65,7 +65,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture(autouse=True)
 def transcription_settings(settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
-    settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED = True
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "fake"
 
 

@@ -138,7 +138,7 @@ def redis_url_with_database(redis_url, database):
 
 
 def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    transcription_enabled,
+    recording_enabled,
     asr_mode,
     asr_endpoint,
     fake_asr_allowed,
@@ -161,24 +161,26 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917  # py
 
     Real mode also refuses implicit Mistral/OpenAI defaults: provider, model,
     Gateway token and the qualification flag must be set before boot.
-    Transcription-off deployments stay valid with no ASR configuration at all.
+    Deployments with governed recording disabled stay valid without ASR
+    configuration. Once recording is enabled, post-meeting transcription is
+    part of that normal lifecycle and its technical dependencies must exist.
     """
 
     if asr_mode not in {"fake", "real"}:
         raise ImproperlyConfigured(
             f"MASTRAO_TRANSCRIPTION_ASR_MODE must be 'fake' or 'real', got {asr_mode!r}"
         )
-    if not transcription_enabled:
+    if not recording_enabled:
         return
     if celery_required and not celery_enabled:
         raise ImproperlyConfigured(
-            "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires CELERY_ENABLED=true "
-            "in a deployable configuration"
+            "Post-meeting transcription requires CELERY_ENABLED=true in a "
+            "deployable configuration"
         )
     if asr_mode == "fake":
         if not fake_asr_allowed:
             raise ImproperlyConfigured(
-                "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires "
+                "Post-meeting transcription requires "
                 "MASTRAO_TRANSCRIPTION_ASR_MODE=real outside local development and "
                 "qualification; the fake engine is a fixture, not a transcription"
             )
@@ -341,17 +343,10 @@ class Base(Configuration):
         environ_name="MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED",
         environ_prefix=None,
     )
-    # Transcription is a distinct processing purpose; the worker enablement
-    # defaults closed so an unconfigured deployment shows zero change.
-    MASTRAO_MEETING_TRANSCRIPTION_ENABLED = values.BooleanValue(
-        False,
-        environ_name="MASTRAO_MEETING_TRANSCRIPTION_ENABLED",
-        environ_prefix=None,
-    )
     # "real" is the only mode a deployment may inherit. The deterministic
     # "fake" engine is a provider-free qualification fixture and must be opted
     # into explicitly in local development or provider-free qualification;
-    # post_setup refuses it whenever transcription is enabled outside DEBUG.
+    # post_setup refuses it whenever governed recording is enabled outside DEBUG.
     MASTRAO_TRANSCRIPTION_ASR_MODE = values.Value(
         "real", environ_name="MASTRAO_TRANSCRIPTION_ASR_MODE", environ_prefix=None
     )
@@ -1756,7 +1751,7 @@ class Base(Configuration):
         )
 
         validate_mastrao_transcription_configuration(
-            cls.MASTRAO_MEETING_TRANSCRIPTION_ENABLED,
+            cls.MASTRAO_MEETING_RECORDING_ENABLED,
             cls.MASTRAO_TRANSCRIPTION_ASR_MODE,
             cls.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT,
             cls.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,

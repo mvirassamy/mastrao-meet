@@ -1,4 +1,4 @@
-"""Focused transcription-effect, fake-ASR and default-off proofs."""
+"""Focused transcription-effect, fake-ASR and authority proofs."""
 
 # Shared contract fixtures keep provider-free and recovery proofs coherent.
 # pylint: disable=too-many-lines
@@ -83,10 +83,9 @@ CORE_FAILED_OUTCOME = {"state": "failed", "outcome": "failed"}
 
 @pytest.fixture(autouse=True)
 def transcription_settings(settings):
-    """Keep focused tests explicit while production defaults remain closed."""
+    """Keep focused tests explicit about recording and provider setup."""
 
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
-    settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED = True
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "fake"
     cache.clear()
 
@@ -832,11 +831,13 @@ def test_speaker_mapping_merges_overclustered_voices_into_real_participants():
     ]
 
 
-def test_feature_off_refuses_new_effects_without_side_effects(settings):
-    settings.MASTRAO_MEETING_TRANSCRIPTION_ENABLED = False
-    binding = _finalized_recording_binding("feature_off_0123456")
+def test_recording_disabled_refuses_new_transcription_effects(settings):
+    settings.MASTRAO_MEETING_RECORDING_ENABLED = False
+    binding = _finalized_recording_binding("recording_off_012345")
+
     with pytest.raises(TranscriptionContractRefused):
         _prepare_transcription(_effect(binding))
+
     assert not models.MastraoTranscriptionBinding.objects.exists()
     assert not models.MastraoTranscriptionEffect.objects.exists()
 

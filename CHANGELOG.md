@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-02: Make post-meeting transcription part of the normal governed
+  recording lifecycle and retire its duplicate runtime feature flag. Keep ASR,
+  Celery, recording authority, artifact and security configuration fail-closed.
+
 - 2026-10-02: Prefer the participant with the largest strict VAD overlap for
   post-meeting transcript segments while keeping true overlap ties anonymous.
 
