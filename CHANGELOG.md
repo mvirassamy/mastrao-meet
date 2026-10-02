@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-02: Keep each live transcript speaker's display name and color after
+  that participant leaves the meeting.
+
 - 2026-10-02: Make post-meeting transcription part of the normal governed
   recording lifecycle and retire its duplicate runtime feature flag. Keep ASR,
   Celery, recording authority, artifact and security configuration fail-closed.

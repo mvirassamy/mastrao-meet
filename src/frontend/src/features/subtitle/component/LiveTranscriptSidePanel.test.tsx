@@ -173,6 +173,29 @@ describe('LiveTranscriptSidePanel', () => {
     expect(screen.queryByText('alice')).toBeNull()
   })
 
+  it('keeps the participant display name after they leave the room', () => {
+    roomMock.getParticipantByIdentity.mockReturnValue({
+      identity: 'alice',
+      name: 'Alice Martin',
+    })
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [segment],
+      syncSubtitleState,
+    })
+
+    const view = render(<LiveTranscriptSidePanel />)
+    expect(screen.getByText('Alice Martin')).toBeTruthy()
+
+    roomMock.getParticipantByIdentity.mockReturnValue(undefined)
+    view.rerender(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Alice Martin')).toBeTruthy()
+    expect(screen.queryByText('Unknown participant')).toBeNull()
+  })
+
   it('groups consecutive segments from the same microphone into one speaker turn', () => {
     roomMock.getParticipantByIdentity.mockImplementation(
       (identity: string) => ({
