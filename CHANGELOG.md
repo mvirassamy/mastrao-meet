@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-03: Remove unused participant helpers, browser detection and a
+  retired icon export without changing meeting behavior.
+
 - 2026-10-03: Document the audited Meet simplification plan and its bounded
   first wave, with independent review and validation before integration.
 
