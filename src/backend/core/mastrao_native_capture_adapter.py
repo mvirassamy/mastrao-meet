@@ -11,7 +11,6 @@ provider observation can resolve it; absence never authorizes retransmission.
 import asyncio
 import re
 from datetime import UTC, datetime
-from pathlib import PurePosixPath
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -26,27 +25,12 @@ from livekit import api
 
 from core import models, utils
 from core.mastrao_native_capture_contract import (
-    PROFILE,
     require_native_receipt_signer,
     sign_native_receipt,
     verify_native_start,
 )
 from core.mastrao_recording_adapter import _read_effect, _safe_response
 from core.mastrao_recording_contract import RecordingContractRefused
-
-
-def _spool_prefix(capture_ref):
-    root = settings.MASTRAO_NATIVE_CAPTURE_SPOOL_ROOT
-    # Operator-owned absolute path only. The runtime must mount a bounded volume
-    # at this location; validating a string is NOT a disk-quota/durability proof.
-    if (
-        not isinstance(root, str)
-        or not re.fullmatch(r"/[A-Za-z0-9_/-]{1,240}", root)
-        or ".." in PurePosixPath(root).parts
-        or len(PurePosixPath(root).parts) < 3
-    ):
-        raise RecordingContractRefused(status=503)
-    return f"{root.rstrip('/')}/{capture_ref}"
 
 
 def _assert_epoch_authority(epoch, binding, effect):
@@ -159,7 +143,6 @@ def _prepare(effect):
         effect_key=effect["effect_key"],
         arguments_digest=effect["arguments_digest"],
         organization_external_id=effect["organization_external_id"],
-        output_prefix=_spool_prefix(effect["capture_ref"]),
         retention_expires_at=datetime.fromtimestamp(
             effect["retention_expires_at"], UTC
         ),
@@ -167,22 +150,22 @@ def _prepare(effect):
 
 
 def native_request(intent):
-    """Pinned AAC/HLS profile; no video, arbitrary URL or cloud upload credentials."""
-    return api.TrackCompositeEgressRequest(
+    """Record one microphone track directly into private object storage."""
+    filepath = f"recordings/{intent.capture_ref}.ogg"
+    return api.TrackEgressRequest(
         room_name=str(intent.epoch.connection.room_binding.room_id),
-        audio_track_id=intent.epoch.track_sid,
-        advanced=api.EncodingOptions(
-            audio_codec=api.AudioCodec.AAC,
-            audio_bitrate=PROFILE["bitrate_kbps"],
-            audio_frequency=PROFILE["frequency_hz"],
+        track_id=intent.epoch.track_sid,
+        file=api.DirectFileOutput(
+            filepath=filepath,
+            s3=api.S3Upload(
+                endpoint=settings.AWS_S3_ENDPOINT_URL,
+                access_key=settings.AWS_S3_ACCESS_KEY_ID,
+                secret=settings.AWS_S3_SECRET_ACCESS_KEY,
+                region=settings.AWS_S3_REGION_NAME,
+                bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                force_path_style=True,
+            ),
         ),
-        segment_outputs=[
-            api.SegmentedFileOutput(
-                filename_prefix=f"{intent.output_prefix}/audio",
-                playlist_name=f"{intent.output_prefix}/index.m3u8",
-                segment_duration=PROFILE["segment_seconds"],
-            )
-        ],
     )
 
 
@@ -190,8 +173,8 @@ def _matches(job, request, room_sid):
     return (
         job.room_id == room_sid
         and job.room_name == request.room_name
-        and job.HasField("track_composite")
-        and job.track_composite == request
+        and job.HasField("track")
+        and job.track == request
         and re.fullmatch(r"EG_[A-Za-z0-9]{1,96}", job.egress_id) is not None
     )
 
@@ -208,7 +191,7 @@ async def _provider_observation(intent, first_delivery):
         )
         if first_delivery:
             job = await asyncio.wait_for(
-                client.egress.start_track_composite_egress(request),
+                client.egress.start_track_egress(request),
                 timeout=35,
             )
             if not _matches(job, request, intent.epoch.connection.room_sid):

@@ -61,6 +61,19 @@ def _claims(response, settings):
     return json.loads(_base64url_decode(payload))
 
 
+def _complete_native_job(job):
+    job.status = api.EgressStatus.EGRESS_COMPLETE
+    job.file_results.append(
+        api.FileInfo(
+            filename=job.track.file.filepath,
+            started_at=1_000_000_000,
+            ended_at=3_000_000_000,
+            duration=2_000_000_000,
+            size=4096,
+        )
+    )
+
+
 def test_stop_snapshot_requires_separate_terminal_observation(
     client, signer, effect, provider, settings
 ):
@@ -76,12 +89,12 @@ def test_stop_snapshot_requires_separate_terminal_observation(
         ).fetchone()
     assert row[0] and row[1] is None
     provider.egress.list_egress.assert_not_called()
-    provider.jobs[0].status = api.EgressStatus.EGRESS_COMPLETE
+    _complete_native_job(provider.jobs[0])
     assert reconcile_native_captures() == 1
     snapshot = _claims(_stop(client, signer, payload), settings)
     assert snapshot["state"] == "drained" and snapshot["observed_status"] == 3
     assert snapshot["media_durability_proven"] is False
-    assert provider.egress.start_track_composite_egress.await_count == 1
+    assert provider.egress.start_track_egress.await_count == 1
 
 
 @pytest.mark.parametrize(
@@ -113,7 +126,7 @@ def test_stop_refuses_crossed_or_malformed_authority(  # noqa: PLR0913,PLR0917
 def test_unknown_stop_does_not_create_intent_or_start(client, signer, effect, provider):
     assert _stop(client, signer, _stop_effect(effect)).status_code == 404
     assert not models.MastraoNativeCaptureStart.objects.exists()
-    provider.egress.start_track_composite_egress.assert_not_called()
+    provider.egress.start_track_egress.assert_not_called()
 
 
 def test_start_signature_is_not_a_stop_capability(client, signer, effect, provider):

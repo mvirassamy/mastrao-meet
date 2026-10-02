@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-02: Record each participant microphone directly as one private Ogg
+  Opus object and send its signed reference to the transcription pipeline.
+
 - 2026-10-02: Preserve live transcript speaker names across panel toggles and
   participant reconnections, including for non-host participants.
 

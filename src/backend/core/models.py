@@ -1110,7 +1110,6 @@ class MastraoNativeCaptureStart(BaseModel):
     effect_key = models.CharField(max_length=160, unique=True)
     arguments_digest = models.CharField(max_length=64)
     organization_external_id = models.CharField(max_length=160)
-    output_prefix = models.CharField(max_length=512)
     provider_job_ref = models.CharField(
         max_length=128, unique=True, null=True, blank=True
     )
@@ -1121,6 +1120,7 @@ class MastraoNativeCaptureStart(BaseModel):
     stop_reason = models.CharField(max_length=32, blank=True, default="")
     observed_status = models.IntegerField(null=True, blank=True)
     drained_at = models.DateTimeField(null=True, blank=True)
+    source_manifest = models.JSONField(null=True, blank=True)
     next_check_at = models.DateTimeField(default=timezone.now, db_index=True)
     drain_claim = models.UUIDField(null=True, blank=True)
     drain_claim_until = models.DateTimeField(null=True, blank=True)

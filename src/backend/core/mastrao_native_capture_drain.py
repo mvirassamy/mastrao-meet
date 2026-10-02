@@ -30,6 +30,49 @@ TERMINAL = {
     api.EgressStatus.EGRESS_LIMIT_REACHED,
 }
 RUNNING = {api.EgressStatus.EGRESS_STARTING, api.EgressStatus.EGRESS_ACTIVE}
+SOURCE_READY = {
+    api.EgressStatus.EGRESS_COMPLETE,
+    api.EgressStatus.EGRESS_LIMIT_REACHED,
+}
+MAX_AUDIO_BYTES = 25_000_000
+MAX_AUDIO_DURATION_NS = 3_600 * 1_000_000_000
+
+
+def _valid_file_timing(result):
+    return (
+        result.started_at > 0
+        and result.ended_at > result.started_at
+        and result.duration == result.ended_at - result.started_at
+        and 0 < result.duration <= MAX_AUDIO_DURATION_NS
+    )
+
+
+def _valid_file_result(result, expected_ref):
+    return (
+        result.filename == expected_ref
+        and 0 < result.size <= MAX_AUDIO_BYTES
+        and _valid_file_timing(result)
+    )
+
+
+def _source_manifest(intent, job):
+    """Validate the one immutable TrackEgress object produced for this epoch."""
+    if job.backup_storage_used or len(job.file_results) != 1:
+        raise RecordingContractRefused(status=503)
+    result = job.file_results[0]
+    expected_ref = f"recordings/{intent.capture_ref}.ogg"
+    if not _valid_file_result(result, expected_ref):
+        raise RecordingContractRefused(status=503)
+    return {
+        "version": 1,
+        "format": "native_track_egress_ogg_opus_v1",
+        "object_ref": expected_ref,
+        "started_at": str(result.started_at),
+        "ended_at": str(result.ended_at),
+        "duration": str(result.duration),
+        "size": result.size,
+        "coverage": "epoch_only",
+    }
 
 
 def _stop_reason(intent, now):
@@ -129,6 +172,9 @@ async def _observe_and_stop(intent):
 
 @transaction.atomic
 def _finish(intent, job):
+    manifest = None
+    if job is not None and job.status in SOURCE_READY:
+        manifest = _source_manifest(intent, job)
     now = timezone.now()
     locked = (
         models.MastraoNativeCaptureStart.objects.select_for_update()
@@ -144,6 +190,7 @@ def _finish(intent, job):
         locked.observed_status = int(job.status)
         if job.status in TERMINAL:
             locked.drained_at = now
+            locked.source_manifest = manifest
     locked.drain_claim = None
     locked.drain_claim_until = None
     locked.next_check_at = now + timedelta(seconds=30)
@@ -152,6 +199,7 @@ def _finish(intent, job):
             "provider_job_ref",
             "observed_status",
             "drained_at",
+            "source_manifest",
             "drain_claim",
             "drain_claim_until",
             "next_check_at",
@@ -171,7 +219,7 @@ def reconcile_native_captures(limit=20):
         # _stop_reason has materialized the related objects outside async I/O.
         try:
             job = _observe_and_stop(intent)
+            drained += int(_finish(intent, job))
         except RecordingContractRefused:
-            job = None
-        drained += int(_finish(intent, job))
+            _finish(intent, None)
     return drained
