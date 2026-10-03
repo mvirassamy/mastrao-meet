@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-03: Remove the funny-effects rollout gate while retaining Konami
+  access and explicit effect selection before video processing.
+
 - 2026-10-03: Make desktop noise reduction available without a rollout flag,
   preserving mobile exclusion and the explicit user preference.
 
