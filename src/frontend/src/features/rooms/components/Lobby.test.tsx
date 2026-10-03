@@ -1,5 +1,13 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as renderView,
+  screen,
+} from '@testing-library/react'
+import { useEffect, type ReactNode, type ReactElement } from 'react'
+import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
+import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiLobbyStatus } from '../api/requestEntry'
@@ -10,9 +18,6 @@ const fetchRoomLifecycle = vi.fn()
 const navigateTo = vi.fn()
 const refetchRoom = vi.fn()
 const startWaiting = vi.fn()
-const markActive = vi.fn()
-const markEnding = vi.fn()
-const markEnded = vi.fn()
 
 let lobbyStatus = ApiLobbyStatus.IDLE
 let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
@@ -66,18 +71,6 @@ vi.mock('../api/fetchRoomLifecycle', () => ({
 vi.mock('@/navigation/navigateTo', () => ({
   navigateTo: (...args: unknown[]) => navigateTo(...args),
 }))
-vi.mock('../contexts/MeetingLifecycleContext', () => ({
-  useMeetingLifecycle: () => ({
-    phase: lifecyclePhase,
-    isEnding: lifecyclePhase !== 'active',
-    closeRequestId: lifecycleCloseRequestId,
-    beginEnding: vi.fn(),
-    markActive,
-    markEnding,
-    markEndingUncertain: vi.fn(),
-    markEnded,
-  }),
-}))
 
 vi.mock('@/styled-system/css', () => ({ css: () => '' }))
 vi.mock('@/styled-system/jsx', () => ({
@@ -118,9 +111,49 @@ vi.mock('./RecordingConsent', () => ({
   RecordingConsent: () => <div>recording consent</div>,
 }))
 
+const InitialPhase = () => {
+  const { beginEnding, markEndingUncertain } = useMeetingLifecycle()
+  useEffect(() => {
+    if (lifecyclePhase === 'requesting') beginEnding()
+    if (lifecyclePhase === 'uncertain') markEndingUncertain()
+  }, [beginEnding, markEndingUncertain])
+  return <button onClick={beginEnding}>close during admission</button>
+}
+
+const render = (ui: ReactElement<{ roomId: string }>) => {
+  if (lifecycleCloseRequestId) {
+    window.sessionStorage.setItem(
+      `mastrao-meeting-close-v1:${ui.props.roomId}`,
+      lifecycleCloseRequestId
+    )
+  }
+  const wrap = (element: ReactElement<{ roomId: string }>) => (
+    <MeetingLifecycleProvider
+      key={element.props.roomId}
+      roomId={element.props.roomId}
+    >
+      <InitialPhase />
+      {element}
+    </MeetingLifecycleProvider>
+  )
+  const result = renderView(wrap(ui))
+  return {
+    ...result,
+    rerender: (element: ReactElement<{ roomId: string }>) =>
+      result.rerender(wrap(element)),
+  }
+}
+
+vi.mock('../api/endMeeting', () => ({
+  endMeeting: () => new Promise(() => undefined),
+  isRetryableEndMeetingError: () => true,
+}))
+
 describe('Lobby lifecycle reconciliation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
+    fetchRoomLifecycle.mockReset().mockReturnValue(new Promise(() => undefined))
     lobbyStatus = ApiLobbyStatus.IDLE
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
@@ -228,8 +261,12 @@ describe('Lobby lifecycle reconciliation', () => {
     )
 
     await vi.waitFor(() => expect(fetchRoomLifecycle).toHaveBeenCalled())
-    expect(markActive).not.toHaveBeenCalled()
-    expect(markEnding).not.toHaveBeenCalled()
+    expect(
+      window.sessionStorage.getItem(
+        'mastrao-meeting-close-v1:room_0123456789abcdef0123456789abcdef'
+      )
+    ).toBe('close_existing')
+    expect(navigateTo).not.toHaveBeenCalled()
   })
 
   it('does not misreport a masked lifecycle 404 as an ended meeting', async () => {
@@ -257,6 +294,44 @@ describe('Lobby lifecycle reconciliation', () => {
     expect(refetchRoom).toHaveBeenCalledOnce()
     expect(navigateTo).not.toHaveBeenCalled()
     vi.useRealTimers()
+  })
+
+  it('does not enter when a successful room response arrives after closing starts', async () => {
+    let resolve!: (value: unknown) => void
+    refetchRoom.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done
+      })
+    )
+    const enterRoom = vi.fn()
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={enterRoom}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'joinLabel' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'close during admission' })
+    )
+    await act(async () => resolve({ data: { livekit: { token: 'token' } } }))
+    expect(enterRoom).not.toHaveBeenCalled()
+    expect(startWaiting).not.toHaveBeenCalled()
+  })
+
+  it('shares one authority read when the room and lobby both report missing', async () => {
+    lobbyStatus = ApiLobbyStatus.ENDED
+    roomQueryError = new ApiError(404, { message: 'not found' })
+    fetchRoomLifecycle.mockResolvedValueOnce({ state: 'ended' })
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={vi.fn()}
+      />
+    )
+    await act(async () => undefined)
+    expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
+    expect(navigateTo).toHaveBeenCalled()
   })
 
   it('retries lifecycle reconciliation after a transient server error', async () => {
