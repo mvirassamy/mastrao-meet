@@ -99,13 +99,15 @@ const FeedbackRoute = () => {
     }
   }, [])
 
-  const showBackButton = ![
+  const canRejoin = ![
     DisconnectReasonKey.ParticipantRemoved,
     DisconnectReasonKey.MeetingEnded,
   ].includes(reasonKey as DisconnectReasonKey)
+  const showBackButton = canRejoin && !platformReturn
   const showRating = reasonKey !== DisconnectReasonKey.MeetingEnded
   const showPlatformReturn =
-    reasonKey === DisconnectReasonKey.MeetingEnded && Boolean(platformReturn)
+    Boolean(platformReturn) &&
+    reasonKey !== DisconnectReasonKey.ParticipantRemoved
 
   return (
     <Screen layout="centered" footer={false}>
@@ -148,7 +150,11 @@ const FeedbackRoute = () => {
                   )
                 }}
               >
-                {t('feedback.returnToMatter')}
+                {t(
+                  canRejoin
+                    ? 'feedback.rejoinFromMatter'
+                    : 'feedback.returnToMatter'
+                )}
               </Button>
             )}
             {showBackButton && (

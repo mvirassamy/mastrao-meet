@@ -52,8 +52,14 @@ const getHiddenControls = (
 
 export const PipControlBar = ({
   showScreenShare,
+  roomId,
+  canEnd,
+  onMeetingEnded,
 }: {
   showScreenShare: boolean
+  roomId: string
+  canEnd?: boolean
+  onMeetingEnded?: () => void
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const { width } = usePipElementSize(containerRef)
@@ -83,7 +89,7 @@ export const PipControlBar = ({
         {!hidden.has(CollapsibleControls.HAND) && <HandToggle />}
         <StartMediaButton />
         <PipOptionsMenu overflowControls={hidden} />
-        <LeaveButton />
+        <LeaveButton roomId={roomId} canEnd={canEnd} onEnded={onMeetingEnded} />
       </PipControlsCenter>
     </PipControls>
   )
