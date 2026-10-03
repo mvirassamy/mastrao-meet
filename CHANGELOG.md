@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-03: Persist a recording refusal as one authoritative decision so
+  transcription consent cannot leave the lobby in a partially saved state.
+
 - 2026-10-03: Remove the funny-effects rollout gate while retaining Konami
   access and explicit effect selection before video processing.
 
