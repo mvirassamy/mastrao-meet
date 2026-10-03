@@ -114,6 +114,33 @@ describe('Feedback Mastrao return', () => {
     expect(screen.getByRole('button', { name: 'feedback.home' })).toBeTruthy()
   })
 
+  it('routes a departed host through Platform before rejoining', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const roomId = 'room_0123456789abcdef0123456789abcdef'
+    const descriptor = {
+      url: 'https://platform.mastrao.test/api/meeting-return?organization_ref=organization_0123456789&meeting_ref=meeting_0123456789abcdef',
+      expires_at: Math.floor(Date.now() / 1000) + 60,
+    }
+    window.history.replaceState(
+      { room_id: roomId, platform_return: descriptor },
+      '',
+      `/feedback?outcome=left&room_id=${roomId}`
+    )
+
+    render(<FeedbackRoute />)
+
+    const rejoin = screen.getByRole('button', {
+      name: 'feedback.rejoinFromMatter',
+    })
+    expect(screen.queryByRole('button', { name: 'feedback.back' })).toBeNull()
+    fireEvent.click(rejoin)
+    expect(open).toHaveBeenCalledWith(
+      descriptor.url,
+      '_blank',
+      'noopener,noreferrer'
+    )
+  })
+
   it('restores the ended screen and verified return after a reload', () => {
     const roomId = 'room_0123456789abcdef0123456789abcdef'
     const descriptor = {

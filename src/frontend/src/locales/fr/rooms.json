@@ -8,6 +8,7 @@
     },
     "home": "Retourner à l'accueil",
     "returnToMatter": "Retourner au dossier",
+    "rejoinFromMatter": "Retourner au dossier pour réintégrer",
     "meetingEndedBody": "La réunion est terminée. L’enregistrement et la transcription peuvent encore être en préparation. Vous pouvez fermer cet onglet.",
     "back": "Réintégrer la réunion"
   },
@@ -320,9 +321,10 @@
       "label": "Terminer la réunion pour tout le monde",
       "status": "Fermeture de la réunion en cours…",
       "dialog": {
-        "title": "Terminer la réunion pour tout le monde ?",
-        "body": "Tout le monde sera déconnecté et cette réunion ne pourra pas être rouverte.",
+        "title": "Quitter ou terminer la réunion ?",
+        "body": "Vous pouvez quitter seul et laisser les autres continuer, ou terminer la réunion pour tout le monde.",
         "cancel": "Annuler",
+        "leave": "Quitter seulement",
         "confirm": "Terminer la réunion",
         "ending": "Fermeture…",
         "error": "La réunion n’a pas pu être terminée. Réessayez."

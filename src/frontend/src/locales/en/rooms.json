@@ -8,6 +8,7 @@
     },
     "home": "Return to home",
     "returnToMatter": "Return to the case file",
+    "rejoinFromMatter": "Return to the case file to rejoin",
     "meetingEndedBody": "The meeting has ended. The recording and transcript may still be processing. You can close this tab.",
     "back": "Rejoin the meeting"
   },
@@ -320,9 +321,10 @@
       "label": "End meeting for everyone",
       "status": "Meeting is ending…",
       "dialog": {
-        "title": "End meeting for everyone?",
-        "body": "Everyone will be disconnected and this meeting cannot be reopened.",
+        "title": "Leave or end the meeting?",
+        "body": "You can leave while everyone else continues, or end the meeting for everyone.",
         "cancel": "Cancel",
+        "leave": "Leave only",
         "confirm": "End meeting",
         "ending": "Ending…",
         "error": "The meeting could not be ended. Try again."

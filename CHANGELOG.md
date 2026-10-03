@@ -18,6 +18,13 @@
 - 2026-10-03: Document the audited Meet simplification plan and its bounded
   first wave, with independent review and validation before integration.
 
+- 2026-10-03: Let hosts choose between leaving alone and ending the meeting for
+  everyone, then route departed hosts through Platform before they rejoin.
+
+- 2026-10-03: Stop drawing a focus frame around page headings that receive
+  programmatic focus on arrival; screen readers still announce them, and
+  interactive controls keep their keyboard focus ring.
+
 - 2026-10-02: Record each participant microphone directly as one private Ogg
   Opus object and send its signed reference to the transcription pipeline.
 
