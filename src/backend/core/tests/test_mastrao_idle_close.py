@@ -101,7 +101,8 @@ def _prove_room_empty(binding, event, *, elapsed_seconds=600):
 def _observed_idle_close(binding):
     event = _event(binding)
     _prove_room_empty(binding, event)
-    return observe_room_finished(event)
+    with mock.patch("core.mastrao_idle_close.current_app.send_task"):
+        return observe_room_finished(event)
 
 
 @pytest.mark.django_db(transaction=True)

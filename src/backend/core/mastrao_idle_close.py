@@ -127,13 +127,12 @@ def observe_room_finished(event):
         },
     )
     if candidate.state == models.MastraoIdleCloseCandidate.State.PENDING:
-        if settings.CELERY_ENABLED:
-            transaction.on_commit(
-                lambda: current_app.send_task(
-                    "core.tasks.idle_close.process_idle_close",
-                    args=[str(candidate.pk)],
-                )
+        transaction.on_commit(
+            lambda: current_app.send_task(
+                "core.tasks.idle_close.process_idle_close",
+                args=[str(candidate.pk)],
             )
+        )
     return candidate
 
 
