@@ -43,8 +43,6 @@ import {
   readCachedPlatformReturn,
 } from '../platformReturn'
 import { isMastraoRoomId } from '../utils/isRoomValid'
-import { fetchRoomLifecycle } from '../api/fetchRoomLifecycle'
-import { isMissingRoomLifecycle } from '../api/isMissingRoomLifecycle'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -60,15 +58,8 @@ export const Conference = ({
   mode?: 'join' | 'create'
   initialRoomData?: ApiRoom
 }) => {
-  const {
-    phase,
-    isEnding,
-    closeRequestId,
-    markActive,
-    markEnding,
-    markEndingUncertain,
-    markEnded,
-  } = useMeetingLifecycle()
+  const { phase, isEnding, canonicalLifecycle, markEndingUncertain } =
+    useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
 
   const userConfig = useSnapshot(userChoicesStore)
@@ -171,7 +162,6 @@ export const Conference = ({
   }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
 
   const navigateToEndedMeeting = useCallback(() => {
-    markEnded()
     queryClient.removeQueries({ queryKey: [keys.room, roomId], exact: true })
     const platformOrigin = apiConfig?.mastrao_platform_origin
     navigateTo(
@@ -190,56 +180,13 @@ export const Conference = ({
         },
       }
     )
-  }, [
-    apiConfig?.mastrao_platform_origin,
-    data?.platform_return,
-    markEnded,
-    roomId,
-  ])
+  }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
 
   useEffect(() => {
-    if (!isMastraoRoomId(roomId) || !['ending', 'uncertain'].includes(phase)) {
-      return
+    if (canonicalLifecycle?.state === 'ended' || phase === 'ended') {
+      navigateToEndedMeeting()
     }
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const controller = new AbortController()
-    const reconcile = async () => {
-      try {
-        const lifecycle = await fetchRoomLifecycle(roomId, controller.signal)
-        if (cancelled) return
-        if (lifecycle.state === 'ended') {
-          navigateToEndedMeeting()
-          return
-        }
-        if (lifecycle.state === 'open') {
-          if (!closeRequestId) markActive()
-          return
-        }
-        markEnding()
-      } catch (error) {
-        if (isMissingRoomLifecycle(error)) {
-          navigateToEndedMeeting()
-          return
-        }
-        // Keep the durable uncertain state and retry without creating the room.
-      }
-      if (!cancelled) timer = setTimeout(reconcile, 1000)
-    }
-    void reconcile()
-    return () => {
-      cancelled = true
-      controller.abort()
-      if (timer) clearTimeout(timer)
-    }
-  }, [
-    closeRequestId,
-    markActive,
-    markEnding,
-    navigateToEndedMeeting,
-    phase,
-    roomId,
-  ])
+  }, [canonicalLifecycle, phase, navigateToEndedMeeting])
 
   // Device controls update active tracks themselves. Replacing Room when a
   // preference changes makes LiveKitRoom disconnect the ongoing conference.
@@ -507,12 +454,6 @@ export const Conference = ({
                   return
                 }
                 markEndingUncertain()
-                void fetchRoomLifecycle(roomId)
-                  .then((lifecycle) => {
-                    if (lifecycle.state === 'ended') navigateToEndedMeeting()
-                    else if (lifecycle.state === 'ending') markEnding()
-                  })
-                  .catch(() => undefined)
                 return
               case DisconnectReason.CLIENT_INITIATED:
                 navigateTo(
@@ -601,9 +542,6 @@ export const Conference = ({
             canEnd={data?.can_end}
             recording={data?.recording}
             onRecordingChanged={refetchRoom}
-            onMeetingEnded={() => {
-              navigateToEndedMeeting()
-            }}
           />
           {!isMobile && <ActiveInviteDialog mode={mode} />}
           <PictureInPictureConference

@@ -11,7 +11,6 @@ import {
 } from '../index'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FeatureFlags } from '@/features/analytics/enums'
 import {
   NotificationType,
   useNotifyParticipants,
@@ -48,14 +47,10 @@ export const TranscriptSidePanel = () => {
   const { selectedLanguageKey, selectedLanguageLabel, isLanguageSetToAuto } =
     useTranscriptionLanguage()
 
-  const hasTranscriptAccess = useHasRecordingAccess(
-    RecordingMode.Transcript,
-    FeatureFlags.Transcript
-  )
+  const hasTranscriptAccess = useHasRecordingAccess(RecordingMode.Transcript)
 
   const hasFeatureWithoutAdminRights = useHasFeatureWithoutAdminRights(
-    RecordingMode.Transcript,
-    FeatureFlags.Transcript
+    RecordingMode.Transcript
   )
 
   const isAdminOrOwner = useIsAdminOrOwner()

@@ -1,5 +1,23 @@
 # Changelog
 
+- 2026-10-03: Remove the funny-effects rollout gate while retaining Konami
+  access and explicit effect selection before video processing.
+
+- 2026-10-03: Make desktop noise reduction available without a rollout flag,
+  preserving mobile exclusion and the explicit user preference.
+
+- 2026-10-03: Remove transcription and recording rollout gates while retaining
+  participant roles and server recording capabilities.
+
+- 2026-10-03: Centralize canonical meeting lifecycle observation, preserving
+  close retries, masked access errors and paced lobby admission.
+
+- 2026-10-03: Remove unused participant helpers, browser detection and a
+  retired icon export without changing meeting behavior.
+
+- 2026-10-03: Document the audited Meet simplification plan and its bounded
+  first wave, with independent review and validation before integration.
+
 - 2026-10-03: Let hosts choose between leaving alone and ending the meeting for
   everyone, then route departed hosts through Platform before they rejoin.
 

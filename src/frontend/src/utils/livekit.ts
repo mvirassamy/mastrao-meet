@@ -4,10 +4,6 @@ export function isFireFox(): boolean {
   return getBrowser()?.name === 'Firefox'
 }
 
-export function isChromiumBased(): boolean {
-  return getBrowser()?.name === 'Chrome'
-}
-
 export function isSafari(): boolean {
   return getBrowser()?.name === 'Safari'
 }
