@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-03: Make desktop noise reduction available without a rollout flag,
+  preserving mobile exclusion and the explicit user preference.
+
 - 2026-10-03: Remove transcription and recording rollout gates while retaining
   participant roles and server recording capabilities.
 
