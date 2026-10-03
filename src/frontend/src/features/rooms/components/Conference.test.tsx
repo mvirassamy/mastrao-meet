@@ -1,6 +1,13 @@
-import { act, render, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  act,
+  cleanup,
+  render as renderView,
+  waitFor,
+} from '@testing-library/react'
+import { useEffect, type ReactNode, type ReactElement } from 'react'
+import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
+import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Conference } from './Conference'
 import { ApiAccessLevel, type ApiRoom } from '../api/ApiRoom'
@@ -20,8 +27,6 @@ let createdRoomOptions: unknown
 const roomInstances: unknown[] = []
 let localTrackPublished: (() => void) | undefined
 const refetchRoom = vi.fn().mockResolvedValue(undefined)
-const markActive = vi.fn()
-const markEnding = vi.fn()
 
 let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
   'active'
@@ -35,7 +40,11 @@ vi.mock('@tanstack/react-query', () => ({
     queryFn: () => Promise<unknown>
     initialData?: ApiRoom
   }) => {
-    void queryFn().catch(() => undefined)
+    useEffect(() => {
+      void queryFn().catch(() => undefined)
+      // The real query is not rerun on every provider render.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
     return {
       status: 'pending',
       isError: false,
@@ -127,19 +136,6 @@ vi.mock('../api/fetchRoomLifecycle', () => ({
   fetchRoomLifecycle: (...args: unknown[]) => fetchRoomLifecycle(...args),
 }))
 
-vi.mock('../contexts/MeetingLifecycleContext', () => ({
-  useMeetingLifecycle: () => ({
-    phase: lifecyclePhase,
-    isEnding: lifecyclePhase !== 'active',
-    closeRequestId: lifecycleCloseRequestId,
-    beginEnding: vi.fn(),
-    markActive,
-    markEnding,
-    markEndingUncertain: vi.fn(),
-    markEnded: vi.fn(),
-  }),
-}))
-
 vi.mock('@/navigation/navigateTo', () => ({
   navigateTo: (...args: unknown[]) => navigateTo(...args),
 }))
@@ -207,9 +203,49 @@ vi.mock('../livekit/components/blur', () => ({
 vi.mock('@/primitives', () => ({ Button: () => null }))
 vi.mock('@/styled-system/css', () => ({ css: () => '' }))
 
+const InitialPhase = () => {
+  const { beginEnding, markEndingUncertain } = useMeetingLifecycle()
+  useEffect(() => {
+    if (lifecyclePhase === 'requesting') beginEnding()
+    if (lifecyclePhase === 'uncertain') markEndingUncertain()
+  }, [beginEnding, markEndingUncertain])
+  return null
+}
+
+const render = (ui: ReactElement<{ roomId: string }>) => {
+  if (lifecycleCloseRequestId) {
+    window.sessionStorage.setItem(
+      `mastrao-meeting-close-v1:${ui.props.roomId}`,
+      lifecycleCloseRequestId
+    )
+  }
+  const wrap = (element: ReactElement<{ roomId: string }>) => (
+    <MeetingLifecycleProvider
+      key={element.props.roomId}
+      roomId={element.props.roomId}
+    >
+      <InitialPhase />
+      {element}
+    </MeetingLifecycleProvider>
+  )
+  const result = renderView(wrap(ui))
+  return {
+    ...result,
+    rerender: (element: ReactElement<{ roomId: string }>) =>
+      result.rerender(wrap(element)),
+  }
+}
+
+vi.mock('../api/endMeeting', () => ({
+  endMeeting: () => new Promise(() => undefined),
+  isRetryableEndMeetingError: () => true,
+}))
+
 describe('Conference room lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
+    fetchRoomLifecycle.mockReset().mockReturnValue(new Promise(() => undefined))
     liveKitOnDisconnected = undefined
     liveKitOnConnected = undefined
     liveKitAudio = undefined
@@ -323,6 +359,33 @@ describe('Conference room lookup', () => {
     )
   })
 
+  it('keeps leaving distinct from ending and does not read lifecycle on voluntary exit', async () => {
+    fetchRoom.mockResolvedValue({})
+    render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
+    await act(async () => liveKitOnDisconnected?.(1))
+    expect(navigateTo).toHaveBeenCalledWith(
+      'feedback',
+      { outcome: 'left', roomId: 'room_0123456789abcdef0123456789abcdef' },
+      expect.any(Object)
+    )
+    expect(fetchRoomLifecycle).not.toHaveBeenCalled()
+    expect(createRoom).not.toHaveBeenCalled()
+  })
+
+  it('observes canonical room deletion once and follows its terminal state', async () => {
+    fetchRoom.mockResolvedValue({})
+    fetchRoomLifecycle.mockResolvedValueOnce({ state: 'ended' })
+    render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
+    await act(async () => liveKitOnDisconnected?.(4))
+    expect(fetchRoomLifecycle).toHaveBeenCalledOnce()
+    expect(navigateTo).toHaveBeenCalledWith(
+      'feedback',
+      { outcome: 'ended', roomId: 'room_0123456789abcdef0123456789abcdef' },
+      expect.any(Object)
+    )
+    expect(createRoom).not.toHaveBeenCalled()
+  })
+
   it('keeps a pending close intent when canonical lifecycle is still open', async () => {
     lifecyclePhase = 'uncertain'
     lifecycleCloseRequestId = 'close_existing'
@@ -332,8 +395,12 @@ describe('Conference room lookup', () => {
     render(<Conference roomId="room_0123456789abcdef0123456789abcdef" />)
 
     await waitFor(() => expect(fetchRoomLifecycle).toHaveBeenCalled())
-    expect(markActive).not.toHaveBeenCalled()
-    expect(markEnding).not.toHaveBeenCalled()
+    expect(
+      window.sessionStorage.getItem(
+        'mastrao-meeting-close-v1:room_0123456789abcdef0123456789abcdef'
+      )
+    ).toBe('close_existing')
+    expect(navigateTo).not.toHaveBeenCalled()
   })
 
   it('does not misreport a masked lifecycle 404 as an ended meeting', async () => {
@@ -353,8 +420,17 @@ describe('Conference room lookup', () => {
 
     await act(async () => vi.advanceTimersByTimeAsync(1_000))
     expect(fetchRoomLifecycle).toHaveBeenCalledTimes(2)
-    expect(markActive).not.toHaveBeenCalled()
+    expect(
+      window.sessionStorage.getItem(
+        'mastrao-meeting-close-v1:room_0123456789abcdef0123456789abcdef'
+      )
+    ).toBe('close_existing')
     expect(navigateTo).not.toHaveBeenCalled()
     vi.useRealTimers()
   })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
 })
