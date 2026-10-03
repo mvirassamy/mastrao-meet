@@ -379,6 +379,38 @@ describe('canonical lifecycle observation', () => {
     expect(screen.getByLabelText('client').textContent).toBe('ending:ending')
   })
 
+  it('keeps observing a canonical close after the recovery command is refused', async () => {
+    window.sessionStorage.setItem(
+      `mastrao-meeting-close-v1:${roomA}`,
+      'close_restored'
+    )
+    let refuse!: (error: unknown) => void
+    endMeeting.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        refuse = reject
+      })
+    )
+    fetchRoomLifecycle
+      .mockResolvedValueOnce({ state: 'ending' })
+      .mockRejectedValueOnce(new ApiError(503, { message: 'unavailable' }))
+      .mockResolvedValueOnce({ state: 'ended' })
+    render(
+      <MeetingLifecycleProvider roomId={roomA}>
+        <ObservationProbe />
+      </MeetingLifecycleProvider>
+    )
+    await act(async () => undefined)
+    expect(screen.getByLabelText('client').textContent).toBe('uncertain:ending')
+    await act(async () => refuse(new ApiError(409, { message: 'conflict' })))
+    expect(screen.getByLabelText('client').textContent).toBe('ending:ending')
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(screen.getByLabelText('client').textContent).toBe('ending:ending')
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(screen.getByLabelText('client').textContent).toBe('ended:ended')
+    expect(endMeeting).toHaveBeenCalledOnce()
+    expect(fetchRoomLifecycle).toHaveBeenCalledTimes(3)
+  })
+
   it('converges two independent clients on the canonical end without a guest close command', async () => {
     let state: 'ending' | 'ended' = 'ending'
     fetchRoomLifecycle.mockImplementation(async () => ({ state }))

@@ -55,15 +55,22 @@ export const MeetingLifecycleProvider = ({
   const [closeRequestId, setCloseRequestId] = useState<string | undefined>(() =>
     readStoredCloseRequestId(storageKey)
   )
-  const [phase, setPhase] = useState<
+  const [localPhase, setPhase] = useState<
     'active' | 'requesting' | 'ending' | 'uncertain' | 'ended'
   >(() => (readStoredCloseRequestId(storageKey) ? 'uncertain' : 'active'))
   const closeRequestIdRef = useRef(closeRequestId)
   const [canonicalLifecycle, setCanonicalLifecycle] =
     useState<RoomLifecycle | null>(null)
+  // A refused local command cannot reopen a meeting the authority is closing.
+  const phase =
+    localPhase === 'active' && canonicalLifecycle?.state === 'ending'
+      ? 'ending'
+      : localPhase
   const [observationRequested, setObservationRequested] = useState(false)
   const reconcileLifecycle = useCallback(() => {
-    setCanonicalLifecycle(null)
+    setCanonicalLifecycle((current) =>
+      current?.state === 'ending' ? current : null
+    )
     setObservationRequested(true)
   }, [])
 
@@ -175,7 +182,7 @@ export const MeetingLifecycleProvider = ({
           markEnded()
           return
         }
-        setCanonicalLifecycle(null)
+        // An unavailable authority does not invalidate its last known state.
       }
       timer = setTimeout(reconcile, 1000)
     }
