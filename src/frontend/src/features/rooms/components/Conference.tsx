@@ -606,7 +606,11 @@ export const Conference = ({
             }}
           />
           {!isMobile && <ActiveInviteDialog mode={mode} />}
-          <PictureInPictureConference />
+          <PictureInPictureConference
+            roomId={roomId}
+            canEnd={data?.can_end}
+            onMeetingEnded={navigateToEndedMeeting}
+          />
         </LiveKitRoom>
       </Screen>
     </QueryAware>

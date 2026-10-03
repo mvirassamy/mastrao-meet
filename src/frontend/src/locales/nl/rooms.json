@@ -8,6 +8,7 @@
     },
     "home": "Keer terug naar het hoofdscherm",
     "returnToMatter": "Terug naar het dossier",
+    "rejoinFromMatter": "Terug naar het dossier om opnieuw deel te nemen",
     "meetingEndedBody": "De vergadering is beëindigd. De opname en het transcript worden mogelijk nog verwerkt. U kunt dit tabblad sluiten.",
     "back": "Sluit weer bij de vergadering aan"
   },
@@ -320,9 +321,10 @@
       "label": "Vergadering voor iedereen beëindigen",
       "status": "Vergadering wordt beëindigd…",
       "dialog": {
-        "title": "Vergadering voor iedereen beëindigen?",
-        "body": "Iedereen wordt verbroken en deze vergadering kan niet opnieuw worden geopend.",
+        "title": "Vergadering verlaten of beëindigen?",
+        "body": "U kunt vertrekken terwijl de anderen doorgaan, of de vergadering voor iedereen beëindigen.",
         "cancel": "Annuleren",
+        "leave": "Alleen vertrekken",
         "confirm": "Vergadering beëindigen",
         "ending": "Bezig met beëindigen…",
         "error": "De vergadering kon niet worden beëindigd. Probeer het opnieuw."

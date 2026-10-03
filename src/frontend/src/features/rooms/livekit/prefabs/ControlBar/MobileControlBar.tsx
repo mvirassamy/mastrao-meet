@@ -27,7 +27,6 @@ import { VideoDeviceControl } from '../../components/controls/Device/VideoDevice
 import { openSettingsDialog } from '@/stores/settings'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
-import { EndMeetingButton } from '../../components/controls/EndMeetingButton'
 
 export function MobileControlBar({
   onDeviceError,
@@ -77,7 +76,11 @@ export function MobileControlBar({
           >
             <MoreVerticalIcon />
           </Button>
-          <LeaveButton />
+          <LeaveButton
+            roomId={roomId}
+            canEnd={canEnd}
+            onEnded={onMeetingEnded}
+          />
         </ControlBarRegion>
       </div>
       <ResponsiveMenu
@@ -124,16 +127,6 @@ export function MobileControlBar({
               description={true}
               onPress={() => setIsMenuOpened(false)}
             />
-            {canEnd && (
-              <EndMeetingButton
-                roomId={roomId}
-                description={true}
-                onEnded={() => {
-                  setIsMenuOpened(false)
-                  onMeetingEnded?.()
-                }}
-              />
-            )}
             <Button
               onPress={() => {
                 toggleEffects()

@@ -15,7 +15,6 @@ import { VideoDeviceControl } from '../../components/controls/Device/VideoDevice
 import { AudioDevicesControl } from '../../components/controls/Device/AudioDevicesControl'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
-import { EndMeetingButton } from '../../components/controls/EndMeetingButton'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 
 export function DesktopControlBar({
@@ -115,10 +114,7 @@ export function DesktopControlBar({
           />
         )}
         <OptionsButton />
-        {canEnd && (
-          <EndMeetingButton roomId={roomId} onEnded={onMeetingEnded} />
-        )}
-        <LeaveButton />
+        <LeaveButton roomId={roomId} canEnd={canEnd} onEnded={onMeetingEnded} />
         <StartMediaButton />
       </ControlBarRegion>
       <MoreOptions />

@@ -59,7 +59,15 @@ const ConnectionStateWrapper = styled('div', {
   },
 })
 
-export const PipView = () => {
+export const PipView = ({
+  roomId,
+  canEnd,
+  onMeetingEnded,
+}: {
+  roomId: string
+  canEnd?: boolean
+  onMeetingEnded?: () => void
+}) => {
   const { isOpen: isReactionToolbarOpen } = useReactionsToolbar()
   return (
     <Container isReactionToolbarOpen={isReactionToolbarOpen}>
@@ -68,7 +76,12 @@ export const PipView = () => {
       </ConnectionStateWrapper>
       <PipStage />
       <ReactionsToolbar adjustedCentering={false} />
-      <PipControlBar showScreenShare={true} />
+      <PipControlBar
+        showScreenShare={true}
+        roomId={roomId}
+        canEnd={canEnd}
+        onMeetingEnded={onMeetingEnded}
+      />
       <PipFloatingReactions />
       <NotificationProvider bottom={30} />
     </Container>
