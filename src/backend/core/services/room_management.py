@@ -20,7 +20,7 @@ from livekit.api import (
 )
 
 from core import models, utils
-from core.mastrao_room_lifecycle import assert_mastrao_room_open
+from core.mastrao_room_lifecycle import MastraoRoomClosed, assert_mastrao_room_open
 
 logger = getLogger(__name__)
 
@@ -48,6 +48,15 @@ def ensure_livekit_room(room_name: str):
         )
         if binding is not None:
             assert_mastrao_room_open(binding)
+            if binding.idle_close_candidates.filter(
+                state__in=[
+                    models.MastraoIdleCloseCandidate.State.PENDING,
+                    models.MastraoIdleCloseCandidate.State.DELIVERING,
+                ]
+            ).exists():
+                raise MastraoRoomClosed("canonical room departure timeout elapsed")
+            RoomManagement().ensure_room(room_name, departure_timeout=600)
+            return
         RoomManagement().ensure_room(room_name)
 
 
@@ -63,7 +72,21 @@ class RoomManagement:
     """Service for managing LiveKit rooms."""
 
     @async_to_sync
-    async def ensure_room(self, room_name: str):
+    async def room_exists(self, room_name: str) -> bool:
+        """Return whether LiveKit currently has this room."""
+
+        lkapi = utils.create_livekit_client()
+        try:
+            response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
+            return bool(response.rooms)
+        except TwirpError as error:
+            logger.exception("Unexpected error checking room %s", room_name)
+            raise RoomManagementException("Could not check room") from error
+        finally:
+            await lkapi.aclose()
+
+    @async_to_sync
+    async def ensure_room(self, room_name: str, *, departure_timeout: int = 0):
         """Create a LiveKit room when it does not already exist."""
 
         lkapi = utils.create_livekit_client()
@@ -71,13 +94,23 @@ class RoomManagement:
         try:
             response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
             if response.rooms:
-                return
+                return response.rooms[0]
             try:
-                await lkapi.room.create_room(CreateRoomRequest(name=room_name))
+                room = await lkapi.room.create_room(
+                    CreateRoomRequest(
+                        name=room_name,
+                        departure_timeout=departure_timeout,
+                    )
+                )
             except TwirpError as error:
                 if error.code != "already_exists":
                     raise
+                response = await lkapi.room.list_rooms(
+                    ListRoomsRequest(names=[room_name])
+                )
+                return response.rooms[0] if response.rooms else None
             logger.info("Ensured LiveKit room %s", room_name)
+            return room
         except TwirpError as error:
             logger.exception("Unexpected error ensuring room %s", room_name)
             raise RoomManagementException("Could not ensure room") from error

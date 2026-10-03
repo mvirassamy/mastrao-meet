@@ -159,6 +159,7 @@ def test_settings_boot_exposes_a_complete_meeting_integration():
     result = _load_development_setting(
         "MASTRAO_MEETING_INTEGRATION_CONFIGURED",
         {
+            "CELERY_ENABLED": "True",
             "LIVEKIT_EXPLICIT_ROOM_CREATION": "True",
             **dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, "configured"),
         },
@@ -227,6 +228,13 @@ def test_safe_room_adapter_configurations_are_accepted(
     validate_mastrao_meeting_close_configuration(
         room_adapter_enabled, explicit_creation
     )
+
+
+def test_governed_room_lifecycle_requires_celery():
+    """Idle room closure must always have a delivery worker."""
+
+    with pytest.raises(ImproperlyConfigured, match="CELERY_ENABLED"):
+        validate_mastrao_meeting_close_configuration(True, True, False)
 
 
 def test_recording_disabled_needs_no_asr_configuration():

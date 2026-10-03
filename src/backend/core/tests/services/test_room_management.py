@@ -21,10 +21,12 @@ def test_ensure_room_creates_missing_room(mock_create_livekit_client):
     mock_api.aclose = mock.AsyncMock()
     mock_create_livekit_client.return_value = mock_api
 
-    RoomManagement().ensure_room("room-abc")
+    RoomManagement().ensure_room("room-abc", departure_timeout=600)
 
     mock_api.room.create_room.assert_awaited_once()
-    assert mock_api.room.create_room.await_args.args[0].name == "room-abc"
+    request = mock_api.room.create_room.await_args.args[0]
+    assert request.name == "room-abc"
+    assert request.departure_timeout == 600
     mock_api.aclose.assert_awaited_once()
 
 

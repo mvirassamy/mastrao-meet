@@ -212,6 +212,7 @@ def _commit_grant(request, grant, compact_grant, *, retain_oidc_user=False):
                 meeting_ref=grant["meeting_ref"],
                 room_ref=grant["room_ref"],
                 provider_binding_digest=grant["provider_binding_digest"],
+                organization_external_id=grant["organization_external_id"],
                 identity=identity,
                 room_binding=binding,
                 platform_session_ref=grant["platform_session_ref"],
