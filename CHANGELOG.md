@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-03: Stop drawing a focus frame around page headings that receive
+  programmatic focus on arrival; screen readers still announce them, and
+  interactive controls keep their keyboard focus ring.
+
 - 2026-10-02: Record each participant microphone directly as one private Ogg
   Opus object and send its signed reference to the transcription pipeline.
 
