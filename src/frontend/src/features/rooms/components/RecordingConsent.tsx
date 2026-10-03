@@ -51,17 +51,6 @@ export const RecordingConsent = ({
     setPending(decision)
     setFailed(false)
     try {
-      if (
-        transcriptionOffered &&
-        transcriptionDecision === 'absent' &&
-        decision === 'refused'
-      ) {
-        await decideTranscription(
-          roomId,
-          'refused',
-          transcriptionRequestIds.current.refused
-        )
-      }
       if (recordingDecision === 'absent') {
         await decideRecording(roomId, decision, requestIds.current[decision])
       }
