@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-03: Remove transcription and recording rollout gates while retaining
+  participant roles and server recording capabilities.
+
 - 2026-10-03: Centralize canonical meeting lifecycle observation, preserving
   close retries, masked access errors and paced lobby admission.
 

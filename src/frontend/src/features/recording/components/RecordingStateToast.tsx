@@ -7,7 +7,6 @@ import {
   useHasRecordingAccess,
   useRecordingStatuses,
 } from '@/features/recording'
-import { FeatureFlags } from '@/features/analytics/enums'
 import { Button as RACButton } from 'react-aria-components'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 import { useRoomMetadata } from '../hooks/useRoomMetadata'
@@ -25,14 +24,10 @@ export const RecordingStateToast = () => {
   const lastKeyRef = useRef('')
   const announce = useScreenReaderAnnounce()
 
-  const hasTranscriptAccess = useHasRecordingAccess(
-    RecordingMode.Transcript,
-    FeatureFlags.Transcript
-  )
+  const hasTranscriptAccess = useHasRecordingAccess(RecordingMode.Transcript)
 
   const hasScreenRecordingAccess = useHasRecordingAccess(
-    RecordingMode.ScreenRecording,
-    FeatureFlags.ScreenRecording
+    RecordingMode.ScreenRecording
   )
 
   const {
