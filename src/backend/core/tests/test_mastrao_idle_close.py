@@ -11,6 +11,7 @@ import pytest
 
 from core import models
 from core.mastrao_idle_close import (
+    IdleCloseRetryable,
     deliver_idle_close,
     idle_close_blocks_restart,
     observe_room_finished,
@@ -77,6 +78,32 @@ def _event(binding, *, event_id="EV_idle_close_012345", created_at=None):
     )
 
 
+def _prove_room_empty(binding, event, *, elapsed_seconds=600):
+    departed_at = event.created_at - elapsed_seconds
+    models.MastraoRtcObservation.objects.create(
+        room_binding=binding,
+        event_id=f"left_{event.id}",
+        payload_digest="f" * 64,
+        event_type="participant_left",
+        event_time_seconds=departed_at,
+        room_sid=event.room.sid,
+        participant_sid="PA_idle_close_012345",
+        rtc_identity="departed_idle_close_participant",
+    )
+    models.MastraoRtcConnection.objects.create(
+        room_binding=binding,
+        room_sid=event.room.sid,
+        participant_sid="PA_idle_close_012345",
+        ended=True,
+    )
+
+
+def _observed_idle_close(binding):
+    event = _event(binding)
+    _prove_room_empty(binding, event)
+    return observe_room_finished(event)
+
+
 @pytest.mark.django_db(transaction=True)
 def test_room_finished_schedules_immediate_close_and_blocks_restart(settings):
     """The terminal event schedules delivery after LiveKit's departure grace."""
@@ -85,6 +112,7 @@ def test_room_finished_schedules_immediate_close_and_blocks_restart(settings):
     settings.LIVEKIT_EXPLICIT_ROOM_CREATION = True
     binding = _binding()
     event = _event(binding)
+    _prove_room_empty(binding, event)
 
     with mock.patch("core.mastrao_idle_close.current_app.send_task") as enqueue:
         candidate = observe_room_finished(event)
@@ -112,7 +140,35 @@ def test_unproven_provider_departure_timeout_is_ignored(settings):
     settings.CELERY_ENABLED = False
     binding = _binding()
     event = _event(binding)
+    _prove_room_empty(binding, event)
     event.room.departure_timeout = 20
+
+    assert observe_room_finished(event) is None
+    assert not models.MastraoIdleCloseCandidate.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_early_room_finished_is_not_treated_as_idle_timeout(settings):
+    """An explicit provider close before the grace expires proves no idle close."""
+
+    settings.CELERY_ENABLED = False
+    binding = _binding()
+    event = _event(binding)
+    _prove_room_empty(binding, event, elapsed_seconds=599)
+
+    assert observe_room_finished(event) is None
+    assert not models.MastraoIdleCloseCandidate.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_room_finished_with_an_observed_participant_still_present_is_ignored(settings):
+    """A stale departure cannot prove that the provider room stayed empty."""
+
+    settings.CELERY_ENABLED = False
+    binding = _binding()
+    event = _event(binding)
+    _prove_room_empty(binding, event)
+    models.MastraoRtcConnection.objects.filter(room_binding=binding).update(ended=False)
 
     assert observe_room_finished(event) is None
     assert not models.MastraoIdleCloseCandidate.objects.exists()
@@ -124,7 +180,7 @@ def test_due_absent_room_delivers_exact_canonical_close(settings):
 
     settings.CELERY_ENABLED = False
     binding = _binding()
-    candidate = observe_room_finished(_event(binding))
+    candidate = _observed_idle_close(binding)
     assert candidate is not None
     response = {
         "version": 1,
@@ -138,8 +194,8 @@ def test_due_absent_room_delivers_exact_canonical_close(settings):
 
     with (
         mock.patch(
-            "core.mastrao_idle_close.RoomManagement.room_exists",
-            return_value=False,
+            "core.mastrao_idle_close.RoomManagement.room_sid",
+            return_value=None,
         ),
         mock.patch(
             "core.mastrao_idle_close.sign_idle_meeting_close",
@@ -158,26 +214,66 @@ def test_due_absent_room_delivers_exact_canonical_close(settings):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_recreated_provider_room_cancels_due_close(settings):
-    """A provider room recreated before delivery prevents canonical close."""
+def test_new_provider_generation_is_deleted_while_canonical_close_continues(settings):
+    """A post-timeout generation cannot cancel canonical closure."""
 
     settings.CELERY_ENABLED = False
     binding = _binding()
-    candidate = observe_room_finished(_event(binding))
+    candidate = _observed_idle_close(binding)
     assert candidate is not None
+    response = {
+        "version": 1,
+        "matter_ref": "matter_idle_close_012345",
+        "meeting_ref": binding.meeting_ref,
+        "room_ref": binding.room_ref,
+        "state": "ending",
+        "state_version": 2,
+        "requested_at": int(time.time()),
+    }
 
     with (
         mock.patch(
-            "core.mastrao_idle_close.RoomManagement.room_exists",
-            return_value=True,
+            "core.mastrao_idle_close.RoomManagement.room_sid",
+            return_value="RM_recreated_after_timeout",
         ),
-        mock.patch("core.mastrao_idle_close.post_core_json") as post,
+        mock.patch("core.mastrao_idle_close.RoomManagement.delete_room") as delete,
+        mock.patch(
+            "core.mastrao_idle_close.sign_idle_meeting_close",
+            return_value=("aaa.bbb.ccc", {}),
+        ),
+        mock.patch(
+            "core.mastrao_idle_close.post_core_json", return_value=response
+        ) as post,
     ):
         deliver_idle_close(candidate.pk)
 
     candidate.refresh_from_db()
-    assert candidate.state == models.MastraoIdleCloseCandidate.State.CANCELLED
-    assert candidate.last_error == "room_restarted"
+    assert candidate.state == models.MastraoIdleCloseCandidate.State.DELIVERED
+    delete.assert_called_once_with(str(binding.room_id))
+    post.assert_called_once()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_same_provider_generation_retries_before_canonical_close(settings):
+    """Provider list lag cannot close a room generation still reported alive."""
+
+    settings.CELERY_ENABLED = False
+    binding = _binding()
+    candidate = _observed_idle_close(binding)
+    assert candidate is not None
+
+    with (
+        mock.patch(
+            "core.mastrao_idle_close.RoomManagement.room_sid",
+            return_value=candidate.room_sid,
+        ),
+        mock.patch("core.mastrao_idle_close.post_core_json") as post,
+        pytest.raises(IdleCloseRetryable),
+    ):
+        deliver_idle_close(candidate.pk)
+
+    candidate.refresh_from_db()
+    assert candidate.state == models.MastraoIdleCloseCandidate.State.PENDING
     post.assert_not_called()
 
 
@@ -187,7 +283,7 @@ def test_worker_redelivery_resumes_a_claim_after_process_loss(settings):
 
     settings.CELERY_ENABLED = False
     binding = _binding()
-    candidate = observe_room_finished(_event(binding))
+    candidate = _observed_idle_close(binding)
     assert candidate is not None
     candidate.state = models.MastraoIdleCloseCandidate.State.DELIVERING
     candidate.save(update_fields=["state", "updated_at"])
@@ -202,7 +298,7 @@ def test_worker_redelivery_resumes_a_claim_after_process_loss(settings):
     }
 
     with (
-        mock.patch("core.mastrao_idle_close.RoomManagement.room_exists") as room_exists,
+        mock.patch("core.mastrao_idle_close.RoomManagement.room_sid") as room_sid,
         mock.patch(
             "core.mastrao_idle_close.sign_idle_meeting_close",
             return_value=("aaa.bbb.ccc", {}),
@@ -211,7 +307,7 @@ def test_worker_redelivery_resumes_a_claim_after_process_loss(settings):
     ):
         deliver_idle_close(candidate.pk)
 
-    room_exists.assert_not_called()
+    room_sid.assert_not_called()
     candidate.refresh_from_db()
     assert candidate.state == models.MastraoIdleCloseCandidate.State.DELIVERED
 
@@ -222,7 +318,7 @@ def test_worker_start_recovers_persisted_idle_close_claims(settings):
 
     settings.CELERY_ENABLED = False
     binding = _binding()
-    candidate = observe_room_finished(_event(binding))
+    candidate = _observed_idle_close(binding)
     assert candidate is not None
 
     with mock.patch("core.tasks.idle_close.process_idle_close.delay") as enqueue:

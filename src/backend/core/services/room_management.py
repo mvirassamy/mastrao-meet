@@ -72,13 +72,13 @@ class RoomManagement:
     """Service for managing LiveKit rooms."""
 
     @async_to_sync
-    async def room_exists(self, room_name: str) -> bool:
-        """Return whether LiveKit currently has this room."""
+    async def room_sid(self, room_name: str) -> Optional[str]:
+        """Return the current LiveKit generation SID for a room name."""
 
         lkapi = utils.create_livekit_client()
         try:
             response = await lkapi.room.list_rooms(ListRoomsRequest(names=[room_name]))
-            return bool(response.rooms)
+            return response.rooms[0].sid if response.rooms else None
         except TwirpError as error:
             logger.exception("Unexpected error checking room %s", room_name)
             raise RoomManagementException("Could not check room") from error

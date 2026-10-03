@@ -48,6 +48,21 @@ def test_ensure_room_reuses_existing_room(mock_create_livekit_client):
 
 
 @mock.patch("core.services.room_management.utils.create_livekit_client")
+def test_room_sid_returns_the_current_provider_generation(mock_create_livekit_client):
+    """Room lookup exposes the exact generation rather than only its presence."""
+
+    mock_api = mock.MagicMock()
+    mock_api.room.list_rooms = mock.AsyncMock(
+        return_value=mock.Mock(rooms=[mock.Mock(sid="RM_current_generation")])
+    )
+    mock_api.aclose = mock.AsyncMock()
+    mock_create_livekit_client.return_value = mock_api
+
+    assert RoomManagement().room_sid("room-abc") == "RM_current_generation"
+    mock_api.aclose.assert_awaited_once()
+
+
+@mock.patch("core.services.room_management.utils.create_livekit_client")
 def test_delete_room_calls_livekit(mock_create_livekit_client):
     """DeleteRoom is forwarded to the LiveKit API."""
     mock_api = mock.MagicMock()

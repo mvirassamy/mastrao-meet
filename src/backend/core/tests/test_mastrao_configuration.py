@@ -89,7 +89,7 @@ def test_room_adapter_requires_explicit_room_creation():
     """A governed room cannot let stale media tokens recreate its provider room."""
 
     with pytest.raises(ImproperlyConfigured, match="EXPLICIT_ROOM_CREATION"):
-        validate_mastrao_meeting_close_configuration(True, False)
+        validate_mastrao_meeting_close_configuration(True, False, True)
 
 
 def test_settings_boot_refuses_room_adapter_without_explicit_room_creation():
@@ -226,7 +226,7 @@ def test_safe_room_adapter_configurations_are_accepted(
     """Absent adapters and explicitly-created governed rooms remain valid."""
 
     validate_mastrao_meeting_close_configuration(
-        room_adapter_enabled, explicit_creation
+        room_adapter_enabled, explicit_creation, True
     )
 
 

@@ -117,7 +117,7 @@ def resolve_mastrao_meeting_integration(configuration):
 
 
 def validate_mastrao_meeting_close_configuration(
-    room_adapter_enabled, explicit_creation, celery_enabled=True
+    room_adapter_enabled, explicit_creation, celery_enabled
 ):
     """Refuse a governed room lifecycle that cannot close rooms safely."""
 

@@ -2,7 +2,7 @@
 
 import hashlib
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse, urlunparse
 
 from django.conf import settings
@@ -57,6 +57,29 @@ def idle_close_blocks_restart(room_id):
     ).exists()
 
 
+def _verified_empty_since(binding, room_sid):
+    """Return the last verified departure only when every observed peer left."""
+
+    connections = models.MastraoRtcConnection.objects.filter(
+        room_binding=binding,
+        room_sid=room_sid,
+    )
+    if not connections.exists() or connections.filter(ended=False).exists():
+        return None
+    last_departure = (
+        models.MastraoRtcObservation.objects.filter(
+            room_binding=binding,
+            room_sid=room_sid,
+            event_type="participant_left",
+        )
+        .order_by("-event_time_seconds", "-event_id")
+        .first()
+    )
+    if last_departure is None:
+        return None
+    return datetime.fromtimestamp(last_departure.event_time_seconds, tz=UTC)
+
+
 @transaction.atomic
 def observe_room_finished(event):
     """Persist and enqueue one signed LiveKit room-finished observation."""
@@ -82,6 +105,11 @@ def observe_room_finished(event):
     if not organization_external_id:
         return None
     finished_at = datetime.fromtimestamp(event_time, tz=UTC)
+    empty_since = _verified_empty_since(binding, room_sid)
+    if empty_since is None or finished_at < empty_since + timedelta(
+        seconds=IDLE_CLOSE_SECONDS
+    ):
+        return None
     close_request_id = (
         "idleclose_"
         + hashlib.sha256(
@@ -166,11 +194,14 @@ def deliver_idle_close(candidate_pk):
                 candidate.save(update_fields=["state", "last_error", "updated_at"])
                 return
             if candidate.state == models.MastraoIdleCloseCandidate.State.PENDING:
-                if RoomManagement().room_exists(str(candidate.room_binding.room_id)):
-                    candidate.state = models.MastraoIdleCloseCandidate.State.CANCELLED
-                    candidate.last_error = "room_restarted"
-                    candidate.save(update_fields=["state", "last_error", "updated_at"])
-                    return
+                room_management = RoomManagement()
+                current_room_sid = room_management.room_sid(
+                    str(candidate.room_binding.room_id)
+                )
+                if current_room_sid == candidate.room_sid:
+                    raise IdleCloseRetryable()
+                if current_room_sid is not None:
+                    room_management.delete_room(str(candidate.room_binding.room_id))
                 candidate.state = models.MastraoIdleCloseCandidate.State.DELIVERING
                 candidate.last_error = ""
                 candidate.save(update_fields=["state", "last_error", "updated_at"])
