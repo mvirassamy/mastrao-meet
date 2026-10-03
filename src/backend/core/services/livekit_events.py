@@ -13,6 +13,7 @@ from livekit import api
 from livekit.protocol.models import ParticipantInfo
 
 from core import models
+from core.mastrao_idle_close import idle_close_blocks_restart, observe_room_finished
 from core.mastrao_recording_failure import report_mastrao_recording_failure
 from core.mastrao_room_lifecycle import is_mastrao_room_closed
 from core.mastrao_rtc_observations import (
@@ -336,7 +337,7 @@ class LiveKitEventsService:
         except models.Room.DoesNotExist as err:
             raise ActionFailedError(f"Room with ID {room_id} does not exist") from err
 
-        if is_mastrao_room_closed(room):
+        if idle_close_blocks_restart(room_id) or is_mastrao_room_closed(room):
             logger.warning("Deleting unexpectedly recreated closed room %s", room_id)
             try:
                 RoomManagement().delete_room(str(room_id))
@@ -407,6 +408,7 @@ class LiveKitEventsService:
 
         room = models.Room.objects.filter(id=room_id).first()
         if room is not None:
+            observe_room_finished(data)
             control = request_subtitle_stop(
                 room,
                 room_sid=getattr(data.room, "sid", None),

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import time
 import uuid
 
@@ -29,6 +30,8 @@ from core.mastrao_room_contract import (
 
 MEETING_CLOSE_REQUEST_TYPE = "mastrao.meet-meeting-close-request"
 MEETING_CLOSE_REQUEST_JOSE_TYPE = "mastrao-meeting-close-request+jws"
+MEETING_IDLE_CLOSE_ASSERTION_TYPE = "mastrao.meet-idle-close-assertion"
+MEETING_IDLE_CLOSE_ASSERTION_JOSE_TYPE = "mastrao-meeting-idle-close-assertion+jws"
 ROOM_CLOSE_EFFECT_TYPE = "mastrao.core-meeting-room-close-effect"
 ROOM_CLOSE_EFFECT_JOSE_TYPE = "mastrao-meeting-room-close-effect+jws"
 ROOM_CLOSE_RECEIPT_TYPE = "mastrao.meeting-room-close-receipt"
@@ -268,6 +271,42 @@ def sign_meeting_close_request(grant, compact_host_grant, close_request_id):
         "jti": f"closejti_{uuid.uuid4().hex}",
     }
     return _sign(payload, MEETING_CLOSE_REQUEST_JOSE_TYPE), payload
+
+
+def sign_idle_meeting_close(candidate):
+    """Sign a delayed close for one exact verified LiveKit room-finished event."""
+
+    now = int(time.time())
+    payload = {
+        "version": CONTRACT_VERSION,
+        "type": MEETING_IDLE_CLOSE_ASSERTION_TYPE,
+        "issuer": settings.MASTRAO_ROOM_RECEIPT_ISSUER,
+        "audience": settings.MASTRAO_ROOM_RECEIPT_AUDIENCE,
+        "operation": "request_idle_meeting_close",
+        "operation_version": 1,
+        "organization_external_id": candidate.organization_external_id,
+        "close_request_id": candidate.close_request_id,
+        "meeting_ref": candidate.room_binding.meeting_ref,
+        "room_ref": candidate.room_binding.room_ref,
+        "provider_binding_digest": candidate.room_binding.provider_binding_digest,
+        "room_sid": candidate.room_sid,
+        "room_finished_event_id": candidate.room_finished_event_id,
+        "room_finished_at": int(candidate.room_finished_at.timestamp()),
+        "idle_timeout_seconds": 600,
+        "issued_at": now,
+        "expires_at": now + MAX_ASSERTION_SECONDS,
+        "jti": f"idleclosejti_{uuid.uuid4().hex}",
+    }
+    if (
+        not OPAQUE_REFERENCE.fullmatch(payload["close_request_id"])
+        or not re.fullmatch(r"^RM_[A-Za-z0-9_-]{1,124}$", payload["room_sid"])
+        or not re.fullmatch(
+            r"^[A-Za-z0-9_-]{1,128}$", payload["room_finished_event_id"]
+        )
+        or now < payload["room_finished_at"]
+    ):
+        raise RoomCloseRefused()
+    return _sign(payload, MEETING_IDLE_CLOSE_ASSERTION_JOSE_TYPE), payload
 
 
 def compact_receipt_digest(compact_jws):

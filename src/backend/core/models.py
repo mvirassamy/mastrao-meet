@@ -834,6 +834,7 @@ class MastraoHostGrant(BaseModel):
     meeting_ref = models.CharField(max_length=160)
     room_ref = models.CharField(max_length=100)
     provider_binding_digest = models.CharField(max_length=64)
+    organization_external_id = models.CharField(max_length=200, null=True, blank=True)
     display_name = models.CharField(max_length=160, null=True, blank=True)
     identity = models.ForeignKey(
         MastraoHostIdentity,
@@ -878,6 +879,53 @@ class MastraoHostGrant(BaseModel):
 
     def __str__(self):
         return f"Mastrao host grant {self.grant_ref}"
+
+
+class MastraoIdleCloseCandidate(BaseModel):
+    """One durable empty-room observation awaiting its canonical close."""
+
+    class State(models.TextChoices):
+        """Delivery state for the delayed close request."""
+
+        PENDING = "pending", _("Pending")
+        DELIVERING = "delivering", _("Delivering")
+        CANCELLED = "cancelled", _("Cancelled")
+        DELIVERED = "delivered", _("Delivered")
+
+    room_binding = models.ForeignKey(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="idle_close_candidates",
+    )
+    organization_external_id = models.CharField(max_length=200)
+    close_request_id = models.CharField(max_length=160, unique=True)
+    room_sid = models.CharField(max_length=128)
+    room_finished_event_id = models.CharField(max_length=128, unique=True)
+    room_finished_at = models.DateTimeField()
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.PENDING,
+    )
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "meet_mastrao_idle_close_candidate"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(state="pending", delivered_at__isnull=True)
+                    | models.Q(state="delivering", delivered_at__isnull=True)
+                    | models.Q(state="cancelled", delivered_at__isnull=True)
+                    | models.Q(state="delivered", delivered_at__isnull=False)
+                ),
+                name="mastrao_idle_close_state_shape",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao idle close {self.close_request_id}"
 
 
 class MastraoGuestGrant(BaseModel):
