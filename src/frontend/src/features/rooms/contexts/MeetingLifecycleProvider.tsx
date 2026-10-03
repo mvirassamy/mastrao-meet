@@ -9,6 +9,12 @@ import {
 
 import { MeetingLifecycleContext } from './MeetingLifecycleContext'
 import { endMeeting, isRetryableEndMeetingError } from '../api/endMeeting'
+import {
+  fetchRoomLifecycle,
+  type RoomLifecycle,
+} from '../api/fetchRoomLifecycle'
+import { isMissingRoomLifecycle } from '../api/isMissingRoomLifecycle'
+import { isMastraoRoomId } from '../utils/isRoomValid'
 
 const RESUME_RETRY_MS = 5_000
 const RESUME_TIMEOUT_MS = 15_000
@@ -49,10 +55,24 @@ export const MeetingLifecycleProvider = ({
   const [closeRequestId, setCloseRequestId] = useState<string | undefined>(() =>
     readStoredCloseRequestId(storageKey)
   )
-  const [phase, setPhase] = useState<
+  const [localPhase, setPhase] = useState<
     'active' | 'requesting' | 'ending' | 'uncertain' | 'ended'
   >(() => (readStoredCloseRequestId(storageKey) ? 'uncertain' : 'active'))
   const closeRequestIdRef = useRef(closeRequestId)
+  const [canonicalLifecycle, setCanonicalLifecycle] =
+    useState<RoomLifecycle | null>(null)
+  // A refused local command cannot reopen a meeting the authority is closing.
+  const phase =
+    localPhase === 'active' && canonicalLifecycle?.state === 'ending'
+      ? 'ending'
+      : localPhase
+  const [observationRequested, setObservationRequested] = useState(false)
+  const reconcileLifecycle = useCallback(() => {
+    setCanonicalLifecycle((current) =>
+      current?.state === 'ending' ? current : null
+    )
+    setObservationRequested(true)
+  }, [])
 
   const clear = useCallback(() => {
     clearStoredCloseRequestId(storageKey)
@@ -61,7 +81,7 @@ export const MeetingLifecycleProvider = ({
   }, [storageKey])
   const markActive = useCallback(() => {
     clear()
-    setPhase('active')
+    setPhase((current) => (current === 'ended' ? current : 'active'))
   }, [clear])
 
   useEffect(() => {
@@ -79,14 +99,15 @@ export const MeetingLifecycleProvider = ({
       )
       try {
         await endMeeting(roomId, requestId, controller.signal)
-        if (!cancelled) setPhase('ending')
+        if (!cancelled)
+          setPhase((current) => (current === 'ended' ? current : 'ending'))
       } catch (error) {
         if (!isRetryableEndMeetingError(error)) {
           if (!cancelled) markActive()
           return
         }
         if (!cancelled) {
-          setPhase('uncertain')
+          setPhase((current) => (current === 'ended' ? current : 'uncertain'))
           retryTimer = setTimeout(resume, RESUME_RETRY_MS)
         }
       } finally {
@@ -111,15 +132,73 @@ export const MeetingLifecycleProvider = ({
     setPhase('requesting')
     return requestId
   }, [storageKey])
-  const markEnding = useCallback(() => setPhase('ending'), [])
-  const markEndingUncertain = useCallback(() => setPhase('uncertain'), [])
+  const markEnding = useCallback(
+    () => setPhase((current) => (current === 'ended' ? current : 'ending')),
+    []
+  )
+  const markEndingUncertain = useCallback(
+    () => setPhase((current) => (current === 'ended' ? current : 'uncertain')),
+    []
+  )
   const markEnded = useCallback(() => {
     clear()
     setPhase('ended')
   }, [clear])
+  const shouldObserve =
+    isMastraoRoomId(roomId) &&
+    phase !== 'ended' &&
+    (observationRequested || phase === 'ending' || phase === 'uncertain')
+
+  useEffect(() => {
+    if (!shouldObserve) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const controller = new AbortController()
+    const reconcile = async () => {
+      try {
+        const lifecycle = await fetchRoomLifecycle(roomId, controller.signal)
+        if (cancelled) return
+        setCanonicalLifecycle(lifecycle)
+        switch (lifecycle.state) {
+          case 'ended':
+            markEnded()
+            return
+          case 'open':
+            if (!closeRequestIdRef.current) {
+              setObservationRequested(false)
+              markActive()
+              return
+            }
+            break
+          case 'ending':
+            // Observation must not cancel an initial command or its retry.
+            if (!closeRequestIdRef.current) markEnding()
+            break
+        }
+      } catch (error) {
+        if (cancelled) return
+        if (isMissingRoomLifecycle(error)) {
+          setCanonicalLifecycle({ state: 'ended' })
+          markEnded()
+          return
+        }
+        // An unavailable authority does not invalidate its last known state.
+      }
+      timer = setTimeout(reconcile, 1000)
+    }
+    void reconcile()
+    return () => {
+      cancelled = true
+      controller.abort()
+      if (timer) clearTimeout(timer)
+    }
+  }, [markActive, markEnded, markEnding, roomId, shouldObserve])
+
   const value = useMemo(
     () => ({
       phase,
+      canonicalLifecycle,
+      reconcileLifecycle,
       isEnding: phase !== 'active',
       closeRequestId,
       beginEnding,
@@ -130,6 +209,8 @@ export const MeetingLifecycleProvider = ({
     }),
     [
       beginEnding,
+      canonicalLifecycle,
+      reconcileLifecycle,
       closeRequestId,
       markActive,
       markEnded,

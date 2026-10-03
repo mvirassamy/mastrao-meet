@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { menuRecipe } from '@/primitives/menuRecipe'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 import { RecordingMode, useHasRecordingAccess } from '@/features/recording'
-import { FeatureFlags } from '@/features/analytics/enums'
 
 export const ScreenRecordingMenuItem = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'options.items' })
@@ -12,8 +11,7 @@ export const ScreenRecordingMenuItem = () => {
     useSidePanel()
 
   const hasScreenRecordingAccess = useHasRecordingAccess(
-    RecordingMode.ScreenRecording,
-    FeatureFlags.ScreenRecording
+    RecordingMode.ScreenRecording
   )
 
   if (!hasScreenRecordingAccess) return null

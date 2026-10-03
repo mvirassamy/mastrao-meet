@@ -26,7 +26,6 @@ import { useTranscriptionLanguage } from '@/features/settings'
 import { useMutateRecording } from '../hooks/useMutateRecording'
 import { useSidePanel } from '@/features/rooms/livekit/hooks/useSidePanel'
 import { useIsAdminOrOwner } from '@/features/rooms/livekit/hooks/useIsAdminOrOwner'
-import { FeatureFlags } from '@/features/analytics/enums'
 import { LimitDescription } from './LimitDescription'
 import { captureEvent, reportError } from '@/features/analytics/telemetry'
 
@@ -41,8 +40,7 @@ export const ScreenRecordingSidePanel = () => {
   const isAdminOrOwner = useIsAdminOrOwner()
 
   const hasScreenRecordingAccess = useHasRecordingAccess(
-    RecordingMode.ScreenRecording,
-    FeatureFlags.ScreenRecording
+    RecordingMode.ScreenRecording
   )
 
   const { notifyParticipants } = useNotifyParticipants()

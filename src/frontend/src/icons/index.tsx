@@ -15,7 +15,6 @@ import {
   BookOpenIcon as HeroBookOpenIcon,
   CalendarDaysIcon as HeroCalendarDaysIcon,
   CalendarIcon as HeroCalendarIcon,
-  ChatBubbleBottomCenterTextIcon as HeroChatBubbleBottomCenterTextIcon,
   ChatBubbleLeftIcon as HeroChatBubbleLeftIcon,
   ChatBubbleLeftRightIcon as HeroChatBubbleLeftRightIcon,
   ChatBubbleOvalLeftEllipsisIcon as HeroChatBubbleOvalLeftEllipsisIcon,
@@ -116,7 +115,6 @@ export const BookOpenIcon = sized(HeroBookOpenIcon) // RiBookOpenFill
 export const CalendarEventIcon = sized(HeroCalendarDaysIcon) // RiCalendarEventFill
 export const CalendarIcon = sized(HeroCalendarIcon) // RiCalendarFill
 export const CameraSwitchIcon = sized(HeroArrowPathRoundedSquareIcon) // RiCameraSwitchFill
-export const CaptionsIcon = sized(HeroChatBubbleBottomCenterTextIcon) // RiClosedCaptioningFill
 export const ChatIcon = sized(HeroChatBubbleOvalLeftIcon) // RiChat1Fill
 export const CheckCircleIcon = sized(HeroCheckCircleIcon) // RiCheckboxCircleFill
 export const CheckIcon = sized(HeroCheckIcon) // RiCheckFill
