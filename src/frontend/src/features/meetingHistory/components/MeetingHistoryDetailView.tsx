@@ -5,16 +5,14 @@ import { Link } from 'wouter'
 import {
   ChevronLeftIcon,
   CalendarIcon,
-  ErrorIcon,
   FileSearchIcon,
-  MinusCircleIcon,
   InformationIcon,
   RetryIcon,
   TimeIcon,
 } from '@/icons'
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
+import { css, cva } from '@/styled-system/css'
 import type {
   MeetingContentStatus,
   MeetingHistoryDetail,
@@ -60,15 +58,28 @@ const isReadableStatus = (
 const isPendingStatus = (status: MeetingContentStatus) =>
   ['unknown', 'waiting_for_audio', 'transcribing'].includes(status)
 
-/** Mirrors the waiting branches of SummaryBody. */
-const isSummaryPending = (
+/** What a section shows, which sets the look of its header. */
+type SectionLook = 'content' | 'pending' | 'empty' | 'failed'
+
+const contentSectionLook = (status: MeetingContentStatus): SectionLook => {
+  if (isReadableStatus(status)) return 'content'
+  if (isPendingStatus(status)) return 'pending'
+  if (status === 'failed') return 'failed'
+  return 'empty'
+}
+
+/** Mirrors the branches of SummaryBody. */
+const summarySectionLook = (
   summary: MeetingSummary,
   transcriptStatus: MeetingContentStatus,
   requestState: SummaryRequestState
-) => {
-  if (isPendingStatus(summary.status)) return true
-  if (summary.status !== 'not_started') return false
-  return requestState === 'pending' || isPendingStatus(transcriptStatus)
+): SectionLook => {
+  if (summary.status !== 'not_started')
+    return contentSectionLook(summary.status)
+  if (requestState === 'pending') return 'pending'
+  if (requestState === 'failed') return 'failed'
+  if (isPendingStatus(transcriptStatus)) return 'pending'
+  return 'empty'
 }
 
 export const MeetingHistoryDetailView = ({
@@ -298,7 +309,7 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="summary"
           status={meeting.summary.status}
-          pending={isSummaryPending(
+          look={summarySectionLook(
             meeting.summary,
             meeting.transcript.status,
             summaryRequestState
@@ -314,7 +325,7 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="transcript"
           status={meeting.transcript.status}
-          pending={isPendingStatus(meeting.transcript.status)}
+          look={contentSectionLook(meeting.transcript.status)}
         >
           <TranscriptBody transcript={meeting.transcript} />
         </MeetingContentSection>
@@ -323,15 +334,57 @@ const MeetingDetailContent = ({
   )
 }
 
+/**
+ * Tinted header: the large section icon sits on the right as an
+ * illustration, partly cropped, so the title stays clean. Grey when there is
+ * nothing to show, pink when the processing failed.
+ */
+const sectionHeader = cva({
+  base: {
+    position: 'relative',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: '76px',
+    padding: '0.875rem 1.125rem',
+    paddingRight: '6.5rem',
+    borderRadius: '11px 11px 0 0',
+    background: 'linear-gradient(120deg, token(colors.card) 30%, #e6edff 100%)',
+    borderBottom: '1px solid token(colors.border)',
+    '& img': {
+      position: 'absolute',
+      right: '-6px',
+      top: '-8px',
+      userSelect: 'none',
+      pointerEvents: 'none',
+    },
+  },
+  variants: {
+    look: {
+      content: {},
+      pending: {},
+      empty: {
+        background:
+          'linear-gradient(120deg, token(colors.card) 30%, #eef0f4 100%)',
+        '& img': { filter: 'grayscale(1)', opacity: 0.45 },
+      },
+      failed: {
+        background:
+          'linear-gradient(120deg, token(colors.card) 30%, #fcebec 100%)',
+      },
+    },
+  },
+})
+
 const MeetingContentSection = ({
   kind,
   status,
-  pending,
+  look,
   children,
 }: {
   kind: MeetingContentKind
   status: MeetingContentStatus
-  pending: boolean
+  look: SectionLook
   children: ReactNode
 }) => {
   const { t } = useTranslation('meetingHistory')
@@ -349,23 +402,7 @@ const MeetingContentSection = ({
         backgroundColor: 'card',
       })}
     >
-      <div
-        className={css({
-          // Tinted header: the large section icon sits on the right as an
-          // illustration, partly cropped, so the title stays clean.
-          position: 'relative',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          minHeight: '76px',
-          padding: '0.875rem 1.125rem',
-          paddingRight: '6.5rem',
-          borderRadius: '11px 11px 0 0',
-          background:
-            'linear-gradient(120deg, token(colors.card) 30%, #e6edff 100%)',
-          borderBottom: '1px solid token(colors.border)',
-        })}
-      >
+      <div className={sectionHeader({ look })}>
         <img
           src={SECTION_ICONS[kind]}
           alt=""
@@ -373,13 +410,6 @@ const MeetingContentSection = ({
           width={96}
           height={96}
           decoding="async"
-          className={css({
-            position: 'absolute',
-            right: '-6px',
-            top: '-8px',
-            userSelect: 'none',
-            pointerEvents: 'none',
-          })}
         />
         <h2
           id={headingId}
@@ -400,7 +430,7 @@ const MeetingContentSection = ({
         >
           {t(`status.${kind}.${status}`)}
         </span>
-        {pending && <SectionProgressBar />}
+        {look === 'pending' && <SectionProgressBar />}
       </div>
       <div className={css({ padding: '1rem 1.125rem 1.25rem' })}>
         {children}
@@ -445,29 +475,19 @@ const UnavailableContent = ({
   status: Exclude<MeetingContentStatus, 'available' | 'partial'>
 }) => {
   const { t } = useTranslation('meetingHistory')
-  const visual = {
-    // In-progress states show the header progress bar instead of an icon.
-    unknown: { tone: 'info', icon: null },
-    not_started: {
-      tone: 'neutral',
-      icon: <MinusCircleIcon size={18} />,
-    },
-    waiting_for_audio: { tone: 'info', icon: null },
-    transcribing: { tone: 'info', icon: null },
-    completed_empty: {
-      tone: 'neutral',
-      icon: <MinusCircleIcon size={18} />,
-    },
-    audio_unavailable: {
-      tone: 'neutral',
-      icon: <MinusCircleIcon size={18} />,
-    },
-    failed: { tone: 'danger', icon: <ErrorIcon size={18} /> },
+  // In-progress states have no dot: the header progress bar shows them.
+  const dotTone = {
+    unknown: undefined,
+    waiting_for_audio: undefined,
+    transcribing: undefined,
+    not_started: 'neutral',
+    completed_empty: 'neutral',
+    audio_unavailable: 'neutral',
+    failed: 'danger',
   } as const
   return (
     <MeetingSectionState
-      tone={visual[status].tone}
-      icon={visual[status].icon}
+      tone={dotTone[status]}
       title={t(`${kind}.${status}.title`)}
       description={t(`${kind}.${status}.description`)}
     />
@@ -526,7 +546,6 @@ const SummaryBody = ({
       return (
         <MeetingSectionState
           tone="danger"
-          icon={<ErrorIcon size={18} />}
           title={t('summary.requestFailed.title')}
           description={t('summary.requestFailed.description')}
           action={
@@ -541,11 +560,7 @@ const SummaryBody = ({
           }
         />
       )
-    if (
-      ['unknown', 'waiting_for_audio', 'transcribing'].includes(
-        transcriptStatus
-      )
-    )
+    if (isPendingStatus(transcriptStatus))
       return (
         <MeetingSectionState
           title={t('summary.waitingTranscript.title')}
