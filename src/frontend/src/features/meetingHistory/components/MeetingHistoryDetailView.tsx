@@ -38,7 +38,7 @@ import {
   formatMeetingTimeRange,
   formatTranscriptTimestamp,
 } from '../utils/meetingHistoryFormat'
-import { type MeetingContentKind } from './MeetingContentStatusBadge'
+import { SECTION_ICONS, type MeetingContentKind } from './meetingContent'
 import {
   MeetingHistoryStatePanel,
   MeetingSectionState,
@@ -297,11 +297,6 @@ const MeetingDetailContent = ({
       </div>
     </>
   )
-}
-
-const SECTION_ICONS: Record<MeetingContentKind, string> = {
-  summary: '/assets/illustrations/section-synthese.webp',
-  transcript: '/assets/illustrations/section-transcription.webp',
 }
 
 const MeetingContentSection = ({

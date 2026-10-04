@@ -109,16 +109,14 @@ describe('meeting history flow', () => {
     const location = renderHistory()
 
     const links = await screen.findAllByRole('link')
-    expect(links.map((link) => link.textContent)).toEqual([
-      'Réunion recente',
-      'Réunion ancienne',
-    ])
+    expect(links[0].textContent).toContain('Réunion recente')
+    expect(links[1].textContent).toContain('Réunion ancienne')
     expect(screen.getByText('status.summary.transcribing')).toBeTruthy()
 
     fireEvent.click(links[0])
     const heading = await screen.findByRole('heading', {
       level: 1,
-      name: 'Réunion recente',
+      name: /^Réunion recente/,
     })
     await waitFor(() => expect(document.activeElement).toBe(heading))
     expect(screen.getByRole('region', { name: 'summary.title' })).toBeTruthy()
@@ -132,7 +130,7 @@ describe('meeting history flow', () => {
     fireEvent.click(screen.getByRole('link', { name: 'detail.back' }))
     expect(location.history?.at(-1)).toBe(MEETING_HISTORY_PATH)
     const restored = await screen.findByRole('link', {
-      name: 'Réunion recente',
+      name: /^Réunion recente/,
     })
     await waitFor(() => expect(document.activeElement).toBe(restored))
   })
@@ -225,7 +223,7 @@ describe('meeting history flow', () => {
     renderHistory()
     fireEvent.click(await screen.findByRole('button', { name: 'loadMore' }))
     expect(
-      await screen.findByRole('link', { name: 'Réunion plus-ancienne' })
+      await screen.findByRole('link', { name: /^Réunion plus-ancienne/ })
     ).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'loadMore' })).toBeNull()
   })

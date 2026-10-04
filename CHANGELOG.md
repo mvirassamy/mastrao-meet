@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-04: Replace the summary and transcript status pills of the meeting
+  history list with the 3D icons and a coloured status dot, the exact status
+  shown on hover and read with the meeting link.
+
 - 2026-10-04: Show the generated 3D illustrations for Summary and Transcript
   in a tinted header of each meeting history section.
 

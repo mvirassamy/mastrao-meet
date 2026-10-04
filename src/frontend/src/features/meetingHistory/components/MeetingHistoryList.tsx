@@ -24,7 +24,7 @@ import {
   formatMonthLabel,
   monthKey,
 } from '../utils/meetingHistoryFormat'
-import { MeetingContentStatusBadge } from './MeetingContentStatusBadge'
+import { MeetingContentStatusIcon } from './MeetingContentStatusIcon'
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistorySkeleton } from './MeetingHistorySkeleton'
 
@@ -247,6 +247,7 @@ const MeetingHistoryRow = ({
   timeZone?: string
 }) => {
   const { t } = useTranslation('meetingHistory')
+  const linkRef = useRef<HTMLAnchorElement>(null)
   const duration = formatMeetingDuration(item.startedAt, item.endedAt, locale)
   const meta = [
     formatMeetingShortDay(item.startedAt, locale, timeZone),
@@ -262,10 +263,7 @@ const MeetingHistoryRow = ({
       className={css({
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: {
-          base: 'minmax(0, 1fr) auto',
-          md: 'minmax(0, 1fr) auto auto',
-        },
+        gridTemplateColumns: 'minmax(0, 1fr) auto auto',
         alignItems: 'center',
         columnGap: '0.75rem',
         rowGap: '0.5rem',
@@ -284,6 +282,7 @@ const MeetingHistoryRow = ({
     >
       <div className={css({ minWidth: 0 })}>
         <Link
+          ref={linkRef}
           to={meetingHistoryDetailPath(item.id)}
           data-meeting-id={item.id}
           onClick={() => rememberOpenedMeeting(item.id)}
@@ -311,6 +310,13 @@ const MeetingHistoryRow = ({
           })}
         >
           {item.title ?? t('untitled')}
+          {/* The status icons are decorative: their meaning is read here. */}
+          <span className={css({ srOnly: true })}>
+            {t(`status.summary.${item.summaryStatus}`)}
+          </span>
+          <span className={css({ srOnly: true })}>
+            {t(`status.transcript.${item.transcriptStatus}`)}
+          </span>
         </Link>
         <p
           className={css({
@@ -324,17 +330,24 @@ const MeetingHistoryRow = ({
           {meta.join(' · ')}
         </p>
       </div>
+      {/*
+       * Above the link overlay so the status tooltips show. The click only
+       * forwards a mouse click to the row link; keyboard and screen reader
+       * users reach the same link directly.
+       */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
+        onClick={() => linkRef.current?.click()}
         className={css({
-          gridColumn: { base: '1 / -1', md: 'auto' },
-          gridRow: { base: 2, md: 'auto' },
+          position: 'relative',
+          zIndex: 1,
           display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.375rem',
+          gap: '0.625rem',
+          cursor: 'pointer',
         })}
       >
-        <MeetingContentStatusBadge kind="summary" status={item.summaryStatus} />
-        <MeetingContentStatusBadge
+        <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
+        <MeetingContentStatusIcon
           kind="transcript"
           status={item.transcriptStatus}
         />
@@ -343,8 +356,6 @@ const MeetingHistoryRow = ({
         size={18}
         aria-hidden="true"
         className={css({
-          gridColumn: { base: 2, md: 'auto' },
-          gridRow: { base: 1, md: 'auto' },
           color: 'muted-foreground',
         })}
       />
