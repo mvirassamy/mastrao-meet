@@ -249,6 +249,9 @@
   cookie, on the parent domain, so Mastrao applications share it.
   The legacy i18nextLng guess is ignored, so users pick a language once more.
 
+- 2026-09-28: Wait up to 20 seconds for Platform to create a canonical
+  meeting, longer than its bounded wait for the new meeting projection.
+
 - 2026-09-28: Share canonical rooms through a host-bound guest invitation URL
   instead of the raw room URL, while preserving ordinary room sharing and
   failing closed when the secure link is unavailable.
