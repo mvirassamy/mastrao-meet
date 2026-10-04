@@ -6,24 +6,18 @@ import {
 
 const CALENDAR_REFRESH_INTERVAL_MS = 60_000
 
-export const useCalendarToday = (
-  timeZone: string,
-  onDayChange?: (previous: Date, next: Date) => void
-) => {
+/** Today in the user time zone, refreshed when the day changes. */
+export const useCalendarToday = (timeZone: string) => {
   const [today, setToday] = useState(() => todayInTimeZone(timeZone))
   const todayRef = useRef(today)
-  const onDayChangeRef = useRef(onDayChange)
-  onDayChangeRef.current = onDayChange
 
   useEffect(() => {
     const refresh = () => {
       const next = todayInTimeZone(timeZone)
-      const previous = todayRef.current
-      if (isSameCalendarDay(previous, next)) return
+      if (isSameCalendarDay(todayRef.current, next)) return
 
       todayRef.current = next
       setToday(next)
-      onDayChangeRef.current?.(previous, next)
     }
 
     const refreshWhenVisible = () => {

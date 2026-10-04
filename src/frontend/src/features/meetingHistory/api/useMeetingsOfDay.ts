@@ -56,6 +56,8 @@ export const useMeetingsOfDay = (
   if (query.isPending || isAuthRequiredError(query.error))
     return { status: 'loading' }
   if (!query.data) return { status: 'error', retry: () => void query.refetch() }
+  // A retried page keeps its error until it settles: show it as loading.
+  if (needsOlderPage && isFetchingNextPage) return { status: 'loading' }
   if (needsOlderPage && isFetchNextPageError)
     return { status: 'error', retry: () => void fetchNextPage() }
   if (needsOlderPage) return { status: 'loading' }

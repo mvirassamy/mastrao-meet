@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
@@ -111,7 +117,8 @@ describe('automatic summary request', () => {
       serve({ detail: () => detail(summary, transcript) })
       renderDetail()
 
-      expect(await screen.findByText(message)).toBeTruthy()
+      // The visible state title; the header also announces it to screen readers.
+      expect(await screen.findByText(message, { selector: 'p' })).toBeTruthy()
       await new Promise((resolve) => setTimeout(resolve, 50))
       expect(calls(SUMMARY_URL, 'POST')).toBe(0)
     }
@@ -126,7 +133,14 @@ describe('automatic summary request', () => {
     })
     renderDetail()
 
-    expect(await screen.findByText('summary.requestFailed.title')).toBeTruthy()
+    expect(
+      await screen.findByText('summary.requestFailed.title', { selector: 'p' })
+    ).toBeTruthy()
+    // Screen readers hear the same state as the one shown.
+    const summary = screen.getByRole('region', { name: 'summary.title' })
+    expect(within(summary).getByRole('status').textContent).toBe(
+      'summary.requestFailed.title'
+    )
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(calls(SUMMARY_URL, 'POST')).toBe(1)
   })

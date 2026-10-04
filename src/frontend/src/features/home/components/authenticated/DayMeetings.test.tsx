@@ -83,24 +83,34 @@ describe('meetings of the selected home day', () => {
     )
   })
 
-  it('shows an error when an older page fails, and retries that page', async () => {
+  it('shows an error when an older page fails, and shows the retry', async () => {
+    let retrying = false
+    let failRetry: (error: Error) => void = () => undefined
     fetchApiMock.mockImplementation(async (url: string) => {
       if (url === FIRST_PAGE)
         return {
           results: [meeting('recente', '2026-10-04T08:00:00Z')],
           next_cursor: 'page-2',
         }
-      throw new Error('unavailable')
+      if (!retrying) throw new Error('unavailable')
+      return new Promise((_, reject) => {
+        failRetry = reject
+      })
     })
     renderDay('2026-10-01')
 
     expect(await screen.findByRole('alert')).toBeTruthy()
-    const failedCalls = callsTo(OLDER_PAGE)
-    expect(failedCalls).toBeLessThanOrEqual(2)
+    expect(callsTo(OLDER_PAGE)).toBeLessThanOrEqual(2)
 
+    retrying = true
     fireEvent.click(screen.getByRole('button', { name: 'error.retry' }))
-    await screen.findByRole('alert')
-    expect(callsTo(OLDER_PAGE)).toBeGreaterThan(failedCalls)
+    expect(await screen.findByText('dashboard.meetings.loading')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    // The automatic retry of the failed page fails at once.
+    retrying = false
+    failRetry(new Error('still unavailable'))
+    expect(await screen.findByRole('alert')).toBeTruthy()
   })
 
   it.each([

@@ -6,6 +6,20 @@ const toCalendarDate = (year: number, month: number, day: number) =>
 /** YYYY-MM-DD of a calendar date (calendar dates are stored at noon UTC). */
 export const calendarDayKey = (date: Date) => date.toISOString().slice(0, 10)
 
+const DAY_KEY = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** Calendar date of a YYYY-MM-DD key, or null when it is not a real day. */
+export const calendarDateFromKey = (key: string | null) => {
+  const parts = key ? DAY_KEY.exec(key) : null
+  if (!parts) return null
+  const date = toCalendarDate(
+    Number(parts[1]),
+    Number(parts[2]),
+    Number(parts[3])
+  )
+  return calendarDayKey(date) === key ? date : null
+}
+
 export const todayInTimeZone = (timeZone?: string) => {
   const parts = new Intl.DateTimeFormat(DATE_PARTS_LOCALE, {
     timeZone: timeZone || undefined,
