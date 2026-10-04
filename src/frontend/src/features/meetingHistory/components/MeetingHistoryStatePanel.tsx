@@ -127,7 +127,8 @@ export const MeetingSectionState = ({
 }: {
   title: string
   description: string
-  icon: ReactNode
+  /** Omitted for in-progress states, shown by the section progress bar. */
+  icon?: ReactNode
   tone?: 'neutral' | 'info' | 'danger'
   action?: ReactNode
 }) => (
@@ -138,16 +139,18 @@ export const MeetingSectionState = ({
       gap: '0.75rem',
     })}
   >
-    <span
-      aria-hidden="true"
-      className={`${iconWrapper({ tone })} ${css({
-        width: '36px',
-        height: '36px',
-        borderRadius: '10px',
-      })}`}
-    >
-      {icon}
-    </span>
+    {icon && (
+      <span
+        aria-hidden="true"
+        className={`${iconWrapper({ tone })} ${css({
+          width: '36px',
+          height: '36px',
+          borderRadius: '10px',
+        })}`}
+      >
+        {icon}
+      </span>
+    )}
     <div className={css({ minWidth: 0 })}>
       <p
         className={css({
