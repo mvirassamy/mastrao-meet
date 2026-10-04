@@ -237,6 +237,18 @@ export const SidePanel = () => {
   const { isOpen: isReactionToolbarOpen } = useReactionsToolbar()
 
   const asideRef = useRef<HTMLElement>(null)
+  const externalTriggerRef = useRef<HTMLElement | null>(null)
+
+  const resolvePanelTrigger = useCallback(
+    (activeElement: HTMLElement | null) => {
+      // Internal tab navigation keeps the last external command as the target.
+      if (activeElement && !asideRef.current?.contains(activeElement)) {
+        externalTriggerRef.current = activeElement
+      }
+      return externalTriggerRef.current
+    },
+    []
+  )
 
   const focusAside = useCallback(() => {
     requestAnimationFrame(() => {
@@ -256,10 +268,10 @@ export const SidePanel = () => {
   }, [activePanelId, focusAside])
 
   useRestoreFocus(isSidePanelOpen, {
+    resolveTrigger: resolvePanelTrigger,
     onOpened: handlePanelOpened,
     preventScroll: true,
-    activeKey:
-      isChatOpen || isLiveTranscriptOpen ? PanelId.CHAT : activePanelId,
+    activeKey: activePanelId,
   })
 
   return (

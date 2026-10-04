@@ -122,7 +122,10 @@ export const Tools = () => {
     // If the active element is a MenuItem (DIV) that will be unmounted when the menu closes,
     // find the "more options" button ("Plus d'options") that opened the menu
     resolveTrigger: (activeEl) => {
-      if (activeEl?.tagName === 'DIV') {
+      if (
+        activeEl?.tagName === 'DIV' &&
+        activeEl.getAttribute('role') !== 'tab'
+      ) {
         return document.querySelector<HTMLElement>('#room-options-trigger')
       }
       // For direct button clicks (e.g. "Plus d'outils"), use the active element as is

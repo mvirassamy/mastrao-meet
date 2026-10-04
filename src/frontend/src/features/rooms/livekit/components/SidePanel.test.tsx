@@ -6,8 +6,8 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Button } from '@/primitives'
 import { layoutStore } from '@/stores/layout'
 import { PanelId, SubPanelId } from '../hooks/useSidePanel'
 import { SidePanel } from './SidePanel'
@@ -22,31 +22,13 @@ vi.mock('react-i18next', () => ({
     },
   }),
 }))
-vi.mock('@/primitives', async () => ({
-  TextArea: (await import('@/primitives/TextArea')).TextArea,
-  ToggleButton: (await import('@/primitives/ToggleButton')).ToggleButton,
-  Button: ({
-    children,
-    onPress,
-    ...props
-  }: {
-    children: ReactNode
-    onPress: () => void
-    'aria-label'?: string
-  }) => (
-    <button type="button" onClick={onPress} aria-label={props['aria-label']}>
-      {children}
-    </button>
-  ),
-}))
-vi.mock('@/primitives/appAppearance', () => ({
-  AppAppearanceProvider: ({ children }: { children: ReactNode }) => children,
-}))
-vi.mock('@/icons', () => ({
-  ArrowLeftIcon: () => null,
-  CloseIcon: () => null,
-  SendIcon: () => null,
-  ChatIcon: () => null,
+vi.mock('@/api/useConfig', () => ({
+  useConfig: () => ({
+    data: {
+      subtitle: { enabled: false },
+      recording: { is_enabled: false, available_modes: [] },
+    },
+  }),
 }))
 vi.mock('@/features/participants/components/ParticipantsList', () => ({
   ParticipantsList: () => <div>Participants panel</div>,
@@ -68,7 +50,6 @@ vi.mock('@/features/subtitle/component/LiveTranscriptSidePanel', () => ({
 }))
 vi.mock('./effects/Effects', () => ({ Effects: () => null }))
 vi.mock('./Admin', () => ({ Admin: () => null }))
-vi.mock('./Tools', () => ({ Tools: () => null }))
 vi.mock('./Info', () => ({ Info: () => null }))
 vi.mock('@/features/reactions/hooks/useReactionsToolbar', () => ({
   useReactionsToolbar: () => ({ isOpen: false }),
@@ -185,6 +166,68 @@ describe('meeting conversation panel', () => {
     await screen.findByRole('textbox')
     await flushAnimationFrames()
     expect(document.activeElement).toBe(messages)
+
+    const closeButton = screen.getByRole('button', { name: 'closeButton' })
+    act(() => closeButton.focus())
+    fireEvent.click(closeButton)
+    await waitFor(() => expect(screen.queryByRole('tab')).toBeNull())
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(chatCommand)
+  })
+
+  it('remembers the external chat command while the initial transcription is open', async () => {
+    render(
+      <>
+        <ChatToggle />
+        <SidePanel />
+      </>
+    )
+    await screen.findByRole('tab', { name: 'Transcription' })
+    await flushAnimationFrames()
+
+    const chatCommand = screen.getByRole('button', { name: 'closed' })
+    act(() => chatCommand.focus())
+    fireEvent.click(chatCommand)
+    const input = await screen.findByRole('textbox')
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(input)
+
+    const closeButton = screen.getByRole('button', { name: 'closeButton' })
+    act(() => closeButton.focus())
+    fireEvent.click(closeButton)
+    await waitFor(() => expect(screen.queryByRole('tab')).toBeNull())
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(chatCommand)
+  })
+
+  it('returns focus to chat after closing from transcription with Tools mounted', async () => {
+    render(
+      <>
+        <Button id="room-options-trigger">More options</Button>
+        <ChatToggle />
+        <SidePanel />
+      </>
+    )
+    await screen.findByRole('tab', { name: 'Transcription' })
+    await flushAnimationFrames()
+    fireEvent.click(screen.getByRole('button', { name: 'closeButton' }))
+    await waitFor(() => expect(screen.queryByRole('tab')).toBeNull())
+    await flushAnimationFrames()
+
+    const chatCommand = screen.getByRole('button', { name: 'closed' })
+    act(() => chatCommand.focus())
+    fireEvent.click(chatCommand)
+    await screen.findByRole('textbox')
+    await flushAnimationFrames()
+
+    const messages = screen.getByRole('tab', { name: 'Messages' })
+    act(() => messages.focus())
+    fireEvent.keyDown(messages, { key: 'ArrowLeft' })
+    const transcription = await screen.findByRole('tab', {
+      name: 'Transcription',
+    })
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(transcription)
 
     const closeButton = screen.getByRole('button', { name: 'closeButton' })
     act(() => closeButton.focus())
