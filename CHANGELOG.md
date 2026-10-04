@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Label the host recording stop action in the meeting control
+  bar, preserving the meeting and the existing permanent recording stop.
+
 - 2026-10-04: Open the meeting panel on arrival with the live transcript
   selected first and Messages second, preserving keyboard focus on the tabs
   and returning to the opening control on close, keeping small screens usable.
