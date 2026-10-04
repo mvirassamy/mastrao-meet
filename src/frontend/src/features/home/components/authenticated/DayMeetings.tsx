@@ -80,8 +80,10 @@ export const DayMeetings = ({
             <Button
               variant="secondary"
               icon={<RetryIcon aria-hidden="true" />}
-              // Pending keeps the button, and the keyboard focus, in place.
+              // Pending keeps the button, and the keyboard focus, in place;
+              // loading shows the spinner while the page is fetched again.
               isPending={meetings.retrying}
+              loading={meetings.retrying}
               onPress={meetings.retry}
             >
               {t('error.retry', { ns: 'meetingHistory' })}

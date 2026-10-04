@@ -114,6 +114,8 @@ describe('meetings of the selected home day', () => {
     fireEvent.click(retry)
     await waitFor(() => expect(retry.hasAttribute('data-pending')).toBe(true))
     expect(document.activeElement).toBe(retry)
+    // The spinner replaces the retry icon while the page is fetched again.
+    expect(retry.querySelector('svg')).toBeNull()
 
     // The automatic retry of the failed page fails at once.
     retrying = false
@@ -121,6 +123,7 @@ describe('meetings of the selected home day', () => {
     await waitFor(() => expect(retry.hasAttribute('data-pending')).toBe(false))
     expect(screen.getByRole('alert')).toBeTruthy()
     expect(document.activeElement).toBe(retry)
+    expect(retry.querySelector('svg')).not.toBeNull()
   })
 
   it.each([

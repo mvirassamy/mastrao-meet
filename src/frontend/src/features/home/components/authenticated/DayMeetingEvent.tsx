@@ -87,6 +87,9 @@ export const DayMeetingEvent = ({
             <span
               aria-hidden="true"
               className={css({
+                // The bubbles already show the count; on the narrowest
+                // phones the label would run under the status icons.
+                display: { base: 'none', sm: 'inline' },
                 color: 'muted-foreground',
                 fontSize: '0.8125rem',
                 lineHeight: '1.25rem',
