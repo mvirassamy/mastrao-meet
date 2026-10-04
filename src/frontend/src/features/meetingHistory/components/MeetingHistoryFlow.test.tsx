@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Route, Router, Switch } from 'wouter'
@@ -109,16 +110,14 @@ describe('meeting history flow', () => {
     const location = renderHistory()
 
     const links = await screen.findAllByRole('link')
-    expect(links.map((link) => link.textContent)).toEqual([
-      'Réunion recente',
-      'Réunion ancienne',
-    ])
+    expect(links[0].textContent).toContain('Réunion recente')
+    expect(links[1].textContent).toContain('Réunion ancienne')
     expect(screen.getByText('status.summary.transcribing')).toBeTruthy()
 
     fireEvent.click(links[0])
     const heading = await screen.findByRole('heading', {
       level: 1,
-      name: 'Réunion recente',
+      name: /^Réunion recente/,
     })
     await waitFor(() => expect(document.activeElement).toBe(heading))
     expect(screen.getByRole('region', { name: 'summary.title' })).toBeTruthy()
@@ -132,9 +131,32 @@ describe('meeting history flow', () => {
     fireEvent.click(screen.getByRole('link', { name: 'detail.back' }))
     expect(location.history?.at(-1)).toBe(MEETING_HISTORY_PATH)
     const restored = await screen.findByRole('link', {
-      name: 'Réunion recente',
+      name: /^Réunion recente/,
     })
     await waitFor(() => expect(document.activeElement).toBe(restored))
+  })
+
+  it('groups meetings by calendar day in the user time zone', async () => {
+    fetchApiMock.mockResolvedValue({
+      results: [
+        item('matin', '2026-10-01T08:00:00Z'),
+        // 00:30 in Paris on 1 October, still 30 September in UTC.
+        item('minuit', '2026-09-30T22:30:00Z'),
+        item('veille', '2026-09-30T08:00:00Z'),
+      ],
+      next_cursor: null,
+    })
+    renderHistory()
+
+    await screen.findByRole('link', { name: /Réunion matin/ })
+    const days = screen.getAllByRole('region')
+    expect(days).toHaveLength(2)
+    const firstDay = within(days[0])
+    expect(firstDay.getByRole('link', { name: /Réunion matin/ })).toBeTruthy()
+    expect(firstDay.getByRole('link', { name: /Réunion minuit/ })).toBeTruthy()
+    expect(
+      within(days[1]).getByRole('link', { name: /Réunion veille/ })
+    ).toBeTruthy()
   })
 
   it('shows the empty state', async () => {
@@ -225,7 +247,7 @@ describe('meeting history flow', () => {
     renderHistory()
     fireEvent.click(await screen.findByRole('button', { name: 'loadMore' }))
     expect(
-      await screen.findByRole('link', { name: 'Réunion plus-ancienne' })
+      await screen.findByRole('link', { name: /^Réunion plus-ancienne/ })
     ).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'loadMore' })).toBeNull()
   })

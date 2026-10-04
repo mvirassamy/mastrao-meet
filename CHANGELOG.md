@@ -1,5 +1,36 @@
 # Changelog
 
+- 2026-10-04: Give meeting status badges a shape per status, put participants
+  and statuses on a second line on small screens, and restore focus on home.
+
+- 2026-10-04: Remove the "Mastrao Visio" block from the sidebar; settings
+  open from a gear next to the now white profile card.
+
+- 2026-10-04: Show the meeting history as one card with the day in a left
+  column and a thin vertical line, the day above its meetings on mobile.
+
+- 2026-10-04: Show the past meetings of the selected day in the home
+  calendar as event blocks with alternating accent colours.
+
+- 2026-10-04: Group the meeting history by day ("Aujourd’hui", "Hier", then
+  the date) instead of by month, rows keep only the time and duration.
+
+- 2026-10-04: Tint the history section header grey while not ready or empty
+  and pink when processing failed, with a dot and visible explanation.
+
+- 2026-10-04: Show a thin animated progress bar under the Summary and
+  Transcript headers while their content is prepared, without clock icon.
+
+- 2026-10-04: Show the meeting history participants as overlapping initial
+  bubbles read from `participant_names`, up to three, or two and "+N".
+
+- 2026-10-04: Replace the summary and transcript status pills of the meeting
+  history list with the 3D icons and a coloured status dot, the exact status
+  shown on hover and read with the meeting link.
+
+- 2026-10-04: Show the generated 3D illustrations for Summary and Transcript
+  in a tinted header of each meeting history section.
+
 - 2026-10-03: Persist a recording refusal as one authoritative decision so
   transcription consent cannot leave the lobby in a partially saved state.
 

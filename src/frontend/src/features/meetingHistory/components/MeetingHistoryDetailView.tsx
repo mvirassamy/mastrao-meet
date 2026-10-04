@@ -5,18 +5,14 @@ import { Link } from 'wouter'
 import {
   ChevronLeftIcon,
   CalendarIcon,
-  TranscriptIcon,
-  ErrorIcon,
-  SummaryIcon,
   FileSearchIcon,
-  MinusCircleIcon,
   InformationIcon,
   RetryIcon,
   TimeIcon,
 } from '@/icons'
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
+import { css, cva } from '@/styled-system/css'
 import type {
   MeetingContentStatus,
   MeetingHistoryDetail,
@@ -40,7 +36,11 @@ import {
   formatMeetingTimeRange,
   formatTranscriptTimestamp,
 } from '../utils/meetingHistoryFormat'
-import { type MeetingContentKind } from './MeetingContentStatusBadge'
+import {
+  contentPhase,
+  SECTION_ICONS,
+  type MeetingContentKind,
+} from './meetingContent'
 import {
   MeetingHistoryStatePanel,
   MeetingSectionState,
@@ -57,6 +57,66 @@ const isReadableStatus = (
   status: MeetingContentStatus
 ): status is 'available' | 'partial' =>
   status === 'available' || status === 'partial'
+
+/** Statuses for which the service is still working on the content. */
+const isPendingStatus = (status: MeetingContentStatus) =>
+  contentPhase(status) === 'pending'
+
+/** What a section shows, which sets the look of its header. */
+type SectionLook = 'content' | 'pending' | 'empty' | 'failed'
+
+const contentSectionLook = (status: MeetingContentStatus): SectionLook => {
+  switch (contentPhase(status)) {
+    case 'ready':
+    case 'partial':
+      return 'content'
+    case 'pending':
+      return 'pending'
+    case 'failed':
+      return 'failed'
+    case 'absent':
+      return 'empty'
+  }
+}
+
+/** What the summary section shows: a step of the summary request, or the
+ * summary status itself. */
+type SummaryView =
+  | 'request-pending'
+  | 'request-failed'
+  | 'waiting-transcript'
+  | MeetingContentStatus
+
+const summaryView = (
+  summary: MeetingSummary,
+  transcriptStatus: MeetingContentStatus,
+  requestState: SummaryRequestState
+): SummaryView => {
+  if (summary.status !== 'not_started') return summary.status
+  if (requestState === 'pending') return 'request-pending'
+  if (requestState === 'failed') return 'request-failed'
+  if (isPendingStatus(transcriptStatus)) return 'waiting-transcript'
+  return 'not_started'
+}
+
+const summarySectionLook = (view: SummaryView): SectionLook => {
+  switch (view) {
+    case 'request-pending':
+    case 'waiting-transcript':
+      return 'pending'
+    case 'request-failed':
+      return 'failed'
+    default:
+      return contentSectionLook(view)
+  }
+}
+
+/** Dot of a section state: none while pending, the header bar shows it. */
+const sectionStateTone = (look: SectionLook) => {
+  if (look === 'failed') return 'danger'
+  if (look === 'empty') return 'neutral'
+  return undefined
+}
 
 export const MeetingHistoryDetailView = ({
   meetingId,
@@ -203,6 +263,11 @@ const MeetingDetailContent = ({
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
+  const summaryState = summaryView(
+    meeting.summary,
+    meeting.transcript.status,
+    summaryRequestState
+  )
   const duration = formatMeetingDuration(
     meeting.startedAt,
     meeting.endedAt,
@@ -285,19 +350,18 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="summary"
           status={meeting.summary.status}
-          icon={<SummaryIcon size={18} aria-hidden="true" />}
+          look={summarySectionLook(summaryState)}
         >
           <SummaryBody
             summary={meeting.summary}
-            transcriptStatus={meeting.transcript.status}
-            requestState={summaryRequestState}
+            view={summaryState}
             onRetry={onRetrySummary}
           />
         </MeetingContentSection>
         <MeetingContentSection
           kind="transcript"
           status={meeting.transcript.status}
-          icon={<TranscriptIcon size={18} aria-hidden="true" />}
+          look={contentSectionLook(meeting.transcript.status)}
         >
           <TranscriptBody transcript={meeting.transcript} />
         </MeetingContentSection>
@@ -306,15 +370,59 @@ const MeetingDetailContent = ({
   )
 }
 
+/**
+ * Tinted header: the large section icon sits on the right as an
+ * illustration, partly cropped, so the title stays clean. Grey while the
+ * content is not ready or when there is nothing to show, pink when the
+ * processing failed.
+ */
+const greyHeader = {
+  background: 'linear-gradient(120deg, token(colors.card) 30%, #eef0f4 100%)',
+  '& img': { filter: 'grayscale(1)', opacity: 0.45 },
+}
+
+const sectionHeader = cva({
+  base: {
+    position: 'relative',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    minHeight: '76px',
+    padding: '0.875rem 1.125rem',
+    paddingRight: '6.5rem',
+    borderRadius: '11px 11px 0 0',
+    background: 'linear-gradient(120deg, token(colors.card) 30%, #e6edff 100%)',
+    borderBottom: '1px solid token(colors.border)',
+    '& img': {
+      position: 'absolute',
+      right: '-6px',
+      top: '-8px',
+      userSelect: 'none',
+      pointerEvents: 'none',
+    },
+  },
+  variants: {
+    look: {
+      content: {},
+      pending: greyHeader,
+      empty: greyHeader,
+      failed: {
+        background:
+          'linear-gradient(120deg, token(colors.card) 30%, #fcebec 100%)',
+      },
+    },
+  },
+})
+
 const MeetingContentSection = ({
   kind,
   status,
-  icon,
+  look,
   children,
 }: {
   kind: MeetingContentKind
   status: MeetingContentStatus
-  icon: ReactNode
+  look: SectionLook
   children: ReactNode
 }) => {
   const { t } = useTranslation('meetingHistory')
@@ -332,26 +440,24 @@ const MeetingContentSection = ({
         backgroundColor: 'card',
       })}
     >
-      <div
-        className={css({
-          padding: '0.875rem 1.125rem',
-          borderBottom: '1px solid token(colors.border)',
-        })}
-      >
+      <div className={sectionHeader({ look })}>
+        <img
+          src={SECTION_ICONS[kind]}
+          alt=""
+          aria-hidden="true"
+          width={96}
+          height={96}
+          decoding="async"
+        />
         <h2
           id={headingId}
           className={css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
             margin: 0,
             fontSize: '1rem',
             lineHeight: '1.5rem',
             fontWeight: 600,
-            '& svg': { color: 'primary' },
           })}
         >
-          {icon}
           {t(`${kind}.title`)}
         </h2>
         <span
@@ -362,6 +468,7 @@ const MeetingContentSection = ({
         >
           {t(`status.${kind}.${status}`)}
         </span>
+        {look === 'pending' && <SectionProgressBar />}
       </div>
       <div className={css({ padding: '1rem 1.125rem 1.25rem' })}>
         {children}
@@ -369,6 +476,34 @@ const MeetingContentSection = ({
     </section>
   )
 }
+
+/** Thin indeterminate bar under the header while the content is prepared. */
+const SectionProgressBar = () => (
+  <span
+    aria-hidden="true"
+    className={css({
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: '2px',
+      overflow: 'hidden',
+      backgroundColor: '#dfe6fa',
+    })}
+  >
+    <span
+      className={css({
+        display: 'block',
+        width: '30%',
+        height: '100%',
+        borderRadius: '2px',
+        backgroundColor: 'primary',
+        animation: 'progress_slide 1.4s ease-in-out infinite',
+        _motionReduce: { display: 'none' },
+      })}
+    />
+  </span>
+)
 
 const UnavailableContent = ({
   kind,
@@ -378,28 +513,9 @@ const UnavailableContent = ({
   status: Exclude<MeetingContentStatus, 'available' | 'partial'>
 }) => {
   const { t } = useTranslation('meetingHistory')
-  const visual = {
-    unknown: { tone: 'info', icon: <TimeIcon size={18} /> },
-    not_started: {
-      tone: 'neutral',
-      icon: <MinusCircleIcon size={18} />,
-    },
-    waiting_for_audio: { tone: 'info', icon: <TimeIcon size={18} /> },
-    transcribing: { tone: 'info', icon: <TimeIcon size={18} /> },
-    completed_empty: {
-      tone: 'neutral',
-      icon: <MinusCircleIcon size={18} />,
-    },
-    audio_unavailable: {
-      tone: 'neutral',
-      icon: <MinusCircleIcon size={18} />,
-    },
-    failed: { tone: 'danger', icon: <ErrorIcon size={18} /> },
-  } as const
   return (
     <MeetingSectionState
-      tone={visual[status].tone}
-      icon={visual[status].icon}
+      tone={sectionStateTone(contentSectionLook(status))}
       title={t(`${kind}.${status}.title`)}
       description={t(`${kind}.${status}.description`)}
     />
@@ -441,24 +557,21 @@ const PartialContentWarning = ({ kind }: { kind: MeetingContentKind }) => {
 
 const SummaryBody = ({
   summary,
-  transcriptStatus,
-  requestState,
+  view,
   onRetry,
 }: {
   summary: MeetingSummary
-  transcriptStatus: MeetingContentStatus
-  requestState: SummaryRequestState
+  view: SummaryView
   onRetry: () => void
 }) => {
   const { t } = useTranslation('meetingHistory')
-  if (summary.status === 'not_started') {
-    if (requestState === 'pending')
+  switch (view) {
+    case 'request-pending':
       return <UnavailableContent kind="summary" status="transcribing" />
-    if (requestState === 'failed')
+    case 'request-failed':
       return (
         <MeetingSectionState
           tone="danger"
-          icon={<ErrorIcon size={18} />}
           title={t('summary.requestFailed.title')}
           description={t('summary.requestFailed.description')}
           action={
@@ -473,22 +586,16 @@ const SummaryBody = ({
           }
         />
       )
-    if (
-      ['unknown', 'waiting_for_audio', 'transcribing'].includes(
-        transcriptStatus
-      )
-    )
+    case 'waiting-transcript':
       return (
         <MeetingSectionState
-          tone="info"
-          icon={<TimeIcon size={18} />}
           title={t('summary.waitingTranscript.title')}
           description={t('summary.waitingTranscript.description')}
         />
       )
   }
-  if (!isReadableStatus(summary.status))
-    return <UnavailableContent kind="summary" status={summary.status} />
+  if (!isReadableStatus(view))
+    return <UnavailableContent kind="summary" status={view} />
 
   return (
     <div

@@ -86,8 +86,15 @@
     },
     "empty": {
       "todayTitle": "Geen vergaderingen gepland voor vandaag",
+      "pastTitle": "Geen vergaderingen op deze dag",
       "dateTitle": "Geen vergaderingen gepland voor deze datum",
       "description": "Start nu een vergadering of maak een link om later te delen."
+    },
+    "meetings": {
+      "count_one": "{{count}} vergadering",
+      "count_other": "{{count}} vergaderingen",
+      "loading": "Vergaderingen laden…",
+      "errorTitle": "Kan de vergaderingen van deze dag niet weergeven"
     }
   },
   "homeV2": {

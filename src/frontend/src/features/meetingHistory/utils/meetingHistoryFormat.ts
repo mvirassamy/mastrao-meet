@@ -36,17 +36,6 @@ export const formatMeetingDay = (
     locale
   )
 
-export const formatMeetingShortDay = (
-  date: Date,
-  locale: string,
-  timeZone?: string
-) =>
-  dateFormat(locale, timeZone, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(date)
-
 export const formatMeetingTimeRange = (
   start: Date,
   end: Date | null,
@@ -62,22 +51,76 @@ export const formatMeetingTimeRange = (
     : format.format(start)
 }
 
-export const monthKey = (date: Date, timeZone?: string) =>
-  dateFormat('en-CA', timeZone, { year: 'numeric', month: '2-digit' }).format(
-    date
-  )
-
-export const formatMonthLabel = (
-  date: Date,
+/** "17:13 – 18:03 · 50 min": time range and duration of a meeting. */
+export const formatMeetingTime = (
+  start: Date,
+  end: Date | null,
   locale: string,
   timeZone?: string
 ) =>
-  capitalize(
-    dateFormat(locale, timeZone, { month: 'long', year: 'numeric' }).format(
-      date
-    ),
-    locale
-  )
+  [
+    formatMeetingTimeRange(start, end, locale, timeZone),
+    formatMeetingDuration(start, end, locale),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+/** Calendar day of a date in the user's time zone, as YYYY-MM-DD. */
+export const dayKey = (date: Date, timeZone?: string) =>
+  dateFormat('en-CA', timeZone, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+
+/** Calendar day before a YYYY-MM-DD key, whatever the clock changes. */
+const previousDayKey = (key: string) => {
+  const [year, month, day] = key.split('-').map(Number)
+  return dayKey(new Date(Date.UTC(year, month - 1, day - 1, 12)), 'UTC')
+}
+
+export type DayParts = {
+  /** Full heading: "Aujourd’hui, 4 oct.", "Jeu. 1 oct.". */
+  label: string
+  /** Day of the month shown large: "4". */
+  day: string
+  /** Short caption under it: "Aujourd’hui · oct.", "Jeu. · oct.". */
+  caption: string
+}
+
+/**
+ * Heading of a day of meetings, relative to today ("Aujourd’hui", "Hier")
+ * then with the weekday, and with the year only outside the current one.
+ */
+export const formatDayParts = (
+  date: Date,
+  locale: string,
+  timeZone?: string,
+  now = new Date()
+): DayParts => {
+  const key = dayKey(date, timeZone)
+  const todayKey = dayKey(now, timeZone)
+  const year = key.slice(0, 4) === todayKey.slice(0, 4) ? undefined : 'numeric'
+  const format = (options: Intl.DateTimeFormatOptions) =>
+    dateFormat(locale, timeZone, options).format(date)
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  const month = format({ month: 'short', year })
+
+  let relativeName: string | null = null
+  if (key === todayKey) relativeName = relative.format(0, 'day')
+  else if (key === previousDayKey(todayKey))
+    relativeName = relative.format(-1, 'day')
+
+  const name = relativeName ?? format({ weekday: 'short' })
+  const label = relativeName
+    ? `${relativeName}, ${format({ day: 'numeric', month: 'short' })}`
+    : format({ weekday: 'short', day: 'numeric', month: 'short', year })
+  return {
+    label: capitalize(label, locale),
+    day: format({ day: 'numeric' }),
+    caption: capitalize(`${name} · ${month}`, locale),
+  }
+}
 
 export const formatMeetingDuration = (
   start: Date,

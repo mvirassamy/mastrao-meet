@@ -1,48 +1,43 @@
 import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'wouter'
-import { ChevronRightIcon, RetryIcon } from '@/icons'
+import { RetryIcon } from '@/icons'
 import { CreateMeetingMenu } from '@/features/home/components/CreateMeetingMenu'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryItem } from '../api/types'
+import { historyItemsOf } from '../api/historyItems'
 import { useMeetingHistory } from '../api/useMeetingHistory'
 import {
   isAuthRequiredError,
   useLoginRedirectOnAuthError,
 } from '../api/authRedirect'
-import { meetingHistoryDetailPath } from '../paths'
+import { useRestoreOpenedMeetingFocus } from '../utils/focusReturn'
 import {
-  consumeOpenedMeeting,
-  rememberOpenedMeeting,
-} from '../utils/focusReturn'
-import {
-  formatMeetingDuration,
-  formatMeetingShortDay,
-  formatMeetingTimeRange,
-  formatMonthLabel,
-  monthKey,
+  dayKey,
+  formatDayParts,
+  type DayParts,
 } from '../utils/meetingHistoryFormat'
-import { MeetingContentStatusBadge } from './MeetingContentStatusBadge'
+import { MeetingHistoryRows } from './MeetingHistoryRows'
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistorySkeleton } from './MeetingHistorySkeleton'
 
-type MonthGroup = { key: string; label: string; items: MeetingHistoryItem[] }
+type DayGroup = DayParts & { key: string; items: MeetingHistoryItem[] }
 
-const groupByMonth = (
+/** Groups the meetings, already sorted most recent first, by calendar day. */
+const groupByDay = (
   items: MeetingHistoryItem[],
   locale: string,
   timeZone?: string
 ) =>
-  items.reduce<MonthGroup[]>((groups, item) => {
-    const key = monthKey(item.startedAt, timeZone)
+  items.reduce<DayGroup[]>((groups, item) => {
+    const key = dayKey(item.startedAt, timeZone)
     const current = groups[groups.length - 1]
     if (current?.key === key) current.items.push(item)
     else
       groups.push({
         key,
-        label: formatMonthLabel(item.startedAt, locale, timeZone),
+        ...formatDayParts(item.startedAt, locale, timeZone),
         items: [item],
       })
     return groups
@@ -55,30 +50,14 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
   useLoginRedirectOnAuthError(query.error)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const items = useMemo(() => {
-    const seen = new Set<string>()
-    return (query.data?.pages ?? [])
-      .flatMap((page) => page.items)
-      .filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id)))
-      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
-  }, [query.data])
+  const items = useMemo(() => historyItemsOf(query.data?.pages), [query.data])
   const groups = useMemo(
-    () => groupByMonth(items, locale, timeZone),
+    () => groupByDay(items, locale, timeZone),
     [items, locale, timeZone]
   )
 
   const hasItems = items.length > 0
-  useEffect(() => {
-    if (!hasItems) return
-    const openedId = consumeOpenedMeeting()
-    if (!openedId) return
-    const link = Array.from(
-      listRef.current?.querySelectorAll<HTMLAnchorElement>(
-        'a[data-meeting-id]'
-      ) ?? []
-    ).find((element) => element.dataset.meetingId === openedId)
-    link?.focus()
-  }, [hasItems])
+  useRestoreOpenedMeetingFocus(listRef, hasItems)
 
   return (
     <div
@@ -153,48 +132,23 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
         />
       ) : (
         <div ref={listRef}>
-          {groups.map((group) => (
-            <section
-              key={group.key}
-              aria-labelledby={`meeting-history-${group.key}`}
-              className={css({ '& + &': { marginTop: '1.5rem' } })}
-            >
-              <h2
-                id={`meeting-history-${group.key}`}
-                className={css({
-                  margin: 0,
-                  marginBottom: '0.625rem',
-                  color: 'foreground',
-                  fontSize: '0.9375rem',
-                  lineHeight: '1.375rem',
-                  fontWeight: 600,
-                  letterSpacing: '-0.01em',
-                })}
-              >
-                {group.label}
-              </h2>
-              <ul
-                className={css({
-                  margin: 0,
-                  padding: 0,
-                  listStyle: 'none',
-                  border: '1px solid token(colors.border)',
-                  borderRadius: '12px',
-                  backgroundColor: 'card',
-                  overflow: 'hidden',
-                })}
-              >
-                {group.items.map((item) => (
-                  <MeetingHistoryRow
-                    key={item.id}
-                    item={item}
-                    locale={locale}
-                    timeZone={timeZone}
-                  />
-                ))}
-              </ul>
-            </section>
-          ))}
+          <div
+            className={css({
+              border: '1px solid token(colors.border)',
+              borderRadius: '12px',
+              backgroundColor: 'card',
+              overflow: 'hidden',
+            })}
+          >
+            {groups.map((group) => (
+              <MeetingHistoryDay
+                key={group.key}
+                group={group}
+                locale={locale}
+                timeZone={timeZone}
+              />
+            ))}
+          </div>
 
           {query.hasNextPage && (
             <div
@@ -237,117 +191,90 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
   )
 }
 
-const MeetingHistoryRow = ({
-  item,
+const dayHeading = css({
+  margin: 0,
+  // Mobile: the day sits above its meetings, number and caption inline.
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: '0.5rem',
+  padding: '0.875rem 1rem 0.25rem',
+  md: { display: 'block', padding: '0.875rem 0 0.875rem 1rem' },
+})
+
+/**
+ * One day of meetings: the day in a left column, a thin vertical line, and
+ * the meetings on the right. On mobile the day goes above its meetings.
+ */
+const MeetingHistoryDay = ({
+  group,
   locale,
   timeZone,
 }: {
-  item: MeetingHistoryItem
+  group: DayGroup
   locale: string
   timeZone?: string
 }) => {
-  const { t } = useTranslation('meetingHistory')
-  const duration = formatMeetingDuration(item.startedAt, item.endedAt, locale)
-  const meta = [
-    formatMeetingShortDay(item.startedAt, locale, timeZone),
-    formatMeetingTimeRange(item.startedAt, item.endedAt, locale, timeZone),
-    duration,
-    item.participantCount !== null
-      ? t('participants', { count: item.participantCount })
-      : null,
-  ].filter(Boolean)
+  const isToday = group.key === dayKey(new Date(), timeZone)
+  const headingId = `meeting-history-${group.key}`
 
   return (
-    <li
+    <section
+      aria-labelledby={headingId}
       className={css({
-        position: 'relative',
         display: 'grid',
         gridTemplateColumns: {
-          base: 'minmax(0, 1fr) auto',
-          md: 'minmax(0, 1fr) auto auto',
+          base: 'minmax(0, 1fr)',
+          md: '7rem 1.5rem minmax(0, 1fr)',
         },
-        alignItems: 'center',
-        columnGap: '0.75rem',
-        rowGap: '0.5rem',
-        padding: {
-          base: '0.875rem 0.75rem 0.875rem 1rem',
-          md: '0.875rem 1rem',
-        },
-        transition: 'background 150ms',
-        '&:not(:last-child)': {
-          borderBottom: '1px solid token(colors.border)',
-        },
-        _hover: {
-          backgroundColor: 'var(--workspace-paper, token(colors.muted))',
-        },
+        '& + &': { borderTop: '1px solid token(colors.border)' },
       })}
     >
-      <div className={css({ minWidth: 0 })}>
-        <Link
-          to={meetingHistoryDetailPath(item.id)}
-          data-meeting-id={item.id}
-          onClick={() => rememberOpenedMeeting(item.id)}
+      <h2 id={headingId} className={dayHeading}>
+        <span className={css({ srOnly: true })}>{group.label}</span>
+        <span
+          aria-hidden="true"
+          data-today={isToday}
           className={css({
             display: 'block',
-            overflow: 'hidden',
             color: 'foreground',
-            fontSize: '0.9375rem',
-            lineHeight: '1.375rem',
-            fontWeight: 500,
-            textDecoration: 'none',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            outline: 'none',
-            _after: {
-              content: '""',
-              position: 'absolute',
-              inset: 0,
-            },
-            '&:focus-visible::after': {
-              outline: '2px solid token(colors.ring)',
-              outlineOffset: '-2px',
-              borderRadius: '11px',
-            },
+            '&[data-today=true]': { color: 'primary' },
+            fontSize: '1.25rem',
+            lineHeight: 1,
+            fontWeight: 600,
           })}
         >
-          {item.title ?? t('untitled')}
-        </Link>
-        <p
+          {group.day}
+        </span>
+        <span
+          aria-hidden="true"
           className={css({
-            marginTop: '0.125rem',
-            marginBottom: 0,
+            display: 'block',
+            md: { marginTop: '0.375rem' },
             color: 'muted-foreground',
-            fontSize: '0.8125rem',
-            lineHeight: '1.25rem',
+            fontSize: '0.6875rem',
+            lineHeight: '0.875rem',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
           })}
         >
-          {meta.join(' · ')}
-        </p>
-      </div>
-      <div
-        className={css({
-          gridColumn: { base: '1 / -1', md: 'auto' },
-          gridRow: { base: 2, md: 'auto' },
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '0.375rem',
-        })}
-      >
-        <MeetingContentStatusBadge kind="summary" status={item.summaryStatus} />
-        <MeetingContentStatusBadge
-          kind="transcript"
-          status={item.transcriptStatus}
-        />
-      </div>
-      <ChevronRightIcon
-        size={18}
+          {group.caption}
+        </span>
+      </h2>
+      <span
         aria-hidden="true"
         className={css({
-          gridColumn: { base: 2, md: 'auto' },
-          gridRow: { base: 1, md: 'auto' },
-          color: 'muted-foreground',
+          display: { base: 'none', md: 'block' },
+          justifySelf: 'center',
+          width: '2px',
+          backgroundColor: 'border',
         })}
       />
-    </li>
+      <MeetingHistoryRows
+        items={group.items}
+        locale={locale}
+        timeZone={timeZone}
+      />
+    </section>
   )
 }

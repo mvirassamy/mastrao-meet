@@ -3,6 +3,9 @@ const DATE_PARTS_LOCALE = 'en-CA'
 const toCalendarDate = (year: number, month: number, day: number) =>
   new Date(Date.UTC(year, month - 1, day, 12))
 
+/** YYYY-MM-DD of a calendar date (calendar dates are stored at noon UTC). */
+export const calendarDayKey = (date: Date) => date.toISOString().slice(0, 10)
+
 export const todayInTimeZone = (timeZone?: string) => {
   const parts = new Intl.DateTimeFormat(DATE_PARTS_LOCALE, {
     timeZone: timeZone || undefined,

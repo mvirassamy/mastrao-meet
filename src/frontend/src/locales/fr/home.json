@@ -86,8 +86,15 @@
     },
     "empty": {
       "todayTitle": "Aucune réunion programmée pour aujourd’hui",
+      "pastTitle": "Aucune réunion ce jour-là",
       "dateTitle": "Aucune réunion programmée pour cette date",
       "description": "Créez une réunion maintenant ou préparez un lien à partager pour plus tard."
+    },
+    "meetings": {
+      "count_one": "{{count}} réunion",
+      "count_other": "{{count}} réunions",
+      "loading": "Chargement des réunions…",
+      "errorTitle": "Impossible d’afficher les réunions de ce jour"
     }
   },
   "homeV2": {

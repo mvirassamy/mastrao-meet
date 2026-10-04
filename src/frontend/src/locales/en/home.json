@@ -86,8 +86,15 @@
     },
     "empty": {
       "todayTitle": "No meetings scheduled for today",
+      "pastTitle": "No meetings on this day",
       "dateTitle": "No meetings scheduled for this date",
       "description": "Start a meeting now or prepare a link to share for later."
+    },
+    "meetings": {
+      "count_one": "{{count}} meeting",
+      "count_other": "{{count}} meetings",
+      "loading": "Loading meetings…",
+      "errorTitle": "Unable to show this day’s meetings"
     }
   },
   "homeV2": {

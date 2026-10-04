@@ -1,5 +1,6 @@
 import type { ReactNode, Ref } from 'react'
 import { css, cva } from '@/styled-system/css'
+import { STATUS_COLORS } from './meetingContent'
 
 const iconWrapper = cva({
   base: {
@@ -13,7 +14,6 @@ const iconWrapper = cva({
   variants: {
     tone: {
       neutral: { backgroundColor: 'muted', color: 'muted-foreground' },
-      info: { backgroundColor: 'info', color: 'info-foreground' },
       danger: { backgroundColor: 'recording', color: 'recording-foreground' },
     },
   },
@@ -26,7 +26,7 @@ type MeetingHistoryStatePanelProps = {
   icon?: ReactNode
   /** Decorative illustration shown instead of the icon (public asset path). */
   illustration?: string
-  tone?: 'neutral' | 'info' | 'danger'
+  tone?: 'neutral' | 'danger'
   action?: ReactNode
   headingLevel?: 1 | 2
   headingRef?: Ref<HTMLHeadingElement>
@@ -117,60 +117,74 @@ export const MeetingHistoryStatePanel = ({
   )
 }
 
-/** Compact state shown inside the Synthèse and Transcription sections. */
+const STATE_DOT_COLORS = {
+  neutral: STATUS_COLORS.absent,
+  danger: STATUS_COLORS.failed,
+} as const
+
+const stateDot = css({
+  width: '7px',
+  height: '7px',
+  borderRadius: '50%',
+  flexShrink: 0,
+})
+
+const sectionState = cva({
+  base: { minWidth: 0 },
+  variants: {
+    // Aligns the explanation and action with the title, after the dot.
+    dotted: { true: { '& > :not(:first-child)': { paddingLeft: '15px' } } },
+  },
+})
+
+/**
+ * Compact state shown inside the Synthèse and Transcription sections: a
+ * coloured dot and a title, with the explanation always visible below.
+ * In-progress states have no dot: the section header shows a progress bar.
+ */
 export const MeetingSectionState = ({
   title,
   description,
-  icon,
-  tone = 'neutral',
+  tone,
   action,
 }: {
   title: string
   description: string
-  icon: ReactNode
-  tone?: 'neutral' | 'info' | 'danger'
+  tone?: 'neutral' | 'danger'
   action?: ReactNode
 }) => (
-  <div
-    className={css({
-      display: 'flex',
-      alignItems: 'flex-start',
-      gap: '0.75rem',
-    })}
-  >
-    <span
-      aria-hidden="true"
-      className={`${iconWrapper({ tone })} ${css({
-        width: '36px',
-        height: '36px',
-        borderRadius: '10px',
-      })}`}
+  <div className={sectionState({ dotted: tone !== undefined })}>
+    <p
+      className={css({
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        margin: 0,
+        fontSize: '0.875rem',
+        lineHeight: '1.25rem',
+        fontWeight: 500,
+      })}
     >
-      {icon}
-    </span>
-    <div className={css({ minWidth: 0 })}>
-      <p
-        className={css({
-          margin: 0,
-          fontSize: '0.875rem',
-          lineHeight: '1.25rem',
-          fontWeight: 600,
-        })}
-      >
-        {title}
-      </p>
-      <p
-        className={css({
-          marginTop: '0.125rem',
-          marginBottom: 0,
-          color: 'muted-foreground',
-          fontSize: '0.8125rem',
-          lineHeight: '1.25rem',
-        })}
-      >
-        {description}
-      </p>
-      {action && <div className={css({ marginTop: '0.75rem' })}>{action}</div>}
-    </div>
+      {tone && (
+        <span
+          aria-hidden="true"
+          className={stateDot}
+          style={{ backgroundColor: STATE_DOT_COLORS[tone] }}
+        />
+      )}
+      {title}
+    </p>
+    <p
+      className={css({
+        marginTop: '0.125rem',
+        marginBottom: 0,
+        color: 'muted-foreground',
+        fontSize: '0.8125rem',
+        lineHeight: '1.25rem',
+      })}
+    >
+      {description}
+    </p>
+    {action && <div className={css({ marginTop: '0.75rem' })}>{action}</div>}
   </div>
 )

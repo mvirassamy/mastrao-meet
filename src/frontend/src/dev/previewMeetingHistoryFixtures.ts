@@ -8,6 +8,13 @@ import { MEETING_HISTORY_ENDPOINT } from '@/features/meetingHistory/api/meetingH
 
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
+const PREVIEW_PEOPLE = [
+  'Matthias Virassamy',
+  'Camille Martin',
+  'Karim Benali',
+  'Anne Dubois',
+  'Lucas Petit',
+]
 
 type PreviewMeeting = {
   id: string
@@ -105,6 +112,7 @@ const toApiItem = (meeting: PreviewMeeting) => {
     started_at: startedAt.toISOString(),
     ended_at: new Date(startedAt.getTime() + meeting.durationMs).toISOString(),
     participant_count: meeting.participant_count,
+    participant_names: PREVIEW_PEOPLE.slice(0, meeting.participant_count ?? 0),
     summary_status: meeting.summary_status,
     transcript_status: meeting.transcript_status,
   }

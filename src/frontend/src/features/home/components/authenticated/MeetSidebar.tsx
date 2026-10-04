@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
 import { css } from '@/styled-system/css'
 import { MeetSidebarBrand } from './MeetSidebarBrand'
-import { MeetSidebarContext } from './MeetSidebarContext'
 import { MeetSidebarNav } from './MeetSidebarNav'
+import { MeetSidebarSettingsButton } from './MeetSidebarSettingsButton'
 import { MeetSidebarUserMenu } from './MeetSidebarUserMenu'
 
 type MeetSidebarProps = {
@@ -53,9 +53,6 @@ export const MeetSidebar = ({
           onToggle={onToggle}
           toggleLabel={toggleLabel}
         />
-        <div className={css({ marginTop: '24px' })}>
-          <MeetSidebarContext collapsed={collapsed} mobile={mobile} />
-        </div>
       </div>
       <div
         className={css({
@@ -75,15 +72,23 @@ export const MeetSidebar = ({
       <footer
         className={css({
           flexShrink: 0,
+          display: 'flex',
+          // Collapsed: the settings button sits above the profile avatar.
+          flexDirection: collapsed ? 'column-reverse' : 'row',
+          alignItems: 'center',
+          gap: '8px',
           padding: collapsed ? '16px 8px' : '16px',
           borderTop: '1px solid token(colors.border)',
         })}
       >
-        <MeetSidebarUserMenu
-          user={user}
-          collapsed={collapsed}
-          onLogout={onNavigate}
-        />
+        <div className={css({ minWidth: 0, flex: collapsed ? 'none' : 1 })}>
+          <MeetSidebarUserMenu
+            user={user}
+            collapsed={collapsed}
+            onLogout={onNavigate}
+          />
+        </div>
+        <MeetSidebarSettingsButton collapsed={collapsed} />
       </footer>
     </div>
   )
