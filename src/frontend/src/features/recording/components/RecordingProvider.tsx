@@ -2,10 +2,14 @@ import { LimitReachedAlertDialog } from './LimitReachedAlertDialog'
 import { RecordingStateToast } from './RecordingStateToast'
 import { ErrorAlertDialog } from './ErrorAlertDialog'
 
-export const RecordingProvider = () => {
+export const RecordingProvider = ({
+  hideVisual = false,
+}: {
+  hideVisual?: boolean
+}) => {
   return (
     <>
-      <RecordingStateToast />
+      <RecordingStateToast hideVisual={hideVisual} />
       <LimitReachedAlertDialog />
       <ErrorAlertDialog />
     </>

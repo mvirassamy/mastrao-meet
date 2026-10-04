@@ -27,12 +27,15 @@ import { VideoDeviceControl } from '../../components/controls/Device/VideoDevice
 import { openSettingsDialog } from '@/stores/settings'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
+import { RecordingIndicator } from './RecordingIndicator'
 
 export function MobileControlBar({
   onDeviceError,
   roomId,
   canEnd,
   onMeetingEnded,
+  recording,
+  onRecordingChanged,
 }: Readonly<ControlBarAuxProps>) {
   const { t } = useTranslation('rooms')
   const [isMenuOpened, setIsMenuOpened] = React.useState(false)
@@ -49,8 +52,17 @@ export function MobileControlBar({
           display: 'flex',
           padding: '1.125rem',
           justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '0.5rem',
         })}
       >
+        <RecordingIndicator
+          roomId={roomId}
+          canEnd={canEnd}
+          recording={recording}
+          onRecordingChanged={onRecordingChanged}
+        />
         <ControlBarRegion mobile>
           <AudioDevicesControl
             onDeviceError={(error) =>

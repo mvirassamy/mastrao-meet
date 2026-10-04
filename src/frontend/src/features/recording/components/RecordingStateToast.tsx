@@ -14,7 +14,11 @@ import { RecordingStatusIcon } from './RecordingStatusIcon'
 import { useIsRecording } from '@livekit/components-react'
 import { useScreenReaderAnnounce } from '@/hooks/useScreenReaderAnnounce'
 
-export const RecordingStateToast = () => {
+export const RecordingStateToast = ({
+  hideVisual = false,
+}: {
+  hideVisual?: boolean
+}) => {
   const { t } = useTranslation('rooms', {
     keyPrefix: 'recordingStateToast',
   })
@@ -76,7 +80,7 @@ export const RecordingStateToast = () => {
     }
   }, [announce, key, t])
 
-  if (!key) return null
+  if (!key || hideVisual) return null
 
   const hasScreenRecordingAccessAndActive =
     isScreenRecordingActive && hasScreenRecordingAccess

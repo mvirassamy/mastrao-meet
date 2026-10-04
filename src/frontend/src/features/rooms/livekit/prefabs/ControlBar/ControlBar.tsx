@@ -7,12 +7,15 @@ import { useIsMobile } from '@/utils/useIsMobile'
 import { ReactionsToolbar } from '@/features/reactions/components/toolbar/ReactionsToolbar'
 import { css } from '@/styled-system/css'
 import { useSize } from '../../hooks/useResizeObserver'
+import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 
 export interface ControlBarProps extends React.HTMLAttributes<HTMLDivElement> {
   onDeviceError?: (error: { source: Track.Source; error: Error }) => void
   roomId: string
   canEnd?: boolean
   onMeetingEnded?: () => void
+  recording?: ApiRoom['recording']
+  onRecordingChanged?: () => Promise<unknown>
 }
 
 /**
@@ -24,6 +27,8 @@ export function ControlBar({
   roomId,
   canEnd,
   onMeetingEnded,
+  recording,
+  onRecordingChanged,
 }: ControlBarProps) {
   const isMobile = useIsMobile()
   const controlBarRef = React.useRef<HTMLDivElement>(null)
@@ -69,6 +74,8 @@ export function ControlBar({
             roomId={roomId}
             canEnd={canEnd}
             onMeetingEnded={onMeetingEnded}
+            recording={recording}
+            onRecordingChanged={onRecordingChanged}
           />
         ) : (
           <DesktopControlBar
@@ -76,6 +83,8 @@ export function ControlBar({
             roomId={roomId}
             canEnd={canEnd}
             onMeetingEnded={onMeetingEnded}
+            recording={recording}
+            onRecordingChanged={onRecordingChanged}
           />
         )}
       </div>
@@ -84,5 +93,10 @@ export function ControlBar({
 }
 export type ControlBarAuxProps = Pick<
   ControlBarProps,
-  'onDeviceError' | 'roomId' | 'canEnd' | 'onMeetingEnded'
+  | 'onDeviceError'
+  | 'roomId'
+  | 'canEnd'
+  | 'onMeetingEnded'
+  | 'recording'
+  | 'onRecordingChanged'
 >
