@@ -18,32 +18,32 @@ import {
   rememberOpenedMeeting,
 } from '../utils/focusReturn'
 import {
+  dayKey,
+  formatDayLabel,
   formatMeetingDuration,
-  formatMeetingShortDay,
   formatMeetingTimeRange,
-  formatMonthLabel,
-  monthKey,
 } from '../utils/meetingHistoryFormat'
 import { MeetingContentStatusIcon } from './MeetingContentStatusIcon'
 import { MeetingParticipantsStack } from './MeetingParticipantsStack'
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistorySkeleton } from './MeetingHistorySkeleton'
 
-type MonthGroup = { key: string; label: string; items: MeetingHistoryItem[] }
+type DayGroup = { key: string; label: string; items: MeetingHistoryItem[] }
 
-const groupByMonth = (
+/** Groups the meetings, already sorted most recent first, by calendar day. */
+const groupByDay = (
   items: MeetingHistoryItem[],
   locale: string,
   timeZone?: string
 ) =>
-  items.reduce<MonthGroup[]>((groups, item) => {
-    const key = monthKey(item.startedAt, timeZone)
+  items.reduce<DayGroup[]>((groups, item) => {
+    const key = dayKey(item.startedAt, timeZone)
     const current = groups[groups.length - 1]
     if (current?.key === key) current.items.push(item)
     else
       groups.push({
         key,
-        label: formatMonthLabel(item.startedAt, locale, timeZone),
+        label: formatDayLabel(item.startedAt, locale, timeZone),
         items: [item],
       })
     return groups
@@ -64,7 +64,7 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
       .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
   }, [query.data])
   const groups = useMemo(
-    () => groupByMonth(items, locale, timeZone),
+    () => groupByDay(items, locale, timeZone),
     [items, locale, timeZone]
   )
 
@@ -164,12 +164,13 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
                 id={`meeting-history-${group.key}`}
                 className={css({
                   margin: 0,
-                  marginBottom: '0.625rem',
-                  color: 'foreground',
-                  fontSize: '0.9375rem',
-                  lineHeight: '1.375rem',
+                  marginBottom: '0.5rem',
+                  color: 'muted-foreground',
+                  fontSize: '0.75rem',
+                  lineHeight: '1rem',
                   fontWeight: 600,
-                  letterSpacing: '-0.01em',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
                 })}
               >
                 {group.label}
@@ -278,7 +279,6 @@ const MeetingHistoryRow = ({
   const linkRef = useRef<HTMLAnchorElement>(null)
   const duration = formatMeetingDuration(item.startedAt, item.endedAt, locale)
   const meta = [
-    formatMeetingShortDay(item.startedAt, locale, timeZone),
     formatMeetingTimeRange(item.startedAt, item.endedAt, locale, timeZone),
     duration,
   ].filter(Boolean)

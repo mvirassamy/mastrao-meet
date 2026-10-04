@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Group the meeting history by day ("Aujourd’hui", "Hier", then
+  the date) instead of by month, rows keep only the time and duration.
+
 - 2026-10-04: Tint the history section header grey while not ready or empty
   and pink when processing failed, with a dot and visible explanation.
 
