@@ -25,6 +25,7 @@ describe('normalizeHistoryPage', () => {
           started_at: '2026-09-20T10:00:00Z',
           ended_at: '2026-09-20T10:30:00Z',
           participant_count: 3,
+          participant_names: ['Camille Martin', ' ', 42, 'Karim'],
           summary_status: 'something-new',
           transcript_status: 'failed',
         },
@@ -36,6 +37,7 @@ describe('normalizeHistoryPage', () => {
     expect(page.items[0]).toMatchObject({
       title: null,
       participantCount: 3,
+      participantNames: ['Camille Martin', 'Karim'],
       summaryStatus: 'unknown',
       transcriptStatus: 'failed',
     })

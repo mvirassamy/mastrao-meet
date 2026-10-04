@@ -228,6 +228,9 @@ const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
     typeof raw.participant_count === 'number' && raw.participant_count >= 0
       ? raw.participant_count
       : null
+  const participantNames = Array.isArray(raw.participant_names)
+    ? raw.participant_names.map(asString).filter((name) => name !== null)
+    : []
 
   const summaryProjection = normalizeProjection(
     raw.summary_projection,
@@ -245,6 +248,7 @@ const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
     startedAt,
     endedAt: asDate(raw.ended_at),
     participantCount,
+    participantNames,
     summaryStatus: summaryProjection.state,
     transcriptStatus: transcriptProjection.state,
     summaryProjection,

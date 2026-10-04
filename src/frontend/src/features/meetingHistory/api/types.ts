@@ -36,6 +36,8 @@ export type MeetingHistoryItem = {
   startedAt: Date
   endedAt: Date | null
   participantCount: number | null
+  /** Display names of the first participants, in the server's order. */
+  participantNames: string[]
   summaryStatus: MeetingContentStatus
   transcriptStatus: MeetingContentStatus
   summaryProjection: MeetingContentProjection
