@@ -4,13 +4,26 @@ import { RetryIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useMeetingsOfDay } from '@/features/meetingHistory/api/useMeetingsOfDay'
-import { MeetingHistoryRows } from '@/features/meetingHistory/components/MeetingHistoryRows'
 import { MeetingHistorySkeleton } from '@/features/meetingHistory/components/MeetingHistorySkeleton'
 import { MeetingHistoryStatePanel } from '@/features/meetingHistory/components/MeetingHistoryStatePanel'
 import { CreateMeetingMenu } from '../CreateMeetingMenu'
+import { DayMeetingEvent } from './DayMeetingEvent'
 
 /** Position of the selected day relative to today. */
 export type DayPosition = 'past' | 'today' | 'future'
+
+/**
+ * Accent of each event, in turn, so that neighbouring meetings never share
+ * a colour. Dark enough for the time printed in the same colour.
+ */
+const EVENT_COLORS = [
+  '#2d5be3',
+  '#17784d',
+  '#b3400b',
+  '#6d28d9',
+  '#0e6f86',
+  '#b4235f',
+]
 
 const container = css({
   width: '100%',
@@ -88,11 +101,26 @@ export const DayMeetings = ({
       >
         {t('dashboard.meetings.count', { count: meetings.items.length })}
       </h1>
-      <MeetingHistoryRows
-        items={meetings.items}
-        locale={locale}
-        timeZone={timeZone}
-      />
+      <ul
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.625rem',
+          margin: 0,
+          padding: 0,
+          listStyle: 'none',
+        })}
+      >
+        {meetings.items.map((item, index) => (
+          <DayMeetingEvent
+            key={item.id}
+            item={item}
+            color={EVENT_COLORS[index % EVENT_COLORS.length]}
+            locale={locale}
+            timeZone={timeZone}
+          />
+        ))}
+      </ul>
     </section>
   )
 }

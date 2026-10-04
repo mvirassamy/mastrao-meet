@@ -1,4 +1,4 @@
-import { type ReactNode, useRef } from 'react'
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 import { ChevronRightIcon } from '@/icons'
@@ -12,6 +12,7 @@ import {
 } from '../utils/meetingHistoryFormat'
 import { MeetingContentStatusIcon } from './MeetingContentStatusIcon'
 import { MeetingParticipantsStack } from './MeetingParticipantsStack'
+import { RowOverlayCell } from './RowOverlayCell'
 
 /**
  * Meetings of one day as a card of rows: title, time, participants, summary
@@ -46,33 +47,6 @@ export const MeetingHistoryRows = ({
       />
     ))}
   </ul>
-)
-
-/**
- * Row cell drawn above the row link overlay so its tooltips can show. It only
- * forwards a mouse click to the row link; keyboard and screen reader users
- * reach the same link directly.
- */
-const RowOverlayCell = ({
-  onOpen,
-  children,
-}: {
-  onOpen: () => void
-  children: ReactNode
-}) => (
-  // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-  <div
-    onClick={onOpen}
-    className={css({
-      position: 'relative',
-      zIndex: 1,
-      display: 'flex',
-      gap: '0.625rem',
-      cursor: 'pointer',
-    })}
-  >
-    {children}
-  </div>
 )
 
 const MeetingHistoryRow = ({
