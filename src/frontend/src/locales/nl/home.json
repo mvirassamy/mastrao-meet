@@ -21,7 +21,9 @@
   },
   "laterMeetingDialog": {
     "heading": "Uw verbindingsgegevens",
-    "description": "Deel deze informatie met de genodigden. Zij kunnen deelnemen aan de vergadering zonder zich aan te melden. Deze vergadering is permanent en kan hergebruikt worden.",
+    "description": "Deel deze uitnodiging met uw gasten. Zij kunnen zonder aanmelding om toegang vragen. De link is beperkt geldig. Als u de vergadering voor iedereen beëindigt, kan niemand opnieuw deelnemen.",
+    "preparing": "De beveiligde uitnodigingslink wordt voorbereid…",
+    "unavailable": "De uitnodigingslink kan niet worden aangemaakt. Probeer het zo opnieuw.",
     "permissions": "Mensen met deze link hebben uw toestemming niet nodig om deel te nemen aan deze vergadering.",
     "copy": "Informatie kopiëren",
     "copied": "Informatie gekopieerd",

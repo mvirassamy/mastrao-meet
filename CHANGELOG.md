@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Show the guest invitation for meetings created for later,
+  disable copying unavailable links, and remove the permanent meeting promise.
+
 - 2026-10-04: Move recording status into a compact meeting control bar
   indicator on desktop and mobile, hiding the duplicate visual banner.
 
