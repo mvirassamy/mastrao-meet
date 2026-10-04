@@ -51,6 +51,20 @@ export const formatMeetingTimeRange = (
     : format.format(start)
 }
 
+/** "17:13 – 18:03 · 50 min": time range and duration of a meeting. */
+export const formatMeetingTime = (
+  start: Date,
+  end: Date | null,
+  locale: string,
+  timeZone?: string
+) =>
+  [
+    formatMeetingTimeRange(start, end, locale, timeZone),
+    formatMeetingDuration(start, end, locale),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
 /** Calendar day of a date in the user's time zone, as YYYY-MM-DD. */
 export const dayKey = (date: Date, timeZone?: string) =>
   dateFormat('en-CA', timeZone, {

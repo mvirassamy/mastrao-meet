@@ -36,7 +36,11 @@ import {
   formatMeetingTimeRange,
   formatTranscriptTimestamp,
 } from '../utils/meetingHistoryFormat'
-import { SECTION_ICONS, type MeetingContentKind } from './meetingContent'
+import {
+  contentPhase,
+  SECTION_ICONS,
+  type MeetingContentKind,
+} from './meetingContent'
 import {
   MeetingHistoryStatePanel,
   MeetingSectionState,
@@ -56,30 +60,62 @@ const isReadableStatus = (
 
 /** Statuses for which the service is still working on the content. */
 const isPendingStatus = (status: MeetingContentStatus) =>
-  ['unknown', 'waiting_for_audio', 'transcribing'].includes(status)
+  contentPhase(status) === 'pending'
 
 /** What a section shows, which sets the look of its header. */
 type SectionLook = 'content' | 'pending' | 'empty' | 'failed'
 
 const contentSectionLook = (status: MeetingContentStatus): SectionLook => {
-  if (isReadableStatus(status)) return 'content'
-  if (isPendingStatus(status)) return 'pending'
-  if (status === 'failed') return 'failed'
-  return 'empty'
+  switch (contentPhase(status)) {
+    case 'ready':
+    case 'partial':
+      return 'content'
+    case 'pending':
+      return 'pending'
+    case 'failed':
+      return 'failed'
+    case 'absent':
+      return 'empty'
+  }
 }
 
-/** Mirrors the branches of SummaryBody. */
-const summarySectionLook = (
+/** What the summary section shows: a step of the summary request, or the
+ * summary status itself. */
+type SummaryView =
+  | 'request-pending'
+  | 'request-failed'
+  | 'waiting-transcript'
+  | MeetingContentStatus
+
+const summaryView = (
   summary: MeetingSummary,
   transcriptStatus: MeetingContentStatus,
   requestState: SummaryRequestState
-): SectionLook => {
-  if (summary.status !== 'not_started')
-    return contentSectionLook(summary.status)
-  if (requestState === 'pending') return 'pending'
-  if (requestState === 'failed') return 'failed'
-  if (isPendingStatus(transcriptStatus)) return 'pending'
-  return 'empty'
+): SummaryView => {
+  if (summary.status !== 'not_started') return summary.status
+  if (requestState === 'pending') return 'request-pending'
+  if (requestState === 'failed') return 'request-failed'
+  if (isPendingStatus(transcriptStatus)) return 'waiting-transcript'
+  return 'not_started'
+}
+
+const summarySectionLook = (view: SummaryView): SectionLook => {
+  switch (view) {
+    case 'request-pending':
+    case 'waiting-transcript':
+      return 'pending'
+    case 'request-failed':
+      return 'failed'
+    default:
+      return contentSectionLook(view)
+  }
+}
+
+/** Dot of a section state: none while pending, the header bar shows it. */
+const sectionStateTone = (look: SectionLook) => {
+  if (look === 'failed') return 'danger'
+  if (look === 'empty') return 'neutral'
+  return undefined
 }
 
 export const MeetingHistoryDetailView = ({
@@ -227,6 +263,11 @@ const MeetingDetailContent = ({
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
+  const summaryState = summaryView(
+    meeting.summary,
+    meeting.transcript.status,
+    summaryRequestState
+  )
   const duration = formatMeetingDuration(
     meeting.startedAt,
     meeting.endedAt,
@@ -309,16 +350,11 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="summary"
           status={meeting.summary.status}
-          look={summarySectionLook(
-            meeting.summary,
-            meeting.transcript.status,
-            summaryRequestState
-          )}
+          look={summarySectionLook(summaryState)}
         >
           <SummaryBody
             summary={meeting.summary}
-            transcriptStatus={meeting.transcript.status}
-            requestState={summaryRequestState}
+            view={summaryState}
             onRetry={onRetrySummary}
           />
         </MeetingContentSection>
@@ -477,19 +513,9 @@ const UnavailableContent = ({
   status: Exclude<MeetingContentStatus, 'available' | 'partial'>
 }) => {
   const { t } = useTranslation('meetingHistory')
-  // In-progress states have no dot: the header progress bar shows them.
-  const dotTone = {
-    unknown: undefined,
-    waiting_for_audio: undefined,
-    transcribing: undefined,
-    not_started: 'neutral',
-    completed_empty: 'neutral',
-    audio_unavailable: 'neutral',
-    failed: 'danger',
-  } as const
   return (
     <MeetingSectionState
-      tone={dotTone[status]}
+      tone={sectionStateTone(contentSectionLook(status))}
       title={t(`${kind}.${status}.title`)}
       description={t(`${kind}.${status}.description`)}
     />
@@ -531,20 +557,18 @@ const PartialContentWarning = ({ kind }: { kind: MeetingContentKind }) => {
 
 const SummaryBody = ({
   summary,
-  transcriptStatus,
-  requestState,
+  view,
   onRetry,
 }: {
   summary: MeetingSummary
-  transcriptStatus: MeetingContentStatus
-  requestState: SummaryRequestState
+  view: SummaryView
   onRetry: () => void
 }) => {
   const { t } = useTranslation('meetingHistory')
-  if (summary.status === 'not_started') {
-    if (requestState === 'pending')
+  switch (view) {
+    case 'request-pending':
       return <UnavailableContent kind="summary" status="transcribing" />
-    if (requestState === 'failed')
+    case 'request-failed':
       return (
         <MeetingSectionState
           tone="danger"
@@ -562,7 +586,7 @@ const SummaryBody = ({
           }
         />
       )
-    if (isPendingStatus(transcriptStatus))
+    case 'waiting-transcript':
       return (
         <MeetingSectionState
           title={t('summary.waitingTranscript.title')}
@@ -570,8 +594,8 @@ const SummaryBody = ({
         />
       )
   }
-  if (!isReadableStatus(summary.status))
-    return <UnavailableContent kind="summary" status={summary.status} />
+  if (!isReadableStatus(view))
+    return <UnavailableContent kind="summary" status={view} />
 
   return (
     <div

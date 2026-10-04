@@ -1,54 +1,46 @@
+import type { RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
-import { css, cva } from '@/styled-system/css'
+import { CheckCircleIcon, ErrorIcon, MinusCircleIcon, TimeIcon } from '@/icons'
+import { css } from '@/styled-system/css'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
-import type { MeetingContentStatus } from '../api/types'
-import { SECTION_ICONS, type MeetingContentKind } from './meetingContent'
+import type { MeetingContentStatus, MeetingHistoryItem } from '../api/types'
+import {
+  contentPhase,
+  SECTION_ICONS,
+  STATUS_COLORS,
+  type MeetingContentKind,
+} from './meetingContent'
+import { RowOverlayCell } from './RowOverlayCell'
 
-type StatusTone = 'ready' | 'running' | 'failed' | 'absent'
+type StatusTone = keyof typeof STATUS_COLORS
 
 const statusTone = (status: MeetingContentStatus): StatusTone => {
-  switch (status) {
-    case 'available':
+  switch (contentPhase(status)) {
+    case 'ready':
       return 'ready'
+    case 'partial':
+    case 'pending':
+      return 'running'
     case 'failed':
       return 'failed'
-    case 'not_started':
-    case 'completed_empty':
-    case 'audio_unavailable':
+    case 'absent':
       return 'absent'
-    case 'unknown':
-    case 'waiting_for_audio':
-    case 'transcribing':
-    case 'partial':
-      return 'running'
   }
 }
 
-const dot = cva({
-  base: {
-    position: 'absolute',
-    right: '-1px',
-    bottom: '-1px',
-    width: '11px',
-    height: '11px',
-    borderRadius: '50%',
-    boxShadow: '0 0 0 2px token(colors.card)',
-  },
-  variants: {
-    tone: {
-      ready: { backgroundColor: '#2f9e5a' },
-      running: { backgroundColor: 'primary' },
-      failed: { backgroundColor: '#c4323d' },
-      absent: { backgroundColor: '#98a2b3' },
-    },
-  },
-})
+/** Each tone has its own shape, so the status never relies on colour. */
+const TONE_ICONS = {
+  ready: CheckCircleIcon,
+  running: TimeIcon,
+  failed: ErrorIcon,
+  absent: MinusCircleIcon,
+} as const
 
 /**
  * Illustrated status of a meeting content (summary or transcript): the 3D
- * icon, greyed out when the content is absent, with a coloured status dot.
+ * icon, greyed out when the content is absent, with a status badge.
  * Decorative: the exact status is a hover tooltip; screen readers get it
- * from the row link.
+ * from the meeting link.
  */
 export const MeetingContentStatusIcon = ({
   kind,
@@ -59,6 +51,7 @@ export const MeetingContentStatusIcon = ({
 }) => {
   const { t } = useTranslation('meetingHistory')
   const tone = statusTone(status)
+  const BadgeIcon = TONE_ICONS[tone]
 
   return (
     <VisualOnlyTooltip tooltip={t(`status.${kind}.${status}`)}>
@@ -84,8 +77,36 @@ export const MeetingContentStatusIcon = ({
             ...(tone === 'absent' && { filter: 'grayscale(1)', opacity: 0.4 }),
           })}
         />
-        <span className={dot({ tone })} />
+        <BadgeIcon
+          size={14}
+          style={{ color: STATUS_COLORS[tone] }}
+          className={css({
+            position: 'absolute',
+            right: '-3px',
+            bottom: '-3px',
+            borderRadius: '50%',
+            backgroundColor: 'card',
+            boxShadow: '0 0 0 1.5px token(colors.card)',
+          })}
+        />
       </span>
     </VisualOnlyTooltip>
   )
 }
+
+/** Summary and transcript icons of a meeting row, clickable like the row. */
+export const MeetingContentStatusIcons = ({
+  item,
+  linkRef,
+}: {
+  item: MeetingHistoryItem
+  linkRef: RefObject<HTMLAnchorElement>
+}) => (
+  <RowOverlayCell linkRef={linkRef}>
+    <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
+    <MeetingContentStatusIcon
+      kind="transcript"
+      status={item.transcriptStatus}
+    />
+  </RowOverlayCell>
+)

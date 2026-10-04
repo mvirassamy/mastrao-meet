@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
-import { dayKey } from '@/features/meetingHistory/utils/meetingHistoryFormat'
 import { Screen } from '@/layout/Screen'
 import {
   DayMeetings,
@@ -9,15 +8,15 @@ import {
 import { MeetWorkspaceShell } from '../components/authenticated/MeetWorkspaceShell'
 import { MeetWorkspaceToolbar } from '../components/authenticated/MeetWorkspaceToolbar'
 import { MeetingWeekStrip } from '../components/authenticated/MeetingWeekStrip'
-import { isSameCalendarDay } from '../utils/authenticatedHomeDate'
+import {
+  calendarDayKey,
+  isSameCalendarDay,
+} from '../utils/authenticatedHomeDate'
 import { useCalendarToday } from '../hooks/useCalendarToday'
 
 type AuthenticatedHomeProps = {
   user: ApiUser
 }
-
-/** Calendar dates are stored at noon UTC: their UTC day is the shown day. */
-const calendarDayKey = (date: Date) => dayKey(date, 'UTC')
 
 const dayPosition = (selected: string, today: string): DayPosition => {
   if (selected < today) return 'past'

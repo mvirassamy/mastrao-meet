@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
 import { RetryIcon } from '@/icons'
@@ -6,6 +7,7 @@ import { css } from '@/styled-system/css'
 import { useMeetingsOfDay } from '@/features/meetingHistory/api/useMeetingsOfDay'
 import { MeetingHistorySkeleton } from '@/features/meetingHistory/components/MeetingHistorySkeleton'
 import { MeetingHistoryStatePanel } from '@/features/meetingHistory/components/MeetingHistoryStatePanel'
+import { useRestoreOpenedMeetingFocus } from '@/features/meetingHistory/utils/focusReturn'
 import { CreateMeetingMenu } from '../CreateMeetingMenu'
 import { DayMeetingEvent } from './DayMeetingEvent'
 
@@ -49,6 +51,11 @@ export const DayMeetings = ({
   const { t, i18n } = useTranslation(['home', 'meetingHistory'])
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const meetings = useMeetingsOfDay(day, timeZone)
+  const listRef = useRef<HTMLUListElement>(null)
+  useRestoreOpenedMeetingFocus(
+    listRef,
+    meetings.status === 'ready' && meetings.items.length > 0
+  )
 
   if (meetings.status === 'loading')
     return (
@@ -103,6 +110,7 @@ export const DayMeetings = ({
         {t('dashboard.meetings.count', { count: meetings.items.length })}
       </h1>
       <ul
+        ref={listRef}
         className={css({
           display: 'flex',
           flexDirection: 'column',

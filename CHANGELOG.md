@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Give meeting status badges a shape per status, put participants
+  and statuses on a second line on small screens, and restore focus on home.
+
 - 2026-10-04: Remove the "Mastrao Visio" block from the sidebar; settings
   open from a gear next to the now white profile card.
 

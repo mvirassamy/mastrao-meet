@@ -1,17 +1,14 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'wouter'
 import { ChevronRightIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryItem } from '@/features/meetingHistory/api/types'
-import { MeetingContentStatusIcon } from '@/features/meetingHistory/components/MeetingContentStatusIcon'
+import { MeetingContentStatusIcons } from '@/features/meetingHistory/components/MeetingContentStatusIcon'
 import { MeetingParticipantsStack } from '@/features/meetingHistory/components/MeetingParticipantsStack'
+import { MeetingRowLink } from '@/features/meetingHistory/components/MeetingRowLink'
 import { RowOverlayCell } from '@/features/meetingHistory/components/RowOverlayCell'
-import { meetingHistoryDetailPath } from '@/features/meetingHistory/paths'
-import {
-  formatMeetingDuration,
-  formatMeetingTimeRange,
-} from '@/features/meetingHistory/utils/meetingHistoryFormat'
+import { formatMeetingTime } from '@/features/meetingHistory/utils/meetingHistoryFormat'
+import { participantTotal } from '@/features/meetingHistory/utils/participants'
 
 /** A past meeting shown as a calendar event in the home day view. */
 export const DayMeetingEvent = ({
@@ -27,16 +24,9 @@ export const DayMeetingEvent = ({
 }) => {
   const { t } = useTranslation('meetingHistory')
   const linkRef = useRef<HTMLAnchorElement>(null)
-  const openMeeting = () => linkRef.current?.click()
-  const time = [
-    formatMeetingTimeRange(item.startedAt, item.endedAt, locale, timeZone),
-    formatMeetingDuration(item.startedAt, item.endedAt, locale),
-  ]
-    .filter(Boolean)
-    .join(' · ')
-  const participantCount = Math.max(
-    item.participantCount ?? 0,
-    item.participantNames.length
+  const participantCount = participantTotal(
+    item.participantCount,
+    item.participantNames
   )
 
   return (
@@ -63,49 +53,18 @@ export const DayMeetingEvent = ({
           style={{ color }}
           className={css({
             margin: 0,
+            marginBottom: '0.125rem',
             fontSize: '0.8125rem',
             lineHeight: '1.25rem',
             fontWeight: 600,
           })}
         >
-          {time}
+          {formatMeetingTime(item.startedAt, item.endedAt, locale, timeZone)}
         </p>
-        <Link
-          ref={linkRef}
-          to={meetingHistoryDetailPath(item.id)}
-          data-meeting-id={item.id}
-          className={css({
-            display: 'block',
-            marginTop: '0.125rem',
-            overflow: 'hidden',
-            color: 'foreground',
-            fontSize: '0.9375rem',
-            lineHeight: '1.375rem',
-            fontWeight: 500,
-            textDecoration: 'none',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            outline: 'none',
-            _after: { content: '""', position: 'absolute', inset: 0 },
-            '&:focus-visible::after': {
-              outline: '2px solid token(colors.ring)',
-              outlineOffset: '-2px',
-              borderRadius: '8px',
-            },
-          })}
-        >
-          {item.title ?? t('untitled')}
-          {/* The status icons are decorative: their meaning is read here. */}
-          <span className={css({ srOnly: true })}>
-            {t(`status.summary.${item.summaryStatus}`)}
-          </span>
-          <span className={css({ srOnly: true })}>
-            {t(`status.transcript.${item.transcriptStatus}`)}
-          </span>
-        </Link>
+        <MeetingRowLink item={item} linkRef={linkRef} />
         {participantCount > 0 && (
           <div className={css({ display: 'flex', marginTop: '0.5rem' })}>
-            <RowOverlayCell onOpen={openMeeting}>
+            <RowOverlayCell linkRef={linkRef}>
               <MeetingParticipantsStack
                 count={item.participantCount}
                 names={item.participantNames}
@@ -124,13 +83,7 @@ export const DayMeetingEvent = ({
           </div>
         )}
       </div>
-      <RowOverlayCell onOpen={openMeeting}>
-        <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
-        <MeetingContentStatusIcon
-          kind="transcript"
-          status={item.transcriptStatus}
-        />
-      </RowOverlayCell>
+      <MeetingContentStatusIcons item={item} linkRef={linkRef} />
       <ChevronRightIcon
         size={18}
         aria-hidden="true"

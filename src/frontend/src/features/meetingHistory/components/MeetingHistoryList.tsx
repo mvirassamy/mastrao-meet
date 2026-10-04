@@ -1,5 +1,5 @@
 import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RetryIcon } from '@/icons'
 import { CreateMeetingMenu } from '@/features/home/components/CreateMeetingMenu'
@@ -12,7 +12,7 @@ import {
   isAuthRequiredError,
   useLoginRedirectOnAuthError,
 } from '../api/authRedirect'
-import { consumeOpenedMeeting } from '../utils/focusReturn'
+import { useRestoreOpenedMeetingFocus } from '../utils/focusReturn'
 import {
   dayKey,
   formatDayParts,
@@ -57,17 +57,7 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
   )
 
   const hasItems = items.length > 0
-  useEffect(() => {
-    if (!hasItems) return
-    const openedId = consumeOpenedMeeting()
-    if (!openedId) return
-    const link = Array.from(
-      listRef.current?.querySelectorAll<HTMLAnchorElement>(
-        'a[data-meeting-id]'
-      ) ?? []
-    ).find((element) => element.dataset.meetingId === openedId)
-    link?.focus()
-  }, [hasItems])
+  useRestoreOpenedMeetingFocus(listRef, hasItems)
 
   return (
     <div

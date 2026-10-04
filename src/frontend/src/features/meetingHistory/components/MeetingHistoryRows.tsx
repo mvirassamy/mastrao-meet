@@ -1,17 +1,11 @@
 import { useRef } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Link } from 'wouter'
 import { ChevronRightIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryItem } from '../api/types'
-import { meetingHistoryDetailPath } from '../paths'
-import { rememberOpenedMeeting } from '../utils/focusReturn'
-import {
-  formatMeetingDuration,
-  formatMeetingTimeRange,
-} from '../utils/meetingHistoryFormat'
-import { MeetingContentStatusIcon } from './MeetingContentStatusIcon'
+import { formatMeetingTime } from '../utils/meetingHistoryFormat'
+import { MeetingContentStatusIcons } from './MeetingContentStatusIcon'
 import { MeetingParticipantsStack } from './MeetingParticipantsStack'
+import { MeetingRowLink } from './MeetingRowLink'
 import { RowOverlayCell } from './RowOverlayCell'
 
 /**
@@ -54,23 +48,23 @@ const MeetingHistoryRow = ({
   locale: string
   timeZone?: string
 }) => {
-  const { t } = useTranslation('meetingHistory')
   const linkRef = useRef<HTMLAnchorElement>(null)
-  const duration = formatMeetingDuration(item.startedAt, item.endedAt, locale)
-  const meta = [
-    formatMeetingTimeRange(item.startedAt, item.endedAt, locale, timeZone),
-    duration,
-  ].filter(Boolean)
 
   return (
     <li
       className={css({
         position: 'relative',
         display: 'grid',
+        // Below lg the title gets the full width; participants and statuses
+        // go on a second line. On wide screens the participants start in the
+        // middle of the row.
         gridTemplateColumns: {
-          base: 'minmax(0, 1fr) auto auto auto',
-          // The participants start in the middle of the row on wide screens.
-          md: 'minmax(0, 1fr) minmax(5.5rem, 1fr) auto auto',
+          base: 'minmax(0, 1fr) auto auto',
+          lg: 'minmax(0, 1fr) minmax(5.5rem, 1fr) auto auto',
+        },
+        gridTemplateAreas: {
+          base: '"title title chevron" "people status chevron"',
+          lg: '"title people status chevron"',
         },
         alignItems: 'center',
         columnGap: '0.75rem',
@@ -88,44 +82,8 @@ const MeetingHistoryRow = ({
         },
       })}
     >
-      <div className={css({ minWidth: 0 })}>
-        <Link
-          ref={linkRef}
-          to={meetingHistoryDetailPath(item.id)}
-          data-meeting-id={item.id}
-          onClick={() => rememberOpenedMeeting(item.id)}
-          className={css({
-            display: 'block',
-            overflow: 'hidden',
-            color: 'foreground',
-            fontSize: '0.9375rem',
-            lineHeight: '1.375rem',
-            fontWeight: 500,
-            textDecoration: 'none',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            outline: 'none',
-            _after: {
-              content: '""',
-              position: 'absolute',
-              inset: 0,
-            },
-            '&:focus-visible::after': {
-              outline: '2px solid token(colors.ring)',
-              outlineOffset: '-2px',
-              borderRadius: '11px',
-            },
-          })}
-        >
-          {item.title ?? t('untitled')}
-          {/* The status icons are decorative: their meaning is read here. */}
-          <span className={css({ srOnly: true })}>
-            {t(`status.summary.${item.summaryStatus}`)}
-          </span>
-          <span className={css({ srOnly: true })}>
-            {t(`status.transcript.${item.transcriptStatus}`)}
-          </span>
-        </Link>
+      <div className={css({ gridArea: 'title', minWidth: 0 })}>
+        <MeetingRowLink item={item} linkRef={linkRef} />
         <p
           className={css({
             marginTop: '0.125rem',
@@ -135,28 +93,24 @@ const MeetingHistoryRow = ({
             lineHeight: '1.25rem',
           })}
         >
-          {meta.join(' · ')}
+          {formatMeetingTime(item.startedAt, item.endedAt, locale, timeZone)}
         </p>
       </div>
-      <RowOverlayCell onOpen={() => linkRef.current?.click()}>
-        <MeetingParticipantsStack
-          count={item.participantCount}
-          names={item.participantNames}
-        />
-      </RowOverlayCell>
-      <RowOverlayCell onOpen={() => linkRef.current?.click()}>
-        <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
-        <MeetingContentStatusIcon
-          kind="transcript"
-          status={item.transcriptStatus}
-        />
-      </RowOverlayCell>
+      <div className={css({ gridArea: 'people', justifySelf: 'start' })}>
+        <RowOverlayCell linkRef={linkRef}>
+          <MeetingParticipantsStack
+            count={item.participantCount}
+            names={item.participantNames}
+          />
+        </RowOverlayCell>
+      </div>
+      <div className={css({ gridArea: 'status' })}>
+        <MeetingContentStatusIcons item={item} linkRef={linkRef} />
+      </div>
       <ChevronRightIcon
         size={18}
         aria-hidden="true"
-        className={css({
-          color: 'muted-foreground',
-        })}
+        className={css({ gridArea: 'chevron', color: 'muted-foreground' })}
       />
     </li>
   )

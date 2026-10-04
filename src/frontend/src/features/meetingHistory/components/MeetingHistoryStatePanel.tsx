@@ -1,5 +1,6 @@
 import type { ReactNode, Ref } from 'react'
 import { css, cva } from '@/styled-system/css'
+import { STATUS_COLORS } from './meetingContent'
 
 const iconWrapper = cva({
   base: {
@@ -116,19 +117,16 @@ export const MeetingHistoryStatePanel = ({
   )
 }
 
-const stateDot = cva({
-  base: {
-    width: '7px',
-    height: '7px',
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  variants: {
-    tone: {
-      neutral: { backgroundColor: '#98a2b3' },
-      danger: { backgroundColor: '#c4323d' },
-    },
-  },
+const STATE_DOT_COLORS = {
+  neutral: STATUS_COLORS.absent,
+  danger: STATUS_COLORS.failed,
+} as const
+
+const stateDot = css({
+  width: '7px',
+  height: '7px',
+  borderRadius: '50%',
+  flexShrink: 0,
 })
 
 const sectionState = cva({
@@ -167,7 +165,13 @@ export const MeetingSectionState = ({
         fontWeight: 500,
       })}
     >
-      {tone && <span aria-hidden="true" className={stateDot({ tone })} />}
+      {tone && (
+        <span
+          aria-hidden="true"
+          className={stateDot}
+          style={{ backgroundColor: STATE_DOT_COLORS[tone] }}
+        />
+      )}
       {title}
     </p>
     <p

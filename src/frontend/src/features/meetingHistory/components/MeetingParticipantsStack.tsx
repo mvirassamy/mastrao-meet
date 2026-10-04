@@ -3,6 +3,7 @@ import { Avatar } from '@/components/Avatar'
 import { AccountBoxIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
+import { participantTotal } from '../utils/participants'
 
 const MAX_BUBBLES = 3
 // White initials stay above 4.5:1 on each colour (WCAG 1.4.3).
@@ -35,7 +36,7 @@ export const MeetingParticipantsStack = ({
   names: string[]
 }) => {
   const { t } = useTranslation('meetingHistory')
-  const total = Math.max(count ?? 0, names.length)
+  const total = participantTotal(count, names)
   if (total === 0) return null
 
   const label = t('participants', { count: total })

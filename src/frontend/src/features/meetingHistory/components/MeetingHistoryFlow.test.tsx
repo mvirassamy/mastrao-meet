@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Route, Router, Switch } from 'wouter'
@@ -133,6 +134,29 @@ describe('meeting history flow', () => {
       name: /^Réunion recente/,
     })
     await waitFor(() => expect(document.activeElement).toBe(restored))
+  })
+
+  it('groups meetings by calendar day in the user time zone', async () => {
+    fetchApiMock.mockResolvedValue({
+      results: [
+        item('matin', '2026-10-01T08:00:00Z'),
+        // 00:30 in Paris on 1 October, still 30 September in UTC.
+        item('minuit', '2026-09-30T22:30:00Z'),
+        item('veille', '2026-09-30T08:00:00Z'),
+      ],
+      next_cursor: null,
+    })
+    renderHistory()
+
+    await screen.findByRole('link', { name: /Réunion matin/ })
+    const days = screen.getAllByRole('region')
+    expect(days).toHaveLength(2)
+    const firstDay = within(days[0])
+    expect(firstDay.getByRole('link', { name: /Réunion matin/ })).toBeTruthy()
+    expect(firstDay.getByRole('link', { name: /Réunion minuit/ })).toBeTruthy()
+    expect(
+      within(days[1]).getByRole('link', { name: /Réunion veille/ })
+    ).toBeTruthy()
   })
 
   it('shows the empty state', async () => {
