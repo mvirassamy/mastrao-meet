@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Show a thin animated progress bar under the Summary and
+  Transcript headers while their content is prepared, without clock icon.
+
 - 2026-10-04: Show the meeting history participants as overlapping initial
   bubbles read from `participant_names`, up to three, or two and "+N".
 

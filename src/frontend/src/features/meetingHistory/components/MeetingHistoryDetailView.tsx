@@ -56,6 +56,21 @@ const isReadableStatus = (
 ): status is 'available' | 'partial' =>
   status === 'available' || status === 'partial'
 
+/** Statuses for which the service is still working on the content. */
+const isPendingStatus = (status: MeetingContentStatus) =>
+  ['unknown', 'waiting_for_audio', 'transcribing'].includes(status)
+
+/** Mirrors the waiting branches of SummaryBody. */
+const isSummaryPending = (
+  summary: MeetingSummary,
+  transcriptStatus: MeetingContentStatus,
+  requestState: SummaryRequestState
+) => {
+  if (isPendingStatus(summary.status)) return true
+  if (summary.status !== 'not_started') return false
+  return requestState === 'pending' || isPendingStatus(transcriptStatus)
+}
+
 export const MeetingHistoryDetailView = ({
   meetingId,
   timeZone,
@@ -280,7 +295,15 @@ const MeetingDetailContent = ({
           gap: { base: '1rem', md: '1.25rem' },
         })}
       >
-        <MeetingContentSection kind="summary" status={meeting.summary.status}>
+        <MeetingContentSection
+          kind="summary"
+          status={meeting.summary.status}
+          pending={isSummaryPending(
+            meeting.summary,
+            meeting.transcript.status,
+            summaryRequestState
+          )}
+        >
           <SummaryBody
             summary={meeting.summary}
             transcriptStatus={meeting.transcript.status}
@@ -291,6 +314,7 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="transcript"
           status={meeting.transcript.status}
+          pending={isPendingStatus(meeting.transcript.status)}
         >
           <TranscriptBody transcript={meeting.transcript} />
         </MeetingContentSection>
@@ -302,10 +326,12 @@ const MeetingDetailContent = ({
 const MeetingContentSection = ({
   kind,
   status,
+  pending,
   children,
 }: {
   kind: MeetingContentKind
   status: MeetingContentStatus
+  pending: boolean
   children: ReactNode
 }) => {
   const { t } = useTranslation('meetingHistory')
@@ -374,6 +400,7 @@ const MeetingContentSection = ({
         >
           {t(`status.${kind}.${status}`)}
         </span>
+        {pending && <SectionProgressBar />}
       </div>
       <div className={css({ padding: '1rem 1.125rem 1.25rem' })}>
         {children}
@@ -381,6 +408,34 @@ const MeetingContentSection = ({
     </section>
   )
 }
+
+/** Thin indeterminate bar under the header while the content is prepared. */
+const SectionProgressBar = () => (
+  <span
+    aria-hidden="true"
+    className={css({
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: '2px',
+      overflow: 'hidden',
+      backgroundColor: '#dfe6fa',
+    })}
+  >
+    <span
+      className={css({
+        display: 'block',
+        width: '30%',
+        height: '100%',
+        borderRadius: '2px',
+        backgroundColor: 'primary',
+        animation: 'progress_slide 1.4s ease-in-out infinite',
+        _motionReduce: { display: 'none' },
+      })}
+    />
+  </span>
+)
 
 const UnavailableContent = ({
   kind,
@@ -391,13 +446,14 @@ const UnavailableContent = ({
 }) => {
   const { t } = useTranslation('meetingHistory')
   const visual = {
-    unknown: { tone: 'info', icon: <TimeIcon size={18} /> },
+    // In-progress states show the header progress bar instead of an icon.
+    unknown: { tone: 'info', icon: null },
     not_started: {
       tone: 'neutral',
       icon: <MinusCircleIcon size={18} />,
     },
-    waiting_for_audio: { tone: 'info', icon: <TimeIcon size={18} /> },
-    transcribing: { tone: 'info', icon: <TimeIcon size={18} /> },
+    waiting_for_audio: { tone: 'info', icon: null },
+    transcribing: { tone: 'info', icon: null },
     completed_empty: {
       tone: 'neutral',
       icon: <MinusCircleIcon size={18} />,
@@ -492,8 +548,6 @@ const SummaryBody = ({
     )
       return (
         <MeetingSectionState
-          tone="info"
-          icon={<TimeIcon size={18} />}
           title={t('summary.waitingTranscript.title')}
           description={t('summary.waitingTranscript.description')}
         />

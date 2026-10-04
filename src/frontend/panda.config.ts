@@ -60,6 +60,10 @@ const config: Config = {
         },
       },
       fade: { from: { opacity: 0 }, to: { opacity: 1 } },
+      progress_slide: {
+        from: { transform: 'translateX(-100%)' },
+        to: { transform: 'translateX(340%)' },
+      },
       pulse: {
         '0%': { boxShadow: '0 0 0 0 rgba(255, 255, 255, 0.7)' },
         '75%': { boxShadow: '0 0 0 30px rgba(255, 255, 255, 0)' },
