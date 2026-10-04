@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Show the meeting history as one card with the day in a left
+  column and a thin vertical line, the day above its meetings on mobile.
+
 - 2026-10-04: Show the past meetings of the selected day in the home
   calendar as event blocks with alternating accent colours.
 

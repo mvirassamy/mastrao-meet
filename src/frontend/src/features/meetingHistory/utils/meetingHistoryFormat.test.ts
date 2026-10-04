@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   dayKey,
-  formatDayLabel,
+  formatDayParts,
   formatMeetingDuration,
   formatMeetingTimeRange,
   formatTranscriptTimestamp,
@@ -37,11 +37,23 @@ describe('meeting history formatting', () => {
 
   it('labels days relative to today, with the year only when it differs', () => {
     const now = new Date('2026-10-04T15:00:00Z')
-    const label = (iso: string) =>
-      formatDayLabel(new Date(iso), 'fr', 'Europe/Paris', now)
-    expect(label('2026-10-04T08:00:00Z')).toBe('Aujourd’hui, 4 oct.')
-    expect(label('2026-10-03T08:00:00Z')).toBe('Hier, 3 oct.')
-    expect(label('2026-10-01T08:00:00Z')).toBe('Jeu. 1 oct.')
-    expect(label('2025-12-30T08:00:00Z')).toBe('Mar. 30 déc. 2025')
+    const parts = (iso: string) =>
+      formatDayParts(new Date(iso), 'fr', 'Europe/Paris', now)
+    expect(parts('2026-10-04T08:00:00Z')).toEqual({
+      label: 'Aujourd’hui, 4 oct.',
+      day: '4',
+      caption: 'Aujourd’hui · oct.',
+    })
+    expect(parts('2026-10-03T08:00:00Z').label).toBe('Hier, 3 oct.')
+    expect(parts('2026-10-01T08:00:00Z')).toEqual({
+      label: 'Jeu. 1 oct.',
+      day: '1',
+      caption: 'Jeu. · oct.',
+    })
+    expect(parts('2025-12-30T08:00:00Z')).toEqual({
+      label: 'Mar. 30 déc. 2025',
+      day: '30',
+      caption: 'Mar. · déc. 2025',
+    })
   })
 })

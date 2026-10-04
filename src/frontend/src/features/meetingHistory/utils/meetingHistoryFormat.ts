@@ -61,37 +61,47 @@ export const dayKey = (date: Date, timeZone?: string) =>
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+export type DayParts = {
+  /** Full heading: "Aujourd’hui, 4 oct.", "Jeu. 1 oct.". */
+  label: string
+  /** Day of the month shown large: "4". */
+  day: string
+  /** Short caption under it: "Aujourd’hui · oct.", "Jeu. · oct.". */
+  caption: string
+}
+
 /**
- * Heading of a day of meetings: "Aujourd’hui, 4 oct.", "Hier, 3 oct.", then
- * "Jeu. 1 oct.", with the year only outside the current one.
+ * Heading of a day of meetings, relative to today ("Aujourd’hui", "Hier")
+ * then with the weekday, and with the year only outside the current one.
  */
-export const formatDayLabel = (
+export const formatDayParts = (
   date: Date,
   locale: string,
   timeZone?: string,
   now = new Date()
-) => {
+): DayParts => {
   const key = dayKey(date, timeZone)
-  const shortDate = dateFormat(locale, timeZone, {
-    day: 'numeric',
-    month: 'short',
-  }).format(date)
+  const todayKey = dayKey(now, timeZone)
+  const year = key.slice(0, 4) === todayKey.slice(0, 4) ? undefined : 'numeric'
+  const format = (options: Intl.DateTimeFormatOptions) =>
+    dateFormat(locale, timeZone, options).format(date)
   const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
-  if (key === dayKey(now, timeZone))
-    return capitalize(`${relative.format(0, 'day')}, ${shortDate}`, locale)
-  if (key === dayKey(new Date(now.getTime() - DAY_MS), timeZone))
-    return capitalize(`${relative.format(-1, 'day')}, ${shortDate}`, locale)
+  const month = format({ month: 'short', year })
 
-  const sameYear = key.slice(0, 4) === dayKey(now, timeZone).slice(0, 4)
-  return capitalize(
-    dateFormat(locale, timeZone, {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: sameYear ? undefined : 'numeric',
-    }).format(date),
-    locale
-  )
+  let relativeName: string | null = null
+  if (key === todayKey) relativeName = relative.format(0, 'day')
+  if (key === dayKey(new Date(now.getTime() - DAY_MS), timeZone))
+    relativeName = relative.format(-1, 'day')
+
+  const name = relativeName ?? format({ weekday: 'short' })
+  const label = relativeName
+    ? `${relativeName}, ${format({ day: 'numeric', month: 'short' })}`
+    : format({ weekday: 'short', day: 'numeric', month: 'short', year })
+  return {
+    label: capitalize(label, locale),
+    day: format({ day: 'numeric' }),
+    caption: capitalize(`${name} · ${month}`, locale),
+  }
 }
 
 export const formatMeetingDuration = (

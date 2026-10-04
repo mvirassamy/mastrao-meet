@@ -15,8 +15,8 @@ import { MeetingParticipantsStack } from './MeetingParticipantsStack'
 import { RowOverlayCell } from './RowOverlayCell'
 
 /**
- * Meetings of one day as a card of rows: title, time, participants, summary
- * and transcript status. Shared by the history list and the home calendar.
+ * Meetings of one day as rows: title, time, participants, summary and
+ * transcript status. The caller draws the surrounding card.
  */
 export const MeetingHistoryRows = ({
   items,
@@ -32,10 +32,6 @@ export const MeetingHistoryRows = ({
       margin: 0,
       padding: 0,
       listStyle: 'none',
-      border: '1px solid token(colors.border)',
-      borderRadius: '12px',
-      backgroundColor: 'card',
-      overflow: 'hidden',
     })}
   >
     {items.map((item) => (

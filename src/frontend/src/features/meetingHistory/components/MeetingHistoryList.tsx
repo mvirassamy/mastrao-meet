@@ -13,12 +13,16 @@ import {
   useLoginRedirectOnAuthError,
 } from '../api/authRedirect'
 import { consumeOpenedMeeting } from '../utils/focusReturn'
-import { dayKey, formatDayLabel } from '../utils/meetingHistoryFormat'
+import {
+  dayKey,
+  formatDayParts,
+  type DayParts,
+} from '../utils/meetingHistoryFormat'
 import { MeetingHistoryRows } from './MeetingHistoryRows'
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistorySkeleton } from './MeetingHistorySkeleton'
 
-type DayGroup = { key: string; label: string; items: MeetingHistoryItem[] }
+type DayGroup = DayParts & { key: string; items: MeetingHistoryItem[] }
 
 /** Groups the meetings, already sorted most recent first, by calendar day. */
 const groupByDay = (
@@ -33,7 +37,7 @@ const groupByDay = (
     else
       groups.push({
         key,
-        label: formatDayLabel(item.startedAt, locale, timeZone),
+        ...formatDayParts(item.startedAt, locale, timeZone),
         items: [item],
       })
     return groups
@@ -138,34 +142,23 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
         />
       ) : (
         <div ref={listRef}>
-          {groups.map((group) => (
-            <section
-              key={group.key}
-              aria-labelledby={`meeting-history-${group.key}`}
-              className={css({ '& + &': { marginTop: '1.5rem' } })}
-            >
-              <h2
-                id={`meeting-history-${group.key}`}
-                className={css({
-                  margin: 0,
-                  marginBottom: '0.5rem',
-                  color: 'muted-foreground',
-                  fontSize: '0.75rem',
-                  lineHeight: '1rem',
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                })}
-              >
-                {group.label}
-              </h2>
-              <MeetingHistoryRows
-                items={group.items}
+          <div
+            className={css({
+              border: '1px solid token(colors.border)',
+              borderRadius: '12px',
+              backgroundColor: 'card',
+              overflow: 'hidden',
+            })}
+          >
+            {groups.map((group) => (
+              <MeetingHistoryDay
+                key={group.key}
+                group={group}
                 locale={locale}
                 timeZone={timeZone}
               />
-            </section>
-          ))}
+            ))}
+          </div>
 
           {query.hasNextPage && (
             <div
@@ -205,5 +198,93 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
         </div>
       )}
     </div>
+  )
+}
+
+const dayHeading = css({
+  margin: 0,
+  // Mobile: the day sits above its meetings, number and caption inline.
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: '0.5rem',
+  padding: '0.875rem 1rem 0.25rem',
+  md: { display: 'block', padding: '0.875rem 0 0.875rem 1rem' },
+})
+
+/**
+ * One day of meetings: the day in a left column, a thin vertical line, and
+ * the meetings on the right. On mobile the day goes above its meetings.
+ */
+const MeetingHistoryDay = ({
+  group,
+  locale,
+  timeZone,
+}: {
+  group: DayGroup
+  locale: string
+  timeZone?: string
+}) => {
+  const isToday = group.key === dayKey(new Date(), timeZone)
+  const headingId = `meeting-history-${group.key}`
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className={css({
+        display: 'grid',
+        gridTemplateColumns: {
+          base: 'minmax(0, 1fr)',
+          md: '7rem 1.5rem minmax(0, 1fr)',
+        },
+        '& + &': { borderTop: '1px solid token(colors.border)' },
+      })}
+    >
+      <h2 id={headingId} className={dayHeading}>
+        <span className={css({ srOnly: true })}>{group.label}</span>
+        <span
+          aria-hidden="true"
+          data-today={isToday}
+          className={css({
+            display: 'block',
+            color: 'foreground',
+            '&[data-today=true]': { color: 'primary' },
+            fontSize: '1.25rem',
+            lineHeight: 1,
+            fontWeight: 600,
+          })}
+        >
+          {group.day}
+        </span>
+        <span
+          aria-hidden="true"
+          className={css({
+            display: 'block',
+            md: { marginTop: '0.375rem' },
+            color: 'muted-foreground',
+            fontSize: '0.6875rem',
+            lineHeight: '0.875rem',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+          })}
+        >
+          {group.caption}
+        </span>
+      </h2>
+      <span
+        aria-hidden="true"
+        className={css({
+          display: { base: 'none', md: 'block' },
+          justifySelf: 'center',
+          width: '2px',
+          backgroundColor: 'border',
+        })}
+      />
+      <MeetingHistoryRows
+        items={group.items}
+        locale={locale}
+        timeZone={timeZone}
+      />
+    </section>
   )
 }
