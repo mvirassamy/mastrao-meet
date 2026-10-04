@@ -1,6 +1,6 @@
 import { isWeb } from '@livekit/components-core'
 import { Track } from 'livekit-client'
-import React, { useRef, useState } from 'react'
+import React, { useState } from 'react'
 import {
   ConnectionStateToast,
   RoomAudioRenderer,
@@ -30,9 +30,7 @@ import { RoomSilentMicDetector } from '@/features/rooms/components/SilentMicDete
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
-import { stopRecording } from '@/features/rooms/api/recordingConsent'
 import { LiveTranscriptionProvider } from '@/features/subtitle/store'
 
 /**
@@ -79,32 +77,10 @@ export function VideoConference({
   const { t } = useTranslation('rooms', {
     keyPrefix: 'controls.endMeeting',
   })
-  const { t: tRecording } = useTranslation('rooms', {
-    keyPrefix: 'recordingConsent',
-  })
 
   const { isOpen: isPictureInPictureOpen } = usePictureInPicture()
 
   const [isShareErrorVisible, setIsShareErrorVisible] = useState(false)
-  const [isWithdrawing, setIsWithdrawing] = useState(false)
-  const [withdrawFailed, setWithdrawFailed] = useState(false)
-  const withdrawalIds = useRef(crypto.randomUUID().replaceAll('-', ''))
-
-  const withdraw = async () => {
-    if (!canEnd || isEnding || isWithdrawing) return
-    setIsWithdrawing(true)
-    setWithdrawFailed(false)
-    try {
-      await stopRecording(roomId, 'host', `stop_${withdrawalIds.current}`)
-    } catch {
-      setWithdrawFailed(true)
-      return
-    } finally {
-      setIsWithdrawing(false)
-    }
-    await onRecordingChanged?.().catch(() => undefined)
-  }
-
   return (
     <>
       <RoomMetadataSynchronizer />
@@ -130,50 +106,6 @@ export function VideoConference({
           {t('status')}
         </div>
       )}
-      {recording?.mode === 'recorded' &&
-        ['starting', 'active', 'stopping'].includes(
-          recording.recording_state ?? ''
-        ) && (
-          <div
-            role="status"
-            aria-live="polite"
-            className={css({
-              position: 'absolute',
-              top: '1rem',
-              right: '1rem',
-              zIndex: 1001,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              padding: '0.5rem 0.75rem',
-              borderRadius: 'surface',
-              backgroundColor: 'info',
-              color: 'info-foreground',
-            })}
-          >
-            {recording.recording_state === 'stopping'
-              ? tRecording('stopping')
-              : withdrawFailed
-                ? tRecording('withdrawError')
-                : tRecording(
-                    recording.recording_state === 'starting'
-                      ? 'starting'
-                      : 'active'
-                  )}
-            {canEnd &&
-              recording.decision === 'accepted' &&
-              recording.recording_state !== 'stopping' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  isDisabled={isEnding || isWithdrawing}
-                  onPress={withdraw}
-                >
-                  {tRecording('stop')}
-                </Button>
-              )}
-          </div>
-        )}
       <MediaStateObserver />
       <ChatProvider />
       <VideoResolutionSubscription />
@@ -204,6 +136,8 @@ export function VideoConference({
                 roomId={roomId}
                 canEnd={canEnd}
                 onMeetingEnded={onMeetingEnded}
+                recording={recording}
+                onRecordingChanged={onRecordingChanged}
                 onDeviceError={(e) => {
                   reportError('device_switch_failure', e.error, {
                     at: 'ControlBar.onDeviceError',
@@ -224,7 +158,7 @@ export function VideoConference({
         </LiveTranscriptionProvider>
         <RoomAudioRenderer />
         <ConnectionStateToast />
-        <RecordingProvider />
+        <RecordingProvider hideVisual={recording?.mode === 'recorded'} />
         <SettingsDialogProvider />
         <ReactionPortals />
       </div>

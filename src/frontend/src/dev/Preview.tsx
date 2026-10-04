@@ -132,6 +132,7 @@ const PreviewRoom = () => {
       >
         <VideoConference
           roomId={previewRoomId}
+          canEnd={previewScenario.startsWith('recording-')}
           recording={
             previewScenario.startsWith('recording-')
               ? {

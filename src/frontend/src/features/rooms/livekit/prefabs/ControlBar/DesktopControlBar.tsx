@@ -16,12 +16,15 @@ import { AudioDevicesControl } from '../../components/controls/Device/AudioDevic
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { RecordingIndicator } from './RecordingIndicator'
 
 export function DesktopControlBar({
   onDeviceError,
   roomId,
   canEnd,
   onMeetingEnded,
+  recording,
+  onRecordingChanged,
 }: Readonly<ControlBarAuxProps>) {
   const browserSupportsScreenSharing = supportsScreenSharing()
   const desktopControlBarEl = useRef<HTMLDivElement>(null)
@@ -71,10 +74,20 @@ export function DesktopControlBar({
           gap: '0.5rem',
           marginLeft: '0.5rem',
           '@media (max-width: 1099px)': {
-            display: 'none',
+            flex: '1 0 100%',
+            justifyContent: 'center',
+            marginLeft: 0,
+            '&:empty': { display: 'none' },
           },
         })}
-      />
+      >
+        <RecordingIndicator
+          roomId={roomId}
+          canEnd={canEnd}
+          recording={recording}
+          onRecordingChanged={onRecordingChanged}
+        />
+      </div>
       <ControlBarRegion
         style={
           isNarrowScreen
