@@ -21,7 +21,9 @@
   },
   "laterMeetingDialog": {
     "heading": "Zugangsdaten",
-    "description": "Teile diese Informationen mit den Gästen. Sie können dem Meeting beitreten, ohne sich anmelden zu müssen. Dieses Meeting ist dauerhaft und kann wiederverwendet werden.",
+    "description": "Teile diese Einladung mit deinen Gästen. Sie können ohne Anmeldung um Einlass bitten. Der Link ist nur begrenzt gültig. Wenn du das Meeting für alle beendest, kann niemand erneut beitreten.",
+    "preparing": "Der sichere Einladungslink wird vorbereitet…",
+    "unavailable": "Der Einladungslink konnte nicht vorbereitet werden. Versuche es gleich erneut.",
     "permissions": "Personen mit diesem Link benötigen keine Genehmigung, um diesem Meeting beizutreten.",
     "copy": "Informationen kopieren",
     "copied": "Informationen kopiert",

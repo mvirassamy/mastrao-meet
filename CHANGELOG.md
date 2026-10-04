@@ -3,6 +3,12 @@
 - 2026-10-04: Keep the selected home day when coming back from a meeting,
   show the retry of a failed history page, and fix sidebar focus order.
 
+- 2026-10-04: Show the guest invitation for meetings created for later,
+  disable copying unavailable links, and remove the permanent meeting promise.
+
+- 2026-10-04: Move recording status into a compact meeting control bar
+  indicator on desktop and mobile, hiding the duplicate visual banner.
+
 - 2026-10-04: Give meeting status badges a shape per status, put participants
   and statuses on a second line on small screens, and restore focus on home.
 
