@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getRouteUrl } from '@/navigation/getRouteUrl'
 import { Bold, Button, Dialog, type DialogProps, P, Text } from '@/primitives'
 import { CheckIcon, CopyIcon, LinkIcon, WarningIcon } from '@/icons'
 import { css } from '@/styled-system/css'
@@ -16,7 +15,6 @@ export const LaterMeetingDialog = ({
 }: { room: null | ApiRoom } & Omit<DialogProps, 'title' | 'children'>) => {
   const { t } = useTranslation('home', { keyPrefix: 'laterMeetingDialog' })
 
-  const roomUrl = room && getRouteUrl('room', room?.slug)
   const telephony = useTelephony()
 
   const isTelephonyReadyForUse = useMemo(() => {
@@ -28,7 +26,13 @@ export const LaterMeetingDialog = ({
     copyRoomToClipboard,
     isRoomUrlCopied,
     copyRoomUrlToClipboard,
+    shareUrl,
+    shareUrlDisplay,
+    isShareLinkPending,
+    shareLinkError,
   } = useCopyRoomToClipboard(room || undefined)
+  const isCopyDisabled =
+    !shareUrl || isShareLinkPending || Boolean(shareLinkError)
 
   return (
     <Dialog
@@ -38,7 +42,7 @@ export const LaterMeetingDialog = ({
       title={t('heading')}
     >
       <P>{t('description')}</P>
-      {!!roomUrl && (
+      {!!room && (
         <>
           {isTelephonyReadyForUse ? (
             <div
@@ -62,13 +66,14 @@ export const LaterMeetingDialog = ({
                 })}
               >
                 <Text as="p" wrap="pretty">
-                  {roomUrl?.replace(/^https?:\/\//, '')}
+                  {shareUrlDisplay}
                 </Text>
                 {isTelephonyReadyForUse && (
                   <Button
                     variant={isRoomUrlCopied ? 'secondary' : 'ghost'}
                     size="icon-sm"
                     onPress={copyRoomUrlToClipboard}
+                    isDisabled={isCopyDisabled}
                     aria-label={t('copyUrl')}
                     tooltip={t('copyUrl')}
                   >
@@ -104,6 +109,7 @@ export const LaterMeetingDialog = ({
                   justifyContent: 'start',
                 }}
                 onPress={copyRoomToClipboard}
+                isDisabled={isCopyDisabled}
                 data-attr="later-dialog-copy"
               >
                 {isCopied ? (
@@ -156,12 +162,13 @@ export const LaterMeetingDialog = ({
                   whiteSpace: 'nowrap',
                 })}
               >
-                {roomUrl?.replace(/^https?:\/\//, '')}
+                {shareUrlDisplay}
               </span>
               <Button
                 size="sm"
                 variant={isCopied ? 'secondary' : 'default'}
                 onPress={copyRoomToClipboard}
+                isDisabled={isCopyDisabled}
                 data-attr="later-dialog-copy"
                 icon={
                   isCopied ? (
@@ -179,6 +186,16 @@ export const LaterMeetingDialog = ({
                 {isCopied ? t('copied') : t('copy')}
               </Button>
             </div>
+          )}
+          {isShareLinkPending && (
+            <Text variant="sm" role="status">
+              {t('preparing')}
+            </Text>
+          )}
+          {shareLinkError && (
+            <Text variant="sm" role="alert">
+              {t('unavailable')}
+            </Text>
           )}
           {room?.access_level == ApiAccessLevel.PUBLIC && (
             <p

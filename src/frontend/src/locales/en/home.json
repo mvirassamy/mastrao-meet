@@ -21,7 +21,9 @@
   },
   "laterMeetingDialog": {
     "heading": "Your connection details",
-    "description": "Share this information with the guests. They will be able to join the meeting without needing to sign in. This meeting is permanent and can be reused.",
+    "description": "Share this invitation with your guests. They can request to join without signing in. The link has limited validity. Ending the meeting for everyone prevents anyone from joining again.",
+    "preparing": "Preparing the secure invitation link…",
+    "unavailable": "Unable to prepare the invitation link. Try again in a moment.",
     "permissions": "People with this link do not need your permission to join this meeting.",
     "copy": "Copy information",
     "copied": "Information copied to clipboard",

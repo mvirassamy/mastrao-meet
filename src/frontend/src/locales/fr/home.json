@@ -21,7 +21,9 @@
   },
   "laterMeetingDialog": {
     "heading": "Vos informations de connexion",
-    "description": "Partagez ces informations avec les invités. Ils pourront rejoindre la réunion sans avoir besoin de se connecter. Cette réunion est permanente et peut être réutilisée.",
+    "description": "Partagez cette invitation avec vos invités. Ils peuvent demander à rejoindre la réunion sans se connecter. Le lien a une durée de validité limitée. Terminer la réunion pour tous empêche de la rejoindre à nouveau.",
+    "preparing": "Préparation du lien d’invitation sécurisé…",
+    "unavailable": "Impossible de préparer le lien d’invitation. Réessayez dans un instant.",
     "permissions": "Les personnes disposant de ce lien n'ont pas besoin de votre autorisation pour rejoindre cette réunion.",
     "copy": "Copier les informations",
     "copied": "Copiées dans le presse-papiers",

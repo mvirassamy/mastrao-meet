@@ -51,6 +51,10 @@ vi.mock('@/features/rooms/livekit/hooks/useCopyRoomToClipboard', () => ({
     copyRoomToClipboard: vi.fn(),
     isRoomUrlCopied: false,
     copyRoomUrlToClipboard: vi.fn(),
+    shareUrl: 'https://meet.example/abc-defg-hij',
+    shareUrlDisplay: 'meet.example/abc-defg-hij',
+    isShareLinkPending: false,
+    shareLinkError: null,
   }),
 }))
 vi.mock('react-i18next', () => ({
