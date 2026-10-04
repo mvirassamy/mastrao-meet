@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchApi } from '@/api/fetchApi'
@@ -83,7 +89,7 @@ describe('meetings of the selected home day', () => {
     )
   })
 
-  it('shows an error when an older page fails, and shows the retry', async () => {
+  it('keeps the retry button and its focus while a failed page is retried', async () => {
     let retrying = false
     let failRetry: (error: Error) => void = () => undefined
     fetchApiMock.mockImplementation(async (url: string) => {
@@ -103,14 +109,18 @@ describe('meetings of the selected home day', () => {
     expect(callsTo(OLDER_PAGE)).toBeLessThanOrEqual(2)
 
     retrying = true
-    fireEvent.click(screen.getByRole('button', { name: 'error.retry' }))
-    expect(await screen.findByText('dashboard.meetings.loading')).toBeTruthy()
-    expect(screen.queryByRole('alert')).toBeNull()
+    const retry = screen.getByRole('button', { name: 'error.retry' })
+    retry.focus()
+    fireEvent.click(retry)
+    await waitFor(() => expect(retry.hasAttribute('data-pending')).toBe(true))
+    expect(document.activeElement).toBe(retry)
 
     // The automatic retry of the failed page fails at once.
     retrying = false
     failRetry(new Error('still unavailable'))
-    expect(await screen.findByRole('alert')).toBeTruthy()
+    await waitFor(() => expect(retry.hasAttribute('data-pending')).toBe(false))
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(document.activeElement).toBe(retry)
   })
 
   it.each([

@@ -44,7 +44,6 @@ export const DayMeetingEvent = ({
         },
         alignItems: 'center',
         columnGap: '1rem',
-        rowGap: '0.5rem',
         padding: '0.75rem 1rem 0.75rem 1.125rem',
         border: '1px solid token(colors.border)',
         borderLeftWidth: '4px',
@@ -71,10 +70,15 @@ export const DayMeetingEvent = ({
         </p>
         <MeetingRowLink item={item} linkRef={linkRef} />
       </div>
-      <div
-        className={css({ gridArea: 'people', display: 'flex', minWidth: 0 })}
-      >
-        {participantCount > 0 && (
+      {participantCount > 0 && (
+        <div
+          className={css({
+            gridArea: 'people',
+            display: 'flex',
+            minWidth: 0,
+            marginTop: '0.5rem',
+          })}
+        >
           <RowOverlayCell linkRef={linkRef}>
             <MeetingParticipantsStack
               count={item.participantCount}
@@ -92,9 +96,16 @@ export const DayMeetingEvent = ({
               {t('participants', { count: participantCount })}
             </span>
           </RowOverlayCell>
-        )}
-      </div>
-      <div className={css({ gridArea: 'status' })}>
+        </div>
+      )}
+      {/* Margins rather than a row gap: a meeting without participants keeps
+          a single line on wide screens. */}
+      <div
+        className={css({
+          gridArea: 'status',
+          marginTop: { base: '0.5rem', lg: 0 },
+        })}
+      >
         <MeetingContentStatusIcons item={item} linkRef={linkRef} />
       </div>
       <ChevronRightIcon

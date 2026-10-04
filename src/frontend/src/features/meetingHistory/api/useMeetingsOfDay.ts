@@ -30,7 +30,8 @@ export const olderPagesMayHoldDay = (
 
 export type MeetingsOfDayState =
   | { status: 'loading' }
-  | { status: 'error'; retry: () => void }
+  /** `retrying`: a new attempt is running; the error stays on screen. */
+  | { status: 'error'; retrying: boolean; retry: () => void }
   | { status: 'ready'; items: MeetingHistoryItem[] }
 
 /**
@@ -55,11 +56,21 @@ export const useMeetingsOfDay = (
 
   if (query.isPending || isAuthRequiredError(query.error))
     return { status: 'loading' }
-  if (!query.data) return { status: 'error', retry: () => void query.refetch() }
-  // A retried page keeps its error until it settles: show it as loading.
-  if (needsOlderPage && isFetchingNextPage) return { status: 'loading' }
-  if (needsOlderPage && isFetchNextPageError)
-    return { status: 'error', retry: () => void fetchNextPage() }
-  if (needsOlderPage) return { status: 'loading' }
+  if (!query.data)
+    return {
+      status: 'error',
+      retrying: false,
+      retry: () => void query.refetch(),
+    }
+  if (needsOlderPage) {
+    // A retried page keeps its error until it settles.
+    if (isFetchNextPageError)
+      return {
+        status: 'error',
+        retrying: isFetchingNextPage,
+        retry: () => void fetchNextPage(),
+      }
+    return { status: 'loading' }
+  }
   return { status: 'ready', items: meetingsOfDay(items, day, timeZone) }
 }
