@@ -296,6 +296,42 @@ describe('Conference room lookup', () => {
     }
   )
 
+  it.each([
+    'stopping',
+    'processing',
+    'available',
+    'cancelled',
+    'failed',
+  ] as const)(
+    'does not restart a %s recording when the host reconnects and publishes media',
+    async (state) => {
+      const room: ApiRoom = {
+        id: 'room_0123456789abcdef0123456789abcdef',
+        name: 'Test',
+        slug: 'test',
+        access_level: ApiAccessLevel.RESTRICTED,
+        is_administrable: true,
+        can_end: true,
+        recording: {
+          mode: 'recorded',
+          recording_state: state,
+          decision: 'accepted',
+          activation_available: true,
+        },
+      }
+      fetchRoom.mockResolvedValue(room)
+      render(<Conference roomId={room.id} initialRoomData={room} />)
+      await act(async () => {
+        await liveKitOnConnected?.()
+        localTrackPublished?.()
+      })
+      expect(activateRecording).not.toHaveBeenCalled()
+      expect(liveKitAudio).toBe(true)
+      expect(lifecyclePhase).toBe('active')
+      expect(navigateTo).not.toHaveBeenCalled()
+    }
+  )
+
   it('publishes media from the canonical prejoin choices', () => {
     const room: ApiRoom = {
       id: 'room_0123456789abcdef0123456789abcdef',

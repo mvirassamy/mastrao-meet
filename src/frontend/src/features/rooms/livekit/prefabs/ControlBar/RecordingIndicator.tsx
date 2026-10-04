@@ -73,6 +73,7 @@ export function RecordingIndicator({
       data-attr="recording-indicator"
       className={css({
         display: 'inline-flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
         gap: '0.5rem',
         maxWidth: '100%',
@@ -100,15 +101,14 @@ export function RecordingIndicator({
       <span>{status}</span>
       {canStop && (
         <Button
-          shape="circle"
           size="sm"
           variant="outline"
           aria-label={t('stop')}
-          tooltip={t('stop')}
           isDisabled={isEnding || isWithdrawing}
           onPress={withdraw}
         >
-          <StopCircleIcon size={18} />
+          <StopCircleIcon size={18} aria-hidden="true" />
+          {t('stop')}
         </Button>
       )}
     </div>

@@ -5,11 +5,11 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { RecordingIndicator } from './RecordingIndicator'
 
 const stopRecording = vi.fn()
+const beginEnding = vi.fn()
 let isEnding = false
 
 vi.mock('react-i18next', () => ({
@@ -19,24 +19,7 @@ vi.mock('@/features/rooms/api/recordingConsent', () => ({
   stopRecording: (...args: unknown[]) => stopRecording(...args),
 }))
 vi.mock('@/features/rooms/contexts/MeetingLifecycleContext', () => ({
-  useMeetingLifecycle: () => ({ isEnding }),
-}))
-vi.mock('@/primitives', () => ({
-  Button: ({
-    children,
-    onPress,
-    isDisabled,
-    'aria-label': ariaLabel,
-  }: {
-    children: ReactNode
-    onPress: () => void
-    isDisabled?: boolean
-    'aria-label'?: string
-  }) => (
-    <button aria-label={ariaLabel} disabled={isDisabled} onClick={onPress}>
-      {children}
-    </button>
-  ),
+  useMeetingLifecycle: () => ({ isEnding, beginEnding }),
 }))
 
 beforeEach(() => {
@@ -73,7 +56,9 @@ it('keeps the existing host stop action and refreshes the room', async () => {
     />
   )
 
-  fireEvent.click(screen.getByRole('button', { name: 'stop' }))
+  const stopButton = screen.getByRole('button', { name: 'stop' })
+  expect(stopButton.textContent).toContain('stop')
+  fireEvent.click(stopButton)
 
   await waitFor(() => expect(onRecordingChanged).toHaveBeenCalledOnce())
   expect(stopRecording).toHaveBeenCalledWith(
@@ -98,4 +83,61 @@ it('does not offer the stop action while recording is stopping', () => {
 
   expect(screen.getByRole('status').textContent).toContain('stopping')
   expect(screen.queryByRole('button', { name: 'stop' })).toBeNull()
+})
+
+it('lets the meeting continue when the stopped recording is processing', async () => {
+  const onRecordingChanged = vi.fn().mockResolvedValue(undefined)
+  const { rerender } = render(
+    <RecordingIndicator
+      roomId="room-1"
+      canEnd
+      recording={{
+        mode: 'recorded',
+        recording_state: 'active',
+        decision: 'accepted',
+      }}
+      onRecordingChanged={onRecordingChanged}
+    />
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'stop' }))
+  await waitFor(() => expect(onRecordingChanged).toHaveBeenCalledOnce())
+
+  rerender(
+    <RecordingIndicator
+      roomId="room-1"
+      canEnd
+      recording={{
+        mode: 'recorded',
+        recording_state: 'processing',
+        decision: 'accepted',
+      }}
+      onRecordingChanged={onRecordingChanged}
+    />
+  )
+  expect(beginEnding).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button')).toBeNull()
+  expect(stopRecording).toHaveBeenCalledOnce()
+})
+
+it('allows retrying a failed stop with the same request identifier', async () => {
+  stopRecording.mockRejectedValueOnce(new Error('Stop unavailable'))
+  const onRecordingChanged = vi.fn().mockResolvedValue(undefined)
+  render(
+    <RecordingIndicator
+      roomId="room-1"
+      canEnd
+      recording={{
+        mode: 'recorded',
+        recording_state: 'active',
+        decision: 'accepted',
+      }}
+      onRecordingChanged={onRecordingChanged}
+    />
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'stop' }))
+  await screen.findByText('withdrawError')
+  expect(onRecordingChanged).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'stop' }))
+  await waitFor(() => expect(onRecordingChanged).toHaveBeenCalledOnce())
+  expect(stopRecording.mock.calls[1]).toEqual(stopRecording.mock.calls[0])
 })
