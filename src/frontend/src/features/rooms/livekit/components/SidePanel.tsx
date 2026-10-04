@@ -2,13 +2,15 @@ import { closeSidePanel, layoutStore } from '@/stores/layout'
 import { css } from '@/styled-system/css'
 import { Heading } from 'react-aria-components'
 import { Button } from '@/primitives'
+import { Tab, TabList, TabPanel, Tabs } from '@/primitives/Tabs'
 import { AppAppearanceProvider } from '@/primitives/appAppearance'
 import { ArrowLeftIcon, CloseIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { ParticipantsList } from '@/features/participants/components/ParticipantsList'
-import { PanelId, useSidePanel } from '../hooks/useSidePanel'
-import React, { ReactNode, useCallback, useRef } from 'react'
+import { PanelId, SubPanelId, useSidePanel } from '../hooks/useSidePanel'
+import React, { ReactNode, useCallback, useEffect, useRef } from 'react'
 import { Chat } from '@/features/chat/components/Chat'
+import { LiveTranscriptSidePanel } from '@/features/subtitle/component/LiveTranscriptSidePanel'
 import { Effects } from './effects/Effects'
 import { Admin } from './Admin'
 import { Tools } from './Tools'
@@ -71,7 +73,7 @@ const StyledSidePanel = React.forwardRef<HTMLElement, StyledSidePanelProps>(
         gap: 0,
         right: 0,
         top: 0,
-        width: 'var(--sizes-room-side-panel)',
+        width: 'min(var(--sizes-room-side-panel), calc(100vw - 1.5rem))',
         transition: '.5s cubic-bezier(.4,0,.2,1) 5ms',
         '&:focus': {
           outline: 'none',
@@ -164,6 +166,52 @@ const Panel = ({ isOpen, keepAlive = false, children }: PanelProps) => (
     {keepAlive || isOpen ? children : null}
   </div>
 )
+
+const MeetingConversationTabs = ({ isChatOpen }: { isChatOpen: boolean }) => {
+  const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel.tabs' })
+  const { toggleChat, openLiveTranscript } = useSidePanel()
+
+  return (
+    <Tabs
+      selectedKey={isChatOpen ? PanelId.CHAT : SubPanelId.LIVE_TRANSCRIPT}
+      onSelectionChange={(key) => {
+        if (key === PanelId.CHAT) toggleChat()
+        else openLiveTranscript()
+      }}
+      className={css({ flex: 1, minHeight: 0 })}
+    >
+      <TabList className={css({ marginX: '1.25rem', flexShrink: 0 })}>
+        <Tab
+          id={PanelId.CHAT}
+          className={css({ flex: 1, textAlign: 'center' })}
+        >
+          {t('messages')}
+        </Tab>
+        <Tab
+          id={SubPanelId.LIVE_TRANSCRIPT}
+          className={css({ flex: 1, textAlign: 'center' })}
+        >
+          {t('transcription')}
+        </Tab>
+      </TabList>
+      <TabPanel
+        id={PanelId.CHAT}
+        flex
+        className={css({ padding: 0, marginTop: 0, minHeight: 0 })}
+      >
+        <Chat />
+      </TabPanel>
+      <TabPanel
+        id={SubPanelId.LIVE_TRANSCRIPT}
+        flex
+        className={css({ padding: 0, marginTop: 0, minHeight: 0 })}
+      >
+        <LiveTranscriptSidePanel />
+      </TabPanel>
+    </Tabs>
+  )
+}
+
 export const SidePanel = () => {
   const {
     activePanelId,
@@ -174,11 +222,17 @@ export const SidePanel = () => {
     isToolsOpen,
     isAdminOpen,
     isInfoOpen,
+    isLiveTranscriptOpen,
     isSubPanelOpen,
     activeSubPanelId,
   } = useSidePanel()
   const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel' })
   const title = t(`heading.${activeSubPanelId || activePanelId}`)
+
+  useEffect(() => {
+    layoutStore.activeSubPanelId = SubPanelId.LIVE_TRANSCRIPT
+    layoutStore.activePanelId = PanelId.TOOLS
+  }, [])
 
   const { isOpen: isReactionToolbarOpen } = useReactionsToolbar()
 
@@ -211,7 +265,7 @@ export const SidePanel = () => {
         content: t(`content.${activeSubPanelId || activePanelId}`),
       })}
       isClosed={!isSidePanelOpen}
-      isSubmenu={isSubPanelOpen}
+      isSubmenu={isSubPanelOpen && !isLiveTranscriptOpen}
       isReactionToolbarOpen={isReactionToolbarOpen}
       backButtonLabel={t('backToTools')}
       onBack={() => (layoutStore.activeSubPanelId = null)}
@@ -222,10 +276,10 @@ export const SidePanel = () => {
       <Panel isOpen={isEffectsOpen}>
         <Effects />
       </Panel>
-      <Panel isOpen={isChatOpen}>
-        <Chat />
-      </Panel>
-      <Panel isOpen={isToolsOpen} keepAlive={true}>
+      {(isChatOpen || isLiveTranscriptOpen) && (
+        <MeetingConversationTabs isChatOpen={isChatOpen} />
+      )}
+      <Panel isOpen={isToolsOpen && !isLiveTranscriptOpen} keepAlive={true}>
         <Tools />
       </Panel>
       <Panel isOpen={isAdminOpen}>

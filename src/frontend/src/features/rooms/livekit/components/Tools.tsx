@@ -11,7 +11,6 @@ import {
   ScreenRecordingSidePanel,
 } from '@/features/recording'
 import { useConfig } from '@/api/useConfig'
-import { LiveTranscriptSidePanel } from '@/features/subtitle/component/LiveTranscriptSidePanel'
 import { useAreSubtitlesAvailable } from '@/features/subtitle/hooks/useAreSubtitlesAvailable'
 
 export interface ToolsButtonProps {
@@ -146,8 +145,6 @@ export const Tools = () => {
   switch (activeSubPanelId) {
     case SubPanelId.TRANSCRIPT:
       return <TranscriptSidePanel />
-    case SubPanelId.LIVE_TRANSCRIPT:
-      return <LiveTranscriptSidePanel />
     case SubPanelId.SCREEN_RECORDING:
       return <ScreenRecordingSidePanel />
     default:
