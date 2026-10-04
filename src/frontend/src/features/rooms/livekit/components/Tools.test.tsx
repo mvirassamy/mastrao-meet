@@ -22,9 +22,6 @@ vi.mock('@/hooks/useRestoreFocus', () => ({ useRestoreFocus: vi.fn() }))
 vi.mock('@/features/subtitle/hooks/useAreSubtitlesAvailable', () => ({
   useAreSubtitlesAvailable: useAreSubtitlesAvailableMock,
 }))
-vi.mock('@/features/subtitle/component/LiveTranscriptSidePanel', () => ({
-  LiveTranscriptSidePanel: () => <div>Live transcript panel</div>,
-}))
 vi.mock('@/features/recording', () => ({
   RecordingMode: {
     Transcript: 'transcript',
@@ -88,17 +85,6 @@ describe('Tools', () => {
     fireEvent.click(screen.getByRole('button', { name: /live transcript/i }))
 
     expect(openLiveTranscript).toHaveBeenCalledOnce()
-  })
-
-  it('renders the live transcript inside the meeting tools side panel', () => {
-    useSidePanelMock.mockReturnValue(sidePanelState(SubPanelId.LIVE_TRANSCRIPT))
-
-    render(<Tools />)
-
-    expect(screen.getByText('Live transcript panel')).toBeTruthy()
-    expect(
-      screen.queryByRole('button', { name: /live transcript/i })
-    ).toBeNull()
   })
 
   it('does not expose the tool when live subtitles are unavailable', () => {

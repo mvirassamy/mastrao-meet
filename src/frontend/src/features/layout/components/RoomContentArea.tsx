@@ -21,7 +21,10 @@ const RoomViewport = styled(
     variants: {
       isSidePanelOpen: {
         true: {
-          inset: `var(--lk-grid-gap) calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin) * 2) calc(var(--sizes-room-control-bar)) 16px`,
+          inset: {
+            base: `var(--lk-grid-gap) var(--lk-grid-gap) calc(var(--sizes-room-control-bar))`,
+            sm: `var(--lk-grid-gap) calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin) * 2) calc(var(--sizes-room-control-bar)) 16px`,
+          },
         },
         false: {
           inset: `var(--lk-grid-gap) var(--lk-grid-gap) calc(var(--sizes-room-control-bar))`,

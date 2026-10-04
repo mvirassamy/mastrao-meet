@@ -469,6 +469,10 @@
     }
   },
   "sidePanel": {
+    "tabs": {
+      "messages": "Messages",
+      "transcription": "Transcription"
+    },
     "ariaLabel": "Panneau latéral - {{title}}",
     "backToTools": "Retour aux outils de réunion",
     "heading": {
