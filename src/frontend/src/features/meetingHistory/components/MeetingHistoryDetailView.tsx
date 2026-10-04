@@ -5,9 +5,7 @@ import { Link } from 'wouter'
 import {
   ChevronLeftIcon,
   CalendarIcon,
-  TranscriptIcon,
   ErrorIcon,
-  SummaryIcon,
   FileSearchIcon,
   MinusCircleIcon,
   InformationIcon,
@@ -282,11 +280,7 @@ const MeetingDetailContent = ({
           gap: { base: '1rem', md: '1.25rem' },
         })}
       >
-        <MeetingContentSection
-          kind="summary"
-          status={meeting.summary.status}
-          icon={<SummaryIcon size={18} aria-hidden="true" />}
-        >
+        <MeetingContentSection kind="summary" status={meeting.summary.status}>
           <SummaryBody
             summary={meeting.summary}
             transcriptStatus={meeting.transcript.status}
@@ -297,7 +291,6 @@ const MeetingDetailContent = ({
         <MeetingContentSection
           kind="transcript"
           status={meeting.transcript.status}
-          icon={<TranscriptIcon size={18} aria-hidden="true" />}
         >
           <TranscriptBody transcript={meeting.transcript} />
         </MeetingContentSection>
@@ -306,15 +299,18 @@ const MeetingDetailContent = ({
   )
 }
 
+const SECTION_ICONS: Record<MeetingContentKind, string> = {
+  summary: '/assets/illustrations/section-synthese.webp',
+  transcript: '/assets/illustrations/section-transcription.webp',
+}
+
 const MeetingContentSection = ({
   kind,
   status,
-  icon,
   children,
 }: {
   kind: MeetingContentKind
   status: MeetingContentStatus
-  icon: ReactNode
   children: ReactNode
 }) => {
   const { t } = useTranslation('meetingHistory')
@@ -334,24 +330,45 @@ const MeetingContentSection = ({
     >
       <div
         className={css({
+          // Tinted header: the large section icon sits on the right as an
+          // illustration, partly cropped, so the title stays clean.
+          position: 'relative',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          minHeight: '76px',
           padding: '0.875rem 1.125rem',
+          paddingRight: '6.5rem',
+          borderRadius: '11px 11px 0 0',
+          background:
+            'linear-gradient(120deg, token(colors.card) 30%, #e6edff 100%)',
           borderBottom: '1px solid token(colors.border)',
         })}
       >
+        <img
+          src={SECTION_ICONS[kind]}
+          alt=""
+          aria-hidden="true"
+          width={96}
+          height={96}
+          decoding="async"
+          className={css({
+            position: 'absolute',
+            right: '-6px',
+            top: '-8px',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          })}
+        />
         <h2
           id={headingId}
           className={css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
             margin: 0,
             fontSize: '1rem',
             lineHeight: '1.5rem',
             fontWeight: 600,
-            '& svg': { color: 'primary' },
           })}
         >
-          {icon}
           {t(`${kind}.title`)}
         </h2>
         <span

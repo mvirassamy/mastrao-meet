@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Show the generated 3D illustrations for Summary and Transcript
+  in a tinted header of each meeting history section.
+
 - 2026-10-03: Persist a recording refusal as one authoritative decision so
   transcription consent cannot leave the lobby in a partially saved state.
 
