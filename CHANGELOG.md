@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Tint the history section header grey when it has nothing to
+  show and pink when processing failed, with a dot and visible explanation.
+
 - 2026-10-04: Show a thin animated progress bar under the Summary and
   Transcript headers while their content is prepared, without clock icon.
 
