@@ -65,6 +65,7 @@ export const DayMeetings = ({
       <div className={container}>
         <MeetingHistoryStatePanel
           role="alert"
+          headingLevel={1}
           illustration="/assets/illustrations/historique-erreur.webp"
           title={t('dashboard.meetings.errorTitle')}
           description={t('error.description', { ns: 'meetingHistory' })}

@@ -5,7 +5,8 @@ import { css } from '@/styled-system/css'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 
 const MAX_BUBBLES = 3
-const AVATAR_COLORS = ['#2d5be3', '#1d9660', '#c2410c']
+// White initials stay above 4.5:1 on each colour (WCAG 1.4.3).
+const AVATAR_COLORS = ['#2d5be3', '#17784d', '#c2410c']
 
 /** Overlapping bubbles leave room for one letter: keep the first name only. */
 const firstName = (name: string) => name.trim().split(/\s+/)[0]

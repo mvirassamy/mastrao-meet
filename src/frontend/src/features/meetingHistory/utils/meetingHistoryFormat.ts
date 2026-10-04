@@ -59,7 +59,11 @@ export const dayKey = (date: Date, timeZone?: string) =>
     day: '2-digit',
   }).format(date)
 
-const DAY_MS = 24 * 60 * 60 * 1000
+/** Calendar day before a YYYY-MM-DD key, whatever the clock changes. */
+const previousDayKey = (key: string) => {
+  const [year, month, day] = key.split('-').map(Number)
+  return dayKey(new Date(Date.UTC(year, month - 1, day - 1, 12)), 'UTC')
+}
 
 export type DayParts = {
   /** Full heading: "Aujourd’hui, 4 oct.", "Jeu. 1 oct.". */
@@ -90,7 +94,7 @@ export const formatDayParts = (
 
   let relativeName: string | null = null
   if (key === todayKey) relativeName = relative.format(0, 'day')
-  if (key === dayKey(new Date(now.getTime() - DAY_MS), timeZone))
+  else if (key === previousDayKey(todayKey))
     relativeName = relative.format(-1, 'day')
 
   const name = relativeName ?? format({ weekday: 'short' })

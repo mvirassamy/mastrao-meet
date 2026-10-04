@@ -2,8 +2,8 @@ import { SettingsButton } from '@/features/settings'
 import { css } from '@/styled-system/css'
 
 /**
- * Settings next to the profile card: a white square boxed like the card,
- * same height, so the footer reads as one row.
+ * Settings next to the profile card: a white "invert" square bordered like
+ * the card, same height, so the footer reads as one row.
  */
 export const MeetSidebarSettingsButton = ({
   collapsed = false,
@@ -14,16 +14,16 @@ export const MeetSidebarSettingsButton = ({
     dialogAppearance="app"
     buttonProps={{
       size: 'icon',
+      variant: 'invert',
+      // Layout only: colours come from "invert".
       className: css({
         width: collapsed ? '40px' : '48px',
         height: collapsed ? '40px' : '48px',
         minWidth: collapsed ? '40px' : '48px',
         minHeight: collapsed ? '40px' : '48px',
         flexShrink: 0,
-        borderColor: 'border!',
+        borderColor: 'var(--border)',
         borderRadius: '8px',
-        backgroundColor: 'card!',
-        '&[data-hovered]': { backgroundColor: 'accent!' },
       }),
     }}
   />

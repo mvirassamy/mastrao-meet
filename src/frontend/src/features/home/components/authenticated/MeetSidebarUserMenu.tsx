@@ -33,10 +33,11 @@ export const MeetSidebarUserMenu = ({
     <Menu placement={collapsed ? 'right' : 'top'} density="app">
       <Button
         size={collapsed ? 'icon' : 'default'}
-        variant="ghost"
+        variant="invert"
         aria-label={accessibleLabel}
         tooltip={collapsed ? accessibleLabel : undefined}
-        // Layout only: a bordered profile card; colours come from "ghost".
+        // Layout only: a bordered white profile card; colours come from
+        // "invert".
         className={css({
           width: collapsed ? '40px' : '100%',
           height: collapsed ? '40px' : '48px',
@@ -47,8 +48,6 @@ export const MeetSidebarUserMenu = ({
           padding: collapsed ? '0!' : '0.5rem!',
           borderRadius: '8px',
           borderColor: 'var(--border)',
-          backgroundColor: 'card!',
-          '&[data-hovered]': { backgroundColor: 'accent!' },
           fontWeight: 400,
           overflow: 'hidden',
         })}

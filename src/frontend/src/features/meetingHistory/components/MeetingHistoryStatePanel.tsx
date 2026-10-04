@@ -13,7 +13,6 @@ const iconWrapper = cva({
   variants: {
     tone: {
       neutral: { backgroundColor: 'muted', color: 'muted-foreground' },
-      info: { backgroundColor: 'info', color: 'info-foreground' },
       danger: { backgroundColor: 'recording', color: 'recording-foreground' },
     },
   },
@@ -26,7 +25,7 @@ type MeetingHistoryStatePanelProps = {
   icon?: ReactNode
   /** Decorative illustration shown instead of the icon (public asset path). */
   illustration?: string
-  tone?: 'neutral' | 'info' | 'danger'
+  tone?: 'neutral' | 'danger'
   action?: ReactNode
   headingLevel?: 1 | 2
   headingRef?: Ref<HTMLHeadingElement>

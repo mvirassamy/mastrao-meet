@@ -56,4 +56,20 @@ describe('meeting history formatting', () => {
       caption: 'Mar. · déc. 2025',
     })
   })
+
+  it('finds yesterday by calendar day across clock changes', () => {
+    const label = (iso: string, now: string) =>
+      formatDayParts(new Date(iso), 'fr', 'Europe/Paris', new Date(now)).label
+    // 25-hour day: 24 hours earlier is still the same day.
+    expect(label('2026-10-25T10:00:00Z', '2026-10-25T22:30:00Z')).toBe(
+      'Aujourd’hui, 25 oct.'
+    )
+    expect(label('2026-10-24T10:00:00Z', '2026-10-25T22:30:00Z')).toBe(
+      'Hier, 24 oct.'
+    )
+    // 23-hour day: 24 hours earlier is two days back.
+    expect(label('2027-03-28T10:00:00Z', '2027-03-28T22:30:00Z')).toBe(
+      'Hier, 28 mars'
+    )
+  })
 })

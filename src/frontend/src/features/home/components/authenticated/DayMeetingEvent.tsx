@@ -8,7 +8,6 @@ import { MeetingContentStatusIcon } from '@/features/meetingHistory/components/M
 import { MeetingParticipantsStack } from '@/features/meetingHistory/components/MeetingParticipantsStack'
 import { RowOverlayCell } from '@/features/meetingHistory/components/RowOverlayCell'
 import { meetingHistoryDetailPath } from '@/features/meetingHistory/paths'
-import { rememberOpenedMeeting } from '@/features/meetingHistory/utils/focusReturn'
 import {
   formatMeetingDuration,
   formatMeetingTimeRange,
@@ -75,7 +74,6 @@ export const DayMeetingEvent = ({
           ref={linkRef}
           to={meetingHistoryDetailPath(item.id)}
           data-meeting-id={item.id}
-          onClick={() => rememberOpenedMeeting(item.id)}
           className={css({
             display: 'block',
             marginTop: '0.125rem',
