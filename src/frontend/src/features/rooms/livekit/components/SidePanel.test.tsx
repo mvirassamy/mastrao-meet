@@ -1,9 +1,17 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { layoutStore } from '@/stores/layout'
 import { PanelId, SubPanelId } from '../hooks/useSidePanel'
 import { SidePanel } from './SidePanel'
+import { ChatToggle } from './controls/ChatToggle'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -16,6 +24,7 @@ vi.mock('react-i18next', () => ({
 }))
 vi.mock('@/primitives', async () => ({
   TextArea: (await import('@/primitives/TextArea')).TextArea,
+  ToggleButton: (await import('@/primitives/ToggleButton')).ToggleButton,
   Button: ({
     children,
     onPress,
@@ -37,6 +46,7 @@ vi.mock('@/icons', () => ({
   ArrowLeftIcon: () => null,
   CloseIcon: () => null,
   SendIcon: () => null,
+  ChatIcon: () => null,
 }))
 vi.mock('@/features/participants/components/ParticipantsList', () => ({
   ParticipantsList: () => <div>Participants panel</div>,
@@ -62,6 +72,9 @@ vi.mock('./Tools', () => ({ Tools: () => null }))
 vi.mock('./Info', () => ({ Info: () => null }))
 vi.mock('@/features/reactions/hooks/useReactionsToolbar', () => ({
   useReactionsToolbar: () => ({ isOpen: false }),
+}))
+vi.mock('@/features/shortcuts/useRegisterKeyboardShortcut', () => ({
+  useRegisterKeyboardShortcut: vi.fn(),
 }))
 
 const animationFrames = new Map<number, FrameRequestCallback>()
@@ -142,5 +155,42 @@ describe('meeting conversation panel', () => {
     await flushAnimationFrames()
     expect(transcription.getAttribute('aria-selected')).toBe('true')
     expect(document.activeElement).toBe(transcription)
+  })
+
+  it('returns focus to the chat command after switching tabs and closing', async () => {
+    render(
+      <>
+        <ChatToggle />
+        <SidePanel />
+      </>
+    )
+    await screen.findByRole('tab', { name: 'Transcription' })
+    await flushAnimationFrames()
+    fireEvent.click(screen.getByRole('button', { name: 'closeButton' }))
+    await waitFor(() => expect(screen.queryByRole('tab')).toBeNull())
+
+    const chatCommand = screen.getByRole('button', { name: 'closed' })
+    act(() => chatCommand.focus())
+    fireEvent.click(chatCommand)
+    const input = await screen.findByRole('textbox')
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(input)
+
+    const messages = screen.getByRole('tab', { name: 'Messages' })
+    act(() => messages.focus())
+    fireEvent.keyDown(messages, { key: 'ArrowLeft' })
+    await screen.findByText('Live transcription panel')
+    await flushAnimationFrames()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' })
+    await screen.findByRole('textbox')
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(messages)
+
+    const closeButton = screen.getByRole('button', { name: 'closeButton' })
+    act(() => closeButton.focus())
+    fireEvent.click(closeButton)
+    await waitFor(() => expect(screen.queryByRole('tab')).toBeNull())
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(chatCommand)
   })
 })

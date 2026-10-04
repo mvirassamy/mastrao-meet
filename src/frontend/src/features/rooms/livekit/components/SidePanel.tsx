@@ -258,7 +258,8 @@ export const SidePanel = () => {
   useRestoreFocus(isSidePanelOpen, {
     onOpened: handlePanelOpened,
     preventScroll: true,
-    activeKey: activePanelId,
+    activeKey:
+      isChatOpen || isLiveTranscriptOpen ? PanelId.CHAT : activePanelId,
   })
 
   return (
