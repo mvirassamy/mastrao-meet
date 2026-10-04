@@ -50,6 +50,7 @@ export const ChatTextArea = () => {
     const el = inputRef.current
     if (!el) return
     const raf = requestAnimationFrame(() => {
+      if (document.activeElement?.getAttribute('role') === 'tab') return
       el.focus({ preventScroll: true })
       const end = el.value.length
       el.setSelectionRange(end, end)

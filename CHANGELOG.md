@@ -1,7 +1,8 @@
 # Changelog
 
 - 2026-10-04: Open the meeting panel on arrival with the live transcript
-  selected and Messages/Transcription tabs, keeping small screens usable.
+  selected first and Messages second, preserving keyboard focus on the tabs
+  and keeping small screens usable.
 
 - 2026-10-04: Show the guest invitation for meetings created for later,
   disable copying unavailable links, and remove the permanent meeting promise.

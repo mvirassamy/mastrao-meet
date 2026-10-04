@@ -182,16 +182,16 @@ const MeetingConversationTabs = ({ isChatOpen }: { isChatOpen: boolean }) => {
     >
       <TabList className={css({ marginX: '1.25rem', flexShrink: 0 })}>
         <Tab
-          id={PanelId.CHAT}
-          className={css({ flex: 1, textAlign: 'center' })}
-        >
-          {t('messages')}
-        </Tab>
-        <Tab
           id={SubPanelId.LIVE_TRANSCRIPT}
           className={css({ flex: 1, textAlign: 'center' })}
         >
           {t('transcription')}
+        </Tab>
+        <Tab
+          id={PanelId.CHAT}
+          className={css({ flex: 1, textAlign: 'center' })}
+        >
+          {t('messages')}
         </Tab>
       </TabList>
       <TabPanel
@@ -240,6 +240,12 @@ export const SidePanel = () => {
 
   const focusAside = useCallback(() => {
     requestAnimationFrame(() => {
+      const activeElement = document.activeElement
+      if (
+        activeElement?.getAttribute('role') === 'tab' &&
+        asideRef.current?.contains(activeElement)
+      )
+        return
       asideRef.current?.focus({ preventScroll: true })
     })
   }, [])
