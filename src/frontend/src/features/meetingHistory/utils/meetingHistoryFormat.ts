@@ -36,17 +36,6 @@ export const formatMeetingDay = (
     locale
   )
 
-export const formatMeetingShortDay = (
-  date: Date,
-  locale: string,
-  timeZone?: string
-) =>
-  dateFormat(locale, timeZone, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(date)
-
 export const formatMeetingTimeRange = (
   start: Date,
   end: Date | null,
@@ -62,22 +51,48 @@ export const formatMeetingTimeRange = (
     : format.format(start)
 }
 
-export const monthKey = (date: Date, timeZone?: string) =>
-  dateFormat('en-CA', timeZone, { year: 'numeric', month: '2-digit' }).format(
-    date
-  )
+/** Calendar day of a date in the user's time zone, as YYYY-MM-DD. */
+export const dayKey = (date: Date, timeZone?: string) =>
+  dateFormat('en-CA', timeZone, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
 
-export const formatMonthLabel = (
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Heading of a day of meetings: "Aujourd’hui, 4 oct.", "Hier, 3 oct.", then
+ * "Jeu. 1 oct.", with the year only outside the current one.
+ */
+export const formatDayLabel = (
   date: Date,
   locale: string,
-  timeZone?: string
-) =>
-  capitalize(
-    dateFormat(locale, timeZone, { month: 'long', year: 'numeric' }).format(
-      date
-    ),
+  timeZone?: string,
+  now = new Date()
+) => {
+  const key = dayKey(date, timeZone)
+  const shortDate = dateFormat(locale, timeZone, {
+    day: 'numeric',
+    month: 'short',
+  }).format(date)
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  if (key === dayKey(now, timeZone))
+    return capitalize(`${relative.format(0, 'day')}, ${shortDate}`, locale)
+  if (key === dayKey(new Date(now.getTime() - DAY_MS), timeZone))
+    return capitalize(`${relative.format(-1, 'day')}, ${shortDate}`, locale)
+
+  const sameYear = key.slice(0, 4) === dayKey(now, timeZone).slice(0, 4)
+  return capitalize(
+    dateFormat(locale, timeZone, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: sameYear ? undefined : 'numeric',
+    }).format(date),
     locale
   )
+}
 
 export const formatMeetingDuration = (
   start: Date,
