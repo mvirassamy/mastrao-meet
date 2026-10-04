@@ -336,9 +336,15 @@ const MeetingDetailContent = ({
 
 /**
  * Tinted header: the large section icon sits on the right as an
- * illustration, partly cropped, so the title stays clean. Grey when there is
- * nothing to show, pink when the processing failed.
+ * illustration, partly cropped, so the title stays clean. Grey while the
+ * content is not ready or when there is nothing to show, pink when the
+ * processing failed.
  */
+const greyHeader = {
+  background: 'linear-gradient(120deg, token(colors.card) 30%, #eef0f4 100%)',
+  '& img': { filter: 'grayscale(1)', opacity: 0.45 },
+}
+
 const sectionHeader = cva({
   base: {
     position: 'relative',
@@ -362,12 +368,8 @@ const sectionHeader = cva({
   variants: {
     look: {
       content: {},
-      pending: {},
-      empty: {
-        background:
-          'linear-gradient(120deg, token(colors.card) 30%, #eef0f4 100%)',
-        '& img': { filter: 'grayscale(1)', opacity: 0.45 },
-      },
+      pending: greyHeader,
+      empty: greyHeader,
       failed: {
         background:
           'linear-gradient(120deg, token(colors.card) 30%, #fcebec 100%)',
