@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Show the past meetings of the selected day in the home
+  calendar, read from the meeting history with the same rows.
+
 - 2026-10-04: Group the meeting history by day ("Aujourd’hui", "Hier", then
   the date) instead of by month, rows keep only the time and duration.
 

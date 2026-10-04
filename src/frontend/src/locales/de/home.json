@@ -86,8 +86,15 @@
     },
     "empty": {
       "todayTitle": "Für heute sind keine Meetings geplant",
+      "pastTitle": "An diesem Tag gab es keine Meetings",
       "dateTitle": "Für dieses Datum sind keine Meetings geplant",
       "description": "Starte jetzt ein Meeting oder erstelle einen Link zum späteren Teilen."
+    },
+    "meetings": {
+      "count_one": "{{count}} Meeting",
+      "count_other": "{{count}} Meetings",
+      "loading": "Meetings werden geladen…",
+      "errorTitle": "Die Meetings dieses Tages können nicht angezeigt werden"
     }
   },
   "homeV2": {
