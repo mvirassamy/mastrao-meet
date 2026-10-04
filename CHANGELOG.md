@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Remove the "Mastrao Visio" block from the sidebar; settings
+  open from a gear next to the now white profile card.
+
 - 2026-10-04: Show the meeting history as one card with the day in a left
   column and a thin vertical line, the day above its meetings on mobile.
 

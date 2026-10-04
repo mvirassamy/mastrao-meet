@@ -47,6 +47,8 @@ export const MeetSidebarUserMenu = ({
           padding: collapsed ? '0!' : '0.5rem!',
           borderRadius: '8px',
           borderColor: 'var(--border)',
+          backgroundColor: 'card!',
+          '&[data-hovered]': { backgroundColor: 'accent!' },
           fontWeight: 400,
           overflow: 'hidden',
         })}
