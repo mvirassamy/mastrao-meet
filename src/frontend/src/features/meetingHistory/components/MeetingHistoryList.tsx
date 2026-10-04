@@ -1,5 +1,5 @@
 import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
-import { useEffect, useMemo, useRef } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 import { ChevronRightIcon, RetryIcon } from '@/icons'
@@ -25,6 +25,7 @@ import {
   monthKey,
 } from '../utils/meetingHistoryFormat'
 import { MeetingContentStatusIcon } from './MeetingContentStatusIcon'
+import { MeetingParticipantsStack } from './MeetingParticipantsStack'
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistorySkeleton } from './MeetingHistorySkeleton'
 
@@ -237,6 +238,33 @@ export const MeetingHistoryList = ({ timeZone }: { timeZone?: string }) => {
   )
 }
 
+/**
+ * Row cell drawn above the row link overlay so its tooltips can show. It only
+ * forwards a mouse click to the row link; keyboard and screen reader users
+ * reach the same link directly.
+ */
+const RowOverlayCell = ({
+  onOpen,
+  children,
+}: {
+  onOpen: () => void
+  children: ReactNode
+}) => (
+  // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+  <div
+    onClick={onOpen}
+    className={css({
+      position: 'relative',
+      zIndex: 1,
+      display: 'flex',
+      gap: '0.625rem',
+      cursor: 'pointer',
+    })}
+  >
+    {children}
+  </div>
+)
+
 const MeetingHistoryRow = ({
   item,
   locale,
@@ -253,9 +281,6 @@ const MeetingHistoryRow = ({
     formatMeetingShortDay(item.startedAt, locale, timeZone),
     formatMeetingTimeRange(item.startedAt, item.endedAt, locale, timeZone),
     duration,
-    item.participantCount !== null
-      ? t('participants', { count: item.participantCount })
-      : null,
   ].filter(Boolean)
 
   return (
@@ -263,7 +288,11 @@ const MeetingHistoryRow = ({
       className={css({
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+        gridTemplateColumns: {
+          base: 'minmax(0, 1fr) auto auto auto',
+          // The participants start in the middle of the row on wide screens.
+          md: 'minmax(0, 1fr) minmax(5.5rem, 1fr) auto auto',
+        },
         alignItems: 'center',
         columnGap: '0.75rem',
         rowGap: '0.5rem',
@@ -330,28 +359,19 @@ const MeetingHistoryRow = ({
           {meta.join(' · ')}
         </p>
       </div>
-      {/*
-       * Above the link overlay so the status tooltips show. The click only
-       * forwards a mouse click to the row link; keyboard and screen reader
-       * users reach the same link directly.
-       */}
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-      <div
-        onClick={() => linkRef.current?.click()}
-        className={css({
-          position: 'relative',
-          zIndex: 1,
-          display: 'flex',
-          gap: '0.625rem',
-          cursor: 'pointer',
-        })}
-      >
+      <RowOverlayCell onOpen={() => linkRef.current?.click()}>
+        <MeetingParticipantsStack
+          count={item.participantCount}
+          names={item.participantNames}
+        />
+      </RowOverlayCell>
+      <RowOverlayCell onOpen={() => linkRef.current?.click()}>
         <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
         <MeetingContentStatusIcon
           kind="transcript"
           status={item.transcriptStatus}
         />
-      </div>
+      </RowOverlayCell>
       <ChevronRightIcon
         size={18}
         aria-hidden="true"

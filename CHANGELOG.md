@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-04: Show the meeting history participants as overlapping initial
+  bubbles read from `participant_names`, up to three, or two and "+N".
+
 - 2026-10-04: Replace the summary and transcript status pills of the meeting
   history list with the 3D icons and a coloured status dot, the exact status
   shown on hover and read with the meeting link.
