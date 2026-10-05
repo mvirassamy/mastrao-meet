@@ -314,6 +314,22 @@ describe('LiveTranscriptSidePanel', () => {
     expect(screen.getByText('Will resume')).toBeTruthy()
   })
 
+  it('does not also say the transcript is starting while interrupted', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'reconnecting',
+      connectionStatus: 'disconnected',
+      resyncStatus: 'idle',
+      segments: [],
+      syncSubtitleState,
+      resolveSpeaker,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Connection interrupted')).toBeTruthy()
+    expect(screen.queryByText('Starting')).toBeNull()
+  })
+
   it('offers retry when the state refresh failed', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',

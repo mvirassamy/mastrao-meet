@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Show the interrupted transcription as a calm notice with an
+  amber dot, without also saying the transcription is starting.
+
 - 2026-10-05: Move settings to a row above the sidebar profile, kept as a
   white button with a menu chevron.
 

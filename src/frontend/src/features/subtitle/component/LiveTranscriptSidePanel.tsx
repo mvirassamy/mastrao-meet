@@ -105,26 +105,50 @@ const Segment = ({
   )
 }
 
-/** Shown only while the meeting connection is lost. */
+/**
+ * Shown only while the meeting connection is lost: a calm notice, the
+ * amber dot carries the warning and the text keeps the normal colours.
+ */
 const InterruptedNotice = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
 
   return (
     <div
       className={css({
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '0.625rem',
         margin: '0.75rem 1.25rem 0',
         padding: '0.625rem 0.75rem',
         borderRadius: '10px',
-        backgroundColor: 'warning.subtle',
-        color: 'warning.subtle-text',
+        border: '1px solid #fde3c3',
+        backgroundColor: '#fff7ed',
       })}
     >
-      <Text as="p" variant="bodyXsMedium" margin={false}>
-        {t('notice.interrupted')}
-      </Text>
-      <Text as="p" variant="note" margin={false}>
-        {t('notice.interruptedDescription')}
-      </Text>
+      <span
+        aria-hidden="true"
+        className={css({
+          width: '8px',
+          height: '8px',
+          marginTop: '0.375rem',
+          flexShrink: 0,
+          borderRadius: 'full',
+          backgroundColor: '#d97706',
+        })}
+      />
+      <div className={css({ minWidth: 0 })}>
+        <Text
+          as="p"
+          variant="sm"
+          margin={false}
+          className={css({ color: 'foreground', fontWeight: 500 })}
+        >
+          {t('notice.interrupted')}
+        </Text>
+        <Text as="p" variant="note" margin={false}>
+          {t('notice.interruptedDescription')}
+        </Text>
+      </div>
     </div>
   )
 }
@@ -150,6 +174,7 @@ export const LiveTranscriptSidePanel = () => {
   const hasSegments = segments.length > 0
   const speakerTurns = groupConsecutiveSpeakerSegments(segments)
   const hasFailed = hasStartFailed || resyncStatus === 'failed'
+  const isInterrupted = connectionStatus !== 'connected'
 
   useEffect(() => {
     let isCurrent = true
@@ -237,7 +262,7 @@ export const LiveTranscriptSidePanel = () => {
         </Text>
       )}
 
-      {connectionStatus !== 'connected' && <InterruptedNotice />}
+      {isInterrupted && <InterruptedNotice />}
 
       <div
         className={css({
@@ -252,7 +277,8 @@ export const LiveTranscriptSidePanel = () => {
         aria-live="off"
         aria-label={t('segmentsLabel')}
       >
-        {!hasSegments ? (
+        {/* While interrupted, the notice above already says what happens. */}
+        {!hasSegments && !isInterrupted && (
           <Text
             as="p"
             variant="note"
@@ -264,7 +290,8 @@ export const LiveTranscriptSidePanel = () => {
           >
             {t(`notice.${emptyTranscriptNotice(status)}`)}
           </Text>
-        ) : (
+        )}
+        {hasSegments &&
           speakerTurns.map((segment) => {
             const speaker = resolveSpeaker(segment.participantIdentity)
 
@@ -276,8 +303,7 @@ export const LiveTranscriptSidePanel = () => {
                 speakerColor={speaker?.color ?? DEFAULT_PARTICIPANT_COLOR}
               />
             )
-          })
-        )}
+          })}
       </div>
     </div>
   )
