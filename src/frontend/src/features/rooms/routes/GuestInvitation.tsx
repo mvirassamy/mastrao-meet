@@ -10,7 +10,9 @@ import {
   redeemGuestShare,
 } from '../api/redeemGuestInvitation'
 import { clearPlatformReturnForRoomUrl } from '../platformReturn'
+import { MissingGuestLink } from '../components/MissingGuestLink'
 import {
+  type GuestLink,
   consumeGuestInvitationFragment,
   guestRedemptionId,
   forgetGuestRedemption,
@@ -18,32 +20,29 @@ import {
 
 const GuestInvitation = () => {
   const { t } = useTranslation()
-  const invitation = consumeGuestInvitationFragment()
+  const [invitation, setInvitation] = useState(consumeGuestInvitationFragment)
   const redemptionId = useRef(invitation ? guestRedemptionId(invitation) : '')
   const [status, setStatus] = useState<
     'idle' | 'loading' | 'terminal-error' | 'temporary-error'
   >('idle')
 
-  const redeem = async () => {
-    if (!invitation || status === 'loading') return
+  const redeem = async (link: GuestLink) => {
+    if (status === 'loading') return
     setStatus('loading')
     try {
       const result =
-        invitation.kind === 'durable'
+        link.kind === 'durable'
           ? await redeemGuestShare(
-              invitation.organization,
-              invitation.share,
+              link.organization,
+              link.share,
               redemptionId.current
             )
-          : await redeemGuestInvitation(
-              invitation.invitation,
-              redemptionId.current
-            )
+          : await redeemGuestInvitation(link.invitation, redemptionId.current)
       clearPlatformReturnForRoomUrl(result.room_url)
       window.location.assign(`${result.room_url}?silentLogin=false`)
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 404)
-        forgetGuestRedemption(invitation)
+        forgetGuestRedemption(link)
       setStatus(
         error instanceof ApiError && error.statusCode === 404
           ? 'terminal-error'
@@ -52,7 +51,11 @@ const GuestInvitation = () => {
     }
   }
 
-  const canSubmit = invitation && status !== 'terminal-error'
+  const joinWithPastedLink = (link: GuestLink) => {
+    redemptionId.current = guestRedemptionId(link)
+    setInvitation(link)
+    void redeem(link)
+  }
 
   return (
     <Screen layout="centered" header={false} footer={false}>
@@ -76,16 +79,20 @@ const GuestInvitation = () => {
             pointerEvents: 'none',
           })}
         />
-        <H lvl={1} margin={false} centered>
-          {t('guestInvitation.title')}
-        </H>
-        <Text as="p" variant="note">
-          {t('guestInvitation.body')}
-        </Text>
-        {!invitation && <Text as="p">{t('guestInvitation.missing')}</Text>}
-        {canSubmit && (
+        {!invitation && <MissingGuestLink onLink={joinWithPastedLink} />}
+        {invitation && (
+          <>
+            <H lvl={1} margin={false} centered>
+              {t('guestInvitation.title')}
+            </H>
+            <Text as="p" variant="note">
+              {t('guestInvitation.body')}
+            </Text>
+          </>
+        )}
+        {invitation && status !== 'terminal-error' && (
           <Button
-            onPress={redeem}
+            onPress={() => void redeem(invitation)}
             loading={status === 'loading'}
             isDisabled={status === 'loading'}
           >

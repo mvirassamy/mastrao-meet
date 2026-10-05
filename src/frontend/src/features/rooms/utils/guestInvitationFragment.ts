@@ -4,13 +4,12 @@ export type GuestLink =
 
 let capturedInvitation: GuestLink | null | undefined
 
-export const consumeGuestInvitationFragment = () => {
-  if (capturedInvitation !== undefined) return capturedInvitation
-  const fragment = new URLSearchParams(window.location.hash.slice(1))
+/** Reads the guest link locator carried by a URL fragment. */
+const parseGuestLinkFragment = (hash: string): GuestLink | null => {
+  const fragment = new URLSearchParams(hash.slice(1))
   const organization = fragment.get('organization')
   const share = fragment.get('share')
   const invite = fragment.get('invite')
-  capturedInvitation = null
   if (
     [...fragment.keys()].length === 2 &&
     organization &&
@@ -18,21 +17,38 @@ export const consumeGuestInvitationFragment = () => {
     share &&
     /^share_[A-Za-z0-9_-]{32}$/.test(share)
   ) {
-    capturedInvitation = { kind: 'durable', organization, share }
-  } else if (
-    invite &&
-    invite.length <= 16384 &&
-    [...fragment.keys()].length === 1
-  ) {
-    // Existing issued legacy invitations remain redeemable under their original limits.
-    capturedInvitation = { kind: 'legacy', invitation: invite }
+    return { kind: 'durable', organization, share }
   }
+  if (invite && invite.length <= 16384 && [...fragment.keys()].length === 1) {
+    // Existing issued legacy invitations remain redeemable under their original limits.
+    return { kind: 'legacy', invitation: invite }
+  }
+  return null
+}
+
+export const consumeGuestInvitationFragment = () => {
+  if (capturedInvitation !== undefined) return capturedInvitation
+  capturedInvitation = parseGuestLinkFragment(window.location.hash)
   window.history.replaceState(
     window.history.state,
     '',
     `${window.location.pathname}${window.location.search}`
   )
   return capturedInvitation
+}
+
+/** Reads a full guest link pasted by hand; only links to this guest page count. */
+export const parsePastedGuestLink = (value: string): GuestLink | null => {
+  let url: URL
+  try {
+    url = new URL(value.trim())
+  } catch {
+    return null
+  }
+  const isThisGuestPage =
+    url.origin === window.location.origin &&
+    url.pathname === window.location.pathname
+  return isThisGuestPage ? parseGuestLinkFragment(url.hash) : null
 }
 
 export const guestRedemptionId = (link: GuestLink) => {

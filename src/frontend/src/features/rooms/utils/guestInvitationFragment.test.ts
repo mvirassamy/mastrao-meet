@@ -46,3 +46,29 @@ describe('durable guest entry', () => {
     expect(window.location.hash).toBe('')
   })
 })
+
+describe('pasted guest link', () => {
+  it('reads a complete link to this guest page', async () => {
+    const module = await capture('')
+    expect(
+      module.parsePastedGuestLink(
+        `  ${window.location.origin}/guest${fragment} `
+      )
+    ).toEqual({
+      kind: 'durable',
+      organization: 'organization_test',
+      share: 'share_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef',
+    })
+  })
+
+  it.each([
+    'not a link',
+    `${window.location.origin}/guest`,
+    `${window.location.origin}/guest#organization=organization_test`,
+    `${window.location.origin}/abc-defg-hij${fragment}`,
+    `https://example.com/guest${fragment}`,
+  ])('rejects an incomplete or foreign link: %s', async (value) => {
+    const module = await capture('')
+    expect(module.parsePastedGuestLink(value)).toBeNull()
+  })
+})
