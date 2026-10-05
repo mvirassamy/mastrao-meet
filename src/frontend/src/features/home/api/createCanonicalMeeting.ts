@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
+import type { MeetingSchedule } from '../utils/meetingSchedule'
 
 /**
  * Canonical Meet creation backed by the Platform facade (Cabinet Core).
@@ -13,6 +14,11 @@ export type CanonicalMeeting = {
   meetingRef: string
   /** Also the Meet room slug: the room URL is /{roomRef}. */
   roomRef: string
+}
+
+export type CreateMeetingRequest = {
+  idempotencyKey: string
+  schedule?: MeetingSchedule
 }
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,128}$/
@@ -38,17 +44,27 @@ export class CanonicalMeetingContractError extends Error {
   }
 }
 
-export const createCanonicalMeeting = async (
-  idempotencyKey: string
-): Promise<CanonicalMeeting> => {
+export const createCanonicalMeeting = async ({
+  idempotencyKey,
+  schedule,
+}: CreateMeetingRequest): Promise<CanonicalMeeting> => {
   if (!IDEMPOTENCY_KEY.test(idempotencyKey))
     throw new Error('Invalid idempotency key')
+  const options: RequestInit = {
+    method: 'POST',
+    headers: { 'X-Idempotency-Key': idempotencyKey },
+  }
+  if (schedule) {
+    options.body = JSON.stringify({
+      ...(schedule.title && { title: schedule.title }),
+      scheduled_start_at: schedule.startsAt,
+      scheduled_end_at: schedule.endsAt,
+      timezone: schedule.timeZone,
+    })
+  }
   const raw = await fetchApi<Record<string, unknown>>(
     CANONICAL_MEETING_ENDPOINT,
-    {
-      method: 'POST',
-      headers: { 'X-Idempotency-Key': idempotencyKey },
-    }
+    options
   )
   const { meeting_ref, room_ref } = raw ?? {}
   if (
@@ -56,6 +72,14 @@ export const createCanonicalMeeting = async (
     typeof room_ref !== 'string' ||
     !REF.test(meeting_ref) ||
     !REF.test(room_ref)
+  )
+    throw new CanonicalMeetingContractError()
+  if (
+    schedule &&
+    (raw.scheduled_start_at !== schedule.startsAt ||
+      raw.scheduled_end_at !== schedule.endsAt ||
+      raw.timezone !== schedule.timeZone ||
+      (raw.title ?? '') !== schedule.title)
   )
     throw new CanonicalMeetingContractError()
   return { meetingRef: meeting_ref, roomRef: room_ref }
@@ -71,7 +95,7 @@ export const canonicalMeetingMutationKey = ['createCanonicalMeeting'] as const
  * variable: automatic retries replay the exact same key.
  */
 export const useCreateCanonicalMeeting = () =>
-  useMutation<CanonicalMeeting, unknown, string>({
+  useMutation<CanonicalMeeting, unknown, CreateMeetingRequest>({
     mutationKey: canonicalMeetingMutationKey,
     mutationFn: createCanonicalMeeting,
     retry: (failureCount, error) => isRetryable(error) && failureCount < 2,

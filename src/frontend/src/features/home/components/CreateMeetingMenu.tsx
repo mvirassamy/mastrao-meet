@@ -4,7 +4,9 @@ import { Button, Menu, type ButtonProps } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
 import { AddIcon, LinkIcon, VideoAddIcon } from '@/icons'
 import { LaterMeetingDialog } from '@/features/home/components/LaterMeetingDialog'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { ScheduleMeetingDialog } from './ScheduleMeetingDialog'
+import type { MeetingSchedule } from '../utils/meetingSchedule'
 
 import { menuRecipe } from '@/primitives/menuRecipe'
 import { ApiAccessLevel, type ApiRoom } from '@/features/rooms/api/ApiRoom'
@@ -45,19 +47,20 @@ export const CreateMeetingMenu = ({
   })
   const isCreating = isPending || activeCreateRequests > 0
   const [laterRoom, setLaterRoom] = useState<null | ApiRoom>(null)
+  const [scheduling, setScheduling] = useState(false)
+  const scheduleRequest = useRef<{
+    fingerprint: string
+    idempotencyKey: string
+  }>()
   const [creationFailed, setCreationFailed] = useState(false)
 
-  const createMeeting = async (forLater: boolean) => {
+  const createMeeting = async () => {
     if (isCreating) return
     setCreationFailed(false)
     // One key per user action; automatic retries replay this exact key.
     const idempotencyKey = createIdempotencyKey()
     try {
-      const { roomRef } = await createMeetingRequest(idempotencyKey)
-      if (forLater) {
-        setLaterRoom(laterRoomFromRef(roomRef))
-        return
-      }
+      const { roomRef } = await createMeetingRequest({ idempotencyKey })
       // The backend already attached the host grant to this session.
       navigateTo('room', roomRef)
     } catch (error) {
@@ -66,6 +69,22 @@ export const CreateMeetingMenu = ({
         context: 'Failed to create meeting room:',
       })
     }
+  }
+
+  const createScheduledMeeting = async (schedule: MeetingSchedule) => {
+    const fingerprint = JSON.stringify(schedule)
+    if (scheduleRequest.current?.fingerprint !== fingerprint) {
+      scheduleRequest.current = {
+        fingerprint,
+        idempotencyKey: createIdempotencyKey(),
+      }
+    }
+    const { roomRef } = await createMeetingRequest({
+      idempotencyKey: scheduleRequest.current.idempotencyKey,
+      schedule,
+    })
+    setScheduling(false)
+    setLaterRoom(laterRoomFromRef(roomRef))
   }
 
   return (
@@ -92,7 +111,7 @@ export const CreateMeetingMenu = ({
                 }).item
               }
               isDisabled={isCreating}
-              onAction={() => void createMeeting(false)}
+              onAction={() => void createMeeting()}
               data-attr="create-option-instant"
             >
               <AddIcon aria-hidden="true" />
@@ -107,7 +126,10 @@ export const CreateMeetingMenu = ({
                 }).item
               }
               isDisabled={isCreating}
-              onAction={() => void createMeeting(true)}
+              onAction={() => {
+                scheduleRequest.current = undefined
+                setScheduling(true)
+              }}
               data-attr="create-option-later"
             >
               <LinkIcon aria-hidden="true" />
@@ -128,6 +150,13 @@ export const CreateMeetingMenu = ({
           </p>
         )}
       </div>
+      {scheduling && (
+        <ScheduleMeetingDialog
+          isOpen
+          onClose={() => setScheduling(false)}
+          onCreate={createScheduledMeeting}
+        />
+      )}
       <LaterMeetingDialog
         room={laterRoom}
         onOpenChange={() => setLaterRoom(null)}

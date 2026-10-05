@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Plan meetings with an optional title, browser-local date and
+  times persisted canonically, and keep immediate guest and host access.
+
 - 2026-10-05: Simplify the meeting conversation panel: one fixed title, small
   tab pills with an unread dot, and plain transcription notices.
 

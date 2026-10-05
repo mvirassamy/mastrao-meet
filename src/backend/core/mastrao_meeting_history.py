@@ -1,5 +1,6 @@
 """Authenticated Meet API backed by the Platform meeting facade."""
 
+import json
 import re
 
 from django.http import JsonResponse
@@ -15,6 +16,34 @@ from core.mastrao_platform_facade import (
 )
 
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
+MAX_CREATION_BODY_BYTES = 8192
+CREATION_FIELDS = {"title", "scheduled_start_at", "scheduled_end_at", "timezone"}
+
+
+def _reject_json_constant(_value):
+    raise ValueError("Invalid JSON constant")
+
+
+def _creation_body(request):
+    """Bound the JSON envelope; Platform validates canonical schedule values."""
+
+    declared = request.META.get("CONTENT_LENGTH")
+    if declared and (
+        not declared.isdecimal() or int(declared) > MAX_CREATION_BODY_BYTES
+    ):
+        raise PlatformFacadeError(status=422)
+    raw = request.read(MAX_CREATION_BODY_BYTES + 1)
+    if not raw:
+        return None
+    if request.content_type != "application/json" or len(raw) > MAX_CREATION_BODY_BYTES:
+        raise PlatformFacadeError(status=422)
+    try:
+        body = json.loads(raw, parse_constant=_reject_json_constant)
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
+        raise PlatformFacadeError(status=422) from error
+    if not isinstance(body, dict) or set(body) - CREATION_FIELDS:
+        raise PlatformFacadeError(status=422)
+    return body
 
 
 def _response(operation):
@@ -42,15 +71,19 @@ def create_meeting(request):
         return JsonResponse({"message": "Paramètres invalides"}, status=422)
 
     def create_and_bind():
+        payload = _creation_body(request)
+        options = {
+            "idempotency_key": idempotency_key,
+            "timeout": MEETING_CREATION_TIMEOUT_SECONDS,
+        }
+        if payload is not None:
+            options["json"] = payload
         body, status = request_platform(
             request,
             "POST",
             "/api/meet/meetings",
             accepted_statuses={201},
-            options={
-                "idempotency_key": idempotency_key,
-                "timeout": MEETING_CREATION_TIMEOUT_SECONDS,
-            },
+            options=options,
         )
         handoff = body.pop("host_handoff", None)
         if not isinstance(handoff, str):
