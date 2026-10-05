@@ -3,6 +3,9 @@
 - 2026-10-05: Show planned meetings on their scheduled home day after
   creation and reload, with canonical times and existing host access.
 
+- 2026-10-05: Show loading buttons with a thin ring in place of the icon,
+  keeping the button at full colour instead of greying it out.
+
 - 2026-10-05: The meeting detail "Retour" link now returns to the list the
   meeting was opened from: the home day or the history.
 

@@ -1,45 +1,21 @@
-import { cva } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 
-const loader = cva({
-  base: {
-    borderRadius: '50%',
-    position: 'relative',
-    animation: 'rotate 1s linear infinite',
-    '&:before, &:after': {
-      content: '""',
-      boxSizing: 'border-box',
-      position: 'absolute',
-      inset: '0',
-      borderRadius: '50%',
-      borderStyle: 'solid',
-      borderColor: 'currentColor',
-    },
-    _before: {
-      animation: 'prixClipFix 2s linear infinite',
-    },
-    _after: {
-      borderColor: 'currentColor',
-      animation:
-        'prixClipFix 2s linear infinite, rotate 0.5s linear infinite reverse',
-      inset: 6,
-    },
-  },
-  variants: {
-    size: {
-      small: {
-        width: '24px',
-        height: '24px',
-        '&:before, &:after': {
-          borderWidth: '2px',
-        },
-      },
-    },
-  },
-  defaultVariants: {
-    size: 'small',
-  },
+const ring = css({
+  display: 'inline-block',
+  flexShrink: 0,
+  width: '24px',
+  height: '24px',
+  borderRadius: '50%',
+  border: '2px solid color-mix(in srgb, currentColor 30%, transparent)',
+  borderTopColor: 'currentColor',
+  animation: 'rotate 0.8s linear infinite',
+  _motionReduce: { animationDuration: '2.4s' },
 })
 
-export const Loader = () => {
-  return <div className={loader()}></div>
-}
+/**
+ * Thin spinning ring in the current text colour. Inside a Button it takes
+ * the size of the button icons, which it replaces while loading.
+ */
+export const Loader = () => (
+  <span data-loader aria-hidden="true" className={ring} />
+)
