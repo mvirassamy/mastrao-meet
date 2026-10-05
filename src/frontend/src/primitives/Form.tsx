@@ -17,6 +17,7 @@ export const Form = ({
   onSubmit,
   submitLabel,
   submitButtonProps,
+  cancelButtonProps,
   withCancelButton = true,
   onCancelButtonPress,
   children,
@@ -30,6 +31,7 @@ export const Form = ({
   ) => void
   submitLabel: string
   submitButtonProps?: ButtonProps
+  cancelButtonProps?: ButtonProps
   withCancelButton?: boolean
   onCancelButtonPress?: () => void
 }) => {
@@ -64,7 +66,11 @@ export const Form = ({
           })}
         >
           {!!onCancel && (
-            <Button variant="outline" onPress={() => onCancel()}>
+            <Button
+              variant="outline"
+              {...cancelButtonProps}
+              onPress={() => onCancel()}
+            >
               {t('cancel')}
             </Button>
           )}
@@ -78,7 +84,11 @@ export const Form = ({
             {submitLabel}
           </Button>
           {!!onCancel && (
-            <Button variant="outline" onPress={() => onCancel()}>
+            <Button
+              variant="outline"
+              {...cancelButtonProps}
+              onPress={() => onCancel()}
+            >
               {t('cancel')}
             </Button>
           )}

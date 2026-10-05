@@ -15,7 +15,7 @@
   "moreAbout": "over {{appTitle}}",
   "connectionTestLink": "Test je configuratie",
   "createMenu": {
-    "laterOption": "Maak een vergadering voor een latere datum",
+    "laterOption": "Een vergadering plannen",
     "instantOption": "Begin direct een vergadering",
     "error": "De vergadering kon niet worden gemaakt. Probeer het opnieuw."
   },
@@ -109,6 +109,24 @@
     "cta": {
       "title": "Klaar om samen te komen?",
       "body": "Log in om een vergadering te maken, of neem deel aan de vergadering waarvoor je bent uitgenodigd."
+    }
+  },
+  "scheduleMeetingDialog": {
+    "heading": "Een vergadering plannen",
+    "title": "Titel (optioneel)",
+    "date": "Datum",
+    "startTime": "Starttijd",
+    "endTime": "Eindtijd",
+    "create": "Vergadering maken",
+    "timeZone": "Tijdzone: {{timeZone}}",
+    "access": "De tijden zijn indicatief. De toegangsregels gelden vanaf het aanmaken. Alleen “Beëindigen voor iedereen” sluit de vergadering definitief.",
+    "error": "Aanmaken is mislukt. Uw gegevens blijven behouden; probeer het opnieuw.",
+    "errors": {
+      "invalidDate": "Kies een geldige datum.",
+      "invalidTime": "Kies een geldige tijd.",
+      "nonexistentTime": "Deze tijd bestaat niet in deze tijdzone vanwege de klokverandering.",
+      "ambiguousTime": "Deze tijd komt tweemaal voor bij een klokverandering. Kies een andere tijd.",
+      "endBeforeStart": "Het einde moet na het begin liggen."
     }
   }
 }

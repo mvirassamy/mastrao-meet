@@ -15,7 +15,7 @@
   "moreAbout": "über {{appTitle}}",
   "connectionTestLink": "Testen Sie Ihre Konfiguration",
   "createMenu": {
-    "laterOption": "Meeting für später planen",
+    "laterOption": "Besprechung planen",
     "instantOption": "Meeting sofort starten",
     "error": "Das Meeting konnte nicht erstellt werden. Versuche es erneut."
   },
@@ -109,6 +109,24 @@
     "cta": {
       "title": "Bereit für Ihr Treffen?",
       "body": "Melde dich an, um ein Meeting zu erstellen, oder tritt dem Meeting bei, zu dem du eingeladen wurdest."
+    }
+  },
+  "scheduleMeetingDialog": {
+    "heading": "Besprechung planen",
+    "title": "Titel (optional)",
+    "date": "Datum",
+    "startTime": "Beginn",
+    "endTime": "Ende",
+    "create": "Besprechung erstellen",
+    "timeZone": "Zeitzone: {{timeZone}}",
+    "access": "Die Zeiten dienen zur Orientierung. Die Zugangsregeln gelten ab der Erstellung. Nur „Für alle beenden“ schließt die Besprechung dauerhaft.",
+    "error": "Die Erstellung ist fehlgeschlagen. Ihre Eingaben bleiben erhalten; versuchen Sie es erneut.",
+    "errors": {
+      "invalidDate": "Wählen Sie ein gültiges Datum.",
+      "invalidTime": "Wählen Sie eine gültige Uhrzeit.",
+      "nonexistentTime": "Diese Uhrzeit existiert wegen der Zeitumstellung in dieser Zeitzone nicht.",
+      "ambiguousTime": "Diese Uhrzeit tritt bei der Zeitumstellung zweimal auf. Wählen Sie eine andere Uhrzeit.",
+      "endBeforeStart": "Das Ende muss nach dem Beginn liegen."
     }
   }
 }

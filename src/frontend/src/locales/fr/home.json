@@ -15,8 +15,8 @@
   "moreAbout": "sur {{appTitle}}",
   "connectionTestLink": "Tester votre configuration",
   "createMenu": {
-    "laterOption": "Créer une réunion pour une date ultérieure",
-    "instantOption": "Démarrer une réunion instantanée",
+    "laterOption": "Planifier une réunion",
+    "instantOption": "Démarrer maintenant",
     "error": "Impossible de créer la réunion. Réessayez."
   },
   "laterMeetingDialog": {
@@ -109,6 +109,24 @@
     "cta": {
       "title": "Prêt à vous retrouver ?",
       "body": "Connectez-vous pour créer une réunion, ou rejoignez celle à laquelle vous êtes invité."
+    }
+  },
+  "scheduleMeetingDialog": {
+    "heading": "Planifier une réunion",
+    "title": "Titre (facultatif)",
+    "date": "Date",
+    "startTime": "Heure de début",
+    "endTime": "Heure de fin",
+    "create": "Créer la réunion",
+    "timeZone": "Fuseau horaire : {{timeZone}}",
+    "access": "Les horaires sont indicatifs. L’accès suit les règles de la réunion dès sa création. Seul « Terminer pour tous » ferme définitivement la réunion.",
+    "error": "La création a échoué. Vos informations sont conservées ; réessayez.",
+    "errors": {
+      "invalidDate": "Choisissez une date valide.",
+      "invalidTime": "Choisissez une heure valide.",
+      "nonexistentTime": "Cette heure n’existe pas dans ce fuseau à cause du changement d’heure.",
+      "ambiguousTime": "Cette heure se produit deux fois lors du changement d’heure. Choisissez une autre heure.",
+      "endBeforeStart": "La fin doit être après le début."
     }
   }
 }
