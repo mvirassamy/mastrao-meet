@@ -8,6 +8,8 @@ import { SemanticGallery } from './SemanticGallery'
 import { SettingsDialogExtendedKey } from '@/features/settings/type'
 import { openSettingsDialog, closeSettingsDialog } from '@/stores/settings'
 import { Suspense, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { I18nProvider } from 'react-aria-components'
 import { Route, Router, Switch } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -192,41 +194,45 @@ const PreviewScreen = () => {
 
 export const Preview = () => {
   useApplyA11yFonts()
+  const { i18n } = useTranslation()
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="preview-shell">
-        <div className="preview-banner">
-          <strong>Aperçu local</strong>
-          <span>
-            Données de test · aucun appel, enregistrement ou envoi réel
-          </span>
-          <label>
-            Écran
-            <select
-              value={previewScenario}
-              onChange={(event) =>
-                location.assign(
-                  `/preview.html?screen=${event.target.value}&outcome=ended`
-                )
-              }
-            >
-              {previewScreens.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+      {/* Same date and number locale as the application (App.tsx). */}
+      <I18nProvider locale={i18n.language}>
+        <div className="preview-shell">
+          <div className="preview-banner">
+            <strong>Aperçu local</strong>
+            <span>
+              Données de test · aucun appel, enregistrement ou envoi réel
+            </span>
+            <label>
+              Écran
+              <select
+                value={previewScenario}
+                onChange={(event) =>
+                  location.assign(
+                    `/preview.html?screen=${event.target.value}&outcome=ended`
+                  )
+                }
+              >
+                {previewScreens.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <Suspense fallback={<p role="status">Chargement de l’aperçu…</p>}>
+            <MeetingLifecycleProvider roomId={previewRoomId}>
+              <Layout>
+                <Permissions />
+                <PreviewScreen />
+              </Layout>
+            </MeetingLifecycleProvider>
+          </Suspense>
         </div>
-        <Suspense fallback={<p role="status">Chargement de l’aperçu…</p>}>
-          <MeetingLifecycleProvider roomId={previewRoomId}>
-            <Layout>
-              <Permissions />
-              <PreviewScreen />
-            </Layout>
-          </MeetingLifecycleProvider>
-        </Suspense>
-      </div>
+      </I18nProvider>
     </QueryClientProvider>
   )
 }
