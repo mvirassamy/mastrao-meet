@@ -97,7 +97,9 @@
       "count_one": "{{count}} réunion",
       "count_other": "{{count}} réunions",
       "loading": "Chargement des réunions…",
-      "errorTitle": "Impossible d’afficher les réunions de ce jour"
+      "errorTitle": "Impossible d’afficher les réunions de ce jour",
+      "planned": "Planifiée",
+      "closed": "Accès fermé"
     }
   },
   "homeV2": {

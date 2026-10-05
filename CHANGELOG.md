@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Show planned meetings on their scheduled home day after
+  creation and reload, with canonical times and existing host access.
+
 - 2026-10-05: The meeting detail "Retour" link now returns to the list the
   meeting was opened from: the home day or the history.
 

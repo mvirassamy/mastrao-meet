@@ -37,6 +37,12 @@ const meeting = (id: string, startedAt: string) => ({
   transcript_status: 'available',
 })
 
+const mockHistoryFetch = (read: (url: string) => Promise<unknown>) =>
+  fetchApiMock.mockImplementation(async (url) => {
+    if (url.startsWith('meetings/?')) return { results: [], next_cursor: null }
+    return read(url)
+  })
+
 const FIRST_PAGE = 'meetings/history/'
 const OLDER_PAGE = 'meetings/history/?cursor=page-2'
 
@@ -61,7 +67,7 @@ afterEach(cleanup)
 
 describe('meetings of the selected home day', () => {
   it('loads older history pages until the day is covered', async () => {
-    fetchApiMock.mockImplementation(async (url: string) => {
+    mockHistoryFetch(async (url: string) => {
       if (url === FIRST_PAGE)
         return {
           results: [meeting('recente', '2026-10-04T08:00:00Z')],
@@ -92,7 +98,7 @@ describe('meetings of the selected home day', () => {
   it('keeps the retry button and its focus while a failed page is retried', async () => {
     let retrying = false
     let failRetry: (error: Error) => void = () => undefined
-    fetchApiMock.mockImplementation(async (url: string) => {
+    mockHistoryFetch(async (url: string) => {
       if (url === FIRST_PAGE)
         return {
           results: [meeting('recente', '2026-10-04T08:00:00Z')],

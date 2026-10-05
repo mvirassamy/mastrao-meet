@@ -22,6 +22,22 @@ describe('meetings of a day', () => {
     ).toEqual(['evening'])
   })
 
+  it('excludes planned history rows from their creation day', () => {
+    const planned = {
+      ...meeting('planned', '2026-10-05T12:00:00Z'),
+      scheduledStartAt: new Date('2026-10-06T08:00:00Z'),
+    }
+    expect(meetingsOfDay([planned], '2026-10-05', 'Europe/Paris')).toEqual([])
+    expect(meetingsOfDay([planned], '2026-10-06', 'Europe/Paris')).toEqual([])
+    expect(
+      meetingsOfDay(
+        [meeting('instant', '2026-10-05T12:00:00Z')],
+        '2026-10-05',
+        'Europe/Paris'
+      )
+    ).toHaveLength(1)
+  })
+
   it('asks for older pages until the oldest meeting is before the day', () => {
     expect(olderPagesMayHoldDay([], '2026-10-03', 'UTC')).toBe(true)
     expect(olderPagesMayHoldDay(items, '2026-10-01', 'UTC')).toBe(true)

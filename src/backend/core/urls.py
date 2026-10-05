@@ -18,7 +18,7 @@ from core.mastrao_guest_share_link import consume_guest_share_link
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
 from core.mastrao_host_recovery import recover_meeting_host
 from core.mastrao_meeting_history import (
-    create_meeting,
+    meeting_collection,
     meeting_history,
     meeting_history_detail,
     meeting_summary,
@@ -147,7 +147,7 @@ urlpatterns = [
             [
                 *router.urls,
                 *oidc_urls,
-                path("meetings/", create_meeting, name="mastrao_create_meeting"),
+                path("meetings/", meeting_collection, name="mastrao_create_meeting"),
                 path(
                     "rooms/<str:room_ref>/host-handoff/",
                     recover_meeting_host,

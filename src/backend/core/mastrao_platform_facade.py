@@ -74,22 +74,34 @@ def _read_json(response):
     return body
 
 
+def _query_string(options):
+    """Encode day bounds and the existing bounded opaque history cursor."""
+
+    query = {
+        field: options[field] for field in ("day_start", "day_end") if field in options
+    }
+    cursor = options.get("cursor")
+    if cursor is not None:
+        if not CURSOR.fullmatch(cursor):
+            raise PlatformFacadeError(status=422)
+        query["cursor"] = cursor
+    return urlencode(query)
+
+
 def request_platform(request, method, path, *, accepted_statuses, options=None):
     """Call one allowlisted Platform meeting endpoint without token disclosure."""
 
     token = _access_token(request)
     options = options or {}
-    cursor = options.get("cursor")
     idempotency_key = options.get("idempotency_key")
     timeout = options.get("timeout", DEFAULT_TIMEOUT_SECONDS)
     body_options = {}
     if "json" in options:
         body_options["json"] = options["json"]
     target = f"{_platform_origin()}{path}"
-    if cursor is not None:
-        if not CURSOR.fullmatch(cursor):
-            raise PlatformFacadeError(status=422)
-        target = f"{target}?{urlencode({'cursor': cursor})}"
+    query = _query_string(options)
+    if query:
+        target = f"{target}?{query}"
     try:
         with requests.Session() as session:
             session.trust_env = False

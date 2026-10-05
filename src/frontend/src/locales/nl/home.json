@@ -97,7 +97,9 @@
       "count_one": "{{count}} vergadering",
       "count_other": "{{count}} vergaderingen",
       "loading": "Vergaderingen laden…",
-      "errorTitle": "Kan de vergaderingen van deze dag niet weergeven"
+      "errorTitle": "Kan de vergaderingen van deze dag niet weergeven",
+      "planned": "Gepland",
+      "closed": "Toegang gesloten"
     }
   },
   "homeV2": {

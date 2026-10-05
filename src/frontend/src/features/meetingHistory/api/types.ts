@@ -34,6 +34,8 @@ export type MeetingHistoryItem = {
   id: string
   title: string | null
   startedAt: Date
+  /** Additive list metadata; planned home rows come from the canonical day read. */
+  scheduledStartAt?: Date | null
   endedAt: Date | null
   participantCount: number | null
   /** Display names of the first participants, in the server's order. */
