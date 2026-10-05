@@ -14,12 +14,12 @@ type Action = 'start' | 'accepted' | 'refused'
 
 export const RecordingPreparation = ({
   roomId,
-  canEnd,
+  canStart,
   video,
   onRecordingChanged,
 }: {
   roomId: string
-  canEnd?: boolean
+  canStart?: boolean
   video: VideoRecordingPolicy
   onRecordingChanged?: () => Promise<unknown>
 }) => {
@@ -35,7 +35,7 @@ export const RecordingPreparation = ({
 
   const act = async (action: Action) => {
     if (locked || inFlight.current) return
-    if (action === 'start' && (!canEnd || !video.start_available)) return
+    if (action === 'start' && (!canStart || !video.start_available)) return
     inFlight.current = true
     setPending(action)
     setFailed(false)
@@ -105,7 +105,7 @@ export const RecordingPreparation = ({
           )}
         </div>
       )}
-      {canEnd && (
+      {canStart && (
         <Button
           variant="outline"
           size="sm"

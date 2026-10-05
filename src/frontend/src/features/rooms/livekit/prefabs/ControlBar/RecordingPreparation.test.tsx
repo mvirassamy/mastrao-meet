@@ -46,7 +46,7 @@ it('only requests capture after the host clicks and rereads authoritative status
   render(
     <RecordingPreparation
       roomId="room-1"
-      canEnd
+      canStart
       video={video}
       onRecordingChanged={refresh}
     />
@@ -74,7 +74,7 @@ it.each(['pending', 'refused'] as const)(
     render(
       <RecordingPreparation
         roomId="room-1"
-        canEnd
+        canStart
         video={{ ...video, start_status, start_available: false }}
       />
     )
@@ -169,7 +169,7 @@ it.each(['start_in_progress', 'started', 'stopped'] as const)(
     render(
       <RecordingPreparation
         roomId="room-1"
-        canEnd
+        canStart
         video={{ ...video, decision_lock }}
       />
     )
@@ -183,7 +183,7 @@ it.each(['start_in_progress', 'started', 'stopped'] as const)(
 
 it('blocks actions while the meeting closes', () => {
   isEnding = true
-  render(<RecordingPreparation roomId="room-1" canEnd video={video} />)
+  render(<RecordingPreparation roomId="room-1" canStart video={video} />)
   screen.getAllByRole('button').forEach((button) => {
     expect(button.hasAttribute('disabled')).toBe(true)
     fireEvent.click(button)
@@ -203,7 +203,7 @@ it('prevents duplicate requests while start is in flight', async () => {
   render(
     <RecordingPreparation
       roomId="room-1"
-      canEnd
+      canStart
       video={video}
       onRecordingChanged={refresh}
     />
@@ -222,7 +222,7 @@ it('retries an unconfirmed activation using the same identifier', async () => {
   render(
     <RecordingPreparation
       roomId="room-1"
-      canEnd
+      canStart
       video={video}
       onRecordingChanged={refresh}
     />
@@ -241,7 +241,7 @@ it('creates a new request when a completed attempt returns to pending decisions'
   render(
     <RecordingPreparation
       roomId="room-1"
-      canEnd
+      canStart
       video={video}
       onRecordingChanged={refresh}
     />
