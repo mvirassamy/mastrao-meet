@@ -3,7 +3,7 @@ import type { ApiUser } from '@/features/auth/api/ApiUser'
 import { css } from '@/styled-system/css'
 import { MeetSidebarBrand } from './MeetSidebarBrand'
 import { MeetSidebarNav } from './MeetSidebarNav'
-import { MeetSidebarSettingsButton } from './MeetSidebarSettingsButton'
+import { MeetSidebarSettingsItem } from './MeetSidebarSettingsItem'
 import { MeetSidebarUserMenu } from './MeetSidebarUserMenu'
 
 type MeetSidebarProps = {
@@ -69,19 +69,24 @@ export const MeetSidebar = ({
           onNavigate={onNavigate}
         />
       </div>
+      <div
+        className={css({
+          flexShrink: 0,
+          paddingX: collapsed ? '12px' : '14px',
+          paddingBottom: '8px',
+        })}
+      >
+        <MeetSidebarSettingsItem collapsed={collapsed} mobile={mobile} />
+      </div>
       <footer
         className={css({
           flexShrink: 0,
           display: 'flex',
-          flexDirection: collapsed ? 'column' : 'row',
-          alignItems: 'center',
-          gap: '8px',
-          padding: collapsed ? '16px 8px' : '16px',
+          justifyContent: 'center',
+          padding: collapsed ? '12px 8px' : '12px',
           borderTop: '1px solid token(colors.border)',
         })}
       >
-        {/* Collapsed: settings sit above the avatar, in focus order too. */}
-        {collapsed && <MeetSidebarSettingsButton collapsed />}
         <div className={css({ minWidth: 0, flex: collapsed ? 'none' : 1 })}>
           <MeetSidebarUserMenu
             user={user}
@@ -89,7 +94,6 @@ export const MeetSidebar = ({
             onLogout={onNavigate}
           />
         </div>
-        {!collapsed && <MeetSidebarSettingsButton />}
       </footer>
     </div>
   )

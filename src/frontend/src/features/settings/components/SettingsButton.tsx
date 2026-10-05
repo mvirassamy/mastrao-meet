@@ -10,7 +10,7 @@ export const SettingsButton = ({
   buttonProps,
   dialogAppearance,
 }: {
-  buttonProps?: Pick<ButtonProps, 'size' | 'variant' | 'className'>
+  buttonProps?: Pick<ButtonProps, 'size' | 'className'>
   dialogAppearance?: DialogProps['appearance']
 } = {}) => {
   const { t } = useTranslation('settings')
