@@ -42,7 +42,7 @@ export const NativeRecordingConsent = ({
       <Text as="p" variant="note">
         {t('scope', {
           defaultValue:
-            'Ce choix concerne votre piste audio individuelle. Il ne modifie pas votre choix précédent concernant l’enregistrement vidéo de la réunion.',
+            'Ce choix concerne votre piste audio individuelle. Il est indépendant de votre choix concernant l’enregistrement vidéo de la réunion.',
         })}
       </Text>
       {decision.isError && (

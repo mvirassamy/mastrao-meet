@@ -35,7 +35,8 @@ const GuestInvitation = () => {
           ? await redeemGuestShare(
               link.organization,
               link.share,
-              redemptionId.current
+              redemptionId.current,
+              link.choiceToken
             )
           : await redeemGuestInvitation(link.invitation, redemptionId.current)
       clearPlatformReturnForRoomUrl(result.room_url)

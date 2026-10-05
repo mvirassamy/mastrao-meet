@@ -22,6 +22,16 @@ export type RoomConfiguration = {
 export type ParticipantRole = 'member' | 'administrator' | 'owner'
 export type AssignableParticipantRole = Exclude<ParticipantRole, 'owner'>
 
+export type VideoRecordingPolicy = {
+  consultation_source: 'email' | 'present'
+  decision: 'absent' | 'accepted' | 'refused'
+  decision_basis: 'explicit' | 'no_opposition' | 'pending'
+  start_status: 'pending' | 'refused' | 'authorized'
+  decision_lock: 'open' | 'start_in_progress' | 'started' | 'stopped'
+  started_at: number | null
+  start_available: boolean
+}
+
 export type ApiResourceAccess = {
   id: string
   role: ParticipantRole
@@ -44,7 +54,7 @@ export type ApiRoom = {
   }
   recording?: {
     mode: 'unset' | 'disabled' | 'recorded'
-    activation_available?: boolean
+    video?: VideoRecordingPolicy
     recording_ref?: string
     notice_version?: string
     notice_digest?: string

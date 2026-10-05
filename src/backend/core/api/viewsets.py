@@ -65,7 +65,6 @@ from core.mastrao_native_notice import (
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
     activate_recording,
-    media_allowed,
     public_projection,
     record_decision,
     record_transcription_decision,
@@ -602,8 +601,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
             participant, livekit = lobby_service.request_entry(
                 room=room,
                 request=request,
-                allow_media=media_allowed(recording_status)
-                and native_media_allowed(native_projection),
+                allow_media=native_media_allowed(native_projection),
                 **serializer.validated_data,
             )
         except (GuestHandoffRefused, HostHandoffRefused, MastraoRoomClosed) as error:

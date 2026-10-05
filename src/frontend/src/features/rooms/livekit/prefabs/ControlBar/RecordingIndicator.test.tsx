@@ -82,6 +82,22 @@ it('keeps the existing host stop action and refreshes the room', async () => {
   )
 })
 
+it('lets the host stop video even with an email default instead of explicit acceptance', async () => {
+  render(
+    <RecordingIndicator
+      roomId="room-1"
+      canEnd
+      recording={{
+        mode: 'recorded',
+        recording_state: 'active',
+        decision: 'absent',
+      }}
+    />
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'stop' }))
+  await waitFor(() => expect(stopRecording).toHaveBeenCalledOnce())
+})
+
 it('does not offer the stop action while recording is stopping', () => {
   render(
     <RecordingIndicator

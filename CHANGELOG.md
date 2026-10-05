@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Start video with the host recording button and keep video
+  choices separate from the native microphone transcription notice.
+
 - 2026-10-05: "Rejoindre" on a planned meeting now opens the room directly,
   without the intermediate "Reprendre cette réunion" page.
 

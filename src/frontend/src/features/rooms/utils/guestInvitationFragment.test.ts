@@ -45,6 +45,25 @@ describe('durable guest entry', () => {
     })
     expect(window.location.hash).toBe('')
   })
+
+  it('carries the personal choice into entry and clears it from the address bar', async () => {
+    const module = await capture(`${fragment}&video_choice=aaa.bbb.ccc`)
+    expect(module.consumeGuestInvitationFragment()).toEqual({
+      kind: 'durable',
+      organization: 'organization_test',
+      share: 'share_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef',
+      choiceToken: 'aaa.bbb.ccc',
+    })
+    expect(window.location.hash).toBe('')
+  })
+
+  it.each(['', 'invalid', 'aaa.bbb.ccc&video_choice=ddd.eee.fff'])(
+    'rejects malformed or duplicate choice capability %s',
+    async (choice) => {
+      const module = await capture(`${fragment}&video_choice=${choice}`)
+      expect(module.consumeGuestInvitationFragment()).toBeNull()
+    }
+  )
 })
 
 describe('pasted guest link', () => {

@@ -24,7 +24,6 @@ from core.mastrao_recording_artifact import canonical_artifact_receipt_digest
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
     _validate_status,
-    media_allowed,
     public_projection,
     record_transcription_decision,
 )
@@ -507,23 +506,6 @@ def test_submit_contract_refuses_divergent_v2_profile_manifest(settings, field, 
 
 def test_transcription_runtime_contains_ffmpeg():
     assert shutil.which("ffmpeg") is not None
-
-
-def test_transcribed_capture_waits_for_an_explicit_transcription_decision():
-    status = {
-        "mode": "recorded",
-        "recording_state": "active",
-        "decision": "accepted",
-        "transcription_mode": "transcribed",
-        "transcription_decision": "absent",
-    }
-    assert not media_allowed(status)
-    status["transcription_decision"] = "accepted"
-    assert media_allowed(status)
-    status["transcription_decision"] = "refused"
-    assert media_allowed(status)
-    status["transcription_decision"] = "withdrawn"
-    assert media_allowed(status)
 
 
 def test_real_mode_without_endpoint_fails_closed(settings):
@@ -1379,6 +1361,15 @@ def _transcribed_status(**overrides):
         "retention_expires_at": 2_000_000_000,
         "recording_state": "collecting",
         "decision": "absent",
+        "video": {
+            "consultation_source": "present",
+            "decision": "absent",
+            "decision_basis": "pending",
+            "start_status": "pending",
+            "decision_lock": "open",
+            "started_at": None,
+            "start_available": True,
+        },
         "transcription_mode": "transcribed",
         "transcription_notice_version": "notice_transcription_01234",
         "transcription_notice_digest": "b" * 64,
@@ -1471,10 +1462,8 @@ def test_public_projection_exposes_transcription_notice_and_decision():
     assert projection["transcription_decision"] == "absent"
 
 
-def test_validate_status_defaults_missing_transcription_mode_to_disabled(settings):
-    """A staggered deploy where Core predates the transcription projection
-    must not break recording consent: the missing field defaults to
-    disabled instead of failing the exact-fields check."""
+def test_validate_status_refuses_missing_transcription_mode(settings):
+    """Coordinated contracts require an explicit transcription policy."""
     settings.MASTRAO_RECORDING_NOTICE_VERSION = "notice_0123456789abcdef"
     settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
     status = _transcribed_status(transcription_mode="disabled")
@@ -1491,8 +1480,9 @@ def test_validate_status_defaults_missing_transcription_mode_to_disabled(setting
     }
     room = mock.Mock()
     room.mastrao_binding.room_ref = status["room_ref"]
-    _validate_status(status, participant, room)
-    assert status["transcription_mode"] == "disabled"
+    with pytest.raises(RecordingContractRefused):
+        _validate_status(status, participant, room)
+    assert "transcription_mode" not in status
 
 
 def test_long_running_asr_does_not_block_the_submit_receipt():

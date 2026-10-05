@@ -14,7 +14,7 @@ from core.mastrao_recording_contract import (
     _sign,
     compact_digest,
 )
-from core.mastrao_recording_session import CAPTURE_STATES, _participant
+from core.mastrao_recording_session import _participant
 from core.mastrao_room_contract import DIGEST, OPAQUE_REFERENCE, _sha256_canonical
 
 NOTICE_PATH = "/internal/v1/meetings/capture/native/notice"
@@ -141,7 +141,6 @@ def native_notice_projection(request, room, recording_status):
         or not recording_status
         or recording_status.get("mode") != "recorded"
         or recording_status.get("transcription_mode") != "transcribed"
-        or recording_status.get("recording_state") not in CAPTURE_STATES
     ):
         return None
     return native_notice(request, room)

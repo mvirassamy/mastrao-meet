@@ -46,6 +46,8 @@ from core.mastrao_transcription_contract import (
 from core.mastrao_transcription_contract import (
     sign_transcription_decision_assertion,
 )
+from core.mastrao_video_participant import bind_video_invitation
+from core.mastrao_video_roster import snapshot_video_roster
 
 CAPTURE_STATES = {"collecting", "authorized", "starting", "active"}
 NO_CAPTURE_STATES = {"cancelled", "failed", "processing", "available"}
@@ -57,6 +59,7 @@ SESSION_STATUS_FIELDS = {
     "mode",
 }
 RECORDED_STATUS_FIELDS = SESSION_STATUS_FIELDS | {
+    "video",
     "recording_ref",
     "policy_ref",
     "notice_version",
@@ -112,11 +115,6 @@ def _participant(request, room):
 def _validate_status(status, participant, room):
     if not isinstance(status, dict):
         raise RecordingContractRefused(status=503)
-    if status.get("mode") == "recorded" and "transcription_mode" not in status:
-        # An older Core release does not project the transcription policy
-        # yet; default to disabled so recording consent keeps working
-        # during a staggered Core/Meet deploy.
-        status["transcription_mode"] = "disabled"
     fields = set(status)
     if status.get("mode") != "recorded":
         expected = SESSION_STATUS_FIELDS
@@ -171,7 +169,43 @@ def _validate_status(status, participant, room):
         )
     ):
         raise RecordingContractRefused(status=503)
+    if status["mode"] == "recorded":
+        _validate_video(status["video"])
     return status
+
+
+def _validate_video(video):
+    fields = {
+        "consultation_source",
+        "decision",
+        "decision_basis",
+        "start_status",
+        "decision_lock",
+        "started_at",
+        "start_available",
+    }
+    if not isinstance(video, dict) or set(video) != fields:
+        raise RecordingContractRefused(status=503)
+    choices = {
+        "consultation_source": {"email", "present"},
+        "decision": {"absent", "accepted", "refused"},
+        "decision_basis": {"explicit", "no_opposition", "pending"},
+        "start_status": {"pending", "refused", "authorized"},
+        "decision_lock": {"open", "start_in_progress", "started", "stopped"},
+    }
+    for name, values in choices.items():
+        if not isinstance(video[name], str) or video[name] not in values:
+            raise RecordingContractRefused(status=503)
+    started_at = video["started_at"]
+    if not isinstance(video["start_available"], bool) or (
+        started_at is not None
+        and (
+            not isinstance(started_at, int)
+            or isinstance(started_at, bool)
+            or started_at <= 0
+        )
+    ):
+        raise RecordingContractRefused(status=503)
 
 
 def _sync_binding(room, status):
@@ -258,38 +292,26 @@ def recording_session_status(request, room):
     ):
         return None
     participant = _participant(request, room)
-    status = post_core_json(
-        endpoint=settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT,
-        expected_path="/internal/v1/meetings/recording/session-status",
-        body={
-            "participant_grant": participant["compact"],
-            "participant_session_digest": participant["session_digest"],
-        },
-        timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
-        refusal=RecordingContractRefused,
-    )
+
+    def read_status():
+        return post_core_json(
+            endpoint=settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT,
+            expected_path="/internal/v1/meetings/recording/session-status",
+            body={
+                "participant_grant": participant["compact"],
+                "participant_session_digest": participant["session_digest"],
+            },
+            timeout=settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS,
+            refusal=RecordingContractRefused,
+        )
+
+    status = read_status()
     _validate_status(status, participant, room)
+    if bind_video_invitation(request, room, participant, status):
+        status = read_status()
+        _validate_status(status, participant, room)
     _sync_binding(room, status)
     return {**status, "participant_kind": participant["kind"]}
-
-
-def media_allowed(status):
-    """Return whether Core permits minting a new LiveKit token."""
-
-    if status is None or status["mode"] == "disabled":
-        return True
-    if status["mode"] == "unset" or status["recording_state"] == "stopping":
-        return False
-    if status["recording_state"] in CAPTURE_STATES:
-        recording_accepted = status["decision"] == "accepted"
-        if status.get("transcription_mode") == "transcribed":
-            return recording_accepted and status.get("transcription_decision") in {
-                "accepted",
-                "refused",
-                "withdrawn",
-            }
-        return recording_accepted
-    return status["recording_state"] in NO_CAPTURE_STATES
 
 
 def public_projection(status):
@@ -312,13 +334,18 @@ def public_projection(status):
             "recording_state",
             "decision",
             "participant_kind",
+            "video",
         )
     }
-    projection["transcription_mode"] = status.get("transcription_mode", "disabled")
-    projection["activation_available"] = bool(
-        settings.MASTRAO_MEETING_RECORDING_ENABLED
-        and settings.MASTRAO_MEETING_RECORDING_START_ENABLED
-    )
+    projection["transcription_mode"] = status["transcription_mode"]
+    projection["video"] = {
+        **status["video"],
+        "start_available": bool(
+            settings.MASTRAO_MEETING_RECORDING_ENABLED
+            and settings.MASTRAO_MEETING_RECORDING_START_ENABLED
+            and status["video"]["start_available"]
+        ),
+    }
     if projection["transcription_mode"] == "transcribed":
         projection.update(
             {
@@ -439,6 +466,7 @@ def record_decision(request, room, decision, decision_request_id):
     result = post_core_json(
         endpoint=settings.MASTRAO_CORE_RECORDING_DECISION_ENDPOINT,
         expected_path="/internal/v1/meetings/recording/decisions",
+        passthrough_statuses={409},
         body={
             "participant_grant": participant["compact"],
             "decision_assertion": compact,
@@ -562,7 +590,7 @@ def record_transcription_decision(request, room, decision, decision_request_id):
 
 
 def activate_recording(request, room, activation_request_id):
-    """Activate only after the accepted host reports a real LiveKit connection."""
+    """Forward an explicit host request; Core verifies the roster before capture."""
 
     if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
         raise RecordingContractRefused()
@@ -570,12 +598,16 @@ def activate_recording(request, room, activation_request_id):
     status = recording_session_status(request, room)
     if (
         not status
+        or status.get("mode") != "recorded"
         or participant["kind"] != "host"
-        or status.get("decision") != "accepted"
+        or not settings.MASTRAO_MEETING_RECORDING_START_ENABLED
+        or not status["video"]["start_available"]
     ):
         raise RecordingContractRefused()
+    snapshot = snapshot_video_roster(room.mastrao_binding)
     payload = {
         **_base_assertion(ACTIVATION_TYPE, "activate_meeting_recording"),
+        **snapshot,
         "activation_request_id": activation_request_id,
         "organization_external_id": status["organization_external_id"],
         "meeting_ref": status["meeting_ref"],
@@ -589,6 +621,7 @@ def activate_recording(request, room, activation_request_id):
     body = post_core_json(
         endpoint=settings.MASTRAO_CORE_RECORDING_ACTIVATION_ENDPOINT,
         expected_path="/internal/v1/meetings/recording/activate",
+        passthrough_statuses={409},
         body={
             "host_grant": participant["compact"],
             "activation_assertion": sign_activation_assertion(payload),

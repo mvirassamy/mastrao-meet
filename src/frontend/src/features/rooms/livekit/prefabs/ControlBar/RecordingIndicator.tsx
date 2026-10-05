@@ -6,6 +6,7 @@ import { Button } from '@/primitives'
 import { stopRecording } from '@/features/rooms/api/recordingConsent'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
+import { RecordingPreparation } from './RecordingPreparation'
 
 type Recording = ApiRoom['recording']
 
@@ -43,8 +44,21 @@ export function RecordingIndicator({
     await onRecordingChanged?.().catch(() => undefined)
   }
 
+  if (recording?.mode !== 'recorded') return null
   if (
-    recording?.mode !== 'recorded' ||
+    recording.video &&
+    ['collecting', 'authorized'].includes(recording.recording_state ?? '')
+  )
+    return (
+      <RecordingPreparation
+        roomId={roomId}
+        canEnd={canEnd}
+        video={recording.video}
+        onRecordingChanged={onRecordingChanged}
+      />
+    )
+
+  if (
     !['starting', 'active', 'stopping'].includes(
       recording.recording_state ?? ''
     )
@@ -52,10 +66,7 @@ export function RecordingIndicator({
     return null
   }
 
-  const canStop =
-    canEnd &&
-    recording.decision === 'accepted' &&
-    recording.recording_state !== 'stopping'
+  const canStop = canEnd && recording.recording_state !== 'stopping'
 
   let status = t('active')
   if (recording.recording_state === 'stopping') {

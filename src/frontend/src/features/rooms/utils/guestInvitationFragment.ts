@@ -1,5 +1,10 @@
 export type GuestLink =
-  | { kind: 'durable'; organization: string; share: string }
+  | {
+      kind: 'durable'
+      organization: string
+      share: string
+      choiceToken?: string
+    }
   | { kind: 'legacy'; invitation: string }
 
 let capturedInvitation: GuestLink | null | undefined
@@ -10,14 +15,27 @@ const parseGuestLinkFragment = (hash: string): GuestLink | null => {
   const organization = fragment.get('organization')
   const share = fragment.get('share')
   const invite = fragment.get('invite')
+  const choiceToken = fragment.get('video_choice')
+  const validChoice =
+    choiceToken === null ||
+    (choiceToken.length <= 16384 &&
+      /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(choiceToken))
+  const keys = [...fragment.keys()]
   if (
-    [...fragment.keys()].length === 2 &&
+    keys.length === (choiceToken === null ? 2 : 3) &&
+    new Set(keys).size === keys.length &&
+    validChoice &&
     organization &&
     /^[A-Za-z0-9._:-]{1,200}$/.test(organization) &&
     share &&
     /^share_[A-Za-z0-9_-]{32}$/.test(share)
   ) {
-    return { kind: 'durable', organization, share }
+    return {
+      kind: 'durable',
+      organization,
+      share,
+      ...(choiceToken && { choiceToken }),
+    }
   }
   if (invite && invite.length <= 16384 && [...fragment.keys()].length === 1) {
     // Existing issued legacy invitations remain redeemable under their original limits.
