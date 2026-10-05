@@ -1,10 +1,11 @@
 import type { RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'wouter'
+import { Link, useLocation, useSearch } from 'wouter'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryItem } from '../api/types'
 import { meetingHistoryDetailPath } from '../paths'
 import { rememberOpenedMeeting } from '../utils/focusReturn'
+import { meetingOriginState } from '../utils/meetingOrigin'
 
 /**
  * Title link of a meeting row or event: its overlay makes the whole row
@@ -18,11 +19,14 @@ export const MeetingRowLink = ({
   linkRef: RefObject<HTMLAnchorElement>
 }) => {
   const { t } = useTranslation('meetingHistory')
+  const [location] = useLocation()
+  const search = useSearch()
 
   return (
     <Link
       ref={linkRef}
       to={meetingHistoryDetailPath(item.id)}
+      state={meetingOriginState(location, search)}
       data-meeting-id={item.id}
       onClick={() => rememberOpenedMeeting(item.id)}
       className={css({

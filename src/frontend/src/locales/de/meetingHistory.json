@@ -1,7 +1,7 @@
 {
   "description": "Vergangene Besprechungen, auf die Sie Zugriff haben, von der neuesten zur ältesten.",
   "detail": {
-    "back": "Zurück zum Verlauf",
+    "back": "Zurück",
     "error": {
       "description": "Der Dienst antwortet derzeit nicht. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "title": "Besprechung kann nicht angezeigt werden"

@@ -1,7 +1,7 @@
 {
   "description": "Les réunions passées auxquelles vous avez accès, de la plus récente à la plus ancienne.",
   "detail": {
-    "back": "Retour à l’historique",
+    "back": "Retour",
     "error": {
       "description": "Le service ne répond pas pour le moment. Vérifiez votre connexion, puis réessayez.",
       "title": "Impossible d’afficher cette réunion"
