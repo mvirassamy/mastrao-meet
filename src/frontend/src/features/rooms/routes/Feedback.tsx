@@ -9,6 +9,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import { DisconnectReason } from 'livekit-client'
 import { useConfig } from '@/api/useConfig'
 import type { CandidateInfo } from '@/stores/connectionObserver'
+import { useHostRecovery } from '../hooks/useHostRecovery'
+import { isMastraoRoomId } from '../utils/isRoomValid'
 import {
   readCachedPlatformReturn,
   validatePlatformReturn,
@@ -70,6 +72,7 @@ const FeedbackRoute = () => {
       readPlatformReturn(apiConfig?.mastrao_platform_origin, routeState.roomId),
     [apiConfig?.mastrao_platform_origin, routeState.roomId]
   )
+  const hostRecovery = useHostRecovery(routeState.roomId)
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => headingRef.current?.focus(), [])
@@ -103,11 +106,17 @@ const FeedbackRoute = () => {
     DisconnectReasonKey.ParticipantRemoved,
     DisconnectReasonKey.MeetingEnded,
   ].includes(reasonKey as DisconnectReasonKey)
-  const showBackButton = canRejoin && !platformReturn
+  const canRecoverHost =
+    Boolean(platformReturn) && isMastraoRoomId(routeState.roomId ?? '')
+  const showBackButton = canRejoin && Boolean(routeState.roomId)
   const showRating = reasonKey !== DisconnectReasonKey.MeetingEnded
-  const showPlatformReturn =
-    Boolean(platformReturn) &&
-    reasonKey !== DisconnectReasonKey.ParticipantRemoved
+  const rejoin = () => {
+    if (canRecoverHost) {
+      void hostRecovery.recover()
+      return
+    }
+    if (routeState.roomId) setLocation(`/${routeState.roomId}`)
+  }
 
   return (
     <Screen layout="centered" footer={false}>
@@ -139,36 +148,26 @@ const FeedbackRoute = () => {
             </Text>
           )}
           <HStack>
-            {showPlatformReturn && (
+            {showBackButton && (
               <Button
                 variant="default"
-                onPress={() => {
-                  window.open(
-                    platformReturn as string,
-                    '_blank',
-                    'noopener,noreferrer'
-                  )
-                }}
+                onPress={rejoin}
+                isDisabled={canRecoverHost && hostRecovery.isDisabled}
+                loading={canRecoverHost && hostRecovery.pending}
               >
-                {t(
-                  canRejoin
-                    ? 'feedback.rejoinFromMatter'
-                    : 'feedback.returnToMatter'
-                )}
-              </Button>
-            )}
-            {showBackButton && (
-              <Button variant="outline" onPress={() => window.history.back()}>
                 {t('feedback.back')}
               </Button>
             )}
             <Button
-              variant={showPlatformReturn ? 'outline' : 'default'}
+              variant={showBackButton ? 'outline' : 'default'}
               onPress={() => setLocation('/')}
             >
               {t('feedback.home')}
             </Button>
           </HStack>
+          {canRecoverHost && hostRecovery.failed && (
+            <Text role="alert">{t('hostRecovery.error')}</Text>
+          )}
           {showRating && <Rating metadata={metadata} />}
         </VStack>
       </Center>

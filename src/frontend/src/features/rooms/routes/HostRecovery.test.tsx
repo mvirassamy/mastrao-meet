@@ -59,7 +59,10 @@ describe('host recovery authentication and retry', () => {
     vi.clearAllMocks()
     state.isLoggedIn = true
     sessionStorage.clear()
-    vi.stubGlobal('location', { assign: state.assign })
+    vi.stubGlobal('location', {
+      origin: 'https://meet.mastrao.test',
+      assign: state.assign,
+    })
   })
   afterEach(() => {
     cleanup()

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Keep post-meeting navigation in Meet and recover host access
+  through the existing internal handoff when rejoining.
+
 - 2026-10-05: Share durable guest lobby links and recover host access to
   the same meeting through an authenticated, repeatable handoff.
 
