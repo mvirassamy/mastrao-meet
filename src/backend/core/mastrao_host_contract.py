@@ -115,10 +115,10 @@ def _private_signing_key():
         raise HostHandoffRefused(status=503) from error
 
 
-def sign_redemption(host_handoff):
+def sign_redemption(host_handoff, redemption_id=None):
     """Mint the short Meet-to-Core redemption proof for one handoff."""
     now = int(time.time())
-    redemption_id = f"redemption_{uuid.uuid4().hex}"
+    redemption_id = redemption_id or f"redemption_{uuid.uuid4().hex}"
     payload = {
         "version": CONTRACT_VERSION,
         "type": HOST_REDEMPTION_TYPE,

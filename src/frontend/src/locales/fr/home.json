@@ -20,6 +20,7 @@
     "error": "Impossible de créer la réunion. Réessayez."
   },
   "laterMeetingDialog": {
+    "recoverHost": "Accès hôte à conserver",
     "heading": "Vos informations de connexion",
     "description": "Partagez cette invitation avec vos invités. Ils peuvent demander à rejoindre la réunion sans se connecter. Le lien a une durée de validité limitée. Terminer la réunion pour tous empêche de la rejoindre à nouveau.",
     "preparing": "Préparation du lien d’invitation sécurisé…",

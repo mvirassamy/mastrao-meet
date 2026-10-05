@@ -37,3 +37,24 @@ export const redeemGuestInvitation = async (
   if (!response.ok) throw new ApiError(response.status, result)
   return result
 }
+
+export const redeemGuestShare = async (
+  organization: string,
+  share: string,
+  redemptionId: string
+) => {
+  await establishGuestSession()
+  const response = await fetch(`${handoffUrl()}share/`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      organization_external_id: organization,
+      share_ref: share,
+      redemption_id: redemptionId,
+    }),
+  })
+  const result = (await response.json()) as GuestRedemptionResponse
+  if (!response.ok) throw new ApiError(response.status, result)
+  return result
+}

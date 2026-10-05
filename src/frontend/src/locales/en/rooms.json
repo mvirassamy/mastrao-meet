@@ -111,6 +111,12 @@
       "body": "The organizer must choose the recording setting before anyone can join."
     }
   },
+  "hostRecovery": {
+    "title": "Return to this meeting",
+    "body": "Sign in to your Mastrao account to rejoin this meeting as its host.",
+    "submit": "Join as host",
+    "error": "Host access could not be confirmed. Try again."
+  },
   "recordingConsent": {
     "title": "This meeting will be recorded",
     "notice": "Audio, video and shared screens will be recorded for this meeting. You can refuse and still join without being recorded.",

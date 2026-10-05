@@ -83,8 +83,8 @@ def _safe_json_response(response):
     )
 
 
-def _redeem(host_handoff):
-    assertion, redemption = sign_redemption(host_handoff)
+def _redeem(host_handoff, redemption_id=None):
+    assertion, redemption = sign_redemption(host_handoff, redemption_id)
     body = post_core_json(
         endpoint=settings.MASTRAO_CORE_REDEMPTION_ENDPOINT,
         expected_path="/internal/v1/meetings/host-handoffs/redeem",
@@ -204,6 +204,20 @@ def _commit_grant(request, grant, compact_grant, *, retain_oidc_user=False):
             compact_grants[grant["grant_ref"]] = compact_grant
             request.session[SESSION_COMPACT_GRANTS_KEY] = compact_grants
             request.session.set_expiry(remaining_seconds)
+            existing = models.MastraoHostGrant.objects.filter(
+                grant_ref=grant["grant_ref"]
+            ).first()
+            if existing is not None and retain_oidc_user:
+                if (
+                    existing.room_binding_id != binding.pk
+                    or existing.identity_id != identity.pk
+                    or existing.platform_session_ref != grant["platform_session_ref"]
+                    or existing.session_nonce_digest
+                    != hashlib.sha256(session_nonce.encode()).hexdigest()
+                    or existing.grant_digest != compact_digest(compact_grant)
+                ):
+                    raise HostHandoffRefused()
+                return existing, binding
             created = models.MastraoHostGrant.objects.create(
                 handoff_ref=grant["handoff_ref"],
                 grant_ref=grant["grant_ref"],

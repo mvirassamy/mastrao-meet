@@ -30,6 +30,9 @@ const TermsOfServiceRoute = lazy(
 const AccessibilityRoute = lazy(
   () => import('@/features/legalsTerms/Accessibility')
 )
+const HostRecoveryRoute = lazy(
+  () => import('@/features/rooms/routes/HostRecovery')
+)
 const RoomRoute = lazy(() => import('@/features/rooms/routes/Room'))
 const GuestInvitationRoute = lazy(
   () => import('@/features/rooms/routes/GuestInvitation')
@@ -47,6 +50,7 @@ export const routes: Record<
   | 'meetingHistoryMeeting'
   | 'room'
   | 'guestInvitation'
+  | 'hostRecovery'
   | 'feedback'
   | 'connectionTest'
   | 'legalTerms'
@@ -85,6 +89,11 @@ export const routes: Record<
     to: (roomId: string) => `/${roomId.trim()}`,
     path: roomIdRegex,
     Component: RoomRoute,
+  },
+  hostRecovery: {
+    name: 'hostRecovery',
+    path: '/host/:roomRef',
+    Component: HostRecoveryRoute,
   },
   guestInvitation: {
     name: 'guestInvitation',

@@ -20,6 +20,7 @@
     "error": "Unable to create the meeting. Try again."
   },
   "laterMeetingDialog": {
+    "recoverHost": "Save host access",
     "heading": "Your connection details",
     "description": "Share this invitation with your guests. They can request to join without signing in. The link has limited validity. Ending the meeting for everyone prevents anyone from joining again.",
     "preparing": "Preparing the secure invitation link…",

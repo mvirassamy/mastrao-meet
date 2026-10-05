@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bold, Button, Dialog, type DialogProps, P, Text } from '@/primitives'
 import { CheckIcon, CopyIcon, LinkIcon, WarningIcon } from '@/icons'
+import { Link } from 'wouter'
+import { isMastraoRoomId } from '@/features/rooms/utils/isRoomValid'
 import { css } from '@/styled-system/css'
 import { ApiAccessLevel, ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { useTelephony } from '@/features/rooms/livekit/hooks/useTelephony'
@@ -42,6 +44,9 @@ export const LaterMeetingDialog = ({
       title={t('heading')}
     >
       <P>{t('description')}</P>
+      {room && isMastraoRoomId(room.slug) && (
+        <Link href={`/host/${room.slug}`}>{t('recoverHost')}</Link>
+      )}
       {!!room && (
         <>
           {isTelephonyReadyForUse ? (
