@@ -16,7 +16,6 @@ import {
   CalendarDaysIcon as HeroCalendarDaysIcon,
   CalendarIcon as HeroCalendarIcon,
   ChatBubbleLeftIcon as HeroChatBubbleLeftIcon,
-  ChatBubbleLeftRightIcon as HeroChatBubbleLeftRightIcon,
   ChatBubbleOvalLeftEllipsisIcon as HeroChatBubbleOvalLeftEllipsisIcon,
   ChatBubbleOvalLeftIcon as HeroChatBubbleOvalLeftIcon,
   CheckCircleIcon as HeroCheckCircleIcon,
@@ -25,7 +24,6 @@ import {
   ChevronLeftIcon as HeroChevronLeftIcon,
   ChevronRightIcon as HeroChevronRightIcon,
   ChevronUpIcon as HeroChevronUpIcon,
-  ClipboardDocumentListIcon as HeroClipboardDocumentListIcon,
   ClockIcon as HeroClockIcon,
   CloudArrowDownIcon as HeroCloudArrowDownIcon,
   Cog6ToothIcon as HeroCog6ToothIcon,
@@ -173,15 +171,12 @@ export const ShareBoxIcon = sized(HeroArrowTopRightOnSquareIcon) // RiShareBoxFi
 export const SpeakerIcon = sized(HeroSpeakerWaveIcon) // RiSpeakerFill
 export const SpeakIcon = sized(HeroChatBubbleOvalLeftEllipsisIcon) // RiSpeakFill
 export const StopCircleIcon = sized(HeroStopCircleIcon) // RiStopCircleFill
-export const SummaryIcon = sized(HeroClipboardDocumentListIcon) // RiFileList3Fill
 export const TimeIcon = sized(HeroClockIcon) // RiTimeFill
 export const ToolsIcon = sized(HeroSquares2X2Icon) // RiShapesFill
-export const TranscriptIcon = sized(HeroChatBubbleLeftRightIcon) // RiChatQuoteFill
 export const TranslateIcon = sized(HeroLanguageIcon) // RiTranslate2
 export const UnpinIcon = sized(Custom.PinSlash) // RiUnpinFill
 export const UserMinusIcon = sized(HeroUserMinusIcon) // RiUserMinusFill
 export const VideoAddIcon = sized(HeroVideoCameraIcon) // RiVideoAddFill
-export const VideoChatIcon = sized(HeroVideoCameraIcon) // RiVideoChatFill
 export const VideoIcon = sized(HeroVideoCameraIcon) // RiVideoFill
 export const VideoOffIcon = sized(HeroVideoCameraSlashIcon) // RiVideoOffFill
 export const VideoOnIcon = sized(HeroVideoCameraIcon) // RiVideoOnFill

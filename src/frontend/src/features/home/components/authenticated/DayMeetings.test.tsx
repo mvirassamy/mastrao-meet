@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchApi } from '@/api/fetchApi'
@@ -83,24 +89,41 @@ describe('meetings of the selected home day', () => {
     )
   })
 
-  it('shows an error when an older page fails, and retries that page', async () => {
+  it('keeps the retry button and its focus while a failed page is retried', async () => {
+    let retrying = false
+    let failRetry: (error: Error) => void = () => undefined
     fetchApiMock.mockImplementation(async (url: string) => {
       if (url === FIRST_PAGE)
         return {
           results: [meeting('recente', '2026-10-04T08:00:00Z')],
           next_cursor: 'page-2',
         }
-      throw new Error('unavailable')
+      if (!retrying) throw new Error('unavailable')
+      return new Promise((_, reject) => {
+        failRetry = reject
+      })
     })
     renderDay('2026-10-01')
 
     expect(await screen.findByRole('alert')).toBeTruthy()
-    const failedCalls = callsTo(OLDER_PAGE)
-    expect(failedCalls).toBeLessThanOrEqual(2)
+    expect(callsTo(OLDER_PAGE)).toBeLessThanOrEqual(2)
 
-    fireEvent.click(screen.getByRole('button', { name: 'error.retry' }))
-    await screen.findByRole('alert')
-    expect(callsTo(OLDER_PAGE)).toBeGreaterThan(failedCalls)
+    retrying = true
+    const retry = screen.getByRole('button', { name: 'error.retry' })
+    retry.focus()
+    fireEvent.click(retry)
+    await waitFor(() => expect(retry.hasAttribute('data-pending')).toBe(true))
+    expect(document.activeElement).toBe(retry)
+    // The spinner replaces the retry icon while the page is fetched again.
+    expect(retry.querySelector('svg')).toBeNull()
+
+    // The automatic retry of the failed page fails at once.
+    retrying = false
+    failRetry(new Error('still unavailable'))
+    await waitFor(() => expect(retry.hasAttribute('data-pending')).toBe(false))
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(document.activeElement).toBe(retry)
+    expect(retry.querySelector('svg')).not.toBeNull()
   })
 
   it.each([

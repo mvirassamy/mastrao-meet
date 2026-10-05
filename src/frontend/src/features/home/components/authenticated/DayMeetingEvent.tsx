@@ -34,9 +34,16 @@ export const DayMeetingEvent = ({
       style={{ borderLeftColor: color }}
       className={css({
         position: 'relative',
-        display: 'flex',
+        display: 'grid',
+        // Below lg the time and title get the full width; the statuses join
+        // the participants on the line below.
+        gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+        gridTemplateAreas: {
+          base: '"main main chevron" "people status chevron"',
+          lg: '"main status chevron" "people status chevron"',
+        },
         alignItems: 'center',
-        gap: '1rem',
+        columnGap: '1rem',
         padding: '0.75rem 1rem 0.75rem 1.125rem',
         border: '1px solid token(colors.border)',
         borderLeftWidth: '4px',
@@ -48,7 +55,7 @@ export const DayMeetingEvent = ({
         },
       })}
     >
-      <div className={css({ flex: 1, minWidth: 0 })}>
+      <div className={css({ gridArea: 'main', minWidth: 0 })}>
         <p
           style={{ color }}
           className={css({
@@ -62,32 +69,52 @@ export const DayMeetingEvent = ({
           {formatMeetingTime(item.startedAt, item.endedAt, locale, timeZone)}
         </p>
         <MeetingRowLink item={item} linkRef={linkRef} />
-        {participantCount > 0 && (
-          <div className={css({ display: 'flex', marginTop: '0.5rem' })}>
-            <RowOverlayCell linkRef={linkRef}>
-              <MeetingParticipantsStack
-                count={item.participantCount}
-                names={item.participantNames}
-              />
-              <span
-                aria-hidden="true"
-                className={css({
-                  color: 'muted-foreground',
-                  fontSize: '0.8125rem',
-                  lineHeight: '1.25rem',
-                })}
-              >
-                {t('participants', { count: participantCount })}
-              </span>
-            </RowOverlayCell>
-          </div>
-        )}
       </div>
-      <MeetingContentStatusIcons item={item} linkRef={linkRef} />
+      {participantCount > 0 && (
+        <div
+          className={css({
+            gridArea: 'people',
+            display: 'flex',
+            minWidth: 0,
+            marginTop: '0.5rem',
+          })}
+        >
+          <RowOverlayCell linkRef={linkRef}>
+            <MeetingParticipantsStack
+              count={item.participantCount}
+              names={item.participantNames}
+            />
+            <span
+              aria-hidden="true"
+              className={css({
+                // The bubbles already show the count; on the narrowest
+                // phones the label would run under the status icons.
+                display: { base: 'none', sm: 'inline' },
+                color: 'muted-foreground',
+                fontSize: '0.8125rem',
+                lineHeight: '1.25rem',
+                whiteSpace: 'nowrap',
+              })}
+            >
+              {t('participants', { count: participantCount })}
+            </span>
+          </RowOverlayCell>
+        </div>
+      )}
+      {/* Margins rather than a row gap: a meeting without participants keeps
+          a single line on wide screens. */}
+      <div
+        className={css({
+          gridArea: 'status',
+          marginTop: { base: '0.5rem', lg: 0 },
+        })}
+      >
+        <MeetingContentStatusIcons item={item} linkRef={linkRef} />
+      </div>
       <ChevronRightIcon
         size={18}
         aria-hidden="true"
-        className={css({ flexShrink: 0, color: 'muted-foreground' })}
+        className={css({ gridArea: 'chevron', color: 'muted-foreground' })}
       />
     </li>
   )

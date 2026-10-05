@@ -32,8 +32,7 @@ import {
 import { MEETING_HISTORY_PATH } from '../paths'
 import {
   formatMeetingDay,
-  formatMeetingDuration,
-  formatMeetingTimeRange,
+  formatMeetingTime,
   formatTranscriptTimestamp,
 } from '../utils/meetingHistoryFormat'
 import {
@@ -108,6 +107,20 @@ const summarySectionLook = (view: SummaryView): SectionLook => {
       return 'failed'
     default:
       return contentSectionLook(view)
+  }
+}
+
+/** Translation key of the status read in the summary section header. */
+const summaryStatusKey = (view: SummaryView) => {
+  switch (view) {
+    case 'request-pending':
+      return 'status.summary.transcribing'
+    case 'request-failed':
+      return 'summary.requestFailed.title'
+    case 'waiting-transcript':
+      return 'summary.waitingTranscript.title'
+    default:
+      return `status.summary.${view}`
   }
 }
 
@@ -268,11 +281,6 @@ const MeetingDetailContent = ({
     meeting.transcript.status,
     summaryRequestState
   )
-  const duration = formatMeetingDuration(
-    meeting.startedAt,
-    meeting.endedAt,
-    locale
-  )
   const metaItemClass = css({
     display: 'inline-flex',
     alignItems: 'center',
@@ -316,17 +324,12 @@ const MeetingDetailContent = ({
           </span>
           <span className={metaItemClass}>
             <TimeIcon size={15} aria-hidden="true" />
-            {[
-              formatMeetingTimeRange(
-                meeting.startedAt,
-                meeting.endedAt,
-                locale,
-                timeZone
-              ),
-              duration,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
+            {formatMeetingTime(
+              meeting.startedAt,
+              meeting.endedAt,
+              locale,
+              timeZone
+            )}
           </span>
           {meeting.participantCount !== null && (
             <span className={metaItemClass}>
@@ -349,7 +352,7 @@ const MeetingDetailContent = ({
       >
         <MeetingContentSection
           kind="summary"
-          status={meeting.summary.status}
+          statusKey={summaryStatusKey(summaryState)}
           look={summarySectionLook(summaryState)}
         >
           <SummaryBody
@@ -360,7 +363,7 @@ const MeetingDetailContent = ({
         </MeetingContentSection>
         <MeetingContentSection
           kind="transcript"
-          status={meeting.transcript.status}
+          statusKey={`status.transcript.${meeting.transcript.status}`}
           look={contentSectionLook(meeting.transcript.status)}
         >
           <TranscriptBody transcript={meeting.transcript} />
@@ -416,12 +419,13 @@ const sectionHeader = cva({
 
 const MeetingContentSection = ({
   kind,
-  status,
+  statusKey,
   look,
   children,
 }: {
   kind: MeetingContentKind
-  status: MeetingContentStatus
+  /** Translation key of the status announced for the section. */
+  statusKey: string
   look: SectionLook
   children: ReactNode
 }) => {
@@ -432,7 +436,6 @@ const MeetingContentSection = ({
     <section
       aria-labelledby={headingId}
       data-section={kind}
-      data-status={status}
       className={css({
         minWidth: 0,
         border: '1px solid token(colors.border)',
@@ -466,7 +469,7 @@ const MeetingContentSection = ({
           aria-atomic="true"
           className={css({ srOnly: true })}
         >
-          {t(`status.${kind}.${status}`)}
+          {t(statusKey)}
         </span>
         {look === 'pending' && <SectionProgressBar />}
       </div>
