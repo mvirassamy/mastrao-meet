@@ -89,6 +89,8 @@ type FieldProps<T extends object> = (
   | ({
       type: 'text'
       items?: never
+      /** Example shown in the empty input. */
+      placeholder?: string
       validate?: (
         value: string
       ) => ReactNode | ReactNode[] | true | null | undefined
@@ -179,14 +181,22 @@ export const Field = <T extends object>({
   )
 
   if (type === 'text') {
+    const { placeholder, ...textFieldProps } =
+      props as PartialTextFieldProps & {
+        placeholder?: string
+      }
     return (
       <FieldWrapper {...props.wrapperProps}>
         <RACTextField
           validate={validate as unknown as TextFieldProps['validate']}
-          {...(props as PartialTextFieldProps)}
+          {...textFieldProps}
         >
           {LabelAndDescription}
-          {isApp ? <AppInput /> : <Input />}
+          {isApp ? (
+            <AppInput placeholder={placeholder} />
+          ) : (
+            <Input placeholder={placeholder} />
+          )}
           {RACFieldErrors}
         </RACTextField>
       </FieldWrapper>

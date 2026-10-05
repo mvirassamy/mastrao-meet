@@ -1,6 +1,25 @@
 {
   "backToHome": "Retour à l'accueil",
   "cancel": "Annuler",
+  "datePicker": {
+    "placeholder": "Choisir une date",
+    "shortcuts": {
+      "label": "Raccourcis",
+      "today": "Aujourd’hui",
+      "tomorrow": "Demain",
+      "friday": "Vendredi",
+      "nextMonday": "Lundi prochain"
+    }
+  },
+  "timeSelect": {
+    "showSlots": "Afficher les horaires",
+    "slots": "Horaires",
+    "duration": {
+      "minutes": "{{minutes}} min",
+      "hours": "{{hours}} h",
+      "hoursMinutes": "{{hours}} h {{minutes}}"
+    }
+  },
   "closeDialog": "Fermer la fenêtre modale",
   "error": {
     "body": "La page n’a pas pu s’afficher. Réessayez dans quelques instants ou revenez à l’accueil.",

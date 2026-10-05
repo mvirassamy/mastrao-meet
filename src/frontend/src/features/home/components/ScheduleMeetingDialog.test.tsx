@@ -6,7 +6,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ScheduleMeetingDialog } from './ScheduleMeetingDialog'
 import translations from '@/locales/en/home.json'
 
@@ -23,25 +23,36 @@ vi.mock('react-i18next', () => ({
     },
   }),
 }))
-afterEach(cleanup)
+
+beforeEach(() => {
+  // Only the clock is fixed: "today" is Monday 5 October 2026.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-05T09:00:00'))
+})
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
+
+const dateButton = () => screen.getByRole('button', { name: /^Date/ })
+const startInput = () => screen.getByRole('combobox', { name: 'Start' })
+const endInput = () => screen.getByRole('combobox', { name: 'End' })
 
 const fill = () => {
-  fireEvent.change(screen.getByLabelText('Title (optional)'), {
+  fireEvent.change(screen.getByLabelText('Title'), {
     target: { value: 'Équipe' },
   })
-  fireEvent.change(screen.getByLabelText('Date'), {
-    target: { value: '2026-10-07' },
-  })
-  fireEvent.change(screen.getByLabelText('Start time'), {
-    target: { value: '10:00' },
-  })
-  fireEvent.change(screen.getByLabelText('End time'), {
-    target: { value: '11:00' },
-  })
+  fireEvent.click(dateButton())
+  fireEvent.click(screen.getByRole('option', { name: /tomorrow/ }))
+  fireEvent.change(startInput(), { target: { value: '10:00' } })
+  fireEvent.change(endInput(), { target: { value: '11:00' } })
 }
 const submit = () =>
   fireEvent.submit(
-    screen.getByRole('button', { name: 'Create meeting' }).closest('form')!
+    screen
+      .getByRole('button', { name: 'Create meeting' })
+      .closest('div')!
+      .parentElement!.querySelector('form')!
   )
 
 describe('schedule meeting dialog with real application primitives', () => {
@@ -51,26 +62,71 @@ describe('schedule meeting dialog with real application primitives', () => {
     expect(
       screen.getByRole('dialog').getAttribute('aria-labelledby')
     ).toBeTruthy()
-    expect(
-      screen.getByText(
-        `Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`
-      )
-    ).toBeTruthy()
+    const city = Intl.DateTimeFormat()
+      .resolvedOptions()
+      .timeZone.split('/')
+      .pop()!
+      .replaceAll('_', ' ')
+    expect(screen.getByText(`Time zone: ${city}`)).toBeTruthy()
     expect(create).not.toHaveBeenCalled()
   })
-  it('focuses the first invalid input and associates its error', () => {
+
+  it('focuses the first invalid field and associates its error', () => {
     const create = vi.fn()
     render(<ScheduleMeetingDialog isOpen onClose={vi.fn()} onCreate={create} />)
     submit()
-    const date = screen.getByLabelText('Date')
+    const date = dateButton()
     expect(document.activeElement).toBe(date)
-    expect(date.getAttribute('aria-invalid')).toBe('true')
+    expect(date.hasAttribute('data-invalid')).toBe(true)
     expect(
       document.getElementById(date.getAttribute('aria-describedby')!)
         ?.textContent
     ).toBe('Choose a valid date.')
     expect(create).not.toHaveBeenCalled()
   })
+
+  it('creates the meeting from a date shortcut and the chosen times', async () => {
+    const create = vi.fn().mockResolvedValue(undefined)
+    render(<ScheduleMeetingDialog isOpen onClose={vi.fn()} onCreate={create} />)
+    fill()
+    expect(dateButton().textContent).toContain('October 6, 2026')
+    submit()
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
+    expect(create.mock.calls[0][0]).toMatchObject({
+      title: 'Équipe',
+      startsAt: new Date('2026-10-06T10:00:00').getTime() / 1000,
+      endsAt: new Date('2026-10-06T11:00:00').getTime() / 1000,
+    })
+  })
+
+  it('does not offer a day before today', () => {
+    render(
+      <ScheduleMeetingDialog isOpen onClose={vi.fn()} onCreate={vi.fn()} />
+    )
+    fireEvent.click(dateButton())
+    const yesterday = screen.getByRole('button', { name: /October 4, 2026/ })
+    expect(yesterday.getAttribute('aria-disabled')).toBe('true')
+  })
+
+  it('reads a typed time and lists the end times after the start', () => {
+    // jsdom has no CSS.escape, which the open list uses to scroll.
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+    render(
+      <ScheduleMeetingDialog isOpen onClose={vi.fn()} onCreate={vi.fn()} />
+    )
+    fireEvent.change(startInput(), { target: { value: '9h' } })
+    fireEvent.blur(startInput())
+    expect((startInput() as HTMLInputElement).value).toBe('09:00')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /timeSelect.showSlots End/ })
+    )
+    const options = screen.getAllByRole('option')
+    expect(options[0].textContent).toContain('09:15')
+    expect(options[0].textContent).toContain('timeSelect.duration.minutes')
+    vi.unstubAllGlobals()
+  })
+
   it('keeps values after failure and allows retry', async () => {
     const create = vi
       .fn()
@@ -80,16 +136,16 @@ describe('schedule meeting dialog with real application primitives', () => {
     fill()
     submit()
     await screen.findByRole('alert')
-    expect(
-      (screen.getByLabelText('Title (optional)') as HTMLInputElement).value
-    ).toBe('Équipe')
-    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe(
-      '2026-10-07'
+    expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(
+      'Équipe'
     )
+    expect(dateButton().textContent).toContain('October 6, 2026')
+    expect((startInput() as HTMLInputElement).value).toBe('10:00')
     submit()
     await waitFor(() => expect(create).toHaveBeenCalledTimes(2))
     expect(create.mock.calls[1]).toEqual(create.mock.calls[0])
   })
+
   it('locks concurrent submits and cancellation while creation is pending', async () => {
     let resolve!: () => void
     const create = vi.fn(
@@ -108,13 +164,13 @@ describe('schedule meeting dialog with real application primitives', () => {
       (screen.getByRole('button', { name: 'cancel' }) as HTMLButtonElement)
         .disabled
     ).toBe(true)
-    expect((screen.getByLabelText('Date') as HTMLInputElement).disabled).toBe(
-      true
-    )
+    expect((dateButton() as HTMLButtonElement).disabled).toBe(true)
+    expect((startInput() as HTMLInputElement).disabled).toBe(true)
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(close).not.toHaveBeenCalled()
     await act(async () => resolve())
   })
+
   it('cancels without creation', () => {
     const create = vi.fn(),
       close = vi.fn()
