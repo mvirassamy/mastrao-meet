@@ -28,6 +28,7 @@ export const previewScreens = [
   ['history-empty', 'Historique · vide'],
   ['history-error', 'Historique · erreur'],
   ['history-detail', 'Historique · synthèse et transcription'],
+  ['history-detail-loading', 'Historique · chargement du détail'],
   ['history-detail-processing', 'Historique · traitement en cours'],
   ['history-detail-absent', 'Historique · contenu absent'],
   [
@@ -53,6 +54,7 @@ export type PreviewContent =
 
 const previewHistoryDetailIds: Record<string, string> = {
   'history-detail': 'preview-meeting-available',
+  'history-detail-loading': 'preview-meeting-available',
   'history-detail-processing': 'preview-meeting-processing',
   'history-detail-absent': 'preview-meeting-absent',
   'history-detail-summary-request': 'preview-meeting-summary-request',

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Load the meeting detail with a skeleton of its own shape:
+  title, date line, and the Summary and Transcript cards.
+
 - 2026-10-05: Cache WebP and AVIF illustrations for 30 days like the other
   static assets, instead of downloading them again on every view.
 
