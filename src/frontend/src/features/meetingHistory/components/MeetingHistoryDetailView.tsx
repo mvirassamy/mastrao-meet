@@ -12,7 +12,7 @@ import {
 } from '@/icons'
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
-import { css, cva } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import type {
   MeetingContentStatus,
   MeetingHistoryDetail,
@@ -44,7 +44,15 @@ import {
   MeetingHistoryStatePanel,
   MeetingSectionState,
 } from './MeetingHistoryStatePanel'
-import { MeetingHistorySkeleton } from './MeetingHistorySkeleton'
+import { MeetingHistoryDetailSkeleton } from './MeetingHistoryDetailSkeleton'
+import {
+  detailHeader,
+  detailSections,
+  sectionBody,
+  sectionCard,
+  sectionHeader,
+  sectionTitle,
+} from './meetingDetailLayout'
 
 const isNotFoundError = (error: unknown) =>
   error instanceof ApiError && [403, 404].includes(error.statusCode)
@@ -177,7 +185,7 @@ export const MeetingHistoryDetailView = ({
 
   let content: ReactNode
   if (query.isPending || isAuthRequiredError(query.error)) {
-    content = <MeetingHistorySkeleton label={t('detail.loading')} rows={3} />
+    content = <MeetingHistoryDetailSkeleton label={t('detail.loading')} />
   } else if (!query.data) {
     const notFound = isNotFoundError(query.error)
     content = (
@@ -289,7 +297,7 @@ const MeetingDetailContent = ({
 
   return (
     <>
-      <header className={css({ marginBottom: '1.5rem' })}>
+      <header className={detailHeader}>
         <h1
           ref={headingRef}
           tabIndex={-1}
@@ -339,17 +347,7 @@ const MeetingDetailContent = ({
         </p>
       </header>
 
-      <div
-        className={css({
-          display: 'grid',
-          gridTemplateColumns: {
-            base: 'minmax(0, 1fr)',
-            lg: 'minmax(0, 1fr) minmax(0, 1.2fr)',
-          },
-          alignItems: 'start',
-          gap: { base: '1rem', md: '1.25rem' },
-        })}
-      >
+      <div className={detailSections}>
         <MeetingContentSection
           kind="summary"
           statusKey={summaryStatusKey(summaryState)}
@@ -373,50 +371,6 @@ const MeetingDetailContent = ({
   )
 }
 
-/**
- * Tinted header: the large section icon sits on the right as an
- * illustration, partly cropped, so the title stays clean. Grey while the
- * content is not ready or when there is nothing to show, pink when the
- * processing failed.
- */
-const greyHeader = {
-  background: 'linear-gradient(120deg, token(colors.card) 30%, #eef0f4 100%)',
-  '& img': { filter: 'grayscale(1)', opacity: 0.45 },
-}
-
-const sectionHeader = cva({
-  base: {
-    position: 'relative',
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
-    minHeight: '76px',
-    padding: '0.875rem 1.125rem',
-    paddingRight: '6.5rem',
-    borderRadius: '11px 11px 0 0',
-    background: 'linear-gradient(120deg, token(colors.card) 30%, #e6edff 100%)',
-    borderBottom: '1px solid token(colors.border)',
-    '& img': {
-      position: 'absolute',
-      right: '-6px',
-      top: '-8px',
-      userSelect: 'none',
-      pointerEvents: 'none',
-    },
-  },
-  variants: {
-    look: {
-      content: {},
-      pending: greyHeader,
-      empty: greyHeader,
-      failed: {
-        background:
-          'linear-gradient(120deg, token(colors.card) 30%, #fcebec 100%)',
-      },
-    },
-  },
-})
-
 const MeetingContentSection = ({
   kind,
   statusKey,
@@ -436,12 +390,7 @@ const MeetingContentSection = ({
     <section
       aria-labelledby={headingId}
       data-section={kind}
-      className={css({
-        minWidth: 0,
-        border: '1px solid token(colors.border)',
-        borderRadius: '12px',
-        backgroundColor: 'card',
-      })}
+      className={sectionCard}
     >
       <div className={sectionHeader({ look })}>
         <img
@@ -452,15 +401,7 @@ const MeetingContentSection = ({
           height={96}
           decoding="async"
         />
-        <h2
-          id={headingId}
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            lineHeight: '1.5rem',
-            fontWeight: 600,
-          })}
-        >
+        <h2 id={headingId} className={sectionTitle}>
           {t(`${kind}.title`)}
         </h2>
         <span
@@ -473,9 +414,7 @@ const MeetingContentSection = ({
         </span>
         {look === 'pending' && <SectionProgressBar />}
       </div>
-      <div className={css({ padding: '1rem 1.125rem 1.25rem' })}>
-        {children}
-      </div>
+      <div className={sectionBody}>{children}</div>
     </section>
   )
 }

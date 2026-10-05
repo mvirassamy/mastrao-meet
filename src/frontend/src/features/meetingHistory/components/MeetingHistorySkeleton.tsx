@@ -1,12 +1,5 @@
 import { css } from '@/styled-system/css'
-
-const bar = css({
-  display: 'block',
-  borderRadius: '6px',
-  backgroundColor: 'muted',
-  animation: 'pulse_background 1.6s ease-in-out infinite',
-  _motionReduce: { animation: 'none' },
-})
+import { skeletonBar as bar } from './skeleton'
 
 export const MeetingHistorySkeleton = ({
   label,

@@ -240,6 +240,8 @@ export const previewMeetingHistoryResponse = (
   }
 
   if (meetingId === 'preview-meeting-error') return delayed(json({}, 503))
+  if (scenario === 'history-detail-loading')
+    return new Promise<Response>(() => undefined)
   const meeting = [...previewMeetings, ...previewOlderMeetings].find(
     (candidate) => candidate.id === meetingId
   )
