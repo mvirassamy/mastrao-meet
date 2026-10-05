@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Show an interrupted transcription as a small floating
+  "Reconnexion…" bubble that leaves the transcript untouched.
+
 - 2026-10-05: When a guest opens an incomplete invitation link, let them
   paste the complete link from the e-mail and join from the same page.
 

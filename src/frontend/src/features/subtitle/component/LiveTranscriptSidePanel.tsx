@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Text } from '@/primitives'
+import { Spinner } from '@/primitives/Spinner'
 import { css } from '@/styled-system/css'
 import { Avatar } from '@/components/Avatar'
 import { DEFAULT_PARTICIPANT_COLOR } from '@/features/rooms/utils/getParticipantColor'
@@ -105,25 +106,36 @@ const Segment = ({
   )
 }
 
-/** Shown only while the meeting connection is lost. */
-const InterruptedNotice = () => {
+/**
+ * Shown only while the meeting connection is lost: a small dark bubble
+ * floating at the bottom of the panel, leaving the transcript untouched.
+ */
+const ReconnectingToast = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
 
   return (
     <div
       className={css({
-        margin: '0.75rem 1.25rem 0',
-        padding: '0.625rem 0.75rem',
-        borderRadius: '10px',
-        backgroundColor: 'warning.subtle',
-        color: 'warning.subtle-text',
+        position: 'absolute',
+        left: '50%',
+        bottom: '1rem',
+        transform: 'translateX(-50%)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        height: '2rem',
+        paddingInline: '0.75rem',
+        borderRadius: 'full',
+        backgroundColor: '#1f2a44',
+        color: 'white',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 6px 18px rgba(8, 20, 46, 0.18)',
+        pointerEvents: 'none',
       })}
     >
-      <Text as="p" variant="bodyXsMedium" margin={false}>
+      <Spinner size={14} variant="dark" />
+      <Text as="span" variant="sm" margin={false}>
         {t('notice.interrupted')}
-      </Text>
-      <Text as="p" variant="note" margin={false}>
-        {t('notice.interruptedDescription')}
       </Text>
     </div>
   )
@@ -150,6 +162,7 @@ export const LiveTranscriptSidePanel = () => {
   const hasSegments = segments.length > 0
   const speakerTurns = groupConsecutiveSpeakerSegments(segments)
   const hasFailed = hasStartFailed || resyncStatus === 'failed'
+  const isInterrupted = connectionStatus !== 'connected'
 
   useEffect(() => {
     let isCurrent = true
@@ -182,6 +195,7 @@ export const LiveTranscriptSidePanel = () => {
   return (
     <div
       className={css({
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
@@ -237,8 +251,6 @@ export const LiveTranscriptSidePanel = () => {
         </Text>
       )}
 
-      {connectionStatus !== 'connected' && <InterruptedNotice />}
-
       <div
         className={css({
           display: 'flex',
@@ -252,7 +264,8 @@ export const LiveTranscriptSidePanel = () => {
         aria-live="off"
         aria-label={t('segmentsLabel')}
       >
-        {!hasSegments ? (
+        {/* While interrupted, the floating bubble already says what happens. */}
+        {!hasSegments && !isInterrupted && (
           <Text
             as="p"
             variant="note"
@@ -264,7 +277,8 @@ export const LiveTranscriptSidePanel = () => {
           >
             {t(`notice.${emptyTranscriptNotice(status)}`)}
           </Text>
-        ) : (
+        )}
+        {hasSegments &&
           speakerTurns.map((segment) => {
             const speaker = resolveSpeaker(segment.participantIdentity)
 
@@ -276,9 +290,10 @@ export const LiveTranscriptSidePanel = () => {
                 speakerColor={speaker?.color ?? DEFAULT_PARTICIPANT_COLOR}
               />
             )
-          })
-        )}
+          })}
       </div>
+
+      {isInterrupted && <ReconnectingToast />}
     </div>
   )
 }

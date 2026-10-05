@@ -551,8 +551,7 @@
       "waiting": "Waiting for someone to speak.",
       "stopped": "Transcription is stopped.",
       "unavailable": "Transcription is temporarily unavailable.",
-      "interrupted": "Connection interrupted",
-      "interruptedDescription": "Transcription will resume automatically."
+      "interrupted": "Reconnecting…"
     },
     "segmentsLabel": "Live transcript segments",
     "interim": "In progress",

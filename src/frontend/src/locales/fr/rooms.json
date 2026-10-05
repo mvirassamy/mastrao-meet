@@ -551,8 +551,7 @@
       "waiting": "En attente de la première prise de parole.",
       "stopped": "La transcription est arrêtée.",
       "unavailable": "La transcription est momentanément indisponible.",
-      "interrupted": "Connexion interrompue",
-      "interruptedDescription": "La transcription reprendra automatiquement."
+      "interrupted": "Reconnexion…"
     },
     "segmentsLabel": "Segments de transcription en direct",
     "interim": "En cours",

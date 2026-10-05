@@ -32,8 +32,7 @@ vi.mock('react-i18next', () => ({
         'notice.waiting': 'Waiting for speech',
         'notice.stopped': 'Stopped',
         'notice.unavailable': 'Unavailable',
-        'notice.interrupted': 'Connection interrupted',
-        'notice.interruptedDescription': 'Will resume',
+        'notice.interrupted': 'Reconnecting…',
         segmentsLabel: 'Live transcript segments',
         interim: 'In progress',
         final: 'Final',
@@ -80,6 +79,10 @@ vi.mock('@/primitives', () => ({
     const Component = as
     return <Component {...props}>{children}</Component>
   },
+}))
+
+vi.mock('@/primitives/Spinner', () => ({
+  Spinner: () => <span data-testid="spinner" />,
 }))
 
 vi.mock('@/components/Avatar', () => ({
@@ -142,7 +145,7 @@ describe('LiveTranscriptSidePanel', () => {
 
     // No technical status line on screen: the state is only announced.
     expect(screen.getByRole('status').textContent).toBe('Transcription: Live')
-    expect(screen.queryByText('Connection interrupted')).toBeNull()
+    expect(screen.queryByText('Reconnecting…')).toBeNull()
     expect(
       screen.getByRole('log', { name: 'Live transcript segments' }).textContent
     ).toContain('Hello from the meeting')
@@ -298,7 +301,7 @@ describe('LiveTranscriptSidePanel', () => {
     }
   )
 
-  it('says the connection is interrupted only while it is', () => {
+  it('floats a reconnecting bubble without hiding the transcript', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'reconnecting',
       connectionStatus: 'reconnecting',
@@ -310,8 +313,26 @@ describe('LiveTranscriptSidePanel', () => {
 
     render(<LiveTranscriptSidePanel />)
 
-    expect(screen.getByText('Connection interrupted')).toBeTruthy()
-    expect(screen.getByText('Will resume')).toBeTruthy()
+    expect(screen.getByText('Reconnecting…')).toBeTruthy()
+    expect(screen.getByRole('log').textContent).toContain(
+      'Hello from the meeting'
+    )
+  })
+
+  it('does not also say the transcript is starting while interrupted', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'reconnecting',
+      connectionStatus: 'disconnected',
+      resyncStatus: 'idle',
+      segments: [],
+      syncSubtitleState,
+      resolveSpeaker,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Reconnecting…')).toBeTruthy()
+    expect(screen.queryByText('Starting')).toBeNull()
   })
 
   it('offers retry when the state refresh failed', () => {

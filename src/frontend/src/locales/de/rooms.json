@@ -551,8 +551,7 @@
       "waiting": "Warten auf die erste Wortmeldung.",
       "stopped": "Die Transkription ist beendet.",
       "unavailable": "Die Transkription ist vorübergehend nicht verfügbar.",
-      "interrupted": "Verbindung unterbrochen",
-      "interruptedDescription": "Die Transkription wird automatisch fortgesetzt."
+      "interrupted": "Verbindung wird wiederhergestellt…"
     },
     "segmentsLabel": "Live-Transkriptsegmente",
     "interim": "Vorläufig",
