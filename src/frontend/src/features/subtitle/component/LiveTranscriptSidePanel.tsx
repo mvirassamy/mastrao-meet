@@ -7,24 +7,35 @@ import { DEFAULT_PARTICIPANT_COLOR } from '@/features/rooms/utils/getParticipant
 import { useLiveTranscription } from '../store/liveTranscriptionContext'
 import { useSubtitles } from '../hooks/useSubtitles'
 import type {
-  LiveTranscriptionConnectionStatus,
   LiveTranscriptionSegment,
+  LiveTranscriptionStatus,
 } from '../store/liveTranscriptionTypes'
 import { groupConsecutiveSpeakerSegments } from './liveTranscriptTurns'
 
-const connectionStatusClassName = (status: LiveTranscriptionConnectionStatus) =>
-  css({
-    width: '0.5rem',
-    height: '0.5rem',
-    borderRadius: '50%',
-    flexShrink: 0,
-    backgroundColor:
-      status === 'connected'
-        ? 'success'
-        : status === 'reconnecting'
-          ? 'warning'
-          : 'danger',
-  })
+type EmptyTranscriptNotice = 'starting' | 'waiting' | 'stopped' | 'unavailable'
+
+/** What to say while no one has been transcribed yet, in plain words. */
+const emptyTranscriptNotice = (
+  status: LiveTranscriptionStatus
+): EmptyTranscriptNotice => {
+  switch (status) {
+    // Opening the panel starts the transcription: an inactive state is the
+    // moment before the start request is handled.
+    case 'unknown':
+    case 'inactive':
+    case 'starting':
+    case 'reconnecting':
+      return 'starting'
+    case 'live':
+    case 'degraded':
+      return 'waiting'
+    case 'stopping':
+    case 'stopped':
+      return 'stopped'
+    case 'unavailable':
+      return 'unavailable'
+  }
+}
 
 const Segment = ({
   segment,
@@ -94,59 +105,29 @@ const Segment = ({
   )
 }
 
-const StatusRow = ({
-  connectionStatus,
-  connectionLabel,
-  statusLabel,
-  connectionLabelTitle,
-  statusLabelTitle,
-}: {
-  connectionStatus: LiveTranscriptionConnectionStatus
-  connectionLabel: string
-  statusLabel: string
-  connectionLabelTitle: string
-  statusLabelTitle: string
-}) => (
-  <div
-    className={css({
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '0.75rem',
-      padding: '0.75rem 1.25rem',
-      borderBottomWidth: '1px',
-      borderBottomStyle: 'solid',
-      borderBottomColor: 'box.border',
-    })}
-    role="status"
-    aria-live="polite"
-  >
+/** Shown only while the meeting connection is lost. */
+const InterruptedNotice = () => {
+  const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
+
+  return (
     <div
       className={css({
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        minWidth: 0,
+        margin: '0.75rem 1.25rem 0',
+        padding: '0.625rem 0.75rem',
+        borderRadius: '10px',
+        backgroundColor: 'warning.subtle',
+        color: 'warning.subtle-text',
       })}
     >
-      <span
-        className={connectionStatusClassName(connectionStatus)}
-        aria-hidden="true"
-      />
-      <Text as="span" variant="sm" margin={false}>
-        {connectionLabelTitle}: {connectionLabel}
+      <Text as="p" variant="bodyXsMedium" margin={false}>
+        {t('notice.interrupted')}
+      </Text>
+      <Text as="p" variant="note" margin={false}>
+        {t('notice.interruptedDescription')}
       </Text>
     </div>
-    <Text
-      as="span"
-      variant="note"
-      margin={false}
-      className={css({ textAlign: 'end' })}
-    >
-      {statusLabelTitle}: {statusLabel}
-    </Text>
-  </div>
-)
+  )
+}
 
 export const LiveTranscriptSidePanel = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
@@ -208,13 +189,11 @@ export const LiveTranscriptSidePanel = () => {
       })}
       data-testid="live-transcript-panel"
     >
-      <StatusRow
-        connectionStatus={connectionStatus}
-        connectionLabel={t(`connection.${connectionStatus}`)}
-        statusLabel={t(`status.${status}`)}
-        connectionLabelTitle={t('connectionLabel')}
-        statusLabelTitle={t('statusLabel')}
-      />
+      {/* The state stays announced to screen readers; on screen a notice
+          only appears when it is useful. */}
+      <span role="status" aria-live="polite" className={css({ srOnly: true })}>
+        {t('statusLabel')}: {t(`status.${status}`)}
+      </span>
 
       {hasFailed && (
         <div
@@ -223,7 +202,9 @@ export const LiveTranscriptSidePanel = () => {
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '0.75rem',
-            padding: '0.75rem 1.25rem',
+            margin: '0.75rem 1.25rem 0',
+            padding: '0.625rem 0.75rem',
+            borderRadius: '10px',
             backgroundColor: 'danger.subtle',
             color: 'danger.subtle-text',
           })}
@@ -256,17 +237,7 @@ export const LiveTranscriptSidePanel = () => {
         </Text>
       )}
 
-      {connectionStatus === 'disconnected' && (
-        <Text
-          as="p"
-          variant="warning"
-          margin={false}
-          padding={false}
-          className={css({ padding: '0.75rem 1.25rem 0' })}
-        >
-          {t('connection.disconnectedDescription')}
-        </Text>
-      )}
+      {connectionStatus !== 'connected' && <InterruptedNotice />}
 
       <div
         className={css({
@@ -291,7 +262,7 @@ export const LiveTranscriptSidePanel = () => {
               textAlign: 'center',
             })}
           >
-            {t('empty')}
+            {t(`notice.${emptyTranscriptNotice(status)}`)}
           </Text>
         ) : (
           speakerTurns.map((segment) => {

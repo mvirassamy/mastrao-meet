@@ -26,11 +26,15 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
-        'connection.connected': 'Connected',
-        'connection.disconnectedDescription': 'Meeting unavailable',
         'status.live': 'Live',
+        statusLabel: 'Transcription',
+        'notice.starting': 'Starting',
+        'notice.waiting': 'Waiting for speech',
+        'notice.stopped': 'Stopped',
+        'notice.unavailable': 'Unavailable',
+        'notice.interrupted': 'Connection interrupted',
+        'notice.interruptedDescription': 'Will resume',
         segmentsLabel: 'Live transcript segments',
-        empty: 'No transcript yet',
         interim: 'In progress',
         final: 'Final',
         error: 'Refresh failed',
@@ -124,7 +128,7 @@ describe('LiveTranscriptSidePanel', () => {
     await waitFor(() => expect(ensureSubtitlesStarted).toHaveBeenCalledOnce())
   })
 
-  it('shows connection, transcript state, and compact speaker bubbles', () => {
+  it('announces the transcript state and shows compact speaker bubbles', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
       connectionStatus: 'connected',
@@ -136,8 +140,9 @@ describe('LiveTranscriptSidePanel', () => {
 
     render(<LiveTranscriptSidePanel />)
 
-    expect(screen.getByRole('status').textContent).toContain('Connected')
-    expect(screen.getByRole('status').textContent).toContain('Live')
+    // No technical status line on screen: the state is only announced.
+    expect(screen.getByRole('status').textContent).toBe('Transcription: Live')
+    expect(screen.queryByText('Connection interrupted')).toBeNull()
     expect(
       screen.getByRole('log', { name: 'Live transcript segments' }).textContent
     ).toContain('Hello from the meeting')
@@ -267,6 +272,46 @@ describe('LiveTranscriptSidePanel', () => {
 
     expect(screen.getByText('Unknown participant')).toBeTruthy()
     expect(screen.queryByText('user_9d46b8f2')).toBeNull()
+  })
+
+  it.each([
+    ['inactive', 'Starting'],
+    ['starting', 'Starting'],
+    ['live', 'Waiting for speech'],
+    ['stopped', 'Stopped'],
+    ['unavailable', 'Unavailable'],
+  ] as const)(
+    'explains an empty %s transcript in plain words',
+    (status, notice) => {
+      useLiveTranscriptionMock.mockReturnValue({
+        status,
+        connectionStatus: 'connected',
+        resyncStatus: 'idle',
+        segments: [],
+        syncSubtitleState,
+        resolveSpeaker,
+      })
+
+      render(<LiveTranscriptSidePanel />)
+
+      expect(screen.getByRole('log').textContent).toBe(notice)
+    }
+  )
+
+  it('says the connection is interrupted only while it is', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'reconnecting',
+      connectionStatus: 'reconnecting',
+      resyncStatus: 'idle',
+      segments: [segment],
+      syncSubtitleState,
+      resolveSpeaker,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Connection interrupted')).toBeTruthy()
+    expect(screen.getByText('Will resume')).toBeTruthy()
   })
 
   it('offers retry when the state refresh failed', () => {

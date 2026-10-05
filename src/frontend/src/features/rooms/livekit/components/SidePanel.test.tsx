@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '@/primitives'
 import { layoutStore } from '@/stores/layout'
+import { chatStore } from '@/stores/chat'
 import { PanelId, SubPanelId } from '../hooks/useSidePanel'
 import { SidePanel } from './SidePanel'
 import { ChatToggle } from './controls/ChatToggle'
@@ -18,6 +19,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => {
       if (key === 'messages') return 'Messages'
       if (key === 'transcription') return 'Transcription'
+      if (key === 'unread') return 'New message'
       return key
     },
   }),
@@ -72,6 +74,7 @@ const flushAnimationFrames = async () => {
 beforeEach(() => {
   layoutStore.activePanelId = null
   layoutStore.activeSubPanelId = null
+  chatStore.unreadMessages = 0
   vi.stubGlobal('CSS', { escape: (value: string) => value })
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     const id = ++nextFrameId
@@ -114,6 +117,37 @@ describe('meeting conversation panel', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Transcription' }))
     expect(layoutStore.activeSubPanelId).toBe(SubPanelId.LIVE_TRANSCRIPT)
     expect(await screen.findByText('Live transcription panel')).toBeTruthy()
+  })
+
+  it('shares one fixed title between transcription and messages', async () => {
+    render(<SidePanel />)
+    await screen.findByRole('tab', { name: 'Transcription' })
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'heading.conversation'
+    )
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Messages' }))
+    await screen.findByText('Messages panel')
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'heading.conversation'
+    )
+  })
+
+  it('marks unread messages on the Messages tab until it is opened', async () => {
+    render(<SidePanel />)
+    await screen.findByRole('tab', { name: 'Transcription' })
+    expect(screen.getByRole('tab', { name: 'Messages' })).toBeTruthy()
+
+    act(() => {
+      chatStore.unreadMessages = 2
+    })
+    const messages = await screen.findByRole('tab', {
+      name: 'Messages New message',
+    })
+
+    fireEvent.click(messages)
+    await screen.findByText('Messages panel')
+    expect(screen.getByRole('tab', { name: 'Messages' })).toBeTruthy()
   })
 
   it('keeps focus on the selected tab while navigating with arrow keys', async () => {
