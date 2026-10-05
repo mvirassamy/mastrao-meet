@@ -551,8 +551,7 @@
       "waiting": "Wachten tot iemand spreekt.",
       "stopped": "De transcriptie is gestopt.",
       "unavailable": "De transcriptie is tijdelijk niet beschikbaar.",
-      "interrupted": "Verbinding onderbroken",
-      "interruptedDescription": "De transcriptie gaat automatisch verder."
+      "interrupted": "Opnieuw verbinden…"
     },
     "segmentsLabel": "Live transcriptsegmenten",
     "interim": "Voorlopig",

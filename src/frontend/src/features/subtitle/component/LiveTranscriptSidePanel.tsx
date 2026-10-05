@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Text } from '@/primitives'
+import { Spinner } from '@/primitives/Spinner'
 import { css } from '@/styled-system/css'
 import { Avatar } from '@/components/Avatar'
 import { DEFAULT_PARTICIPANT_COLOR } from '@/features/rooms/utils/getParticipantColor'
@@ -106,49 +107,36 @@ const Segment = ({
 }
 
 /**
- * Shown only while the meeting connection is lost: a calm notice, the
- * amber dot carries the warning and the text keeps the normal colours.
+ * Shown only while the meeting connection is lost: a small dark bubble
+ * floating at the bottom of the panel, leaving the transcript untouched.
  */
-const InterruptedNotice = () => {
+const ReconnectingToast = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
 
   return (
     <div
       className={css({
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '0.625rem',
-        margin: '0.75rem 1.25rem 0',
-        padding: '0.625rem 0.75rem',
-        borderRadius: '10px',
-        border: '1px solid #fde3c3',
-        backgroundColor: '#fff7ed',
+        position: 'absolute',
+        left: '50%',
+        bottom: '1rem',
+        transform: 'translateX(-50%)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        height: '2rem',
+        paddingInline: '0.75rem',
+        borderRadius: 'full',
+        backgroundColor: '#1f2a44',
+        color: 'white',
+        whiteSpace: 'nowrap',
+        boxShadow: '0 6px 18px rgba(8, 20, 46, 0.18)',
+        pointerEvents: 'none',
       })}
     >
-      <span
-        aria-hidden="true"
-        className={css({
-          width: '8px',
-          height: '8px',
-          marginTop: '0.375rem',
-          flexShrink: 0,
-          borderRadius: 'full',
-          backgroundColor: '#d97706',
-        })}
-      />
-      <div className={css({ minWidth: 0 })}>
-        <Text
-          as="p"
-          variant="sm"
-          margin={false}
-          className={css({ color: 'foreground', fontWeight: 500 })}
-        >
-          {t('notice.interrupted')}
-        </Text>
-        <Text as="p" variant="note" margin={false}>
-          {t('notice.interruptedDescription')}
-        </Text>
-      </div>
+      <Spinner size={14} variant="dark" />
+      <Text as="span" variant="sm" margin={false}>
+        {t('notice.interrupted')}
+      </Text>
     </div>
   )
 }
@@ -207,6 +195,7 @@ export const LiveTranscriptSidePanel = () => {
   return (
     <div
       className={css({
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
@@ -262,8 +251,6 @@ export const LiveTranscriptSidePanel = () => {
         </Text>
       )}
 
-      {isInterrupted && <InterruptedNotice />}
-
       <div
         className={css({
           display: 'flex',
@@ -277,7 +264,7 @@ export const LiveTranscriptSidePanel = () => {
         aria-live="off"
         aria-label={t('segmentsLabel')}
       >
-        {/* While interrupted, the notice above already says what happens. */}
+        {/* While interrupted, the floating bubble already says what happens. */}
         {!hasSegments && !isInterrupted && (
           <Text
             as="p"
@@ -305,6 +292,8 @@ export const LiveTranscriptSidePanel = () => {
             )
           })}
       </div>
+
+      {isInterrupted && <ReconnectingToast />}
     </div>
   )
 }
