@@ -1,6 +1,7 @@
 """Recover exact-meeting host access via the existing authenticated Platform flow."""
 
 import secrets
+import time
 from uuid import uuid4
 
 from django.http import JsonResponse
@@ -17,6 +18,17 @@ from core.mastrao_host_grant import SESSION_NONCE_KEY, SESSION_PLATFORM_REF_KEY
 from core.mastrao_host_handoff import _admit_public_attempt, _commit_grant, _redeem
 from core.mastrao_meeting_history import IDEMPOTENCY_KEY
 from core.mastrao_platform_facade import PlatformFacadeError, request_platform
+
+
+def _redemption_for_attempt(previous, handoff_digest, handoff_expires_at):
+    """Only a persisted attempt may replay its exact credential after handoff expiry."""
+    if previous:
+        if previous["handoff_digest"] != handoff_digest:
+            raise HostHandoffRefused()
+        return previous["redemption_id"]
+    if handoff_expires_at <= time.time():
+        raise HostHandoffRefused()
+    return f"redemption_{uuid4().hex}"
 
 
 @require_POST
@@ -70,12 +82,7 @@ def recover_meeting_host(request, room_ref):
         attempts = request.session.get("mastrao_host_recovery", {})
         previous = attempts.get(attempt_key)
         digest = compact_digest(handoff)
-        if previous:
-            if previous["handoff_digest"] != digest:
-                raise HostHandoffRefused()
-            redemption_id = previous["redemption_id"]
-        else:
-            redemption_id = f"redemption_{uuid4().hex}"
+        redemption_id = _redemption_for_attempt(previous, digest, claims["expires_at"])
         nonce = request.session.get(SESSION_NONCE_KEY)
         if (
             request.session.get(SESSION_PLATFORM_REF_KEY)

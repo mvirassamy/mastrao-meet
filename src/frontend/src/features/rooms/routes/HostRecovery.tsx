@@ -3,6 +3,7 @@ import { useParams } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
+import { useUser } from '@/features/auth/api/useUser'
 import { authUrl } from '@/features/auth/utils/authUrl'
 import { Screen } from '@/layout/Screen'
 import { Button, H, Text } from '@/primitives'
@@ -10,6 +11,7 @@ import { VStack } from '@/styled-system/jsx'
 
 const HostRecovery = () => {
   const { roomRef } = useParams<{ roomRef: string }>()
+  const { isLoggedIn } = useUser()
   const { t } = useTranslation('rooms', { keyPrefix: 'hostRecovery' })
   const storageKey = `mastrao-host-recovery:${roomRef}`
   const key = useRef(sessionStorage.getItem(storageKey) || crypto.randomUUID())
@@ -17,7 +19,11 @@ const HostRecovery = () => {
   const [failed, setFailed] = useState(false)
 
   const recover = async () => {
-    if (pending) return
+    if (pending || isLoggedIn === undefined) return
+    if (!isLoggedIn) {
+      window.location.assign(authUrl())
+      return
+    }
     setPending(true)
     setFailed(false)
     sessionStorage.setItem(storageKey, key.current)
@@ -54,7 +60,11 @@ const HostRecovery = () => {
           {t('title')}
         </H>
         <Text>{t('body')}</Text>
-        <Button onPress={recover} isDisabled={pending} loading={pending}>
+        <Button
+          onPress={recover}
+          isDisabled={pending || isLoggedIn === undefined}
+          loading={pending}
+        >
           {t('submit')}
         </Button>
         {failed && <Text role="alert">{t('error')}</Text>}

@@ -151,7 +151,7 @@ def sign_redemption(host_handoff, redemption_id=None):
 def verify_host_handoff(  # noqa: PLR0912  # pylint: disable=too-many-branches
     compact_jws,
 ):
-    """Verify one Cabinet Core host handoff before charging redemption capacity."""
+    """Verify handoff identity; Core's locked ledger decides consume/replay expiry."""
     parts = compact_jws.split(".") if isinstance(compact_jws, str) else []
     if len(parts) != 3 or len(compact_jws) > 16_384:
         raise HostHandoffRefused()
@@ -213,7 +213,8 @@ def verify_host_handoff(  # noqa: PLR0912  # pylint: disable=too-many-branches
         or not isinstance(payload.get("grant_expires_at"), int)
         or isinstance(payload.get("grant_expires_at"), bool)
         or payload["issued_at"] > now
-        or payload["expires_at"] <= now
+        or payload["grant_expires_at"] <= now
+        or payload["expires_at"] <= payload["issued_at"]
         or payload["expires_at"] - payload["issued_at"] > MAX_HANDOFF_SECONDS
         or payload["grant_expires_at"] <= payload["issued_at"]
         or payload["grant_expires_at"] - payload["issued_at"] > MAX_GRANT_SECONDS
