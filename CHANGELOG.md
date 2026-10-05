@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Cache WebP and AVIF illustrations for 30 days like the other
+  static assets, instead of downloading them again on every view.
+
 - 2026-10-05: Share durable guest lobby links and recover host access to
   the same meeting through an authenticated, repeatable handoff.
 
