@@ -1,23 +1,50 @@
 import { useTranslation } from 'react-i18next'
+import { VideoIcon } from '@/icons'
 import { LinkButton } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { formatMeetingTimeRange } from '@/features/meetingHistory/utils/meetingHistoryFormat'
+import {
+  formatMeetingDuration,
+  formatMeetingTimeRange,
+} from '@/features/meetingHistory/utils/meetingHistoryFormat'
 
 import type { PlannedMeeting } from '../../api/plannedMeetings'
 
-/** Canonical planned times stay indicative; the host route checks current rights. */
+/** Within this delay before its start, a planned meeting is the one to join. */
+const STARTING_SOON_MS = 15 * 60_000
+
+const isStartingSoon = (meeting: PlannedMeeting, now: Date) =>
+  meeting.endsAt.getTime() > now.getTime() &&
+  meeting.startsAt.getTime() - now.getTime() <= STARTING_SOON_MS
+
+/**
+ * Canonical planned times stay indicative; the host route checks current
+ * rights. With `now` (today), the time left is shown and the join button
+ * stands out in the quarter hour before the start.
+ */
 export const ScheduledMeetingEvent = ({
   meeting,
   color,
   locale,
   timeZone,
+  now,
 }: {
   meeting: PlannedMeeting
   color: string
   locale: string
   timeZone?: string
+  now?: Date
 }) => {
   const { t } = useTranslation(['home', 'meetingHistory'])
+  const isJoinTime = now !== undefined && isStartingSoon(meeting, now)
+
+  const status = () => {
+    if (meeting.isClosed) return t('dashboard.meetings.closed')
+    if (!now || meeting.endsAt <= now) return t('dashboard.meetings.planned')
+    const duration = formatMeetingDuration(now, meeting.startsAt, locale)
+    if (!duration) return t('dashboard.meetings.plannedNow')
+    return t('dashboard.meetings.plannedIn', { duration })
+  }
+
   return (
     <li
       data-meeting-id={meeting.id}
@@ -64,20 +91,17 @@ export const ScheduledMeetingEvent = ({
             fontSize: '0.8125rem',
           })}
         >
-          {t(
-            meeting.isClosed
-              ? 'dashboard.meetings.closed'
-              : 'dashboard.meetings.planned'
-          )}
+          {status()}
         </p>
       </div>
       {!meeting.isClosed && (
         <LinkButton
           href={`/host/${meeting.roomRef}`}
-          variant="outline"
+          variant={isJoinTime ? 'default' : 'outline'}
           size="sm"
         >
-          {t('joinInputSubmit')}
+          {isJoinTime && <VideoIcon aria-hidden="true" />}
+          {t('dashboard.meetings.join')}
         </LinkButton>
       )}
     </li>

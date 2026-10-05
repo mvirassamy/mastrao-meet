@@ -67,6 +67,7 @@ export const DayAgenda = ({
         firstColor={0}
         locale={locale}
         timeZone={timeZone}
+        now={showNow ? now : undefined}
       />
       {showNow && <NowMarker now={now} locale={locale} timeZone={timeZone} />}
       <DaySection
@@ -76,6 +77,7 @@ export const DayAgenda = ({
         firstColor={upcoming.length}
         locale={locale}
         timeZone={timeZone}
+        now={showNow ? now : undefined}
       />
     </div>
   )
@@ -88,6 +90,7 @@ const DaySection = ({
   firstColor,
   locale,
   timeZone,
+  now,
 }: {
   id: string
   title: string
@@ -96,6 +99,8 @@ const DaySection = ({
   firstColor: number
   locale: string
   timeZone?: string
+  /** Current time, on today only. */
+  now?: Date
 }) => {
   if (events.length === 0) return null
 
@@ -160,6 +165,7 @@ const DaySection = ({
                 color={color}
                 locale={locale}
                 timeZone={timeZone}
+                now={now}
               />
             )
           return (

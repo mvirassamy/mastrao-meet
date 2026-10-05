@@ -100,6 +100,9 @@
       "errorTitle": "Unable to show this day’s meetings",
       "planned": "Scheduled",
       "closed": "Access closed",
+      "plannedIn": "Scheduled · in {{duration}}",
+      "plannedNow": "Scheduled · now",
+      "join": "Join",
       "upcoming": "Upcoming",
       "finished": "Finished",
       "now": "Now, {{time}}"

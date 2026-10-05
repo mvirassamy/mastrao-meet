@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Show the time left on today's planned meetings and make their
+  "Rejoindre" button stand out in the quarter hour before the start.
+
 - 2026-10-05: When planning a meeting for today, offer only coming times and
   reject a start time that has already passed.
 

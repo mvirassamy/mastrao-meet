@@ -58,7 +58,7 @@ const jsonResponse = (data: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   })
 
-/** Today's fictional planned slots: one still to join, one already closed. */
+/** Today's fictional planned slots: one starting soon, one later, one closed. */
 const previewPlannedMeetings = (url: URL) => {
   const nowSeconds = Math.floor(Date.now() / 1000)
   const isToday =
@@ -78,7 +78,13 @@ const previewPlannedMeetings = (url: URL) => {
   })
   return {
     results: [
-      slot('next', 'Rendez-vous client · test', nextQuarter + quarter, 'ready'),
+      slot('soon', 'Rendez-vous client · test', nextQuarter, 'ready'),
+      slot(
+        'later',
+        'Audience préparatoire · test',
+        nextQuarter + 6 * quarter,
+        'ready'
+      ),
       slot(
         'closed',
         'Point dossier · test',

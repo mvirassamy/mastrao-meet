@@ -159,9 +159,7 @@ describe('create → canonical selected day → host access', () => {
     ).toBeTruthy()
     expect(screen.getByText(/10:00.*11:15/)).toBeTruthy()
     expect(
-      screen
-        .getByRole('link', { name: 'Rejoindre la réunion' })
-        .getAttribute('href')
+      screen.getByRole('link', { name: 'Rejoindre' }).getAttribute('href')
     ).toBe(`/host/${roomRef}`)
     expect(
       fetchMock.mock.calls.filter(([url]) => url.startsWith('meetings/?'))
@@ -174,9 +172,7 @@ describe('create → canonical selected day → host access', () => {
     ).toBeTruthy()
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
     expect(
-      screen
-        .getByRole('link', { name: 'Rejoindre la réunion' })
-        .getAttribute('href')
+      screen.getByRole('link', { name: 'Rejoindre' }).getAttribute('href')
     ).toBe(`/host/${roomRef}`)
   })
   it('never places a planned meeting on the creation day, preserving instant history', async () => {
@@ -284,9 +280,7 @@ describe('create → canonical selected day → host access', () => {
       expect(
         await screen.findByRole('heading', { name: planned.title })
       ).toBeTruthy()
-      expect(
-        screen.queryByRole('link', { name: 'Rejoindre la réunion' })
-      ).toBeNull()
+      expect(screen.queryByRole('link', { name: 'Rejoindre' })).toBeNull()
     }
   )
 })

@@ -100,6 +100,9 @@
       "errorTitle": "Die Meetings dieses Tages können nicht angezeigt werden",
       "planned": "Geplant",
       "closed": "Zugang geschlossen",
+      "plannedIn": "Geplant · in {{duration}}",
+      "plannedNow": "Geplant · jetzt",
+      "join": "Beitreten",
       "upcoming": "Anstehend",
       "finished": "Beendet",
       "now": "Jetzt, {{time}}"

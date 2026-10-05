@@ -15,7 +15,7 @@ const meeting: PlannedMeeting = {
   endsAt: new Date('2026-10-06T09:15:00Z'),
   isClosed: false,
 }
-const renderMeeting = (item = meeting) =>
+const renderMeeting = (item = meeting, now?: Date) =>
   render(
     <ul>
       <ScheduledMeetingEvent
@@ -23,6 +23,7 @@ const renderMeeting = (item = meeting) =>
         color="#2d5be3"
         locale="fr"
         timeZone="Europe/Paris"
+        now={now}
       />
     </ul>
   )
@@ -38,9 +39,23 @@ describe('scheduled meeting event', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-05T12:00:00Z'))
     renderMeeting()
     expect(
-      screen.getByRole('link', { name: 'joinInputSubmit' }).getAttribute('href')
+      screen
+        .getByRole('link', { name: 'dashboard.meetings.join' })
+        .getAttribute('href')
     ).toBe(`/host/${meeting.roomRef}`)
     vi.restoreAllMocks()
+  })
+  it('stands out in the quarter hour before the start, with the time left', () => {
+    renderMeeting(meeting, new Date('2026-10-06T07:50:00Z'))
+    const join = screen.getByRole('link', { name: 'dashboard.meetings.join' })
+    expect(join.querySelector('svg')).not.toBeNull()
+    expect(screen.getByText('dashboard.meetings.plannedIn')).toBeTruthy()
+  })
+  it('stays discreet earlier in the day', () => {
+    renderMeeting(meeting, new Date('2026-10-06T06:00:00Z'))
+    const join = screen.getByRole('link', { name: 'dashboard.meetings.join' })
+    expect(join.querySelector('svg')).toBeNull()
+    expect(screen.getByText('dashboard.meetings.plannedIn')).toBeTruthy()
   })
   it('never offers reopening a canonically closed meeting', () => {
     renderMeeting({ ...meeting, isClosed: true })

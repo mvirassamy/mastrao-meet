@@ -100,6 +100,9 @@
       "errorTitle": "Impossible d’afficher les réunions de ce jour",
       "planned": "Planifiée",
       "closed": "Accès fermé",
+      "plannedIn": "Planifiée · dans {{duration}}",
+      "plannedNow": "Planifiée · maintenant",
+      "join": "Rejoindre",
       "upcoming": "À venir",
       "finished": "Terminées",
       "now": "Maintenant, {{time}}"
