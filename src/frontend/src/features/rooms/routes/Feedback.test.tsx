@@ -100,8 +100,7 @@ describe('Feedback stays in Meet', () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
-  const showHostExit = (outcome = 'left') => {
-    const value = descriptor()
+  const showHostExit = (outcome = 'left', value = descriptor()) => {
     window.sessionStorage.setItem(
       `mastrao-platform-return-v1:${roomId}`,
       JSON.stringify(value)
@@ -146,6 +145,39 @@ describe('Feedback stays in Meet', () => {
       screen.queryByRole('button', { name: 'feedback.rejoinFromMatter' })
     ).toBeNull()
   })
+  it.each(['history', 'cache'])(
+    'recovers an expired host grant after reload using %s context',
+    async (source) => {
+      const expired = { ...descriptor(), expires_at: 1 }
+      state.fetchApi.mockResolvedValueOnce({ room_url: `/${roomId}` })
+      if (source === 'history') {
+        showHostExit('left', expired)
+      } else {
+        window.sessionStorage.setItem(
+          `mastrao-platform-return-v1:${roomId}`,
+          JSON.stringify(expired)
+        )
+        window.history.replaceState(
+          {},
+          '',
+          `/feedback?outcome=left&room_id=${roomId}`
+        )
+        render(<FeedbackRoute />)
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'feedback.back' }))
+      await vi.waitFor(() =>
+        expect(state.fetchApi).toHaveBeenCalledWith(
+          `rooms/${roomId}/host-handoff/`,
+          {
+            method: 'POST',
+            headers: { 'X-Idempotency-Key': expect.any(String) },
+          }
+        )
+      )
+      expect(setLocation).not.toHaveBeenCalled()
+      expect(state.assign).toHaveBeenCalledWith(`/${roomId}`)
+    }
+  )
   it('keeps the host retry identity after a temporary failure', async () => {
     state.fetchApi
       .mockRejectedValueOnce(new ApiError(503, {}))

@@ -14,7 +14,7 @@ const descriptor = (meeting = 'meeting_0123456789abcdef') => ({
 
 const platformOrigin = 'https://platform.mastrao.test'
 
-describe('Platform return descriptor', () => {
+describe('Host recovery context', () => {
   beforeEach(() => window.sessionStorage.clear())
   afterEach(() => vi.restoreAllMocks())
 
@@ -40,9 +40,8 @@ describe('Platform return descriptor', () => {
         platformOrigin
       )
     ).toBeNull()
-    expect(
-      validatePlatformReturn({ ...descriptor(), expires_at: 1 }, platformOrigin)
-    ).toBeNull()
+    const expired = { ...descriptor(), expires_at: 1 }
+    expect(validatePlatformReturn(expired, platformOrigin)).toEqual(expired)
     expect(
       validatePlatformReturn(
         {
@@ -57,7 +56,7 @@ describe('Platform return descriptor', () => {
     ).toBeNull()
   })
 
-  it('keeps short-lived room caches isolated and clears only the chosen room', () => {
+  it('keeps room contexts isolated and clears only the chosen room', () => {
     const firstValue = descriptor()
 
     cachePlatformReturn('room_first_01234567', firstValue, platformOrigin)

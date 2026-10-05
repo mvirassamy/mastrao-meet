@@ -12,12 +12,13 @@ export const validatePlatformReturn = (
   expectedOrigin: unknown
 ): PlatformReturn | null => {
   if (!value || typeof value !== 'object') return null
+  // This context selects host recovery; the server checks current access.
+  // Its grant may have expired precisely when recovery is needed.
   const descriptor = value as { url?: unknown; expires_at?: unknown }
   if (
     typeof descriptor.url !== 'string' ||
     typeof descriptor.expires_at !== 'number' ||
-    !Number.isInteger(descriptor.expires_at) ||
-    descriptor.expires_at <= Date.now() / 1000
+    !Number.isInteger(descriptor.expires_at)
   ) {
     return null
   }
