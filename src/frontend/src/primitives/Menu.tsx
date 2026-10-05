@@ -2,9 +2,17 @@ import { ReactNode } from 'react'
 import { MenuTrigger } from 'react-aria-components'
 import { StyledPopover } from './StyledPopover'
 import { Box } from './Box'
-import { css } from '@/styled-system/css'
 
 export type MenuDensity = 'default' | 'app'
+
+// Compact application menu frame. Passed through the `css` prop so it is
+// merged with the Box recipe instead of competing with its radius and padding.
+const appMenuFrame = {
+  maxHeight: 'min(24rem, var(--available-height))',
+  overflowY: 'auto',
+  padding: '0.25rem',
+  borderRadius: '8px',
+} as const
 
 /**
  * a Menu is a tuple of a trigger component (most usually a Button) that toggles menu items in a tooltip around the trigger
@@ -34,16 +42,7 @@ export const Menu = ({
           size="sm"
           type="popover"
           variant={variant}
-          className={
-            density === 'app'
-              ? css({
-                  maxHeight: 'min(24rem, var(--available-height))',
-                  overflowY: 'auto',
-                  padding: '0.25rem',
-                  borderRadius: '8px',
-                })
-              : undefined
-          }
+          css={density === 'app' ? appMenuFrame : undefined}
         >
           {menu}
         </Box>
