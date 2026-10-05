@@ -3,6 +3,9 @@
 - 2026-10-05: Give application menus (profile, Nouveau, participants,
   options) their intended compact 8px corners instead of 16px.
 
+- 2026-10-05: Keep the selected day readable when it is today in the date
+  picker, and show the local preview calendar in the app language.
+
 - 2026-10-05: Redesign "Planifier une réunion" with a tinted header, a
   calendar with quick picks and quarter-hour time slots showing durations.
 
