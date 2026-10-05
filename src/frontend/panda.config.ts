@@ -104,24 +104,6 @@ const config: Config = {
           transform: 'rotate(360deg)',
         },
       },
-      prixClipFix: {
-        '0%': {
-          clipPath: 'polygon(50% 50%, 0 0, 0 0, 0 0, 0 0, 0 0)',
-        },
-        '25%': {
-          clipPath: 'polygon(50% 50%, 0 0, 100% 0, 100% 0, 100% 0, 100% 0)',
-        },
-        '50%': {
-          clipPath:
-            'polygon(50% 50%, 0 0, 100% 0, 100% 100%, 100% 100%, 100% 100%)',
-        },
-        '75%': {
-          clipPath: 'polygon(50% 50%, 0 0, 100% 0, 100% 100%, 0 100%, 0 100%)',
-        },
-        '100%': {
-          clipPath: 'polygon(50% 50%, 0 0, 100% 0, 100% 100%, 0 100%, 0 0)',
-        },
-      },
       overlayIn: {
         from: { opacity: 0 },
         to: { opacity: 0.6 },
