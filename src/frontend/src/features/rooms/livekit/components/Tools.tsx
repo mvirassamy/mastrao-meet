@@ -11,7 +11,6 @@ import {
   ScreenRecordingSidePanel,
 } from '@/features/recording'
 import { useConfig } from '@/api/useConfig'
-import { LiveTranscriptSidePanel } from '@/features/subtitle/component/LiveTranscriptSidePanel'
 import { useAreSubtitlesAvailable } from '@/features/subtitle/hooks/useAreSubtitlesAvailable'
 
 export interface ToolsButtonProps {
@@ -123,7 +122,10 @@ export const Tools = () => {
     // If the active element is a MenuItem (DIV) that will be unmounted when the menu closes,
     // find the "more options" button ("Plus d'options") that opened the menu
     resolveTrigger: (activeEl) => {
-      if (activeEl?.tagName === 'DIV') {
+      if (
+        activeEl?.tagName === 'DIV' &&
+        activeEl.getAttribute('role') !== 'tab'
+      ) {
         return document.querySelector<HTMLElement>('#room-options-trigger')
       }
       // For direct button clicks (e.g. "Plus d'outils"), use the active element as is
@@ -146,8 +148,6 @@ export const Tools = () => {
   switch (activeSubPanelId) {
     case SubPanelId.TRANSCRIPT:
       return <TranscriptSidePanel />
-    case SubPanelId.LIVE_TRANSCRIPT:
-      return <LiveTranscriptSidePanel />
     case SubPanelId.SCREEN_RECORDING:
       return <ScreenRecordingSidePanel />
     default:

@@ -1,7 +1,14 @@
 # Changelog
 
-- 2026-10-04: Keep the selected home day when coming back from a meeting,
+- 2026-10-05: Keep the selected home day when coming back from a meeting,
   show the retry of a failed history page, and fix sidebar focus order.
+
+- 2026-10-05: Label the host recording stop action in the meeting control
+  bar, preserving the meeting and the existing permanent recording stop.
+
+- 2026-10-04: Open the meeting panel on arrival with the live transcript
+  selected first and Messages second, preserving keyboard focus on the tabs
+  and returning to the opening control on close, keeping small screens usable.
 
 - 2026-10-04: Show the guest invitation for meetings created for later,
   disable copying unavailable links, and remove the permanent meeting promise.
