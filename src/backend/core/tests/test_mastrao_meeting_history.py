@@ -97,6 +97,7 @@ def test_create_meeting_forwards_server_side_token_without_redirect():
     "payload",
     [
         {},
+        {"invitee_emails": []},
         {"title": "Réunion d'équipe"},
         {
             "title": "Réunion d'équipe",
@@ -462,3 +463,50 @@ def test_detail_rejects_noncanonical_meeting_reference_before_network():
 
     assert response.status_code == 404
     session.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "schedule",
+    [
+        {},
+        {"title": "Invited meeting"},
+        {"scheduled_start_at": 1_800_000_000},
+        {"scheduled_start_at": 1_800_000_000, "scheduled_end_at": 1_800_003_600},
+        {"scheduled_start_at": 1_800_000_000, "timezone": "Europe/Paris"},
+        {"scheduled_end_at": 1_800_003_600, "timezone": "Europe/Paris"},
+        {
+            "scheduled_start_at": 1_800_000_000,
+            "scheduled_end_at": 1_800_003_600,
+            "timezone": None,
+        },
+    ],
+)
+@override_settings(**TEST_SETTINGS)
+def test_invitees_require_complete_schedule_before_any_external_side_effect(schedule):
+    """Invalid invitation requests cannot create a meeting or consume a delivery claim."""
+    with (
+        patch("core.mastrao_meeting_history.request_platform") as platform,
+        patch(
+            "core.mastrao_meeting_history.consume_host_handoff_for_oidc_session"
+        ) as consume,
+        patch("core.mastrao_meeting_history.deliver_meeting_invitations") as deliver,
+    ):
+        platform.return_value = (
+            {
+                "meeting_ref": "meeting_0123456789abcdef",
+                "room_ref": "room_0123456789abcdef",
+                "host_handoff": "handoff_0123456789abcdef",
+            },
+            201,
+        )
+        consume.return_value.room.slug = "room_0123456789abcdef"
+        response = _client_with_token().post(
+            "/api/v1.0/meetings/",
+            data=json.dumps({**schedule, "invitee_emails": ["guest@example.com"]}),
+            content_type="application/json",
+            HTTP_X_IDEMPOTENCY_KEY=IDEMPOTENCY_KEY,
+        )
+    assert response.status_code == 422
+    platform.assert_not_called()
+    consume.assert_not_called()
+    deliver.assert_not_called()

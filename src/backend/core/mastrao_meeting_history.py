@@ -38,7 +38,7 @@ def _reject_json_constant(_value):
 
 
 def _creation_body(request):
-    """Bound the JSON envelope; Platform validates canonical schedule values."""
+    """Bound the envelope and invitation prerequisites before any creation call."""
 
     declared = request.META.get("CONTENT_LENGTH")
     if declared and (
@@ -55,6 +55,11 @@ def _creation_body(request):
     except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise PlatformFacadeError(status=422) from error
     if not isinstance(body, dict) or set(body) - CREATION_FIELDS:
+        raise PlatformFacadeError(status=422)
+    if body.get("invitee_emails") and any(
+        body.get(field) is None
+        for field in ("scheduled_start_at", "scheduled_end_at", "timezone")
+    ):
         raise PlatformFacadeError(status=422)
     return body
 
