@@ -1,7 +1,18 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dialog, Field, Form, Text } from '@/primitives'
-import { AppInput } from '@/primitives/AppInput'
+import { Form as RACForm } from 'react-aria-components'
+import { getLocalTimeZone, today } from '@internationalized/date'
+import {
+  type AppIconComponent,
+  CalendarIcon,
+  FileTextIcon,
+  InformationIcon,
+  TimeIcon,
+} from '@/icons'
+import { Button, Field, Text } from '@/primitives'
+import { AppDialog } from '@/primitives/AppDialog'
+import { DatePickerField } from '@/primitives/DatePickerField'
+import { TimeSelectField } from '@/primitives/TimeSelectField'
 import { css } from '@/styled-system/css'
 import {
   validateMeetingSchedule,
@@ -10,57 +21,34 @@ import {
   type ScheduleErrors,
 } from '../utils/meetingSchedule'
 
-const ScheduleInput = ({
-  label,
-  name,
-  type,
-  value,
-  error,
-  onChange,
-  isDisabled,
+/** "Europe/Paris" reads as "Paris". */
+const timeZoneCity = (timeZone: string) =>
+  (timeZone.split('/').pop() ?? timeZone).replaceAll('_', ' ')
+
+/** One form row: a muted icon in the gutter, then the field(s). */
+const FieldRow = ({
+  Icon,
+  children,
 }: {
-  label: string
-  name: string
-  type: 'date' | 'time'
-  value: string
-  error?: string
-  onChange: (value: string) => void
-  isDisabled: boolean
-}) => {
-  const id = useId()
-  const errorId = `${id}-error`
-  return (
-    <div className={css({ minWidth: 0 })}>
-      <label
-        htmlFor={id}
-        className={css({ display: 'block', fontWeight: 500 })}
-      >
-        {label}
-      </label>
-      <AppInput
-        id={id}
-        name={name}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        required
-        disabled={isDisabled}
-        data-invalid={error ? true : undefined}
-        aria-invalid={!!error}
-        aria-describedby={error ? errorId : undefined}
-      />
-      {error && (
-        <Text
-          id={errorId}
-          variant="sm"
-          className={css({ color: 'destructive' })}
-        >
-          {error}
-        </Text>
-      )}
-    </div>
-  )
-}
+  Icon: AppIconComponent
+  children: ReactNode
+}) => (
+  <div
+    className={css({
+      display: 'grid',
+      gridTemplateColumns: '1.25rem minmax(0, 1fr)',
+      columnGap: '0.75rem',
+      alignItems: 'start',
+    })}
+  >
+    <Icon
+      size={18}
+      aria-hidden="true"
+      className={css({ marginTop: '2.125rem', color: 'muted-foreground' })}
+    />
+    {children}
+  </div>
+)
 
 export const ScheduleMeetingDialog = ({
   isOpen,
@@ -72,6 +60,8 @@ export const ScheduleMeetingDialog = ({
   onCreate: (schedule: MeetingSchedule) => Promise<void>
 }) => {
   const { t } = useTranslation('home', { keyPrefix: 'scheduleMeetingDialog' })
+  const { t: tGlobal } = useTranslation()
+  const formId = useId()
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const [draft, setDraft] = useState<MeetingScheduleDraft>({
     title: '',
@@ -89,20 +79,22 @@ export const ScheduleMeetingDialog = ({
     setErrors({})
     setFailed(false)
   }
+  const errorText = (name: keyof ScheduleErrors) => {
+    const issue = errors[name]
+    return issue ? t(`errors.${issue}`) : undefined
+  }
   const close = () => {
     if (!submitting.current) onClose()
   }
-  const create = async (
-    _data: Record<string, FormDataEntryValue>,
-    event: FormEvent<HTMLFormElement>
-  ) => {
+  const create = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     if (submitting.current) return
     const result = validateMeetingSchedule(draft)
     setErrors(result.errors)
     if (!('schedule' in result)) {
       const name = Object.keys(result.errors)[0]
-      const input = event.currentTarget.elements.namedItem(name)
-      if (input instanceof HTMLElement) input.focus()
+      const field = event.currentTarget.elements.namedItem(name)
+      if (field instanceof HTMLElement) field.focus()
       return
     }
     submitting.current = true
@@ -119,77 +111,110 @@ export const ScheduleMeetingDialog = ({
   }
 
   return (
-    <Dialog
+    <AppDialog
       isOpen={isOpen}
-      appearance="app"
+      size="md"
       title={t('heading')}
+      description={t('subtitle')}
+      illustration="/assets/illustrations/planifier-reunion.webp"
       onOpenChange={(open) => {
         if (!open) close()
       }}
+      footer={
+        <>
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              marginRight: { sm: 'auto' },
+              color: 'muted-foreground',
+              fontSize: '0.8125rem',
+            })}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              tooltip={t('access')}
+              aria-label={t('access')}
+            >
+              <InformationIcon size={16} aria-hidden="true" />
+            </Button>
+            {t('timeZone', { timeZone: timeZoneCity(timeZone) })}
+          </div>
+          <Button variant="outline" onPress={close} isDisabled={pending}>
+            {tGlobal('cancel')}
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            variant="default"
+            loading={pending}
+            isDisabled={pending}
+          >
+            {t('create')}
+          </Button>
+        </>
+      }
     >
-      <Form
+      <RACForm
+        id={formId}
         onSubmit={create}
         validationBehavior="aria"
-        submitLabel={t('create')}
-        submitButtonProps={{ loading: pending, isDisabled: pending }}
-        cancelButtonProps={{ isDisabled: pending }}
-        onCancelButtonPress={close}
+        className={css({ display: 'grid', gap: '1rem', paddingTop: '0.25rem' })}
       >
-        <Field
-          type="text"
-          name="title"
-          label={t('title')}
-          value={draft.title}
-          onChange={(value) => change('title', value)}
-          isDisabled={pending}
-        />
-        <div className={css({ display: 'grid', gap: '1rem' })}>
-          <ScheduleInput
+        <FieldRow Icon={FileTextIcon}>
+          <Field
+            type="text"
+            name="title"
+            label={t('title')}
+            placeholder={t('titlePlaceholder')}
+            value={draft.title}
+            onChange={(value) => change('title', value)}
+            isDisabled={pending}
+            wrapperProps={{ noMargin: true }}
+          />
+        </FieldRow>
+        <FieldRow Icon={CalendarIcon}>
+          <DatePickerField
             name="date"
-            type="date"
             label={t('date')}
             value={draft.date}
-            error={errors.date ? t(`errors.${errors.date}`) : undefined}
+            minDate={today(getLocalTimeZone()).toString()}
+            error={errorText('date')}
             onChange={(value) => change('date', value)}
             isDisabled={pending}
           />
+        </FieldRow>
+        <FieldRow Icon={TimeIcon}>
           <div
             className={css({
               display: 'grid',
               gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-              gap: '1rem',
+              gap: '0.75rem',
             })}
           >
-            <ScheduleInput
+            <TimeSelectField
               name="startTime"
-              type="time"
               label={t('startTime')}
               value={draft.startTime}
-              error={
-                errors.startTime ? t(`errors.${errors.startTime}`) : undefined
-              }
+              error={errorText('startTime')}
               onChange={(value) => change('startTime', value)}
               isDisabled={pending}
             />
-            <ScheduleInput
+            <TimeSelectField
               name="endTime"
-              type="time"
               label={t('endTime')}
               value={draft.endTime}
-              error={errors.endTime ? t(`errors.${errors.endTime}`) : undefined}
+              durationFrom={draft.startTime}
+              error={errorText('endTime')}
               onChange={(value) => change('endTime', value)}
               isDisabled={pending}
             />
           </div>
-          <Text variant="sm" className={css({ color: 'muted-foreground' })}>
-            {t('timeZone', { timeZone })}
-          </Text>
-          <Text variant="sm" className={css({ color: 'muted-foreground' })}>
-            {t('access')}
-          </Text>
-          {failed && <Text role="alert">{t('error')}</Text>}
-        </div>
-      </Form>
-    </Dialog>
+        </FieldRow>
+        {failed && <Text role="alert">{t('error')}</Text>}
+      </RACForm>
+    </AppDialog>
   )
 }

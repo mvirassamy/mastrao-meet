@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Redesign "Planifier une réunion" with a tinted header, a
+  calendar with quick picks and quarter-hour time slots showing durations.
+
 - 2026-10-05: Show loading buttons with a thin ring in place of the icon,
   keeping the button at full colour instead of greying it out.
 

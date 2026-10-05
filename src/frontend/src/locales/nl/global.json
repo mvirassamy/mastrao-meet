@@ -1,6 +1,25 @@
 {
   "backToHome": "Terug naar het hoofdscherm",
   "cancel": "Annuleren",
+  "datePicker": {
+    "placeholder": "Kies een datum",
+    "shortcuts": {
+      "label": "Snelkoppelingen",
+      "today": "Vandaag",
+      "tomorrow": "Morgen",
+      "friday": "Vrijdag",
+      "nextMonday": "Volgende maandag"
+    }
+  },
+  "timeSelect": {
+    "showSlots": "Tijden tonen",
+    "slots": "Tijden",
+    "duration": {
+      "minutes": "{{minutes}} min",
+      "hours": "{{hours}} u",
+      "hoursMinutes": "{{hours}} u {{minutes}}"
+    }
+  },
   "closeDialog": "Sluit het dialoogvenster",
   "error": {
     "body": "De pagina kon niet worden weergegeven. Probeer het zo meteen opnieuw of ga terug naar het hoofdscherm.",

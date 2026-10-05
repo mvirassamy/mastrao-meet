@@ -21,6 +21,7 @@
     "@fontsource-variable/lexend": "5.2.11",
     "@fontsource/opendyslexic": "5.2.5",
     "@heroicons/react": "2.2.0",
+    "@internationalized/date": "3.12.2",
     "@libreaudio/la-call": "0.1.4",
     "@livekit/components-react": "2.9.21",
     "@livekit/components-styles": "1.2.0",

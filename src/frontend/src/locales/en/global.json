@@ -1,6 +1,25 @@
 {
   "backToHome": "Back to homescreen",
   "cancel": "Cancel",
+  "datePicker": {
+    "placeholder": "Choose a date",
+    "shortcuts": {
+      "label": "Shortcuts",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "friday": "Friday",
+      "nextMonday": "Next Monday"
+    }
+  },
+  "timeSelect": {
+    "showSlots": "Show times",
+    "slots": "Times",
+    "duration": {
+      "minutes": "{{minutes}} min",
+      "hours": "{{hours}} h",
+      "hoursMinutes": "{{hours}} h {{minutes}}"
+    }
+  },
   "closeDialog": "Close dialog",
   "error": {
     "body": "The page could not be displayed. Try again in a moment or go back to the home page.",

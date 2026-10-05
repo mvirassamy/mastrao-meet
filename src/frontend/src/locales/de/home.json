@@ -113,7 +113,9 @@
   },
   "scheduleMeetingDialog": {
     "heading": "Besprechung planen",
-    "title": "Titel (optional)",
+    "subtitle": "Der Link ist sofort nach dem Erstellen bereit.",
+    "title": "Titel",
+    "titlePlaceholder": "Besprechung ohne Titel",
     "date": "Datum",
     "startTime": "Beginn",
     "endTime": "Ende",
