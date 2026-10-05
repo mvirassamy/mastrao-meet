@@ -32,7 +32,9 @@
     "phone": {
       "call": "Appelez le :",
       "pinCode": "Code :"
-    }
+    },
+    "invitationsSubmitted": "Les invitations ont été confiées au service d’envoi. Leur réception n’est pas confirmée.",
+    "invitationsUnconfirmed": "Envoi non confirmé pour : {{emails}}. Ces invités devront donner leur accord vidéo dans la réunion."
   },
   "introSlider": {
     "carouselLabel": "Diaporama de présentation",
@@ -138,7 +140,13 @@
       "nonexistentTime": "Cette heure n’existe pas dans ce fuseau à cause du changement d’heure.",
       "ambiguousTime": "Cette heure se produit deux fois lors du changement d’heure. Choisissez une autre heure.",
       "endBeforeStart": "La fin doit être après le début.",
-      "pastTime": "Cette heure est déjà passée. Choisissez une heure à venir."
-    }
+      "pastTime": "Cette heure est déjà passée. Choisissez une heure à venir.",
+      "invalidInvitees": "Vérifiez les adresses e-mail des invités.",
+      "tooManyInvitees": "Vous pouvez inviter au maximum 50 personnes."
+    },
+    "invitees": "Invités",
+    "inviteesDescription": "Facultatif. Séparez les adresses e-mail par une virgule.",
+    "inviteesPlaceholder": "alice@exemple.fr, bob@exemple.fr",
+    "removeInvitee": "Supprimer {{email}}"
   }
 }

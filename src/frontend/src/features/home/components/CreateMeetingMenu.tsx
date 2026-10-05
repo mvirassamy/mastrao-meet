@@ -17,6 +17,7 @@ import {
   canonicalMeetingMutationKey,
   createIdempotencyKey,
   useCreateCanonicalMeeting,
+  type VideoInvitation,
 } from '@/features/home/api/createCanonicalMeeting'
 
 // The canonical room is identified by its reference, which is also its slug.
@@ -47,6 +48,7 @@ export const CreateMeetingMenu = ({
   })
   const isCreating = isPending || activeCreateRequests > 0
   const [laterRoom, setLaterRoom] = useState<null | ApiRoom>(null)
+  const [invitations, setInvitations] = useState<VideoInvitation[]>([])
   const [scheduling, setScheduling] = useState(false)
   const scheduleRequest = useRef<{
     fingerprint: string
@@ -79,11 +81,13 @@ export const CreateMeetingMenu = ({
         idempotencyKey: createIdempotencyKey(),
       }
     }
-    const { roomRef } = await createMeetingRequest({
-      idempotencyKey: scheduleRequest.current.idempotencyKey,
-      schedule,
-    })
+    const { roomRef, invitations: sentInvitations } =
+      await createMeetingRequest({
+        idempotencyKey: scheduleRequest.current.idempotencyKey,
+        schedule,
+      })
     setScheduling(false)
+    setInvitations(sentInvitations ?? [])
     setLaterRoom(laterRoomFromRef(roomRef))
   }
 
@@ -159,6 +163,7 @@ export const CreateMeetingMenu = ({
       )}
       <LaterMeetingDialog
         room={laterRoom}
+        invitations={invitations}
         onOpenChange={() => setLaterRoom(null)}
       />
     </>

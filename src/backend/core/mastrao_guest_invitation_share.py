@@ -126,23 +126,7 @@ def create_guest_invitation_share(request, room_ref):
             },
         )
     try:
-        key = request.session.get("mastrao_share_creation_keys", {}).get(
-            binding.meeting_ref
-        )
-        if key is None:
-            key = uuid4().hex
-            keys = request.session.get("mastrao_share_creation_keys", {})
-            keys[binding.meeting_ref] = key
-            request.session["mastrao_share_creation_keys"] = keys
-            request.session.save()
-        body, _ = request_platform(
-            request,
-            "POST",
-            share_link_path(binding.meeting_ref),
-            accepted_statuses={201},
-            options={"idempotency_key": key},
-        )
-        invite_url = _invite_url(body, binding)
+        invite_url = guest_invitation_url(request, binding)
     except PlatformFacadeError as error:
         return JsonResponse(
             {"message": "Invitation indisponible"},
@@ -159,3 +143,23 @@ def create_guest_invitation_share(request, room_ref):
             "Referrer-Policy": "no-referrer",
         },
     )
+
+
+def guest_invitation_url(request, binding):
+    """Reuse the host's canonical share link for dialog and personal emails."""
+
+    keys = request.session.get("mastrao_share_creation_keys", {})
+    key = keys.get(binding.meeting_ref)
+    if key is None:
+        key = uuid4().hex
+        keys[binding.meeting_ref] = key
+        request.session["mastrao_share_creation_keys"] = keys
+        request.session.save()
+    body, _ = request_platform(
+        request,
+        "POST",
+        share_link_path(binding.meeting_ref),
+        accepted_statuses={201},
+        options={"idempotency_key": key},
+    )
+    return _invite_url(body, binding)

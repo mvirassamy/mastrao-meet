@@ -1,5 +1,8 @@
+import { MAX_INVITEE_EMAILS, readInviteeEmails } from './inviteeEmails'
+
 export type MeetingScheduleDraft = {
   title: string
+  invitees?: string
   date: string
   startTime: string
   endTime: string
@@ -7,6 +10,7 @@ export type MeetingScheduleDraft = {
 
 export type MeetingSchedule = {
   title: string
+  invitees?: string[]
   startsAt: number
   endsAt: number
   timeZone: string
@@ -19,9 +23,11 @@ export type ScheduleIssue =
   | 'ambiguousTime'
   | 'endBeforeStart'
   | 'pastTime'
+  | 'invalidInvitees'
+  | 'tooManyInvitees'
 
 export type ScheduleErrors = Partial<
-  Record<'date' | 'startTime' | 'endTime', ScheduleIssue>
+  Record<'date' | 'startTime' | 'endTime' | 'invitees', ScheduleIssue>
 >
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -85,6 +91,11 @@ export const validateMeetingSchedule = (
 ):
   | { schedule: MeetingSchedule; errors: ScheduleErrors }
   | { errors: ScheduleErrors } => {
+  const invitees = readInviteeEmails(draft.invitees ?? '')
+  if (invitees.invalidEmails.length > 0)
+    return { errors: { invitees: 'invalidInvitees' } }
+  if (invitees.emails.length > MAX_INVITEE_EMAILS)
+    return { errors: { invitees: 'tooManyInvitees' } }
   if (!validCalendarDate(draft.date)) return { errors: { date: 'invalidDate' } }
   const start = localInstant(draft.date, draft.startTime)
   const end = localInstant(draft.date, draft.endTime)
@@ -101,6 +112,7 @@ export const validateMeetingSchedule = (
   return {
     schedule: {
       title: draft.title.trim(),
+      ...(invitees.emails.length > 0 && { invitees: invitees.emails }),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       startsAt: start.instant.getTime() / 1000,
       endsAt: end.instant.getTime() / 1000,

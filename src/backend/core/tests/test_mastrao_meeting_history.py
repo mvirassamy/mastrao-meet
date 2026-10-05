@@ -104,6 +104,12 @@ def test_create_meeting_forwards_server_side_token_without_redirect():
             "scheduled_end_at": 1_800_003_600,
             "timezone": "Europe/Paris",
         },
+        {
+            "scheduled_start_at": 1_800_000_000,
+            "scheduled_end_at": 1_800_003_600,
+            "timezone": "Europe/Paris",
+            "invitee_emails": ["alice@example.com", "bob@example.com"],
+        },
     ],
 )
 @override_settings(**TEST_SETTINGS)

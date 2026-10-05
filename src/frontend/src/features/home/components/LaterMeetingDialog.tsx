@@ -9,12 +9,17 @@ import { ApiAccessLevel, ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { useTelephony } from '@/features/rooms/livekit/hooks/useTelephony'
 import { formatPinCode } from '@/features/rooms/utils/telephony'
 import { useCopyRoomToClipboard } from '@/features/rooms/livekit/hooks/useCopyRoomToClipboard'
+import type { VideoInvitation } from '../api/createCanonicalMeeting'
 
 // fixme - duplication with the InviteDialog
 export const LaterMeetingDialog = ({
   room,
+  invitations = [],
   ...dialogProps
-}: { room: null | ApiRoom } & Omit<DialogProps, 'title' | 'children'>) => {
+}: { room: null | ApiRoom; invitations?: VideoInvitation[] } & Omit<
+  DialogProps,
+  'title' | 'children'
+>) => {
   const { t } = useTranslation('home', { keyPrefix: 'laterMeetingDialog' })
 
   const telephony = useTelephony()
@@ -35,6 +40,9 @@ export const LaterMeetingDialog = ({
   } = useCopyRoomToClipboard(room || undefined)
   const isCopyDisabled =
     !shareUrl || isShareLinkPending || Boolean(shareLinkError)
+  const unconfirmed = invitations.filter(
+    (invitation) => invitation.delivery_state !== 'sent'
+  )
 
   return (
     <Dialog
@@ -44,6 +52,17 @@ export const LaterMeetingDialog = ({
       title={t('heading')}
     >
       <P>{t('description')}</P>
+      {invitations.length > 0 && (
+        <Text as="p" role="status">
+          {unconfirmed.length
+            ? t('invitationsUnconfirmed', {
+                emails: unconfirmed
+                  .map((invitation) => invitation.email)
+                  .join(', '),
+              })
+            : t('invitationsSubmitted')}
+        </Text>
+      )}
       {room && isMastraoRoomId(room.slug) && (
         <Link href={`/host/${room.slug}`}>{t('recoverHost')}</Link>
       )}

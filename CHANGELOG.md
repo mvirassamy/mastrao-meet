@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Invite optional email recipients to planned meetings with
+  personal video choices and an honest email send status.
+
 - 2026-10-06: Keep video choices available while recording start is queued,
   until Core locks the choices, with host Stop and no second Start.
 

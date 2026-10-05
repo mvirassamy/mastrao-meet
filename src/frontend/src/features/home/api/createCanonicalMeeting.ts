@@ -15,6 +15,39 @@ export type CanonicalMeeting = {
   meetingRef: string
   /** Also the Meet room slug: the room URL is /{roomRef}. */
   roomRef: string
+  invitations?: VideoInvitation[]
+}
+
+export type VideoInvitation = {
+  invitation_ref: string
+  email: string
+  delivery_state: 'pending' | 'sending' | 'sent' | 'unknown'
+}
+
+const readInvitations = (value: unknown): VideoInvitation[] => {
+  if (!Array.isArray(value) || value.length > 50)
+    throw new CanonicalMeetingContractError()
+  return value.map((item: unknown) => {
+    if (!item || typeof item !== 'object')
+      throw new CanonicalMeetingContractError()
+    const invitation = item as Record<string, unknown>
+    const { invitation_ref, email, delivery_state } = invitation
+    if (
+      Object.keys(invitation).length !== 3 ||
+      typeof invitation_ref !== 'string' ||
+      !/^[A-Za-z0-9_-]{16,160}$/.test(invitation_ref) ||
+      typeof email !== 'string' ||
+      !['pending', 'sending', 'sent', 'unknown'].includes(
+        String(delivery_state)
+      )
+    )
+      throw new CanonicalMeetingContractError()
+    return {
+      invitation_ref,
+      email,
+      delivery_state: delivery_state as VideoInvitation['delivery_state'],
+    }
+  })
 }
 
 export type CreateMeetingRequest = {
@@ -58,6 +91,7 @@ export const createCanonicalMeeting = async ({
   if (schedule) {
     options.body = JSON.stringify({
       ...(schedule.title && { title: schedule.title }),
+      ...(schedule.invitees?.length && { invitee_emails: schedule.invitees }),
       scheduled_start_at: schedule.startsAt,
       scheduled_end_at: schedule.endsAt,
       timezone: schedule.timeZone,
@@ -83,7 +117,26 @@ export const createCanonicalMeeting = async ({
       (raw.title ?? '') !== schedule.title)
   )
     throw new CanonicalMeetingContractError()
-  return { meetingRef: meeting_ref, roomRef: room_ref }
+  const invitations =
+    raw.video_invitations === undefined
+      ? undefined
+      : readInvitations(raw.video_invitations)
+  if (
+    schedule?.invitees?.length &&
+    (!invitations ||
+      invitations.length !== schedule.invitees.length ||
+      invitations.some(
+        (invitation) => !schedule.invitees?.includes(invitation.email)
+      ) ||
+      new Set(invitations.map((invitation) => invitation.email)).size !==
+        invitations.length)
+  )
+    throw new CanonicalMeetingContractError()
+  return {
+    meetingRef: meeting_ref,
+    roomRef: room_ref,
+    ...(invitations && { invitations }),
+  }
 }
 
 const isRetryable = (error: unknown) =>

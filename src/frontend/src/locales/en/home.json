@@ -32,7 +32,9 @@
     "phone": {
       "call": "Call:",
       "pinCode": "Code:"
-    }
+    },
+    "invitationsSubmitted": "The invitations were accepted by the sending service. Receipt is not confirmed.",
+    "invitationsUnconfirmed": "Sending is unconfirmed for: {{emails}}. These guests will need to give their video permission in the meeting."
   },
   "introSlider": {
     "previous": {
@@ -138,7 +140,13 @@
       "nonexistentTime": "This time does not exist in this time zone due to a clock change.",
       "ambiguousTime": "This time occurs twice during a clock change. Choose another time.",
       "endBeforeStart": "The end must be after the start.",
-      "pastTime": "This time has already passed. Choose a later time."
-    }
+      "pastTime": "This time has already passed. Choose a later time.",
+      "invalidInvitees": "Check the guests’ email addresses.",
+      "tooManyInvitees": "You can invite up to 50 people."
+    },
+    "invitees": "Guests",
+    "inviteesDescription": "Optional. Separate email addresses with a comma.",
+    "inviteesPlaceholder": "alice@example.com, bob@example.com",
+    "removeInvitee": "Remove {{email}}"
   }
 }

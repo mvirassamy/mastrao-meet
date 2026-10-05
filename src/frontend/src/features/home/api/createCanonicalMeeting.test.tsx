@@ -97,12 +97,61 @@ describe('createCanonicalMeeting', () => {
     ).not.toHaveProperty('title')
   })
 
+  it('forwards the optional guest emails with the schedule under the same creation key', async () => {
+    const schedule = {
+      title: 'Équipe',
+      startsAt: 1800000000,
+      endsAt: 1800003600,
+      timeZone: 'Europe/Paris',
+      invitees: ['alice@example.com', 'bob@example.com'],
+    }
+    fetchApiMock.mockResolvedValue({
+      ...response,
+      title: schedule.title,
+      scheduled_start_at: schedule.startsAt,
+      scheduled_end_at: schedule.endsAt,
+      timezone: schedule.timeZone,
+      video_invitations: schedule.invitees.map((email, index) => ({
+        invitation_ref: `invitation_0123456789_${index}`,
+        email,
+        delivery_state: 'sent',
+      })),
+    })
+    await createCanonicalMeeting({
+      idempotencyKey: 'meet_0123456789abcdef',
+      schedule,
+    })
+    expect(
+      JSON.parse(fetchApiMock.mock.calls[0][1]?.body as string).invitee_emails
+    ).toEqual(schedule.invitees)
+    expect(fetchApiMock.mock.calls[0][1]?.headers).toEqual({
+      'X-Idempotency-Key': 'meet_0123456789abcdef',
+    })
+  })
+
   it('refuses an invalid key and an unexpected response', async () => {
     await expect(
       createCanonicalMeeting({ idempotencyKey: 'short' })
     ).rejects.toThrow()
     expect(fetchApiMock).not.toHaveBeenCalled()
     fetchApiMock.mockResolvedValue({ room_ref: 'room_1' })
+    await expect(
+      createCanonicalMeeting({ idempotencyKey: 'meet_0123456789abcdef' })
+    ).rejects.toBeInstanceOf(CanonicalMeetingContractError)
+  })
+
+  it('rejects personal capabilities in a creator response', async () => {
+    fetchApiMock.mockResolvedValue({
+      ...response,
+      video_invitations: [
+        {
+          invitation_ref: 'invitation_0123456789',
+          email: 'alice@example.com',
+          delivery_state: 'pending',
+          choice_token: 'secret',
+        },
+      ],
+    })
     await expect(
       createCanonicalMeeting({ idempotencyKey: 'meet_0123456789abcdef' })
     ).rejects.toBeInstanceOf(CanonicalMeetingContractError)
