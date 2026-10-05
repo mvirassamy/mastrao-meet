@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-10-05: Simplify the meeting conversation panel: one fixed title, small
+  tab pills with an unread dot, and plain transcription notices.
+
+- 2026-10-05: Show recording as a solid red pill with a pulsing dot and a
+  short "Arrêter" action for the host.
+
 - 2026-10-05: Load the meeting detail with a skeleton of its own shape:
   title, date line, and the Summary and Transcript cards.
 

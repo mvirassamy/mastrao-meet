@@ -17,6 +17,8 @@ import { Tools } from './Tools'
 import { Info } from './Info'
 import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsToolbar'
 import { useRestoreFocus } from '@/hooks/useRestoreFocus'
+import { useSnapshot } from 'valtio'
+import { chatStore } from '@/stores/chat'
 
 type StyledSidePanelProps = {
   title: string
@@ -167,9 +169,54 @@ const Panel = ({ isOpen, keepAlive = false, children }: PanelProps) => (
   </div>
 )
 
+/** Small pill tabs under the fixed "meeting conversation" title. */
+const conversationTab = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  padding: '0.25rem 0.75rem',
+  borderRadius: '999px',
+  color: 'muted-foreground',
+  fontSize: '0.8125rem',
+  lineHeight: '1.25rem',
+  fontWeight: 500,
+  transition: 'background 150ms, color 150ms',
+  '&[data-hovered]': { color: 'foreground' },
+  '&[data-selected]': { backgroundColor: 'accent', color: 'primary' },
+  '&[data-focus-visible]': {
+    outline: '2px solid token(colors.ring)',
+    outlineOffset: '1px',
+  },
+})
+
+/** Pulsing dot next to "Messages" while a message has not been read. */
+const UnreadDot = () => (
+  <span
+    aria-hidden="true"
+    className={css({
+      position: 'relative',
+      width: '7px',
+      height: '7px',
+      borderRadius: '50%',
+      backgroundColor: 'primary',
+      _after: {
+        content: '""',
+        position: 'absolute',
+        inset: 0,
+        borderRadius: '50%',
+        backgroundColor: 'primary',
+        animation: 'unread_pulse 1.6s ease-out infinite',
+        _motionReduce: { animation: 'none' },
+      },
+    })}
+  />
+)
+
 const MeetingConversationTabs = ({ isChatOpen }: { isChatOpen: boolean }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel.tabs' })
   const { toggleChat, openLiveTranscript } = useSidePanel()
+  const { unreadMessages } = useSnapshot(chatStore)
+  const hasUnread = !isChatOpen && unreadMessages > 0
 
   return (
     <Tabs
@@ -180,18 +227,27 @@ const MeetingConversationTabs = ({ isChatOpen }: { isChatOpen: boolean }) => {
       }}
       className={css({ flex: 1, minHeight: 0 })}
     >
-      <TabList className={css({ marginX: '1.25rem', flexShrink: 0 })}>
-        <Tab
-          id={SubPanelId.LIVE_TRANSCRIPT}
-          className={css({ flex: 1, textAlign: 'center' })}
-        >
+      <TabList
+        border={false}
+        className={css({
+          flexShrink: 0,
+          gap: '0.25rem',
+          marginX: '1.25rem',
+          paddingBottom: '0.75rem',
+          borderBottom: '1px solid token(colors.border)',
+        })}
+      >
+        <Tab id={SubPanelId.LIVE_TRANSCRIPT} className={conversationTab}>
           {t('transcription')}
         </Tab>
-        <Tab
-          id={PanelId.CHAT}
-          className={css({ flex: 1, textAlign: 'center' })}
-        >
+        <Tab id={PanelId.CHAT} className={conversationTab}>
           {t('messages')}
+          {hasUnread && (
+            <>
+              <UnreadDot />
+              <span className={css({ srOnly: true })}>{t('unread')}</span>
+            </>
+          )}
         </Tab>
       </TabList>
       <TabPanel
@@ -227,7 +283,12 @@ export const SidePanel = () => {
     activeSubPanelId,
   } = useSidePanel()
   const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel' })
-  const title = t(`heading.${activeSubPanelId || activePanelId}`)
+  // Transcription and Messages share one fixed title.
+  const panelKey =
+    isChatOpen || isLiveTranscriptOpen
+      ? 'conversation'
+      : activeSubPanelId || activePanelId
+  const title = t(`heading.${panelKey}`)
 
   useEffect(() => {
     layoutStore.activeSubPanelId = SubPanelId.LIVE_TRANSCRIPT
@@ -281,7 +342,7 @@ export const SidePanel = () => {
       ariaLabel={t('ariaLabel', { title })}
       onClose={closeSidePanel}
       closeButtonTooltip={t('closeButton', {
-        content: t(`content.${activeSubPanelId || activePanelId}`),
+        content: t(`content.${panelKey}`),
       })}
       isClosed={!isSidePanelOpen}
       isSubmenu={isSubPanelOpen && !isLiveTranscriptOpen}

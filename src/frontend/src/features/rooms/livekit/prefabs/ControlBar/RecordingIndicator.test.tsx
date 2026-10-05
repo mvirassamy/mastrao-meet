@@ -41,6 +41,19 @@ it('shows participants the recording state without an arrêt action', () => {
   expect(screen.queryByRole('button', { name: 'stop' })).toBeNull()
 })
 
+it('shows a short badge while recording and keeps the full state for screen readers', () => {
+  render(
+    <RecordingIndicator
+      roomId="room-1"
+      recording={{ mode: 'recorded', recording_state: 'active' }}
+    />
+  )
+
+  const badge = screen.getByText('badge')
+  expect(badge.getAttribute('aria-hidden')).toBe('true')
+  expect(screen.getByRole('status').textContent).toBe('badgeactive')
+})
+
 it('keeps the existing host stop action and refreshes the room', async () => {
   const onRecordingChanged = vi.fn().mockResolvedValue(undefined)
   render(
@@ -57,7 +70,8 @@ it('keeps the existing host stop action and refreshes the room', async () => {
   )
 
   const stopButton = screen.getByRole('button', { name: 'stop' })
-  expect(stopButton.textContent).toContain('stop')
+  // Short visible label, full accessible name.
+  expect(stopButton.textContent).toContain('stopShort')
   fireEvent.click(stopButton)
 
   await waitFor(() => expect(onRecordingChanged).toHaveBeenCalledOnce())

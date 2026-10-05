@@ -64,6 +64,10 @@ const config: Config = {
         from: { transform: 'translateX(-100%)' },
         to: { transform: 'translateX(340%)' },
       },
+      unread_pulse: {
+        from: { transform: 'scale(1)', opacity: 0.5 },
+        to: { transform: 'scale(2.6)', opacity: 0 },
+      },
       pulse: {
         '0%': { boxShadow: '0 0 0 0 rgba(255, 255, 255, 0.7)' },
         '75%': { boxShadow: '0 0 0 30px rgba(255, 255, 255, 0)' },

@@ -130,9 +130,11 @@
     "error": "Uw keuze kon niet worden opgeslagen. Probeer het opnieuw.",
     "starting": "Opname wordt gestart",
     "active": "Opname bezig",
-    "stopping": "Opname wordt gestopt",
+    "badge": "Opname",
+    "stopping": "Opname stoppen…",
     "withdraw": "Toestemming intrekken",
     "stop": "Opname stoppen",
+    "stopShort": "Stoppen",
     "activationError": "De opname kon niet worden gestart. Nieuwe poging…",
     "activationExhausted": "De opname kon niet worden gestart.",
     "activationRetry": "Opnieuw proberen",
@@ -475,6 +477,11 @@
     }
   },
   "sidePanel": {
+    "tabs": {
+      "messages": "Berichten",
+      "transcription": "Transcriptie",
+      "unread": "Nieuw bericht"
+    },
     "ariaLabel": "Zijbalk - {{title}}",
     "backToTools": "Terug naar vergadertools",
     "heading": {
@@ -486,7 +493,8 @@
       "screenRecording": "Opnemen",
       "admin": "Beheerdersbediening",
       "tools": "Meer tools",
-      "info": "Vergaderinformatie"
+      "info": "Vergaderinformatie",
+      "conversation": "Gesprek in de vergadering"
     },
     "content": {
       "participants": "deelnemers",
@@ -497,7 +505,8 @@
       "liveTranscript": "live transcript",
       "admin": "beheerdersbediening",
       "tools": "meer tools",
-      "info": "vergaderinformatie"
+      "info": "vergaderinformatie",
+      "conversation": "het gesprek"
     },
     "closeButton": "Verberg {{content}}"
   },
@@ -525,14 +534,7 @@
     }
   },
   "liveTranscript": {
-    "connectionLabel": "Verbinding",
     "statusLabel": "Transcript",
-    "connection": {
-      "connected": "Verbonden",
-      "reconnecting": "Opnieuw verbinden",
-      "disconnected": "Verbinding verbroken",
-      "disconnectedDescription": "De verbinding met de vergadering is niet beschikbaar. Het transcript wordt hervat zodra de verbinding terug is."
-    },
     "status": {
       "unknown": "Status wordt opgehaald",
       "inactive": "Inactief",
@@ -544,14 +546,21 @@
       "stopping": "Stoppen",
       "stopped": "Gestopt"
     },
+    "notice": {
+      "starting": "De transcriptie start…",
+      "waiting": "Wachten tot iemand spreekt.",
+      "stopped": "De transcriptie is gestopt.",
+      "unavailable": "De transcriptie is tijdelijk niet beschikbaar.",
+      "interrupted": "Verbinding onderbroken",
+      "interruptedDescription": "De transcriptie gaat automatisch verder."
+    },
     "segmentsLabel": "Live transcriptsegmenten",
-    "empty": "Transcriptsegmenten verschijnen hier.",
     "interim": "Voorlopig",
     "final": "Definitief",
-    "error": "De transcriptstatus kon niet worden vernieuwd.",
-    "startError": "De live transcriptie kon niet worden gestart.",
+    "error": "De transcriptie is tijdelijk niet beschikbaar.",
+    "startError": "De transcriptie kon niet starten.",
     "retry": "Opnieuw proberen",
-    "refreshing": "Transcriptstatus vernieuwen…"
+    "refreshing": "Opnieuw proberen…"
   },
   "info": {
     "roomInformation": {

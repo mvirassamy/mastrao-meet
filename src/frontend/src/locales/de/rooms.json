@@ -130,9 +130,11 @@
     "error": "Ihre Auswahl konnte nicht gespeichert werden. Bitte erneut versuchen.",
     "starting": "Aufzeichnung wird gestartet",
     "active": "Aufzeichnung läuft",
-    "stopping": "Aufzeichnung wird beendet",
+    "badge": "Aufzeichnung",
+    "stopping": "Aufzeichnung wird beendet…",
     "withdraw": "Einwilligung widerrufen",
     "stop": "Aufzeichnung beenden",
+    "stopShort": "Beenden",
     "activationError": "Die Aufzeichnung konnte nicht gestartet werden. Neuer Versuch…",
     "activationExhausted": "Die Aufzeichnung konnte nicht gestartet werden.",
     "activationRetry": "Erneut versuchen",
@@ -475,6 +477,11 @@
     }
   },
   "sidePanel": {
+    "tabs": {
+      "messages": "Nachrichten",
+      "transcription": "Transkription",
+      "unread": "Neue Nachricht"
+    },
     "ariaLabel": "Seitenleiste - {{title}}",
     "backToTools": "Zurück zu den Meeting-Tools",
     "heading": {
@@ -486,7 +493,8 @@
       "screenRecording": "Aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
-      "info": "Meeting-Informationen"
+      "info": "Meeting-Informationen",
+      "conversation": "Austausch im Meeting"
     },
     "content": {
       "participants": "Teilnehmende",
@@ -497,7 +505,8 @@
       "screenRecording": "aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
-      "info": "Meeting-Informationen"
+      "info": "Meeting-Informationen",
+      "conversation": "den Austausch"
     },
     "closeButton": "{{content}} ausblenden"
   },
@@ -525,14 +534,7 @@
     }
   },
   "liveTranscript": {
-    "connectionLabel": "Verbindung",
     "statusLabel": "Transkription",
-    "connection": {
-      "connected": "Verbunden",
-      "reconnecting": "Verbindung wird wiederhergestellt",
-      "disconnected": "Getrennt",
-      "disconnectedDescription": "Die Meeting-Verbindung ist nicht verfügbar. Das Transkript wird nach der Wiederverbindung fortgesetzt."
-    },
     "status": {
       "unknown": "Status wird erwartet",
       "inactive": "Inaktiv",
@@ -544,14 +546,21 @@
       "stopping": "Wird beendet",
       "stopped": "Beendet"
     },
+    "notice": {
+      "starting": "Die Transkription startet…",
+      "waiting": "Warten auf die erste Wortmeldung.",
+      "stopped": "Die Transkription ist beendet.",
+      "unavailable": "Die Transkription ist vorübergehend nicht verfügbar.",
+      "interrupted": "Verbindung unterbrochen",
+      "interruptedDescription": "Die Transkription wird automatisch fortgesetzt."
+    },
     "segmentsLabel": "Live-Transkriptsegmente",
-    "empty": "Transkriptsegmente werden hier angezeigt.",
     "interim": "Vorläufig",
     "final": "Final",
-    "error": "Der Status des Transkripts konnte nicht aktualisiert werden.",
-    "startError": "Die Live-Transkription konnte nicht gestartet werden.",
+    "error": "Die Transkription ist vorübergehend nicht verfügbar.",
+    "startError": "Die Transkription konnte nicht gestartet werden.",
     "retry": "Erneut versuchen",
-    "refreshing": "Transkriptstatus wird aktualisiert…"
+    "refreshing": "Neuer Versuch…"
   },
   "info": {
     "roomInformation": {

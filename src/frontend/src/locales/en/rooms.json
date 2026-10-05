@@ -130,9 +130,11 @@
     "error": "Your choice could not be saved. Please try again.",
     "starting": "Recording is starting",
     "active": "Recording in progress",
-    "stopping": "Recording is stopping",
+    "badge": "Recording",
+    "stopping": "Stopping recording…",
     "withdraw": "Withdraw consent",
     "stop": "Stop recording",
+    "stopShort": "Stop",
     "activationError": "Recording could not start. Retrying…",
     "activationExhausted": "Recording could not start.",
     "activationRetry": "Retry",
@@ -477,7 +479,8 @@
   "sidePanel": {
     "tabs": {
       "messages": "Messages",
-      "transcription": "Transcription"
+      "transcription": "Transcription",
+      "unread": "New message"
     },
     "ariaLabel": "Sidepanel - {{title}}",
     "backToTools": "Back to meeting tools",
@@ -490,7 +493,8 @@
       "screenRecording": "Record",
       "admin": "Host settings",
       "tools": "More tools",
-      "info": "Meeting information"
+      "info": "Meeting information",
+      "conversation": "Meeting conversation"
     },
     "content": {
       "participants": "participants",
@@ -501,7 +505,8 @@
       "screenRecording": "record",
       "admin": "host settings",
       "tools": "more tools",
-      "info": "meeting information"
+      "info": "meeting information",
+      "conversation": "the conversation"
     },
     "closeButton": "Hide {{content}}"
   },
@@ -529,14 +534,7 @@
     }
   },
   "liveTranscript": {
-    "connectionLabel": "Connection",
     "statusLabel": "Transcription",
-    "connection": {
-      "connected": "Connected",
-      "reconnecting": "Reconnecting",
-      "disconnected": "Disconnected",
-      "disconnectedDescription": "The meeting connection is unavailable. The transcript will resume when it reconnects."
-    },
     "status": {
       "unknown": "Waiting for status",
       "inactive": "Not active",
@@ -548,14 +546,21 @@
       "stopping": "Stopping",
       "stopped": "Stopped"
     },
+    "notice": {
+      "starting": "Transcription is starting…",
+      "waiting": "Waiting for someone to speak.",
+      "stopped": "Transcription is stopped.",
+      "unavailable": "Transcription is temporarily unavailable.",
+      "interrupted": "Connection interrupted",
+      "interruptedDescription": "Transcription will resume automatically."
+    },
     "segmentsLabel": "Live transcript segments",
-    "empty": "Transcript segments will appear here.",
     "interim": "In progress",
     "final": "Final",
-    "error": "The transcript status could not be refreshed.",
-    "startError": "Live transcription could not be started.",
+    "error": "Transcription is temporarily unavailable.",
+    "startError": "Transcription could not start.",
     "retry": "Retry",
-    "refreshing": "Refreshing transcript status…"
+    "refreshing": "Trying again…"
   },
   "info": {
     "roomInformation": {
