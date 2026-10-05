@@ -1,4 +1,4 @@
-import { LogoutIcon } from '@/icons'
+import { ChevronUpDownIcon, LogoutIcon } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { Menu as AriaMenu, MenuItem } from 'react-aria-components'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
@@ -33,10 +33,11 @@ export const MeetSidebarUserMenu = ({
     <Menu placement={collapsed ? 'right' : 'top'} density="app">
       <Button
         size={collapsed ? 'icon' : 'default'}
-        variant="outline"
+        variant="invert"
         aria-label={accessibleLabel}
         tooltip={collapsed ? accessibleLabel : undefined}
-        // Layout only: a white profile card; colours come from "outline".
+        // Layout only: a white bordered profile button; colours come from
+        // "invert".
         className={css({
           width: collapsed ? '40px' : '100%',
           height: collapsed ? '40px' : '48px',
@@ -46,6 +47,8 @@ export const MeetSidebarUserMenu = ({
           gap: collapsed ? 0 : '0.5rem',
           padding: collapsed ? '0!' : '0.5rem!',
           borderRadius: '8px',
+          borderColor: 'var(--border)',
+          boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
           fontWeight: 400,
           overflow: 'hidden',
         })}
@@ -86,6 +89,16 @@ export const MeetSidebarUserMenu = ({
             </span>
           )}
         </span>
+        {!collapsed && (
+          <ChevronUpDownIcon
+            size={16}
+            aria-hidden="true"
+            className={css({
+              marginLeft: 'auto',
+              color: 'var(--muted-foreground)',
+            })}
+          />
+        )}
       </Button>
       <div className={css({ width: '14rem', maxWidth: 'calc(100vw - 2rem)' })}>
         <div

@@ -23,6 +23,7 @@ import {
   ChevronDownIcon as HeroChevronDownIcon,
   ChevronLeftIcon as HeroChevronLeftIcon,
   ChevronRightIcon as HeroChevronRightIcon,
+  ChevronUpDownIcon as HeroChevronUpDownIcon,
   ChevronUpIcon as HeroChevronUpIcon,
   ClockIcon as HeroClockIcon,
   CloudArrowDownIcon as HeroCloudArrowDownIcon,
@@ -119,6 +120,7 @@ export const CheckIcon = sized(HeroCheckIcon) // RiCheckFill
 export const ChevronDownIcon = sized(HeroChevronDownIcon) // RiArrowDownSFill
 export const ChevronLeftIcon = sized(HeroChevronLeftIcon) // RiArrowLeftSFill
 export const ChevronRightIcon = sized(HeroChevronRightIcon) // RiArrowRightSFill
+export const ChevronUpDownIcon = sized(HeroChevronUpDownIcon)
 export const ChevronUpIcon = sized(HeroChevronUpIcon) // RiArrowUpSFill
 export const CloseIcon = sized(HeroXMarkIcon) // RiCloseFill
 export const CopyIcon = sized(HeroDocumentDuplicateIcon) // RiFileCopyFill
