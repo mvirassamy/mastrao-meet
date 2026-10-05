@@ -55,20 +55,26 @@ export const DayMeetings = ({
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const meetings = useMeetingsOfDay(day, timeZone)
   const planned = usePlannedMeetingsOfDay(day, timeZone)
+  const plannedLoading =
+    planned.isPending || (planned.hasNextPage && !planned.isFetchNextPageError)
+  const isLoading =
+    meetings.status === 'loading' ||
+    plannedLoading ||
+    isAuthRequiredError(planned.error)
+  const hasError =
+    meetings.status === 'error' ||
+    planned.isError ||
+    planned.isFetchNextPageError
   const listRef = useRef<HTMLUListElement>(null)
   useRestoreOpenedMeetingFocus(
     listRef,
     meetings.status === 'ready' &&
+      !isLoading &&
+      !hasError &&
       (meetings.items.length > 0 || planned.items.length > 0)
   )
 
-  const plannedLoading =
-    planned.isPending || (planned.hasNextPage && !planned.isFetchNextPageError)
-  if (
-    meetings.status === 'loading' ||
-    plannedLoading ||
-    isAuthRequiredError(planned.error)
-  )
+  if (isLoading)
     return (
       <div className={container}>
         <MeetingHistorySkeleton
@@ -78,11 +84,7 @@ export const DayMeetings = ({
       </div>
     )
 
-  if (
-    meetings.status === 'error' ||
-    planned.isError ||
-    planned.isFetchNextPageError
-  )
+  if (hasError)
     return (
       <div className={container}>
         <MeetingHistoryStatePanel
