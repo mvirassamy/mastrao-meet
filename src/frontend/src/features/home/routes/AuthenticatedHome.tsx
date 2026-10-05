@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useSearchParams } from 'wouter'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
 import { Screen } from '@/layout/Screen'
 import {
@@ -9,10 +9,16 @@ import { MeetWorkspaceShell } from '../components/authenticated/MeetWorkspaceShe
 import { MeetWorkspaceToolbar } from '../components/authenticated/MeetWorkspaceToolbar'
 import { MeetingWeekStrip } from '../components/authenticated/MeetingWeekStrip'
 import {
+  calendarDateFromKey,
   calendarDayKey,
-  isSameCalendarDay,
 } from '../utils/authenticatedHomeDate'
 import { useCalendarToday } from '../hooks/useCalendarToday'
+
+/**
+ * Selected day in the address, so going back from a meeting returns to it.
+ * Without it the home follows today, even across midnight.
+ */
+const DAY_PARAM = 'jour'
 
 type AuthenticatedHomeProps = {
   user: ApiUser
@@ -25,29 +31,35 @@ const dayPosition = (selected: string, today: string): DayPosition => {
 }
 
 export const AuthenticatedHome = ({ user }: AuthenticatedHomeProps) => {
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const handleDayChange = useCallback((previous: Date, next: Date) => {
-    setSelectedDate((selected) =>
-      selected === null || isSameCalendarDay(selected, previous)
-        ? next
-        : selected
+  const [searchParams, setSearchParams] = useSearchParams()
+  const today = useCalendarToday(user.timezone)
+  const todayKey = calendarDayKey(today)
+  const selectedDate = calendarDateFromKey(searchParams.get(DAY_PARAM)) ?? today
+  const selectedDay = calendarDayKey(selectedDate)
+
+  const selectDate = (date: Date) => {
+    const day = calendarDayKey(date)
+    setSearchParams(
+      (params) => {
+        if (day === todayKey) params.delete(DAY_PARAM)
+        else params.set(DAY_PARAM, day)
+        return params
+      },
+      { replace: true }
     )
-  }, [])
-  const today = useCalendarToday(user.timezone, handleDayChange)
-  const effectiveSelectedDate = selectedDate ?? today
-  const selectedDay = calendarDayKey(effectiveSelectedDate)
+  }
 
   return (
     <Screen header={false} footer={false}>
       <MeetWorkspaceShell user={user} toolbar={<MeetWorkspaceToolbar />}>
         <MeetingWeekStrip
-          selectedDate={effectiveSelectedDate}
+          selectedDate={selectedDate}
           today={today}
-          onSelectDate={setSelectedDate}
+          onSelectDate={selectDate}
         />
         <DayMeetings
           day={selectedDay}
-          position={dayPosition(selectedDay, calendarDayKey(today))}
+          position={dayPosition(selectedDay, todayKey)}
           timeZone={user.timezone}
         />
       </MeetWorkspaceShell>

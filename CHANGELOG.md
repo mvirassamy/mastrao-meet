@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Keep the selected home day when coming back from a meeting,
+  show the retry of a failed history page, and fix sidebar focus order.
+
 - 2026-10-05: Label the host recording stop action in the meeting control
   bar, preserving the meeting and the existing permanent recording stop.
 
@@ -38,7 +41,7 @@
   bubbles read from `participant_names`, up to three, or two and "+N".
 
 - 2026-10-04: Replace the summary and transcript status pills of the meeting
-  history list with the 3D icons and a coloured status dot, the exact status
+  history list with the 3D icons and a shaped status badge, the exact status
   shown on hover and read with the meeting link.
 
 - 2026-10-04: Show the generated 3D illustrations for Summary and Transcript

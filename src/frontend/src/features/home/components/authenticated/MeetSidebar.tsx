@@ -73,14 +73,15 @@ export const MeetSidebar = ({
         className={css({
           flexShrink: 0,
           display: 'flex',
-          // Collapsed: the settings button sits above the profile avatar.
-          flexDirection: collapsed ? 'column-reverse' : 'row',
+          flexDirection: collapsed ? 'column' : 'row',
           alignItems: 'center',
           gap: '8px',
           padding: collapsed ? '16px 8px' : '16px',
           borderTop: '1px solid token(colors.border)',
         })}
       >
+        {/* Collapsed: settings sit above the avatar, in focus order too. */}
+        {collapsed && <MeetSidebarSettingsButton collapsed />}
         <div className={css({ minWidth: 0, flex: collapsed ? 'none' : 1 })}>
           <MeetSidebarUserMenu
             user={user}
@@ -88,7 +89,7 @@ export const MeetSidebar = ({
             onLogout={onNavigate}
           />
         </div>
-        <MeetSidebarSettingsButton collapsed={collapsed} />
+        {!collapsed && <MeetSidebarSettingsButton />}
       </footer>
     </div>
   )

@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   addCalendarDays,
+  calendarDateFromKey,
+  calendarDayKey,
   isSameCalendarDay,
   startOfMondayWeek,
   todayInTimeZone,
 } from './authenticatedHomeDate'
 
 describe('authenticated home calendar dates', () => {
+  it('reads a calendar day from the address and rejects invalid days', () => {
+    const date = calendarDateFromKey('2026-10-01')
+    expect(date && calendarDayKey(date)).toBe('2026-10-01')
+    expect(calendarDateFromKey('2026-02-30')).toBeNull()
+    expect(calendarDateFromKey('demain')).toBeNull()
+    expect(calendarDateFromKey(null)).toBeNull()
+  })
+
   it('starts the week on Monday across month boundaries', () => {
     const sunday = new Date(Date.UTC(2026, 9, 4, 12))
     expect(startOfMondayWeek(sunday).toISOString()).toBe(
