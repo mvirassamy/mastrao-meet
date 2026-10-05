@@ -1,6 +1,25 @@
 {
   "backToHome": "Zurück zur Startseite",
   "cancel": "Abbrechen",
+  "datePicker": {
+    "placeholder": "Datum wählen",
+    "shortcuts": {
+      "label": "Schnellauswahl",
+      "today": "Heute",
+      "tomorrow": "Morgen",
+      "friday": "Freitag",
+      "nextMonday": "Nächster Montag"
+    }
+  },
+  "timeSelect": {
+    "showSlots": "Uhrzeiten anzeigen",
+    "slots": "Uhrzeiten",
+    "duration": {
+      "minutes": "{{minutes}} Min.",
+      "hours": "{{hours}} Std.",
+      "hoursMinutes": "{{hours}} Std. {{minutes}}"
+    }
+  },
   "closeDialog": "Dialogfenster schließen",
   "error": {
     "body": "Die Seite konnte nicht angezeigt werden. Versuchen Sie es gleich noch einmal oder kehren Sie zur Startseite zurück.",

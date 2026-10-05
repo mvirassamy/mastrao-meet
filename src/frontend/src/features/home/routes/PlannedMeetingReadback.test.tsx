@@ -107,9 +107,12 @@ const renderHome = (day = '2026-10-06', withCreation = false) => {
 beforeEach(() => {
   fetchMock.mockReset()
   vi.stubEnv('TZ', 'Europe/Paris')
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-05T12:00:00Z'))
 })
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.unstubAllEnvs()
 })
 
@@ -134,16 +137,15 @@ describe('create → canonical selected day → host access', () => {
       throw new Error(`unexpected ${url}`)
     })
     renderHome('2026-10-06', true)
-    fireEvent.change(screen.getByLabelText('Titre (facultatif)'), {
+    fireEvent.change(screen.getByLabelText('Titre'), {
       target: { value: planned.title },
     })
-    fireEvent.change(screen.getByLabelText('Date'), {
-      target: { value: '2026-10-06' },
-    })
-    fireEvent.change(screen.getByLabelText('Heure de début'), {
+    fireEvent.click(screen.getByRole('button', { name: /^Date/ }))
+    fireEvent.click(screen.getByRole('option', { name: /tomorrow/ }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Début' }), {
       target: { value: '10:00' },
     })
-    fireEvent.change(screen.getByLabelText('Heure de fin'), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fin' }), {
       target: { value: '11:15' },
     })
     await waitFor(() =>

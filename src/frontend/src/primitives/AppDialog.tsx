@@ -18,6 +18,11 @@ export type AppDialogProps = Omit<RACDialogProps, 'children'> & {
   /** Omit when the content renders its own title (then set aria-label). */
   title?: string
   description?: ReactNode
+  /**
+   * Illustration shown on the right of a tinted header, as on the meeting
+   * detail cards. Requires a title.
+   */
+  illustration?: string
   children: RenderProp
   /** Actions shown in the muted footer, aligned to the right on desktop. */
   footer?: RenderProp
@@ -98,6 +103,28 @@ const dialog = css({
   lineHeight: '1.25rem',
 })
 
+const illustratedHeader = css({
+  position: 'relative',
+  overflow: 'hidden',
+  justifyContent: 'center',
+  minHeight: '5.75rem',
+  marginBottom: '0.5rem',
+  paddingY: '1.25rem!',
+  paddingRight: { base: '3rem!', sm: '12rem!' },
+  background: 'linear-gradient(120deg, token(colors.card) 30%, #e6edff 100%)',
+  borderBottom: '1px solid token(colors.border)',
+  '& img': {
+    display: { base: 'none', sm: 'block' },
+    position: 'absolute',
+    right: '2.75rem',
+    top: '-0.625rem',
+    height: '8rem',
+    width: 'auto',
+    userSelect: 'none',
+    pointerEvents: 'none',
+  },
+})
+
 /**
  * Mastrao application dialog: the Platform dialog translated to React Aria.
  * Every dialog of the application uses it, through Dialog or directly.
@@ -105,6 +132,7 @@ const dialog = css({
 export const AppDialog = ({
   title,
   description,
+  illustration,
   children,
   footer,
   size = 'sm',
@@ -134,13 +162,16 @@ export const AppDialog = ({
             <AppAppearanceProvider>
               {hasHeader && (
                 <div
-                  className={css({
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem',
-                    padding: '1rem',
-                    paddingRight: isAlert ? '1rem' : '3rem',
-                  })}
+                  className={cx(
+                    css({
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem',
+                      padding: '1rem',
+                      paddingRight: isAlert ? '1rem' : '3rem',
+                    }),
+                    illustration && illustratedHeader
+                  )}
                 >
                   {title && (
                     <Heading
@@ -167,6 +198,7 @@ export const AppDialog = ({
                       {description}
                     </p>
                   )}
+                  {illustration && <img src={illustration} alt="" />}
                 </div>
               )}
               <div
