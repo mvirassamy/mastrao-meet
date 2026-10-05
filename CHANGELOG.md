@@ -3,6 +3,9 @@
 - 2026-10-05: Show an interrupted transcription as a small floating
   "Reconnexion…" bubble that leaves the transcript untouched.
 
+- 2026-10-05: Plan meetings with an optional title, browser-local date and
+  times persisted canonically, and keep immediate guest and host access.
+
 - 2026-10-05: Move settings to a row above the sidebar profile, kept as a
   white button with a menu chevron.
 

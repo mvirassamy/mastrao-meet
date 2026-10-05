@@ -15,7 +15,7 @@
   "moreAbout": "about {{appTitle}}",
   "connectionTestLink": "Test your configuration",
   "createMenu": {
-    "laterOption": "Create a meeting for a later date",
+    "laterOption": "Schedule a meeting",
     "instantOption": "Start an instant meeting",
     "error": "Unable to create the meeting. Try again."
   },
@@ -109,6 +109,24 @@
     "cta": {
       "title": "Ready to meet?",
       "body": "Sign in to create a meeting, or join the one you were invited to."
+    }
+  },
+  "scheduleMeetingDialog": {
+    "heading": "Schedule a meeting",
+    "title": "Title (optional)",
+    "date": "Date",
+    "startTime": "Start time",
+    "endTime": "End time",
+    "create": "Create meeting",
+    "timeZone": "Time zone: {{timeZone}}",
+    "access": "Times are indicative. Meeting access rules apply from creation. Only “End for everyone” permanently closes the meeting.",
+    "error": "Creation failed. Your details are kept here; try again.",
+    "errors": {
+      "invalidDate": "Choose a valid date.",
+      "invalidTime": "Choose a valid time.",
+      "nonexistentTime": "This time does not exist in this time zone due to a clock change.",
+      "ambiguousTime": "This time occurs twice during a clock change. Choose another time.",
+      "endBeforeStart": "The end must be after the start."
     }
   }
 }

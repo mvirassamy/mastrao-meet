@@ -83,6 +83,26 @@ vi.mock('@/features/home/components/LaterMeetingDialog', () => ({
   LaterMeetingDialog: ({ room }: { room: { slug: string } | null }) =>
     room ? <p data-testid="later-room">{room.slug}</p> : null,
 }))
+vi.mock('./ScheduleMeetingDialog', () => ({
+  ScheduleMeetingDialog: ({
+    onCreate,
+  }: {
+    onCreate: (schedule: unknown) => Promise<void>
+  }) => (
+    <button
+      onClick={() =>
+        void onCreate({
+          title: 'Planning',
+          startsAt: 1800000000,
+          endsAt: 1800003600,
+          timeZone: 'Europe/Paris',
+        }).catch(() => undefined)
+      }
+    >
+      submit schedule
+    </button>
+  ),
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => (key === 'createMeeting' ? 'Créer' : key),
@@ -152,7 +172,9 @@ describe('CreateMeetingMenu', () => {
     await waitFor(() =>
       expect(navigateTo).toHaveBeenCalledWith('room', 'room_0123456789abcdef')
     )
-    expect(createMeeting).toHaveBeenCalledWith('meet_key_1_0123456789')
+    expect(createMeeting).toHaveBeenCalledWith({
+      idempotencyKey: 'meet_key_1_0123456789',
+    })
   })
 
   it('prepares a meeting for later with its room link', async () => {
@@ -166,10 +188,37 @@ describe('CreateMeetingMenu', () => {
       screen.getByRole('menuitem', { name: 'createMenu.laterOption' })
     )
 
+    expect(createMeeting).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'submit schedule' }))
     expect((await screen.findByTestId('later-room')).textContent).toBe(
       'room_fedcba9876543210'
     )
     expect(navigateTo).not.toHaveBeenCalled()
+  })
+
+  it('reuses the scheduled idempotency key after an uncertain failure', async () => {
+    createMeeting
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({
+        meetingRef: 'meeting_02',
+        roomRef: 'room_fedcba9876543210',
+      })
+    render(<CreateMeetingMenu />)
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'createMenu.laterOption' })
+    )
+    const submit = screen.getByRole('button', { name: 'submit schedule' })
+    fireEvent.click(submit)
+    await waitFor(() => expect(createMeeting).toHaveBeenCalledTimes(1))
+    fireEvent.click(submit)
+    await screen.findByTestId('later-room')
+    expect(createMeeting.mock.calls[1]).toEqual(createMeeting.mock.calls[0])
+    expect(createMeeting.mock.calls[0][0].schedule).toEqual({
+      title: 'Planning',
+      startsAt: 1800000000,
+      endsAt: 1800003600,
+      timeZone: 'Europe/Paris',
+    })
   })
 
   it('uses a new idempotency key for each user action', async () => {
@@ -187,9 +236,8 @@ describe('CreateMeetingMenu', () => {
     fireEvent.click(instant)
     await waitFor(() => expect(createMeeting).toHaveBeenCalledTimes(2))
 
-    expect(createMeeting.mock.calls.map(([key]) => key)).toEqual([
-      'meet_key_1_0123456789',
-      'meet_key_2_0123456789',
-    ])
+    expect(
+      createMeeting.mock.calls.map(([request]) => request.idempotencyKey)
+    ).toEqual(['meet_key_1_0123456789', 'meet_key_2_0123456789'])
   })
 })

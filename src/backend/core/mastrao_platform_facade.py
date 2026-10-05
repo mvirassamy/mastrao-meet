@@ -82,6 +82,9 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
     cursor = options.get("cursor")
     idempotency_key = options.get("idempotency_key")
     timeout = options.get("timeout", DEFAULT_TIMEOUT_SECONDS)
+    body_options = {}
+    if "json" in options:
+        body_options["json"] = options["json"]
     target = f"{_platform_origin()}{path}"
     if cursor is not None:
         if not CURSOR.fullmatch(cursor):
@@ -100,6 +103,7 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
                 timeout=timeout,
                 allow_redirects=False,
                 stream=True,
+                **body_options,
             )
             try:
                 if response.status_code not in accepted_statuses:
