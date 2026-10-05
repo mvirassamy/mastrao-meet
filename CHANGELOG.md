@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Persist exact Core media authority and deliver verified human
+  RTC admission facts with durable retries, without enabling meeting expiry.
+
 - 2026-10-05: Label the host recording stop action in the meeting control
   bar, preserving the meeting and the existing permanent recording stop.
 

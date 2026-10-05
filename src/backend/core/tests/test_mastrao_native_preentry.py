@@ -54,6 +54,7 @@ from core.mastrao_room_contract import _sha256_canonical
 from core.tests.test_mastrao_media_token_binding import (
     _claims,
     _host_config,
+    _media_authority,
     _request,
     binding,
     guest,
@@ -93,6 +94,9 @@ def native_settings(settings, signer):
     settings.MASTRAO_ROOM_EFFECT_PUBLIC_JWK = (
         settings.MASTRAO_RECORDING_EFFECT_PUBLIC_JWK
     )
+    settings.MASTRAO_ROOM_EFFECT_PRIVATE_JWK = (
+        settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK
+    )
     settings.MASTRAO_ROOM_EFFECT_KEY_ID = settings.MASTRAO_RECORDING_RECEIPT_KEY_ID
     settings.MASTRAO_ROOM_EFFECT_ISSUER = "core-fixture"
     settings.MASTRAO_ROOM_EFFECT_AUDIENCE = "meet-fixture"
@@ -100,7 +104,11 @@ def native_settings(settings, signer):
 
 
 def browser_session(client, grant, kind):
-    compact = _sign(_grant_claims(grant, kind), f"mastrao-meeting-{kind}-grant+jws")
+    compact = (
+        _media_authority(grant)
+        if kind == "host"
+        else _sign(_grant_claims(grant, kind), f"mastrao-meeting-{kind}-grant+jws")
+    )
     grant.grant_digest = compact_digest(compact)
     grant.save(update_fields=["grant_digest", "updated_at"])
     if kind == "host":
@@ -389,7 +397,7 @@ def epoch_for(  # noqa: PLR0913 - fixture inputs plus event-order/reconnection c
         if kind == "host"
         else generate_guest_media_config(
             grant,
-            "f" * 64,
+            _media_authority(grant),
             room_id=str(grant.room_binding.room_id),
             user=AnonymousUser(),
             username="Same display name",

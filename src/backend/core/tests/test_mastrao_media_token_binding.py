@@ -4,6 +4,8 @@
 # pylint: disable=missing-function-docstring,redefined-outer-name
 
 import hashlib
+import json
+import time
 from types import SimpleNamespace
 from unittest import mock
 
@@ -16,10 +18,11 @@ from django.utils import timezone
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core import models
 from core.factories import RoomFactory, UserFactory
-from core.mastrao_guest_contract import GuestHandoffRefused
+from core.mastrao_guest_contract import GuestHandoffRefused, verify_guest_media_grant
 from core.mastrao_guest_handoff import guest_media_config
 from core.mastrao_host_grant import (
     SESSION_COMPACT_GRANTS_KEY,
@@ -29,6 +32,7 @@ from core.mastrao_host_grant import (
 )
 from core.mastrao_identity import mastrao_host_subject
 from core.mastrao_media_token_binding import generate_host_media_config
+from core.mastrao_room_contract import _canonical_json
 from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.services.lobby import LobbyService
 
@@ -43,6 +47,29 @@ def _digest(value):
 def isolated_binding_settings(settings):
     """Use no app cache or external service in this integration fixture."""
     settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = True
+    private = Ed25519PrivateKey.from_private_bytes(b"c" * 32)
+    public = private.public_key().public_bytes_raw()
+    settings.MASTRAO_ROOM_EFFECT_PRIVATE_JWK = json.dumps(
+        {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "d": jwt.utils.base64url_encode(b"c" * 32).decode(),
+        }
+    )
+    settings.MASTRAO_ROOM_EFFECT_PUBLIC_JWK = json.dumps(
+        {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": jwt.utils.base64url_encode(public).decode(),
+        }
+    )
+    settings.MASTRAO_ROOM_EFFECT_KEY_ID = "core-test"
+    settings.MASTRAO_ROOM_EFFECT_ISSUER = "core-fixture"
+    settings.MASTRAO_ROOM_EFFECT_AUDIENCE = "meet-fixture"
+    settings.MASTRAO_ROOM_RECEIPT_PRIVATE_JWK = settings.MASTRAO_ROOM_EFFECT_PRIVATE_JWK
+    settings.MASTRAO_ROOM_RECEIPT_ISSUER = "meet-fixture"
+    settings.MASTRAO_ROOM_RECEIPT_AUDIENCE = "core-fixture"
+    settings.MASTRAO_ROOM_RECEIPT_KEY_ID = "meet-test"
     settings.CACHES = {
         "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
     }
@@ -90,12 +117,74 @@ def host(binding):
     )
 
 
+def _media_authority(grant):
+    """Sign genuine Core host/guest media claims for local contract qualification."""
+    now = int(time.time())
+    claims = {
+        "version": 1,
+        "issuer": settings.MASTRAO_ROOM_EFFECT_ISSUER,
+        "audience": settings.MASTRAO_ROOM_EFFECT_AUDIENCE,
+        "organization_external_id": "organization_media_fixture",
+        "meeting_ref": grant.meeting_ref,
+        "room_ref": grant.room_ref,
+        "provider_binding_digest": grant.provider_binding_digest,
+        "credential_digest": grant.credential_digest,
+        "issued_at": now,
+        "expires_at": now + 120,
+    }
+    if isinstance(grant, models.MastraoHostGrant):
+        claims.update(
+            type="mastrao.core-meeting-host-grant",
+            purpose="media_host",
+            grant_ref=grant.grant_ref,
+            handoff_ref=grant.handoff_ref,
+            host_ref=grant.identity.host_ref,
+            platform_session_ref=grant.platform_session_ref,
+            redemption_id="redemption_media_fixture",
+            issued_at=int(grant.issued_at.timestamp()),
+            expires_at=int(grant.expires_at.timestamp()),
+        )
+        jose_type = "mastrao-meeting-host-grant+jws"
+    else:
+        claims.update(
+            type="mastrao.core-meeting-guest-media-grant",
+            purpose="media_guest",
+            media_grant_ref="mediagrant_fixture",
+            media_request_id="request_media_fixture",
+            invitation_ref=grant.invitation_ref,
+            redemption_id=grant.redemption_id,
+            guest_ref=grant.guest_ref,
+            organization_external_id=grant.organization_external_id,
+        )
+        jose_type = "mastrao-meeting-guest-media-grant+jws"
+    private = json.loads(settings.MASTRAO_ROOM_EFFECT_PRIVATE_JWK)
+    key = Ed25519PrivateKey.from_private_bytes(jwt.utils.base64url_decode(private["d"]))
+    # Core requires canonical bytes, unlike PyJWT's default payload serialization.
+    header = {
+        "alg": "EdDSA",
+        "kid": settings.MASTRAO_ROOM_EFFECT_KEY_ID,
+        "typ": jose_type,
+    }
+    protected, payload = (
+        jwt.utils.base64url_encode(_canonical_json(item)).decode()
+        for item in (header, claims)
+    )
+    signature = jwt.utils.base64url_encode(
+        key.sign(f"{protected}.{payload}".encode())
+    ).decode()
+    return f"{protected}.{payload}.{signature}"
+
+
 def _request(host):
+    compact = _media_authority(host)
+    host.grant_digest = _digest(compact)
+    host.save(update_fields=["grant_digest"])
     request = RequestFactory().get("/")
     request.user = host.identity.user
     request.session = {
         SESSION_NONCE_KEY: "host-fixture-nonce-" * 3,
         SESSION_PLATFORM_REF_KEY: host.platform_session_ref,
+        SESSION_COMPACT_GRANTS_KEY: {host.grant_ref: compact},
     }
     return request
 
@@ -154,9 +243,7 @@ def test_oidc_host_lobby_uses_the_authenticated_oidc_identity(host):
         {
             "oidc_access_token": "opaque-access-token",
             SESSION_OIDC_SUBJECT_KEY: str(oidc_user.sub),
-            SESSION_COMPACT_GRANTS_KEY: {
-                host.grant_ref: "synthetic.compact.host.grant"
-            },
+            SESSION_COMPACT_GRANTS_KEY: {host.grant_ref: _media_authority(host)},
         }
     )
 
@@ -182,9 +269,7 @@ def test_oidc_host_grant_never_issues_media_for_another_user(host):
         {
             "oidc_access_token": "opaque-access-token",
             SESSION_OIDC_SUBJECT_KEY: str(oidc_user.sub),
-            SESSION_COMPACT_GRANTS_KEY: {
-                host.grant_ref: "synthetic.compact.host.grant"
-            },
+            SESSION_COMPACT_GRANTS_KEY: {host.grant_ref: _media_authority(host)},
         }
     )
 
@@ -339,6 +424,7 @@ def _guest_request(guest):
 
 @pytest.mark.parametrize("mismatch", ["none", "room", "rotated_session"])
 def test_guest_journal_requires_exact_verified_core_media_grant(guest, mismatch):
+    compact_media = _media_authority(guest)
     media = {
         name: getattr(guest, name)
         for name in (
@@ -359,6 +445,8 @@ def test_guest_journal_requires_exact_verified_core_media_grant(guest, mismatch)
         media["room_ref"] = "room_another"
 
     def verify_media(_compact):
+        # Upstream validation is executed with the real signature.
+        verify_guest_media_grant(_compact)
         if mismatch == "rotated_session":
             models.MastraoGuestGrant.objects.filter(pk=guest.pk).update(
                 session_nonce_digest=_digest("new-browser-session")
@@ -375,7 +463,7 @@ def test_guest_journal_requires_exact_verified_core_media_grant(guest, mismatch)
         ),
         mock.patch(
             "core.mastrao_guest_handoff._post_core",
-            return_value={"media_grant": "synthetic.media.grant"},
+            return_value={"media_grant": compact_media},
         ) as authorize,
         mock.patch(
             "core.mastrao_guest_handoff.verify_guest_media_grant",
@@ -407,7 +495,8 @@ def test_guest_journal_requires_exact_verified_core_media_grant(guest, mismatch)
         pk=claims["attributes"]["mastrao.media_token_binding_ref"]
     )
     assert row.guest_grant_id == guest.pk and row.host_grant_id is None
-    assert row.authorization_digest == _digest("synthetic.media.grant")
+    assert row.authorization_digest == _digest(compact_media)
+    assert row.participant_authority == compact_media
     assert row.session_nonce_digest == guest.session_nonce_digest
     assert row.rtc_identity == claims["sub"] == guest.guest_ref
     assert claims["exp"] <= media["expires_at"]

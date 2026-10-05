@@ -982,6 +982,8 @@ class MastraoMediaTokenBinding(BaseModel):
     session_nonce_digest = models.CharField(max_length=64)
     authorization_digest = models.CharField(max_length=64)
     token_digest = models.CharField(max_length=64, unique=True)
+    # Exact Core media authority, retained privately for historical RTC delivery.
+    participant_authority = models.TextField(null=True, blank=True)
     issued_at = models.DateTimeField(default=timezone.now)
     expires_at = models.DateTimeField()
 
@@ -1027,6 +1029,10 @@ class MastraoRtcObservation(BaseModel):
     rtc_identity = models.CharField(max_length=255)
     # A public hint, deliberately not a grant/capture FK or authorization result.
     token_binding_ref = models.UUIDField(null=True, blank=True)
+    participant_kind = models.PositiveSmallIntegerField(null=True, blank=True)
+    admission_attempts = models.PositiveIntegerField(default=0)
+    admission_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    admission_receipt = models.JSONField(null=True, blank=True)
     track_sid = models.CharField(max_length=128, blank=True)
     track_type = models.PositiveSmallIntegerField(null=True, blank=True)
     track_source = models.PositiveSmallIntegerField(null=True, blank=True)

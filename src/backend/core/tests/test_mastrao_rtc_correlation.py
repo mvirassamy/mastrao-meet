@@ -19,6 +19,7 @@ from core.mastrao_media_token_binding import generate_guest_media_config
 from core.tests.test_mastrao_media_token_binding import (
     _claims,
     _host_config,
+    _media_authority,
     binding,
     guest,
     host,
@@ -71,7 +72,7 @@ def test_host_and_admitted_guest_same_name_remain_distinct(
     # Upstream Core guest authorization is a fixture here; no provider/network call.
     config = generate_guest_media_config(
         guest,
-        "f" * 64,
+        _media_authority(guest),
         room_id=str(guest.room_binding.room_id),
         user=AnonymousUser(),
         username="Identical display name",

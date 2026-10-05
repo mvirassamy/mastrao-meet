@@ -20,8 +20,13 @@ from django.utils import timezone
 import jwt
 
 from core import models, utils
-from core.mastrao_host_grant import SESSION_OIDC_SUBJECT_KEY, active_host_grant
+from core.mastrao_host_grant import (
+    SESSION_OIDC_SUBJECT_KEY,
+    active_host_compact_grant,
+    active_host_grant,
+)
 from core.mastrao_room_lifecycle import assert_mastrao_room_open
+from core.mastrao_rtc_admissions import verify_participant_authority
 
 
 def generate_host_media_config(request, room, **configuration):
@@ -34,16 +39,22 @@ def generate_host_media_config(request, room, **configuration):
     return _issue_bound_config(
         grant,
         grant.grant_digest,
+        active_host_compact_grant(request, grant),
         configuration,
         oidc_subject=request.session.get(SESSION_OIDC_SUBJECT_KEY),
     )
 
 
-def generate_guest_media_config(grant, authorization_digest, **configuration):
+def generate_guest_media_config(grant, participant_authority, **configuration):
     """Called only after the Core guest-media grant has been verified."""
     if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return utils.generate_livekit_config(**configuration)
-    return _issue_bound_config(grant, authorization_digest, configuration)
+    return _issue_bound_config(
+        grant,
+        hashlib.sha256(participant_authority.encode()).hexdigest(),
+        participant_authority,
+        configuration,
+    )
 
 
 def _validate_identity(grant, configuration, oidc_subject=None):
@@ -70,7 +81,12 @@ def _validate_identity(grant, configuration, oidc_subject=None):
 
 @transaction.atomic
 def _issue_bound_config(
-    grant, authorization_digest, configuration, *, oidc_subject=None
+    grant,
+    authorization_digest,
+    participant_authority,
+    configuration,
+    *,
+    oidc_subject=None,
 ):
     # Serialize issuance with room closure and grant updates. No remote work here.
     binding = models.MastraoRoomBinding.objects.select_for_update().get(
@@ -96,10 +112,17 @@ def _issue_bound_config(
     ):
         raise PermissionDenied("Media binding mismatch")
     identity = _validate_identity(grant, configuration, oidc_subject)
+    authority = verify_participant_authority(
+        grant, participant_authority, authorization_digest
+    )
     reference = uuid4()
     configuration = {
         **configuration,
-        "expires_at": min(grant.expires_at, configuration["expires_at"]),
+        "expires_at": min(
+            grant.expires_at,
+            configuration["expires_at"],
+            datetime.fromtimestamp(authority["expires_at"], tz=UTC),
+        ),
         "media_token_binding_ref": str(reference),
     }
     result = utils.generate_livekit_config(**configuration)
@@ -124,6 +147,7 @@ def _issue_bound_config(
         grant_digest=grant.grant_digest,
         session_nonce_digest=grant.session_nonce_digest,
         authorization_digest=authorization_digest,
+        participant_authority=participant_authority,
         token_digest=hashlib.sha256(result["token"].encode()).hexdigest(),
         expires_at=datetime.fromtimestamp(claims["exp"], tz=UTC),
     )
