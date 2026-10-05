@@ -58,6 +58,44 @@ const jsonResponse = (data: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   })
 
+/** Today's fictional planned slots: one starting soon, one later, one closed. */
+const previewPlannedMeetings = (url: URL) => {
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  const isToday =
+    Number(url.searchParams.get('day_start')) <= nowSeconds &&
+    nowSeconds < Number(url.searchParams.get('day_end'))
+  if (!isToday) return { results: [], next_cursor: null }
+  const quarter = 15 * 60
+  const nextQuarter = Math.ceil(nowSeconds / quarter) * quarter
+  const slot = (ref: string, title: string, start: number, state: string) => ({
+    meeting_ref: `meeting_preview_${ref}`,
+    room_ref: previewRoomId,
+    title,
+    scheduled_start_at: start,
+    scheduled_end_at: start + 2 * quarter,
+    timezone: 'Europe/Paris',
+    state,
+  })
+  return {
+    results: [
+      slot('soon', 'Rendez-vous client · test', nextQuarter, 'ready'),
+      slot(
+        'later',
+        'Audience préparatoire · test',
+        nextQuarter + 6 * quarter,
+        'ready'
+      ),
+      slot(
+        'closed',
+        'Point dossier · test',
+        nextQuarter - 8 * quarter,
+        'ended'
+      ),
+    ],
+    next_cursor: null,
+  }
+}
+
 /** No backend, credentials, media capture or connection can be used by this entry. */
 export const preparePreview = () => {
   const requestedLanguage = new URLSearchParams(location.search).get('lang')
@@ -118,7 +156,7 @@ export const preparePreview = () => {
         url.pathname.endsWith('/meetings/') &&
         url.searchParams.has('day_start')
       )
-        return jsonResponse({ results: [], next_cursor: null })
+        return jsonResponse(previewPlannedMeetings(url))
       if (isPreviewMeetingHistoryRequest(url))
         return previewMeetingHistoryResponse(url, previewScenario)
       if (url.pathname.includes('/rooms/')) {

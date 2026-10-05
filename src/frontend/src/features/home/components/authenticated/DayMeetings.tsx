@@ -9,26 +9,12 @@ import { MeetingHistorySkeleton } from '@/features/meetingHistory/components/Mee
 import { MeetingHistoryStatePanel } from '@/features/meetingHistory/components/MeetingHistoryStatePanel'
 import { useRestoreOpenedMeetingFocus } from '@/features/meetingHistory/utils/focusReturn'
 import { CreateMeetingMenu } from '../CreateMeetingMenu'
-import { DayMeetingEvent } from './DayMeetingEvent'
-import { ScheduledMeetingEvent } from './ScheduledMeetingEvent'
+import { DayAgenda, type DayEvent } from './DayAgenda'
 import { usePlannedMeetingsOfDay } from '../../api/plannedMeetings'
 import { isAuthRequiredError } from '@/features/meetingHistory/api/authRedirect'
 
 /** Position of the selected day relative to today. */
 export type DayPosition = 'past' | 'today' | 'future'
-
-/**
- * Accent of each event, in turn, so that neighbouring meetings never share
- * a colour. Dark enough for the time printed in the same colour.
- */
-const EVENT_COLORS = [
-  '#2d5be3',
-  '#17784d',
-  '#b3400b',
-  '#6d28d9',
-  '#0e6f86',
-  '#b4235f',
-]
 
 const container = css({
   width: '100%',
@@ -65,7 +51,7 @@ export const DayMeetings = ({
     meetings.status === 'error' ||
     planned.isError ||
     planned.isFetchNextPageError
-  const listRef = useRef<HTMLUListElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   useRestoreOpenedMeetingFocus(
     listRef,
     meetings.status === 'ready' &&
@@ -123,7 +109,7 @@ export const DayMeetings = ({
   // Canonical references also guard against duplicated rows during a refresh.
   const plannedIds = new Set(planned.items.map((item) => item.id))
   const history = meetings.items.filter((item) => !plannedIds.has(item.id))
-  const events = [
+  const events: DayEvent[] = [
     ...history.map((item) => ({
       kind: 'history' as const,
       item,
@@ -134,61 +120,22 @@ export const DayMeetings = ({
       item,
       startsAt: item.startsAt,
     })),
-  ].sort((left, right) => right.startsAt.getTime() - left.startsAt.getTime())
+  ]
 
   if (events.length === 0) return <NoMeetingsOfDay position={position} />
 
   return (
     <section aria-labelledby="day-meetings-heading" className={container}>
-      <h1
-        id="day-meetings-heading"
-        className={css({
-          margin: 0,
-          marginBottom: '0.5rem',
-          color: 'muted-foreground',
-          fontSize: '0.75rem',
-          lineHeight: '1rem',
-          fontWeight: 600,
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-        })}
-      >
+      <h1 id="day-meetings-heading" className={css({ srOnly: true })}>
         {t('dashboard.meetings.count', { count: events.length })}
       </h1>
-      <ul
-        ref={listRef}
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.625rem',
-          margin: 0,
-          padding: 0,
-          listStyle: 'none',
-        })}
-      >
-        {events.map((event, index) => {
-          const color = EVENT_COLORS[index % EVENT_COLORS.length]
-          if (event.kind === 'planned')
-            return (
-              <ScheduledMeetingEvent
-                key={event.item.id}
-                meeting={event.item}
-                color={color}
-                locale={locale}
-                timeZone={timeZone}
-              />
-            )
-          return (
-            <DayMeetingEvent
-              key={event.item.id}
-              item={event.item}
-              color={color}
-              locale={locale}
-              timeZone={timeZone}
-            />
-          )
-        })}
-      </ul>
+      <DayAgenda
+        events={events}
+        showNow={position === 'today'}
+        locale={locale}
+        timeZone={timeZone}
+        containerRef={listRef}
+      />
     </section>
   )
 }

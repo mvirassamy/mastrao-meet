@@ -1,5 +1,20 @@
 # Changelog
 
+- 2026-10-05: "Rejoindre" on a planned meeting now opens the room directly,
+  without the intermediate "Reprendre cette réunion" page.
+
+- 2026-10-05: Show the time left on today's planned meetings and make their
+  "Rejoindre" button stand out in the quarter hour before the start.
+
+- 2026-10-05: When planning a meeting for today, offer only coming times and
+  reject a start time that has already passed.
+
+- 2026-10-05: Sort the home day into "À venir" and "Terminées", with a red
+  "now" line between them on today.
+
+- 2026-10-05: Turn the room info panel into "Partager la réunion": a short
+  explanation, the invitation link with a copy button, and who gets in.
+
 - 2026-10-05: Give application menus (profile, Nouveau, participants,
   options) their intended compact 8px corners instead of 16px.
 

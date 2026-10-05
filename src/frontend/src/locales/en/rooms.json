@@ -309,8 +309,8 @@
       }
     },
     "info": {
-      "open": "Hide information",
-      "closed": "Show information"
+      "open": "Hide meeting sharing",
+      "closed": "Share meeting"
     },
     "hand": {
       "raise": "Raise hand",
@@ -493,7 +493,7 @@
       "screenRecording": "Record",
       "admin": "Host settings",
       "tools": "More tools",
-      "info": "Meeting information",
+      "info": "Share meeting",
       "conversation": "Meeting conversation"
     },
     "content": {
@@ -505,7 +505,7 @@
       "screenRecording": "record",
       "admin": "host settings",
       "tools": "more tools",
-      "info": "meeting information",
+      "info": "meeting sharing",
       "conversation": "the conversation"
     },
     "closeButton": "Hide {{content}}"
@@ -563,17 +563,22 @@
   },
   "info": {
     "roomInformation": {
-      "title": "Connection Information",
+      "description": "Share this link with the people you want to invite.",
+      "copy": "Copy link",
+      "copied": "Link copied",
       "preparing": "Preparing the secure invitation link…",
       "unavailable": "The invitation link is temporarily unavailable.",
-      "button": {
-        "ariaLabel": "Copy the information from your meeting",
-        "copy": "Copy information",
-        "copied": "Information copied"
-      },
-      "phone": {
-        "call": "Call:",
-        "pinCode": "Code:"
+      "hiddenPart": "The link is hidden on screen and copied in full.",
+      "access": {
+        "label": "Access",
+        "approval": {
+          "title": "With your approval",
+          "description": "Guests wait in the waiting room."
+        },
+        "open": {
+          "title": "Open access",
+          "description": "Anyone with the link joins the meeting directly."
+        }
       }
     }
   },

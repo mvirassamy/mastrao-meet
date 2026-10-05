@@ -1,23 +1,53 @@
 import { useTranslation } from 'react-i18next'
-import { LinkButton } from '@/primitives'
+import { VideoIcon } from '@/icons'
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { formatMeetingTimeRange } from '@/features/meetingHistory/utils/meetingHistoryFormat'
+import { useHostHandoff } from '@/features/rooms/hooks/useHostHandoff'
+import {
+  formatMeetingDuration,
+  formatMeetingTimeRange,
+} from '@/features/meetingHistory/utils/meetingHistoryFormat'
 
 import type { PlannedMeeting } from '../../api/plannedMeetings'
 
-/** Canonical planned times stay indicative; the host route checks current rights. */
+/** Within this delay before its start, a planned meeting is the one to join. */
+const STARTING_SOON_MS = 15 * 60_000
+
+const isStartingSoon = (meeting: PlannedMeeting, now: Date) =>
+  meeting.endsAt.getTime() > now.getTime() &&
+  meeting.startsAt.getTime() - now.getTime() <= STARTING_SOON_MS
+
+/**
+ * Canonical planned times stay indicative; the host route checks current
+ * rights. With `now` (today), the time left is shown and the join button
+ * stands out in the quarter hour before the start. Joining confirms host
+ * access and opens the room directly.
+ */
 export const ScheduledMeetingEvent = ({
   meeting,
   color,
   locale,
   timeZone,
+  now,
 }: {
   meeting: PlannedMeeting
   color: string
   locale: string
   timeZone?: string
+  now?: Date
 }) => {
   const { t } = useTranslation(['home', 'meetingHistory'])
+  const isJoinTime = now !== undefined && isStartingSoon(meeting, now)
+  const { handoff, pending, failed } = useHostHandoff(meeting.roomRef)
+
+  const status = () => {
+    if (meeting.isClosed) return t('dashboard.meetings.closed')
+    if (!now || meeting.endsAt <= now) return t('dashboard.meetings.planned')
+    const duration = formatMeetingDuration(now, meeting.startsAt, locale)
+    if (!duration) return t('dashboard.meetings.plannedNow')
+    return t('dashboard.meetings.plannedIn', { duration })
+  }
+
   return (
     <li
       data-meeting-id={meeting.id}
@@ -47,7 +77,7 @@ export const ScheduledMeetingEvent = ({
             timeZone
           )}
         </p>
-        <h2
+        <h3
           className={css({
             margin: 0,
             fontSize: '0.9375rem',
@@ -56,7 +86,7 @@ export const ScheduledMeetingEvent = ({
           })}
         >
           {meeting.title ?? t('untitled', { ns: 'meetingHistory' })}
-        </h2>
+        </h3>
         <p
           className={css({
             margin: 0,
@@ -64,21 +94,32 @@ export const ScheduledMeetingEvent = ({
             fontSize: '0.8125rem',
           })}
         >
-          {t(
-            meeting.isClosed
-              ? 'dashboard.meetings.closed'
-              : 'dashboard.meetings.planned'
-          )}
+          {status()}
         </p>
+        {failed && (
+          <p
+            role="alert"
+            className={css({
+              margin: 0,
+              color: 'danger.subtle-text',
+              fontSize: '0.8125rem',
+            })}
+          >
+            {t('dashboard.meetings.joinError')}
+          </p>
+        )}
       </div>
       {!meeting.isClosed && (
-        <LinkButton
-          href={`/host/${meeting.roomRef}`}
-          variant="outline"
+        <Button
+          onPress={() => void handoff()}
+          isPending={pending}
+          loading={pending}
+          icon={isJoinTime ? <VideoIcon aria-hidden="true" /> : undefined}
+          variant={isJoinTime ? 'default' : 'outline'}
           size="sm"
         >
-          {t('joinInputSubmit')}
-        </LinkButton>
+          {t('dashboard.meetings.join')}
+        </Button>
       )}
     </li>
   )

@@ -121,36 +121,44 @@ const PreviewRoom = () => {
     )
     return instance
   })
+  // The room page reads its id from the URL, as in the application.
+  const [roomLocation] = useState(() =>
+    memoryLocation({ path: `/${previewRoomId}` })
+  )
   return (
     <Screen header={false} footer={false}>
-      <LiveKitRoom
-        data-lk-theme="visio-light"
-        room={room}
-        serverUrl=""
-        token=""
-        connect={false}
-        audio={false}
-        video={false}
-      >
-        <VideoConference
-          roomId={previewRoomId}
-          canEnd={previewScenario.startsWith('recording-')}
-          recording={
-            previewScenario.startsWith('recording-')
-              ? {
-                  mode: 'recorded',
-                  decision: 'accepted',
-                  recording_state:
-                    previewScenario === 'recording-starting'
-                      ? 'starting'
-                      : previewScenario === 'recording-stopping'
-                        ? 'stopping'
-                        : 'active',
-                }
-              : { mode: 'disabled' }
-          }
-        />
-      </LiveKitRoom>
+      <Router hook={roomLocation.hook}>
+        <Route path="/:roomId">
+          <LiveKitRoom
+            data-lk-theme="visio-light"
+            room={room}
+            serverUrl=""
+            token=""
+            connect={false}
+            audio={false}
+            video={false}
+          >
+            <VideoConference
+              roomId={previewRoomId}
+              canEnd={previewScenario.startsWith('recording-')}
+              recording={
+                previewScenario.startsWith('recording-')
+                  ? {
+                      mode: 'recorded',
+                      decision: 'accepted',
+                      recording_state:
+                        previewScenario === 'recording-starting'
+                          ? 'starting'
+                          : previewScenario === 'recording-stopping'
+                            ? 'stopping'
+                            : 'active',
+                    }
+                  : { mode: 'disabled' }
+              }
+            />
+          </LiveKitRoom>
+        </Route>
+      </Router>
     </Screen>
   )
 }

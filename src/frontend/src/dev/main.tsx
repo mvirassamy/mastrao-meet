@@ -20,6 +20,11 @@ if (import.meta.env.DEV) {
   queryClient.setQueryData([keys.user], workspace ? previewUser : false)
   if (!['error', 'loading'].includes(previewScenario))
     queryClient.setQueryData([keys.room, previewRoomId], previewRoom)
+  // Fictional invitation link shown in the room's share panel.
+  queryClient.setQueryData(
+    [keys.room, previewRoomId, 'guest-invitation-share'],
+    `${location.origin}/guest#organization=preview&share=preview`
+  )
   const { userChoicesStore } = await import('@/stores/userChoices')
   userChoicesStore.audioEnabled = false
   userChoicesStore.videoEnabled = false

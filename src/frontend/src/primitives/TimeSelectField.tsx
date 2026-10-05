@@ -41,13 +41,16 @@ const formatDuration = (minutes: number, t: TFunction) => {
 const openingSlot = (slots: TimeSlot[], selectedKey: string | null) => {
   if (selectedKey) return selectedKey
   const isFullDay = slots[0]?.duration === null
-  return isFullDay ? WORKDAY_START : null
+  if (!isFullDay) return null
+  const hasWorkdayStart = slots.some(({ time }) => time === WORKDAY_START)
+  return hasWorkdayStart ? WORKDAY_START : null
 }
 
 /**
  * Time field of the application: type a time or pick a quarter hour. With
  * `durationFrom` (an end time), the list starts after that time and shows
- * each duration. The value is "HH:MM", or the text being typed.
+ * each duration. With `notBefore`, earlier slots are not offered. The value
+ * is "HH:MM", or the text being typed.
  */
 export const TimeSelectField = ({
   label,
@@ -55,6 +58,7 @@ export const TimeSelectField = ({
   value,
   onChange,
   durationFrom,
+  notBefore,
   error,
   isDisabled,
 }: {
@@ -63,12 +67,13 @@ export const TimeSelectField = ({
   value: string
   onChange: (value: string) => void
   durationFrom?: string
+  notBefore?: string
   error?: string
   isDisabled?: boolean
 }) => {
   const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement>(null)
-  const slots = timeSlots(durationFrom)
+  const slots = timeSlots(durationFrom, notBefore)
   const chosen = slots.find(({ time }) => time === value)
   const selectedKey = chosen ? chosen.time : null
 

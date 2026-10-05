@@ -99,7 +99,14 @@
       "loading": "Meetings werden geladen…",
       "errorTitle": "Die Meetings dieses Tages können nicht angezeigt werden",
       "planned": "Geplant",
-      "closed": "Zugang geschlossen"
+      "closed": "Zugang geschlossen",
+      "plannedIn": "Geplant · in {{duration}}",
+      "plannedNow": "Geplant · jetzt",
+      "join": "Beitreten",
+      "joinError": "Das Meeting konnte nicht geöffnet werden. Versuchen Sie es erneut.",
+      "upcoming": "Anstehend",
+      "finished": "Beendet",
+      "now": "Jetzt, {{time}}"
     }
   },
   "homeV2": {
@@ -130,7 +137,8 @@
       "invalidTime": "Wählen Sie eine gültige Uhrzeit.",
       "nonexistentTime": "Diese Uhrzeit existiert wegen der Zeitumstellung in dieser Zeitzone nicht.",
       "ambiguousTime": "Diese Uhrzeit tritt bei der Zeitumstellung zweimal auf. Wählen Sie eine andere Uhrzeit.",
-      "endBeforeStart": "Das Ende muss nach dem Beginn liegen."
+      "endBeforeStart": "Das Ende muss nach dem Beginn liegen.",
+      "pastTime": "Diese Uhrzeit ist bereits vorbei. Wählen Sie eine spätere Uhrzeit."
     }
   }
 }

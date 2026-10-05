@@ -158,11 +158,7 @@ describe('create → canonical selected day → host access', () => {
       await screen.findByRole('heading', { name: planned.title })
     ).toBeTruthy()
     expect(screen.getByText(/10:00.*11:15/)).toBeTruthy()
-    expect(
-      screen
-        .getByRole('link', { name: 'Rejoindre la réunion' })
-        .getAttribute('href')
-    ).toBe(`/host/${roomRef}`)
+    expect(screen.getByRole('button', { name: 'Rejoindre' })).toBeTruthy()
     expect(
       fetchMock.mock.calls.filter(([url]) => url.startsWith('meetings/?'))
         .length
@@ -173,11 +169,7 @@ describe('create → canonical selected day → host access', () => {
       await screen.findByRole('heading', { name: planned.title })
     ).toBeTruthy()
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
-    expect(
-      screen
-        .getByRole('link', { name: 'Rejoindre la réunion' })
-        .getAttribute('href')
-    ).toBe(`/host/${roomRef}`)
+    expect(screen.getByRole('button', { name: 'Rejoindre' })).toBeTruthy()
   })
   it('never places a planned meeting on the creation day, preserving instant history', async () => {
     fetchMock.mockImplementation(async (url) => {
@@ -284,9 +276,7 @@ describe('create → canonical selected day → host access', () => {
       expect(
         await screen.findByRole('heading', { name: planned.title })
       ).toBeTruthy()
-      expect(
-        screen.queryByRole('link', { name: 'Rejoindre la réunion' })
-      ).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Rejoindre' })).toBeNull()
     }
   )
 })

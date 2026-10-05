@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -70,6 +71,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   window.history.replaceState(null, '', '/')
 })
 
@@ -188,5 +190,49 @@ describe('meetings of the selected home day', () => {
     renderDay('2026-10-02', position)
 
     expect(await screen.findByRole('heading', { name: title })).toBeTruthy()
+  })
+
+  it('lists joinable planned meetings above now and the others below', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-05T16:51:00Z'))
+    const planned = (name: string, state: string, start: string) => ({
+      meeting_ref: `meeting_${name}_0123456789`,
+      room_ref: 'room_0123456789abcdef0123456789abcdef',
+      title: `Réunion ${name}`,
+      scheduled_start_at: Date.parse(start) / 1000,
+      scheduled_end_at: Date.parse(start) / 1000 + 15 * 60,
+      timezone: 'Europe/Paris',
+      state,
+    })
+    fetchApiMock.mockImplementation(async (url) => {
+      if (url.startsWith('meetings/?'))
+        return {
+          results: [
+            planned('suivante', 'ready', '2026-10-05T17:00:00Z'),
+            planned('fermee', 'ended', '2026-10-05T16:45:00Z'),
+          ],
+          next_cursor: null,
+        }
+      return {
+        results: [meeting('passee', '2026-10-05T16:09:00Z')],
+        next_cursor: null,
+      }
+    })
+    renderDay('2026-10-05', 'today')
+
+    const upcoming = await screen.findByRole('region', {
+      name: 'dashboard.meetings.upcoming',
+    })
+    const finished = screen.getByRole('region', {
+      name: 'dashboard.meetings.finished',
+    })
+    expect(within(upcoming).getByText('Réunion suivante')).toBeTruthy()
+    expect(within(finished).getByText('Réunion fermee')).toBeTruthy()
+    expect(
+      within(finished).getByRole('link', { name: /Réunion passee/ })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('separator', { name: 'dashboard.meetings.now' })
+    ).toBeTruthy()
   })
 })

@@ -309,8 +309,8 @@
       }
     },
     "info": {
-      "open": "Masquer les informations",
-      "closed": "Afficher les informations"
+      "open": "Masquer le partage de la réunion",
+      "closed": "Partager la réunion"
     },
     "hand": {
       "raise": "Lever la main",
@@ -493,7 +493,7 @@
       "screenRecording": "Enregistrer",
       "admin": "Commandes de l'organisateur",
       "tools": "Outils de réunion",
-      "info": "Informations sur la réunion",
+      "info": "Partager la réunion",
       "conversation": "Échanges de la réunion"
     },
     "content": {
@@ -505,7 +505,7 @@
       "screenRecording": "enregistrer",
       "admin": "commandes de l'organisateur",
       "tools": "outils de réunion",
-      "info": "informations sur la réunion",
+      "info": "le partage de la réunion",
       "conversation": "les échanges"
     },
     "closeButton": "Masquer {{content}}"
@@ -563,17 +563,22 @@
   },
   "info": {
     "roomInformation": {
-      "title": "Informations de connexions",
+      "description": "Partagez ce lien avec les personnes que vous souhaitez inviter.",
+      "copy": "Copier le lien",
+      "copied": "Lien copié",
       "preparing": "Préparation du lien d’invitation sécurisé…",
       "unavailable": "Le lien d’invitation est momentanément indisponible.",
-      "button": {
-        "ariaLabel": "Copier les informations de votre réunion",
-        "copy": "Copier les informations",
-        "copied": "Informations copiées"
-      },
-      "phone": {
-        "call": "Appelez le :",
-        "pinCode": "Code :"
+      "hiddenPart": "Le lien est masqué à l’écran et copié en entier.",
+      "access": {
+        "label": "Accès",
+        "approval": {
+          "title": "Avec votre accord",
+          "description": "Les invités attendent en salle d’attente."
+        },
+        "open": {
+          "title": "Accès libre",
+          "description": "Toute personne disposant du lien rejoint directement la réunion."
+        }
       }
     }
   },

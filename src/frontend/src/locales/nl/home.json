@@ -99,7 +99,14 @@
       "loading": "Vergaderingen laden…",
       "errorTitle": "Kan de vergaderingen van deze dag niet weergeven",
       "planned": "Gepland",
-      "closed": "Toegang gesloten"
+      "closed": "Toegang gesloten",
+      "plannedIn": "Gepland · over {{duration}}",
+      "plannedNow": "Gepland · nu",
+      "join": "Deelnemen",
+      "joinError": "De vergadering kon niet worden geopend. Probeer het opnieuw.",
+      "upcoming": "Komend",
+      "finished": "Afgelopen",
+      "now": "Nu, {{time}}"
     }
   },
   "homeV2": {
@@ -130,7 +137,8 @@
       "invalidTime": "Kies een geldige tijd.",
       "nonexistentTime": "Deze tijd bestaat niet in deze tijdzone vanwege de klokverandering.",
       "ambiguousTime": "Deze tijd komt tweemaal voor bij een klokverandering. Kies een andere tijd.",
-      "endBeforeStart": "Het einde moet na het begin liggen."
+      "endBeforeStart": "Het einde moet na het begin liggen.",
+      "pastTime": "Deze tijd is al voorbij. Kies een later tijdstip."
     }
   }
 }

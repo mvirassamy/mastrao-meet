@@ -309,8 +309,8 @@
       }
     },
     "info": {
-      "open": "Informatie verbergen",
-      "closed": "Informatie tonen"
+      "open": "Vergadering delen verbergen",
+      "closed": "Vergadering delen"
     },
     "hand": {
       "raise": "Hand opsteken",
@@ -493,7 +493,7 @@
       "screenRecording": "Opnemen",
       "admin": "Beheerdersbediening",
       "tools": "Meer tools",
-      "info": "Vergaderinformatie",
+      "info": "Vergadering delen",
       "conversation": "Gesprek in de vergadering"
     },
     "content": {
@@ -505,7 +505,7 @@
       "liveTranscript": "live transcript",
       "admin": "beheerdersbediening",
       "tools": "meer tools",
-      "info": "vergaderinformatie",
+      "info": "vergadering delen",
       "conversation": "het gesprek"
     },
     "closeButton": "Verberg {{content}}"
@@ -563,17 +563,22 @@
   },
   "info": {
     "roomInformation": {
-      "title": "Verbindingsinformatie",
+      "description": "Deel deze link met de personen die u wilt uitnodigen.",
+      "copy": "Link kopiëren",
+      "copied": "Link gekopieerd",
       "preparing": "De beveiligde uitnodigingslink wordt voorbereid…",
       "unavailable": "De uitnodigingslink is tijdelijk niet beschikbaar.",
-      "button": {
-        "ariaLabel": "Kopieer de informatie van uw vergadering",
-        "copy": "Informatie kopiëren",
-        "copied": "Informatie gekopieerd"
-      },
-      "phone": {
-        "call": "Bel:",
-        "pinCode": "Code:"
+      "hiddenPart": "De link is verborgen op het scherm en wordt volledig gekopieerd.",
+      "access": {
+        "label": "Toegang",
+        "approval": {
+          "title": "Met uw toestemming",
+          "description": "Gasten wachten in de wachtruimte."
+        },
+        "open": {
+          "title": "Vrije toegang",
+          "description": "Iedereen met de link neemt direct deel aan de vergadering."
+        }
       }
     }
   },
