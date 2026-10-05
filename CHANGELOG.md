@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: When a guest opens an incomplete invitation link, let them
+  paste the complete link from the e-mail and join from the same page.
+
 - 2026-10-05: Plan meetings with an optional title, browser-local date and
   times persisted canonically, and keep immediate guest and host access.
 

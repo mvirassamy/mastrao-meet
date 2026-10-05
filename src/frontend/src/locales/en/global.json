@@ -15,7 +15,15 @@
     "title": "Join a video conference",
     "body": "This link lets you request access to a waiting room. Your identity is not verified and an organizer must admit you.",
     "submit": "Request to join",
-    "missing": "This invitation link is missing or incomplete.",
+    "missing": {
+      "title": "Incomplete invitation link",
+      "body": "Paste the complete link you received by e-mail to join the meeting.",
+      "label": "Invitation link",
+      "placeholder": "Paste the invitation link",
+      "submit": "Join",
+      "error": "This link is incomplete. Copy it in full from the e-mail.",
+      "help": "Still stuck? Ask the organizer for a new link."
+    },
     "error": "This link is no longer available. Ask the organizer for a new link.",
     "temporaryError": "The service is temporarily unavailable. You can try again.",
     "retry": "Try again"
