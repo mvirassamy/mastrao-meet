@@ -65,6 +65,9 @@ export function RecordingIndicator({
   } else if (recording.recording_state === 'starting') {
     status = t('starting')
   }
+  // While recording, the badge only says "Recording"; the full sentence is
+  // read by screen readers.
+  const isRecording = recording.recording_state === 'active' && !withdrawFailed
 
   return (
     <div
@@ -73,42 +76,72 @@ export function RecordingIndicator({
       data-attr="recording-indicator"
       className={css({
         display: 'inline-flex',
-        flexWrap: 'wrap',
         alignItems: 'center',
         gap: '0.5rem',
         maxWidth: '100%',
         minHeight: '36px',
-        paddingX: '0.625rem',
+        paddingLeft: '0.875rem',
+        paddingRight: canStop ? '0.25rem' : '0.875rem',
         paddingY: '0.25rem',
-        borderRadius: 'surface',
-        backgroundColor: 'recording',
-        color: 'recording-foreground',
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        lineHeight: '1rem',
+        borderRadius: '999px',
+        // Full recording red: impossible to miss, white text above 4.5:1.
+        backgroundColor: '#c4323d',
+        color: 'white',
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        lineHeight: '1.25rem',
+        whiteSpace: 'nowrap',
       })}
     >
       <span
         aria-hidden="true"
         className={css({
+          position: 'relative',
           width: '8px',
           height: '8px',
           flexShrink: 0,
           borderRadius: 'full',
-          backgroundColor: 'recording-foreground',
+          backgroundColor: 'white',
+          '&[data-live=true]::after': {
+            content: '""',
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 'full',
+            backgroundColor: 'white',
+            animation: 'unread_pulse 1.6s ease-out infinite',
+            _motionReduce: { animation: 'none' },
+          },
         })}
+        data-live={isRecording}
       />
-      <span>{status}</span>
+      {isRecording ? (
+        <>
+          <span aria-hidden="true">{t('badge')}</span>
+          <span className={css({ srOnly: true })}>{status}</span>
+        </>
+      ) : (
+        <span>{status}</span>
+      )}
       {canStop && (
         <Button
           size="sm"
-          variant="outline"
+          variant="invert"
           aria-label={t('stop')}
+          tooltip={t('stop')}
           isDisabled={isEnding || isWithdrawing}
           onPress={withdraw}
+          // Layout only: a small pill inside the badge.
+          className={css({
+            height: '28px',
+            minHeight: '28px',
+            gap: '0.375rem',
+            paddingX: '0.75rem',
+            borderRadius: '999px',
+            fontSize: '0.8125rem',
+          })}
         >
-          <StopCircleIcon size={18} aria-hidden="true" />
-          {t('stop')}
+          <StopCircleIcon size={16} aria-hidden="true" />
+          {t('stopShort')}
         </Button>
       )}
     </div>
