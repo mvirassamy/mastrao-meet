@@ -47,7 +47,7 @@ export const ScheduledMeetingEvent = ({
             timeZone
           )}
         </p>
-        <h2
+        <h3
           className={css({
             margin: 0,
             fontSize: '0.9375rem',
@@ -56,7 +56,7 @@ export const ScheduledMeetingEvent = ({
           })}
         >
           {meeting.title ?? t('untitled', { ns: 'meetingHistory' })}
-        </h2>
+        </h3>
         <p
           className={css({
             margin: 0,

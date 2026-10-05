@@ -99,7 +99,10 @@
       "loading": "Meetings werden geladen…",
       "errorTitle": "Die Meetings dieses Tages können nicht angezeigt werden",
       "planned": "Geplant",
-      "closed": "Zugang geschlossen"
+      "closed": "Zugang geschlossen",
+      "upcoming": "Anstehend",
+      "finished": "Beendet",
+      "now": "Jetzt, {{time}}"
     }
   },
   "homeV2": {

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Sort the home day into "À venir" and "Terminées", with a red
+  "now" line between them on today.
+
 - 2026-10-05: Turn the room info panel into "Partager la réunion": a short
   explanation, the invitation link with a copy button, and who gets in.
 

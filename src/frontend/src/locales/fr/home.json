@@ -99,7 +99,10 @@
       "loading": "Chargement des réunions…",
       "errorTitle": "Impossible d’afficher les réunions de ce jour",
       "planned": "Planifiée",
-      "closed": "Accès fermé"
+      "closed": "Accès fermé",
+      "upcoming": "À venir",
+      "finished": "Terminées",
+      "now": "Maintenant, {{time}}"
     }
   },
   "homeV2": {

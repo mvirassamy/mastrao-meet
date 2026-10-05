@@ -99,7 +99,10 @@
       "loading": "Vergaderingen laden…",
       "errorTitle": "Kan de vergaderingen van deze dag niet weergeven",
       "planned": "Gepland",
-      "closed": "Toegang gesloten"
+      "closed": "Toegang gesloten",
+      "upcoming": "Komend",
+      "finished": "Afgelopen",
+      "now": "Nu, {{time}}"
     }
   },
   "homeV2": {

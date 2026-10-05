@@ -99,7 +99,10 @@
       "loading": "Loading meetings…",
       "errorTitle": "Unable to show this day’s meetings",
       "planned": "Scheduled",
-      "closed": "Access closed"
+      "closed": "Access closed",
+      "upcoming": "Upcoming",
+      "finished": "Finished",
+      "now": "Now, {{time}}"
     }
   },
   "homeV2": {
