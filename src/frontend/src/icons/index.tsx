@@ -170,6 +170,7 @@ export const RoomsIcon = sized(HeroUserGroupIcon) // RiDoorOpenFill
 export const SendIcon = sized(HeroPaperAirplaneIcon) // RiSendPlane2Fill
 export const SettingsIcon = sized(HeroCog6ToothIcon) // RiSettings3Fill
 export const ShareBoxIcon = sized(HeroArrowTopRightOnSquareIcon) // RiShareBoxFill
+export const ShieldCheckIcon = sized(HeroShieldCheckIcon)
 export const SpeakerIcon = sized(HeroSpeakerWaveIcon) // RiSpeakerFill
 export const SpeakIcon = sized(HeroChatBubbleOvalLeftEllipsisIcon) // RiSpeakFill
 export const StopCircleIcon = sized(HeroStopCircleIcon) // RiStopCircleFill

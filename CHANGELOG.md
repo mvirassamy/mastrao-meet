@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Turn the room info panel into "Partager la réunion": a short
+  explanation, the invitation link with a copy button, and who gets in.
+
 - 2026-10-05: Give application menus (profile, Nouveau, participants,
   options) their intended compact 8px corners instead of 16px.
 

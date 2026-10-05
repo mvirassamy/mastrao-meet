@@ -309,8 +309,8 @@
       }
     },
     "info": {
-      "open": "Informationen ausblenden",
-      "closed": "Informationen anzeigen"
+      "open": "Meeting-Freigabe ausblenden",
+      "closed": "Meeting teilen"
     },
     "hand": {
       "raise": "Hand heben",
@@ -493,7 +493,7 @@
       "screenRecording": "Aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
-      "info": "Meeting-Informationen",
+      "info": "Meeting teilen",
       "conversation": "Austausch im Meeting"
     },
     "content": {
@@ -505,7 +505,7 @@
       "screenRecording": "aufzeichnen",
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
-      "info": "Meeting-Informationen",
+      "info": "Meeting-Freigabe",
       "conversation": "den Austausch"
     },
     "closeButton": "{{content}} ausblenden"
@@ -563,17 +563,22 @@
   },
   "info": {
     "roomInformation": {
-      "title": "Verbindungsinformationen",
+      "description": "Teilen Sie diesen Link mit den Personen, die Sie einladen möchten.",
+      "copy": "Link kopieren",
+      "copied": "Link kopiert",
       "preparing": "Der sichere Einladungslink wird vorbereitet…",
       "unavailable": "Der Einladungslink ist vorübergehend nicht verfügbar.",
-      "button": {
-        "ariaLabel": "Kopiere die Informationen aus dem Meeting",
-        "copy": "Informationen kopieren",
-        "copied": "Informationen kopiert"
-      },
-      "phone": {
-        "call": "Ruf an:",
-        "pinCode": "Code:"
+      "hiddenPart": "Der Link ist auf dem Bildschirm verborgen und wird vollständig kopiert.",
+      "access": {
+        "label": "Zugang",
+        "approval": {
+          "title": "Mit Ihrer Zustimmung",
+          "description": "Gäste warten im Warteraum."
+        },
+        "open": {
+          "title": "Freier Zugang",
+          "description": "Jede Person mit dem Link tritt dem Meeting direkt bei."
+        }
       }
     }
   },
