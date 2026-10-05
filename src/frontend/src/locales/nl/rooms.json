@@ -111,6 +111,12 @@
       "body": "De organisator moet eerst de opname-instelling kiezen."
     }
   },
+  "hostRecovery": {
+    "title": "Terug naar deze vergadering",
+    "body": "Meld u aan bij Mastrao om opnieuw als host aan deze vergadering deel te nemen.",
+    "submit": "Deelnemen als host",
+    "error": "Hosttoegang kon niet worden bevestigd. Probeer het opnieuw."
+  },
   "recordingConsent": {
     "title": "Deze vergadering wordt opgenomen",
     "notice": "Audio, video en gedeelde schermen worden opgenomen. U kunt weigeren en zonder opname deelnemen.",

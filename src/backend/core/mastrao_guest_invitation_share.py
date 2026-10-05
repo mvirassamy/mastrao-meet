@@ -2,6 +2,7 @@
 
 import re
 from urllib.parse import urlencode, urlparse
+from uuid import uuid4
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -12,13 +13,12 @@ from core.mastrao_guest_grant import CANONICAL_ROOM_SLUG
 from core.mastrao_host_grant import active_host_grant
 from core.mastrao_platform_facade import (
     PlatformFacadeError,
-    guest_invitation_path,
     request_platform,
+    share_link_path,
 )
 
-COMPACT_JWS = re.compile(
-    r"^[A-Za-z0-9_-]{1,4096}\.[A-Za-z0-9_-]{1,8192}\.[A-Za-z0-9_-]{1,4096}$"
-)
+SHARE_REF = re.compile(r"^share_[A-Za-z0-9_-]{32}$")
+EXTERNAL_ID = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 
 
 def _meeting_origin():
@@ -43,13 +43,56 @@ def _meeting_origin():
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def _invite_url(body, meeting_ref):
-    if body.get("meeting_ref") != meeting_ref:
+def _positive_epoch(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _invite_url(body, binding):
+    expected_fields = {
+        "version",
+        "organization_external_id",
+        "meeting_ref",
+        "room_ref",
+        "invitation_ref",
+        "share_ref",
+        "state",
+        "link_generated_at",
+        "start_deadline_at",
+        "first_started_at",
+    }
+    if (
+        set(body) != expected_fields
+        or not _positive_epoch(body["version"])
+        or body["version"] != 1
+    ):
         raise PlatformFacadeError()
-    credential = body.get("guest_invitation")
-    if not isinstance(credential, str) or not COMPACT_JWS.fullmatch(credential):
+    if (
+        body["meeting_ref"] != binding.meeting_ref
+        or body["room_ref"] != binding.room_ref
+        or body["state"] != "issued"
+    ):
         raise PlatformFacadeError()
-    fragment = urlencode({"invite": credential})
+    for field, pattern in (
+        ("share_ref", SHARE_REF),
+        ("organization_external_id", EXTERNAL_ID),
+        ("invitation_ref", re.compile(r"[A-Za-z0-9_-]{16,160}")),
+    ):
+        if not isinstance(body[field], str) or not pattern.fullmatch(body[field]):
+            raise PlatformFacadeError()
+    if (
+        not _positive_epoch(body["link_generated_at"])
+        or not _positive_epoch(body["start_deadline_at"])
+        or body["start_deadline_at"] != body["link_generated_at"] + 86400
+    ):
+        raise PlatformFacadeError()
+    if body["first_started_at"] is not None and not _positive_epoch(
+        body["first_started_at"]
+    ):
+        raise PlatformFacadeError()
+    fragment = urlencode(
+        {"organization": body["organization_external_id"], "share": body["share_ref"]}
+    )
+    # Fragments never reach proxy access logs or HTTP Referer headers.
     return f"{_meeting_origin()}/guest#{fragment}"
 
 
@@ -77,23 +120,42 @@ def create_guest_invitation_share(request, room_ref):
         return JsonResponse(
             {"message": "Invitation indisponible"},
             status=404,
-            headers={"Cache-Control": "private, no-store"},
+            headers={
+                "Cache-Control": "private, no-store",
+                "Referrer-Policy": "no-referrer",
+            },
         )
     try:
+        key = request.session.get("mastrao_share_creation_keys", {}).get(
+            binding.meeting_ref
+        )
+        if key is None:
+            key = uuid4().hex
+            keys = request.session.get("mastrao_share_creation_keys", {})
+            keys[binding.meeting_ref] = key
+            request.session["mastrao_share_creation_keys"] = keys
+            request.session.save()
         body, _ = request_platform(
             request,
             "POST",
-            guest_invitation_path(binding.meeting_ref),
-            accepted_statuses={200, 201},
+            share_link_path(binding.meeting_ref),
+            accepted_statuses={201},
+            options={"idempotency_key": key},
         )
-        invite_url = _invite_url(body, binding.meeting_ref)
+        invite_url = _invite_url(body, binding)
     except PlatformFacadeError as error:
         return JsonResponse(
             {"message": "Invitation indisponible"},
             status=error.status,
-            headers={"Cache-Control": "private, no-store"},
+            headers={
+                "Cache-Control": "private, no-store",
+                "Referrer-Policy": "no-referrer",
+            },
         )
     return JsonResponse(
         {"invite_url": invite_url},
-        headers={"Cache-Control": "private, no-store"},
+        headers={
+            "Cache-Control": "private, no-store",
+            "Referrer-Policy": "no-referrer",
+        },
     )

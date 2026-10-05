@@ -20,6 +20,7 @@
     "error": "De vergadering kon niet worden gemaakt. Probeer het opnieuw."
   },
   "laterMeetingDialog": {
+    "recoverHost": "Hosttoegang bewaren",
     "heading": "Uw verbindingsgegevens",
     "description": "Deel deze uitnodiging met uw gasten. Zij kunnen zonder aanmelding om toegang vragen. De link is beperkt geldig. Als u de vergadering voor iedereen beëindigt, kan niemand opnieuw deelnemen.",
     "preparing": "De beveiligde uitnodigingslink wordt voorbereid…",

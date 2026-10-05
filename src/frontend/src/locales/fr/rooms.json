@@ -111,6 +111,12 @@
       "body": "L’organisateur doit choisir le réglage d’enregistrement avant que les participants puissent rejoindre."
     }
   },
+  "hostRecovery": {
+    "title": "Reprendre cette réunion",
+    "body": "Connectez-vous à votre compte Mastrao pour rejoindre à nouveau cette réunion en tant qu’hôte.",
+    "submit": "Rejoindre en tant qu’hôte",
+    "error": "L’accès hôte n’a pas pu être confirmé. Réessayez."
+  },
   "recordingConsent": {
     "title": "Cette réunion sera enregistrée",
     "notice": "L’audio, la vidéo et les écrans partagés seront enregistrés. Vous pouvez refuser et rejoindre sans être enregistré.",

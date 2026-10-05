@@ -7,6 +7,10 @@ from unittest.mock import MagicMock, patch
 from django.conf import settings
 from django.test import Client, override_settings
 
+import pytest
+
+from core.mastrao_platform_facade import PlatformFacadeError
+
 PLATFORM = "https://app.mastrao.test"
 TOKEN = "opaque-access-token-123"
 ROOM_REF = "room_0123456789abcdef0123456789abcdef"
@@ -16,6 +20,22 @@ TEST_SETTINGS = {
     "MASTRAO_PLATFORM_API_BASE_URL": PLATFORM,
     "SESSION_ENGINE": "django.contrib.sessions.backends.signed_cookies",
 }
+
+
+def _share(**changes):
+    return {
+        "version": 1,
+        "organization_external_id": "organization_test",
+        "meeting_ref": MEETING_REF,
+        "room_ref": ROOM_REF,
+        "invitation_ref": "invitation_0123456789abcdef",
+        "share_ref": "share_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
+        "state": "issued",
+        "link_generated_at": 1_700_000_000,
+        "start_deadline_at": 1_700_086_400,
+        "first_started_at": None,
+        **changes,
+    }
 
 
 def _binding():
@@ -59,9 +79,7 @@ def test_active_host_receives_same_origin_guest_url():
     """Return a same-origin guest URL only to the canonical room host."""
 
     binding = _binding()
-    upstream = _upstream(
-        {"meeting_ref": MEETING_REF, "guest_invitation": "aaa.bbb.ccc"}
-    )
+    upstream = _upstream(_share())
     with (
         _room_lookup(binding),
         patch(
@@ -76,12 +94,20 @@ def test_active_host_receives_same_origin_guest_url():
 
     assert response.status_code == 200
     assert response.json() == {
-        "invite_url": "https://meet.mastrao.test/guest#invite=aaa.bbb.ccc"
+        "invite_url": (
+            "https://meet.mastrao.test/guest#organization=organization_test"
+            "&share=share_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
+        )
     }
     upstream.request.assert_called_once_with(
         "POST",
-        f"{PLATFORM}/api/meet/meetings/{MEETING_REF}/guest-invitation",
-        headers={"authorization": f"Bearer {TOKEN}"},
+        f"{PLATFORM}/api/meet/meetings/{MEETING_REF}/share-link",
+        headers={
+            "authorization": f"Bearer {TOKEN}",
+            "x-idempotency-key": response.wsgi_request.session[
+                "mastrao_share_creation_keys"
+            ][MEETING_REF],
+        },
         timeout=5,
         allow_redirects=False,
         stream=True,
@@ -160,4 +186,65 @@ def test_mismatched_platform_meeting_fails_closed():
             f"/api/v1.0/rooms/{binding.room_ref}/guest-invitation/"
         )
 
+    assert response.status_code == 503
+
+
+@override_settings(
+    **{**TEST_SETTINGS, "SESSION_ENGINE": "django.contrib.sessions.backends.cache"}
+)
+def test_share_creation_response_loss_reuses_the_saved_key():
+    """A production server session retains its key across an upstream 503."""
+    binding = _binding()
+    client = _client_with_token()
+    with (
+        _room_lookup(binding),
+        patch(
+            "core.mastrao_guest_invitation_share.active_host_grant",
+            return_value=MagicMock(),
+        ),
+        patch("core.mastrao_guest_invitation_share.request_platform") as platform,
+    ):
+        platform.side_effect = [PlatformFacadeError(), (_share(), 201)]
+        assert (
+            client.post(f"/api/v1.0/rooms/{ROOM_REF}/guest-invitation/").status_code
+            == 503
+        )
+        response = client.post(f"/api/v1.0/rooms/{ROOM_REF}/guest-invitation/")
+        assert response.status_code == 200
+    keys = [
+        call.kwargs["options"]["idempotency_key"] for call in platform.call_args_list
+    ]
+    assert keys[0] == keys[1]
+    assert len(keys[0]) == 32
+    assert response["Referrer-Policy"] == "no-referrer"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"version": True},
+        {"first_started_at": False},
+        {"state": "revoked"},
+        {"start_deadline_at": 1_700_086_401},
+        {"room_ref": "room_other"},
+    ],
+)
+@override_settings(**TEST_SETTINGS)
+def test_invalid_share_metadata_cannot_be_copied(changes):
+    """Refuse a revoked, crossed or malformed durable reference response."""
+    binding = _binding()
+    with (
+        _room_lookup(binding),
+        patch(
+            "core.mastrao_guest_invitation_share.active_host_grant",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "core.mastrao_guest_invitation_share.request_platform",
+            return_value=(_share(**changes), 201),
+        ),
+    ):
+        response = _client_with_token().post(
+            f"/api/v1.0/rooms/{ROOM_REF}/guest-invitation/"
+        )
     assert response.status_code == 503

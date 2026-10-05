@@ -180,8 +180,8 @@ def test_unverifiable_guest_invitation_fails_closed_before_core():
 @override_settings(
     APPLICATION_BASE_URL="http://meet.test",
 )
-def test_guest_retry_cookie_is_established_without_server_session_state():
-    """The recovery nonce is host-only and does not allocate Redis session state."""
+def test_guest_retry_cookie_and_session_nonce_are_established_before_exchange():
+    """The host-only recovery nonce is saved before the durable exchange."""
 
     client = Client(HTTP_HOST="meet.test")
     response = client.post(
@@ -198,7 +198,7 @@ def test_guest_retry_cookie_is_established_without_server_session_state():
     assert cookie["httponly"] is True
     assert cookie["samesite"] == "Lax"
     assert cookie["path"] == "/"
-    assert SESSION_NONCE_KEY not in client.session
+    assert client.session[SESSION_NONCE_KEY] == cookie.value
 
 
 @override_settings(

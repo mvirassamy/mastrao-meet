@@ -111,6 +111,12 @@
       "body": "Die organisierende Person muss zuerst die Aufzeichnungseinstellung wählen."
     }
   },
+  "hostRecovery": {
+    "title": "Zu diesem Meeting zurückkehren",
+    "body": "Melden Sie sich bei Mastrao an, um diesem Meeting erneut als Gastgeber beizutreten.",
+    "submit": "Als Gastgeber beitreten",
+    "error": "Der Gastgeberzugang konnte nicht bestätigt werden. Versuchen Sie es erneut."
+  },
   "recordingConsent": {
     "title": "Diese Besprechung wird aufgezeichnet",
     "notice": "Audio, Video und geteilte Bildschirme werden aufgezeichnet. Sie können ablehnen und ohne Aufzeichnung teilnehmen.",

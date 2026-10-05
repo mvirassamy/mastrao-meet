@@ -3,6 +3,9 @@
 - 2026-10-05: Simplify the meeting conversation panel: one fixed title, small
   tab pills with an unread dot, and plain transcription notices.
 
+- 2026-10-05: Share durable guest lobby links and recover host access to
+  the same meeting through an authenticated, repeatable handoff.
+
 - 2026-10-05: Keep the selected home day when coming back from a meeting,
   show the retry of a failed history page, and fix sidebar focus order.
 
