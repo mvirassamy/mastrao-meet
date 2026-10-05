@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { useConnectionState } from '@livekit/components-react'
+import { ConnectionState } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
 import { RecordIcon } from '@/icons'
 import { Button } from '@/primitives'
@@ -25,6 +27,7 @@ export const RecordingPreparation = ({
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'recordingConsent' })
   const { isEnding } = useMeetingLifecycle()
+  const connectionState = useConnectionState()
   const [pending, setPending] = useState<Action | null>(null)
   const [failed, setFailed] = useState(false)
   const inFlight = useRef(false)
@@ -32,10 +35,15 @@ export const RecordingPreparation = ({
     `activation_${crypto.randomUUID().replaceAll('-', '')}`
   )
   const locked = video.decision_lock !== 'open' || isEnding
+  const startUnavailable =
+    locked ||
+    !canStart ||
+    !video.start_available ||
+    connectionState !== ConnectionState.Connected
 
   const act = async (action: Action) => {
     if (locked || inFlight.current) return
-    if (action === 'start' && (!canStart || !video.start_available)) return
+    if (action === 'start' && startUnavailable) return
     inFlight.current = true
     setPending(action)
     setFailed(false)
@@ -110,7 +118,7 @@ export const RecordingPreparation = ({
           variant="outline"
           size="sm"
           icon={<RecordIcon aria-hidden="true" />}
-          isDisabled={locked || pending !== null || !video.start_available}
+          isDisabled={startUnavailable || pending !== null}
           loading={pending === 'start'}
           onPress={() => act('start')}
         >

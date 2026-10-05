@@ -6,6 +6,7 @@ import {
   waitFor,
 } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { ConnectionState } from 'livekit-client'
 import type { VideoRecordingPolicy } from '@/features/rooms/api/ApiRoom'
 import { RecordingPreparation } from './RecordingPreparation'
 
@@ -24,6 +25,9 @@ const video: VideoRecordingPolicy = {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}))
+vi.mock('@livekit/components-react', () => ({
+  useConnectionState: () => ConnectionState.Connected,
 }))
 vi.mock('@/features/rooms/api/recordingConsent', () => ({
   activateRecording: (...args: unknown[]) => activateRecording(...args),
