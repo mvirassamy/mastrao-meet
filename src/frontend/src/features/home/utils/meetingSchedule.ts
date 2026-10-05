@@ -18,6 +18,7 @@ export type ScheduleIssue =
   | 'nonexistentTime'
   | 'ambiguousTime'
   | 'endBeforeStart'
+  | 'pastTime'
 
 export type ScheduleErrors = Partial<
   Record<'date' | 'startTime' | 'endTime', ScheduleIssue>
@@ -25,6 +26,15 @@ export type ScheduleErrors = Partial<
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
+
+const pad = (value: number) => String(value).padStart(2, '0')
+
+/** The current time as "HH:MM" when `date` is today in the browser. */
+export const earliestTimeOn = (date: string, now = new Date()) => {
+  const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  if (date !== todayKey) return undefined
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}`
+}
 
 const validCalendarDate = (value: string) => {
   if (!DATE.test(value)) return false
@@ -70,7 +80,8 @@ const localInstant = (
 
 /** Convert browser-local form values into unambiguous UTC seconds. */
 export const validateMeetingSchedule = (
-  draft: MeetingScheduleDraft
+  draft: MeetingScheduleDraft,
+  now = new Date()
 ):
   | { schedule: MeetingSchedule; errors: ScheduleErrors }
   | { errors: ScheduleErrors } => {
@@ -81,6 +92,10 @@ export const validateMeetingSchedule = (
   if ('issue' in start) errors.startTime = start.issue
   if ('issue' in end) errors.endTime = end.issue
   if ('issue' in start || 'issue' in end) return { errors }
+  const currentMinute = new Date(now)
+  currentMinute.setSeconds(0, 0)
+  if (start.instant < currentMinute)
+    return { errors: { startTime: 'pastTime' } }
   if (end.instant <= start.instant)
     return { errors: { endTime: 'endBeforeStart' } }
   return {

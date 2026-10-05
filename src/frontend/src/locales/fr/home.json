@@ -133,7 +133,8 @@
       "invalidTime": "Choisissez une heure valide.",
       "nonexistentTime": "Cette heure n’existe pas dans ce fuseau à cause du changement d’heure.",
       "ambiguousTime": "Cette heure se produit deux fois lors du changement d’heure. Choisissez une autre heure.",
-      "endBeforeStart": "La fin doit être après le début."
+      "endBeforeStart": "La fin doit être après le début.",
+      "pastTime": "Cette heure est déjà passée. Choisissez une heure à venir."
     }
   }
 }

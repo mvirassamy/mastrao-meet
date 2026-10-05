@@ -1,6 +1,7 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  earliestTimeOn,
   validateMeetingSchedule,
   type MeetingScheduleDraft,
 } from './meetingSchedule'
@@ -11,9 +12,32 @@ const draft: MeetingScheduleDraft = {
   startTime: '10:00',
   endTime: '11:00',
 }
-afterEach(() => vi.unstubAllEnvs())
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-05T10:00:00Z'))
+})
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllEnvs()
+})
 
 describe('browser-local meeting schedule', () => {
+  it('rejects a start that has already passed today', () => {
+    vi.stubEnv('TZ', 'Europe/Paris')
+    const now = new Date('2026-10-07T08:30:00Z')
+    expect(validateMeetingSchedule(draft, now)).toEqual({
+      errors: { startTime: 'pastTime' },
+    })
+    expect(
+      validateMeetingSchedule({ ...draft, startTime: '10:30' }, now)
+    ).toHaveProperty('schedule')
+  })
+  it('gives the current time as the earliest time only for today', () => {
+    vi.stubEnv('TZ', 'Europe/Paris')
+    const now = new Date('2026-10-07T08:30:00Z')
+    expect(earliestTimeOn('2026-10-07', now)).toBe('10:30')
+    expect(earliestTimeOn('2026-10-08', now)).toBeUndefined()
+  })
   it('persists UTC seconds and the browser zone, trimming the optional title', () => {
     vi.stubEnv('TZ', 'Europe/Paris')
     expect(validateMeetingSchedule(draft)).toEqual({

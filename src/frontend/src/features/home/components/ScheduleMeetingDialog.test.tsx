@@ -108,6 +108,26 @@ describe('schedule meeting dialog with real application primitives', () => {
     expect(yesterday.getAttribute('aria-disabled')).toBe('true')
   })
 
+  it('offers only coming times today and rejects a past one', () => {
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+    vi.setSystemTime(new Date('2026-10-05T09:07:00'))
+    const create = vi.fn()
+    render(<ScheduleMeetingDialog isOpen onClose={vi.fn()} onCreate={create} />)
+    fireEvent.click(dateButton())
+    fireEvent.click(screen.getByRole('option', { name: /today/ }))
+    fireEvent.change(startInput(), { target: { value: '08:00' } })
+    fireEvent.change(endInput(), { target: { value: '10:00' } })
+    submit()
+    expect(
+      screen.getByText(translations.scheduleMeetingDialog.errors.pastTime)
+    ).toBeTruthy()
+    expect(create).not.toHaveBeenCalled()
+
+    // Clearing the start reopens its list, which begins after now.
+    fireEvent.change(startInput(), { target: { value: '' } })
+    expect(screen.getAllByRole('option')[0].textContent).toBe('09:15')
+  })
+
   it('reads a typed time and lists the end times after the start', () => {
     // jsdom has no CSS.escape, which the open list uses to scroll.
     vi.stubGlobal('CSS', { escape: (value: string) => value })

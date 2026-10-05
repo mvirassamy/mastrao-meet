@@ -29,6 +29,17 @@ describe('timeSlots', () => {
   it('ignores an invalid start', () => {
     expect(timeSlots('25:00')[0]).toEqual({ time: '00:00', duration: null })
   })
+
+  it('leaves out the slots before the earliest time', () => {
+    expect(timeSlots(undefined, '19:37')[0]).toEqual({
+      time: '19:45',
+      duration: null,
+    })
+    expect(timeSlots('20:00', '19:37')[0]).toEqual({
+      time: '20:15',
+      duration: 15,
+    })
+  })
 })
 
 describe('normalizeTime', () => {

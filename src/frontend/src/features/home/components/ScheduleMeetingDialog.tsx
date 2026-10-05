@@ -15,6 +15,7 @@ import { DatePickerField } from '@/primitives/DatePickerField'
 import { TimeSelectField } from '@/primitives/TimeSelectField'
 import { css } from '@/styled-system/css'
 import {
+  earliestTimeOn,
   validateMeetingSchedule,
   type MeetingSchedule,
   type MeetingScheduleDraft,
@@ -198,6 +199,7 @@ export const ScheduleMeetingDialog = ({
               name="startTime"
               label={t('startTime')}
               value={draft.startTime}
+              notBefore={earliestTimeOn(draft.date)}
               error={errorText('startTime')}
               onChange={(value) => change('startTime', value)}
               isDisabled={pending}
@@ -207,6 +209,7 @@ export const ScheduleMeetingDialog = ({
               label={t('endTime')}
               value={draft.endTime}
               durationFrom={draft.startTime}
+              notBefore={earliestTimeOn(draft.date)}
               error={errorText('endTime')}
               onChange={(value) => change('endTime', value)}
               isDisabled={pending}

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: When planning a meeting for today, offer only coming times and
+  reject a start time that has already passed.
+
 - 2026-10-05: Sort the home day into "À venir" and "Terminées", with a red
   "now" line between them on today.
 

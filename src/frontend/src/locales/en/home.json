@@ -133,7 +133,8 @@
       "invalidTime": "Choose a valid time.",
       "nonexistentTime": "This time does not exist in this time zone due to a clock change.",
       "ambiguousTime": "This time occurs twice during a clock change. Choose another time.",
-      "endBeforeStart": "The end must be after the start."
+      "endBeforeStart": "The end must be after the start.",
+      "pastTime": "This time has already passed. Choose a later time."
     }
   }
 }

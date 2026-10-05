@@ -133,7 +133,8 @@
       "invalidTime": "Wählen Sie eine gültige Uhrzeit.",
       "nonexistentTime": "Diese Uhrzeit existiert wegen der Zeitumstellung in dieser Zeitzone nicht.",
       "ambiguousTime": "Diese Uhrzeit tritt bei der Zeitumstellung zweimal auf. Wählen Sie eine andere Uhrzeit.",
-      "endBeforeStart": "Das Ende muss nach dem Beginn liegen."
+      "endBeforeStart": "Das Ende muss nach dem Beginn liegen.",
+      "pastTime": "Diese Uhrzeit ist bereits vorbei. Wählen Sie eine spätere Uhrzeit."
     }
   }
 }

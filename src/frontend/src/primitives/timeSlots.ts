@@ -21,14 +21,21 @@ const toTime = (minutes: number) =>
 
 /**
  * Quarter-hour slots of one day. After a valid start time, only the later
- * slots of the same day are offered, each with its duration.
+ * slots of the same day are offered, each with its duration. With
+ * `notBefore` (the current time on today), earlier slots are left out.
  */
-export const timeSlots = (start?: string): TimeSlot[] => {
+export const timeSlots = (start?: string, notBefore?: string): TimeSlot[] => {
   const startMinutes = start ? toMinutes(start) : null
-  const first =
+  const earliestMinutes = notBefore ? toMinutes(notBefore) : null
+  const afterStart =
     startMinutes === null
       ? 0
       : (Math.floor(startMinutes / STEP_MINUTES) + 1) * STEP_MINUTES
+  const fromEarliest =
+    earliestMinutes === null
+      ? 0
+      : Math.ceil(earliestMinutes / STEP_MINUTES) * STEP_MINUTES
+  const first = Math.max(afterStart, fromEarliest)
   const slots: TimeSlot[] = []
   for (let minutes = first; minutes < MINUTES_PER_DAY; minutes += STEP_MINUTES)
     slots.push({

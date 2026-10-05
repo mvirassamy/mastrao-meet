@@ -133,7 +133,8 @@
       "invalidTime": "Kies een geldige tijd.",
       "nonexistentTime": "Deze tijd bestaat niet in deze tijdzone vanwege de klokverandering.",
       "ambiguousTime": "Deze tijd komt tweemaal voor bij een klokverandering. Kies een andere tijd.",
-      "endBeforeStart": "Het einde moet na het begin liggen."
+      "endBeforeStart": "Het einde moet na het begin liggen.",
+      "pastTime": "Deze tijd is al voorbij. Kies een later tijdstip."
     }
   }
 }
