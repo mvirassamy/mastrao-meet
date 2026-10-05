@@ -5,16 +5,21 @@ import { VStack } from '@/styled-system/jsx'
 import { ApiError } from '@/api/ApiError'
 import { Screen } from '@/layout/Screen'
 import { Button, H, Text } from '@/primitives'
-import { redeemGuestInvitation } from '../api/redeemGuestInvitation'
+import {
+  redeemGuestInvitation,
+  redeemGuestShare,
+} from '../api/redeemGuestInvitation'
 import { clearPlatformReturnForRoomUrl } from '../platformReturn'
-import { consumeGuestInvitationFragment } from '../utils/guestInvitationFragment'
+import {
+  consumeGuestInvitationFragment,
+  guestRedemptionId,
+  forgetGuestRedemption,
+} from '../utils/guestInvitationFragment'
 
 const GuestInvitation = () => {
   const { t } = useTranslation()
   const invitation = consumeGuestInvitationFragment()
-  const redemptionId = useRef(
-    `redemption_${crypto.randomUUID().replaceAll('-', '')}`
-  )
+  const redemptionId = useRef(invitation ? guestRedemptionId(invitation) : '')
   const [status, setStatus] = useState<
     'idle' | 'loading' | 'terminal-error' | 'temporary-error'
   >('idle')
@@ -23,13 +28,22 @@ const GuestInvitation = () => {
     if (!invitation || status === 'loading') return
     setStatus('loading')
     try {
-      const result = await redeemGuestInvitation(
-        invitation,
-        redemptionId.current
-      )
+      const result =
+        invitation.kind === 'durable'
+          ? await redeemGuestShare(
+              invitation.organization,
+              invitation.share,
+              redemptionId.current
+            )
+          : await redeemGuestInvitation(
+              invitation.invitation,
+              redemptionId.current
+            )
       clearPlatformReturnForRoomUrl(result.room_url)
       window.location.assign(`${result.room_url}?silentLogin=false`)
     } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 404)
+        forgetGuestRedemption(invitation)
       setStatus(
         error instanceof ApiError && error.statusCode === 404
           ? 'terminal-error'
@@ -37,6 +51,8 @@ const GuestInvitation = () => {
       )
     }
   }
+
+  const canSubmit = invitation && status !== 'terminal-error'
 
   return (
     <Screen layout="centered" header={false} footer={false}>
@@ -66,9 +82,8 @@ const GuestInvitation = () => {
         <Text as="p" variant="note">
           {t('guestInvitation.body')}
         </Text>
-        {!invitation ? (
-          <Text as="p">{t('guestInvitation.missing')}</Text>
-        ) : status !== 'terminal-error' ? (
+        {!invitation && <Text as="p">{t('guestInvitation.missing')}</Text>}
+        {canSubmit && (
           <Button
             onPress={redeem}
             loading={status === 'loading'}
@@ -80,7 +95,7 @@ const GuestInvitation = () => {
                 : 'guestInvitation.submit'
             )}
           </Button>
-        ) : null}
+        )}
         {status === 'terminal-error' && (
           <Text as="p" role="alert">
             {t('guestInvitation.error')}
