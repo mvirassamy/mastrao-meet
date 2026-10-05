@@ -65,14 +65,14 @@ const calendarDay = css({
   cursor: 'pointer',
   outline: 'none',
   '&[data-outside-month]': { color: 'muted-foreground', opacity: 0.5 },
-  '&[data-hovered]': { backgroundColor: 'muted' },
-  '&[data-today]': {
+  '&[data-hovered]:not([data-selected])': { backgroundColor: 'muted' },
+  // Today is circled; once selected it takes the selected look instead.
+  '&[data-today]:not([data-selected])': {
     boxShadow: 'inset 0 0 0 1.5px token(colors.primary)',
     color: 'primary',
     fontWeight: 600,
   },
   '&[data-selected]': {
-    boxShadow: 'none',
     backgroundColor: 'primary',
     color: 'primary-foreground',
     fontWeight: 600,
