@@ -361,3 +361,44 @@ def test_host_recovery_requires_csrf_for_authenticated_mutation():
     with patch("core.mastrao_host_recovery.request_platform") as platform:
         assert _recover(enforced, binding).status_code == 403
         platform.assert_not_called()
+
+
+def test_host_retry_identity_is_scoped_to_meeting_and_platform_session(signed_settings):
+    first = _room_binding()
+    second = _room_binding("2" * 32)
+    client, _ = _host_client()
+    attempts = []
+
+    def core(**kwargs):
+        attempts.append(
+            _verified(signed_settings, kwargs["body"]["redemption_assertion"])[
+                "redemption_id"
+            ]
+        )
+        raise HostHandoffRefused(status=503)
+
+    responses = []
+    for binding, changes in [
+        (first, {}),
+        (second, {}),
+        (first, {}),
+        (first, {"platform_session_ref": "platformsession_2222222222222222"}),
+    ]:
+        responses.append(
+            (
+                {
+                    "meeting_ref": binding.meeting_ref,
+                    "room_ref": binding.room_ref,
+                    "host_handoff": _host_handoff(signed_settings, binding, **changes),
+                },
+                201,
+            )
+        )
+    with (
+        patch("core.mastrao_host_recovery.request_platform", side_effect=responses),
+        patch("core.mastrao_host_handoff.post_core_json", side_effect=core),
+    ):
+        for binding in [first, second, first, first]:
+            assert _recover(client, binding).status_code == 503
+    assert attempts[0] == attempts[2]
+    assert len({attempts[0], attempts[1], attempts[3]}) == 3

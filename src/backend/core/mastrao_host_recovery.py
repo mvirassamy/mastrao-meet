@@ -58,9 +58,19 @@ def recover_meeting_host(request, room_ref):
             or claims["room_ref"] != binding.room_ref
         ):
             raise HostHandoffRefused()
-        previous = request.session.get("mastrao_host_recovery")
+        attempt_key = ":".join(
+            (
+                claims["organization_external_id"],
+                claims["host_ref"],
+                claims["platform_session_ref"],
+                binding.meeting_ref,
+                key,
+            )
+        )
+        attempts = request.session.get("mastrao_host_recovery", {})
+        previous = attempts.get(attempt_key)
         digest = compact_digest(handoff)
-        if previous and previous["key"] == key:
+        if previous:
             if previous["handoff_digest"] != digest:
                 raise HostHandoffRefused()
             redemption_id = previous["redemption_id"]
@@ -75,11 +85,11 @@ def recover_meeting_host(request, room_ref):
         ):
             request.session[SESSION_NONCE_KEY] = secrets.token_urlsafe(32)
         request.session[SESSION_PLATFORM_REF_KEY] = claims["platform_session_ref"]
-        request.session["mastrao_host_recovery"] = {
-            "key": key,
+        attempts[attempt_key] = {
             "handoff_digest": digest,
             "redemption_id": redemption_id,
         }
+        request.session["mastrao_host_recovery"] = attempts
         # Save the attempt before consuming any authority at Core.
         request.session.save()
         grant, compact = _redeem(handoff, redemption_id)
