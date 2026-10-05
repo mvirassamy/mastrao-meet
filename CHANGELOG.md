@@ -1,7 +1,7 @@
 # Changelog
 
-- 2026-10-05: Move settings to a row above the sidebar profile and show the
-  profile as a borderless row with a menu chevron.
+- 2026-10-05: Move settings to a row above the sidebar profile, kept as a
+  white button with a menu chevron.
 
 - 2026-10-05: Simplify the meeting conversation panel: one fixed title, small
   tab pills with an unread dot, and plain transcription notices.
