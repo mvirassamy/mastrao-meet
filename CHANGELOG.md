@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: "Rejoindre" on a planned meeting now opens the room directly,
+  without the intermediate "Reprendre cette réunion" page.
+
 - 2026-10-05: Show the time left on today's planned meetings and make their
   "Rejoindre" button stand out in the quarter hour before the start.
 

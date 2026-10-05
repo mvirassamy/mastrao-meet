@@ -103,6 +103,7 @@
       "plannedIn": "Planifiée · dans {{duration}}",
       "plannedNow": "Planifiée · maintenant",
       "join": "Rejoindre",
+      "joinError": "Impossible d’ouvrir la réunion. Réessayez.",
       "upcoming": "À venir",
       "finished": "Terminées",
       "now": "Maintenant, {{time}}"

@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { VideoIcon } from '@/icons'
-import { LinkButton } from '@/primitives'
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { useHostHandoff } from '@/features/rooms/hooks/useHostHandoff'
 import {
   formatMeetingDuration,
   formatMeetingTimeRange,
@@ -19,7 +20,8 @@ const isStartingSoon = (meeting: PlannedMeeting, now: Date) =>
 /**
  * Canonical planned times stay indicative; the host route checks current
  * rights. With `now` (today), the time left is shown and the join button
- * stands out in the quarter hour before the start.
+ * stands out in the quarter hour before the start. Joining confirms host
+ * access and opens the room directly.
  */
 export const ScheduledMeetingEvent = ({
   meeting,
@@ -36,6 +38,7 @@ export const ScheduledMeetingEvent = ({
 }) => {
   const { t } = useTranslation(['home', 'meetingHistory'])
   const isJoinTime = now !== undefined && isStartingSoon(meeting, now)
+  const { handoff, pending, failed } = useHostHandoff(meeting.roomRef)
 
   const status = () => {
     if (meeting.isClosed) return t('dashboard.meetings.closed')
@@ -93,16 +96,30 @@ export const ScheduledMeetingEvent = ({
         >
           {status()}
         </p>
+        {failed && (
+          <p
+            role="alert"
+            className={css({
+              margin: 0,
+              color: 'danger.subtle-text',
+              fontSize: '0.8125rem',
+            })}
+          >
+            {t('dashboard.meetings.joinError')}
+          </p>
+        )}
       </div>
       {!meeting.isClosed && (
-        <LinkButton
-          href={`/host/${meeting.roomRef}`}
+        <Button
+          onPress={() => void handoff()}
+          isPending={pending}
+          loading={pending}
+          icon={isJoinTime ? <VideoIcon aria-hidden="true" /> : undefined}
           variant={isJoinTime ? 'default' : 'outline'}
           size="sm"
         >
-          {isJoinTime && <VideoIcon aria-hidden="true" />}
           {t('dashboard.meetings.join')}
-        </LinkButton>
+        </Button>
       )}
     </li>
   )

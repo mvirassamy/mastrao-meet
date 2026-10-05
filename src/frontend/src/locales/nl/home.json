@@ -103,6 +103,7 @@
       "plannedIn": "Gepland · over {{duration}}",
       "plannedNow": "Gepland · nu",
       "join": "Deelnemen",
+      "joinError": "De vergadering kon niet worden geopend. Probeer het opnieuw.",
       "upcoming": "Komend",
       "finished": "Afgelopen",
       "now": "Nu, {{time}}"

@@ -103,6 +103,7 @@
       "plannedIn": "Scheduled · in {{duration}}",
       "plannedNow": "Scheduled · now",
       "join": "Join",
+      "joinError": "The meeting could not be opened. Try again.",
       "upcoming": "Upcoming",
       "finished": "Finished",
       "now": "Now, {{time}}"
