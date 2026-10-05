@@ -35,6 +35,7 @@ describe('getPreviewContent', () => {
       'history-empty': 'meeting-history',
       'history-error': 'meeting-history',
       'history-detail': 'meeting-history',
+      'history-detail-loading': 'meeting-history',
       'history-detail-processing': 'meeting-history',
       'history-detail-absent': 'meeting-history',
       'history-detail-summary-request': 'meeting-history',

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: Load the meeting detail with a skeleton of its own shape:
+  title, date line, and the Summary and Transcript cards.
+
 - 2026-10-05: Keep the selected home day when coming back from a meeting,
   show the retry of a failed history page, and fix sidebar focus order.
 
