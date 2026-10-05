@@ -638,7 +638,7 @@ def test_list_waiting_participants_empty(settings):
     utils, "generate_livekit_config", return_value={"token": "test-token"}
 )
 def test_request_entry_throttling_anonymous_without_cookie(
-    mock_notify_participants, mock_generate_livekit_config, settings
+    mock_notify_participants, mock_generate_livekit_config, settings, monkeypatch
 ):
     """Anonymous users without a cookie should not be throttled."""
 
@@ -646,7 +646,9 @@ def test_request_entry_throttling_anonymous_without_cookie(
     client = APIClient()
 
     settings.LOBBY_COOKIE_NAME = "mocked-cookie"
-    settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["request_entry"] = "1/minute"
+    monkeypatch.setitem(
+        settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"], "request_entry", "1/minute"
+    )
 
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/request-entry/",
@@ -671,14 +673,16 @@ def test_request_entry_throttling_anonymous_without_cookie(
     utils, "generate_livekit_config", return_value={"token": "test-token"}
 )
 def test_request_entry_throttling_anonymous_with_cookie(
-    mock_notify_participants, mock_generate_livekit_config, settings
+    mock_notify_participants, mock_generate_livekit_config, settings, monkeypatch
 ):
     """Anonymous users with a cookie should be throttled after exceeding the rate limit."""
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
     client = APIClient()
 
     settings.LOBBY_COOKIE_NAME = "mocked-cookie"
-    settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["request_entry"] = "2/minute"
+    monkeypatch.setitem(
+        settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"], "request_entry", "2/minute"
+    )
 
     participant_id = str(uuid.uuid4())
     client.cookies.load({"mocked-cookie": participant_id})
@@ -708,7 +712,7 @@ def test_request_entry_throttling_anonymous_with_cookie(
     utils, "generate_livekit_config", return_value={"token": "test-token"}
 )
 def test_request_entry_throttling_authenticated_user(
-    mock_notify_participants, mock_generate_livekit_config, settings
+    mock_notify_participants, mock_generate_livekit_config, settings, monkeypatch
 ):
     """Authenticated users should be throttled."""
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
@@ -717,7 +721,9 @@ def test_request_entry_throttling_authenticated_user(
     client.force_login(user)
 
     settings.LOBBY_COOKIE_NAME = "mocked-cookie"
-    settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["request_entry"] = "2/minute"
+    monkeypatch.setitem(
+        settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"], "request_entry", "2/minute"
+    )
 
     response = client.post(
         f"/api/v1.0/rooms/{room.id}/request-entry/",
