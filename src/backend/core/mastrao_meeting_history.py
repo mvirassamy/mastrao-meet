@@ -4,7 +4,7 @@ import json
 import re
 
 from django.http import JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from core.mastrao_host_contract import HostHandoffRefused
 from core.mastrao_host_handoff import consume_host_handoff_for_oidc_session
@@ -18,6 +18,9 @@ from core.mastrao_platform_facade import (
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 MAX_CREATION_BODY_BYTES = 8192
 CREATION_FIELDS = {"title", "scheduled_start_at", "scheduled_end_at", "timezone"}
+DAY_QUERY_FIELDS = {"day_start", "day_end", "cursor"}
+UNIX_SECONDS = re.compile(r"^[0-9]{1,16}$")
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 
 def _reject_json_constant(_value):
@@ -60,6 +63,43 @@ def _response(operation):
             status=error.status,
             headers={"Cache-Control": "private, no-store"},
         )
+
+
+def _day_list_options(request):
+    """Validate the query envelope; Platform owns day filtering and access."""
+
+    if set(request.GET) - DAY_QUERY_FIELDS or any(
+        len(request.GET.getlist(field)) != 1 for field in request.GET
+    ):
+        raise PlatformFacadeError(status=422)
+    options = {}
+    for field in ("day_start", "day_end"):
+        value = request.GET.get(field, "")
+        if not UNIX_SECONDS.fullmatch(value) or int(value) > MAX_SAFE_INTEGER:
+            raise PlatformFacadeError(status=422)
+        options[field] = int(value)
+    if options["day_end"] <= options["day_start"]:
+        raise PlatformFacadeError(status=422)
+    if "cursor" in request.GET:
+        options["cursor"] = request.GET["cursor"]
+    return options
+
+
+@require_http_methods(["GET", "POST"])
+def meeting_collection(request):
+    """List canonical meetings for a day or use the existing creation flow."""
+
+    if request.method == "POST":
+        return create_meeting(request)
+    return _response(
+        lambda: request_platform(
+            request,
+            "GET",
+            "/api/meet/meetings",
+            accepted_statuses={200},
+            options=_day_list_options(request),
+        )
+    )
 
 
 @require_POST

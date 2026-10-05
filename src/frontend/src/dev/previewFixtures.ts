@@ -114,6 +114,11 @@ export const preparePreview = () => {
           { detail: 'Aperçu local : aucune action envoyée.' },
           503
         )
+      if (
+        url.pathname.endsWith('/meetings/') &&
+        url.searchParams.has('day_start')
+      )
+        return jsonResponse({ results: [], next_cursor: null })
       if (isPreviewMeetingHistoryRequest(url))
         return previewMeetingHistoryResponse(url, previewScenario)
       if (url.pathname.includes('/rooms/')) {

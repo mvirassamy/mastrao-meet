@@ -246,6 +246,10 @@ const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
     id,
     title: asString(raw.title),
     startedAt,
+    scheduledStartAt:
+      typeof raw.scheduled_start_at === 'number'
+        ? new Date(raw.scheduled_start_at * 1000)
+        : null,
     endedAt: asDate(raw.ended_at),
     participantCount,
     participantNames,

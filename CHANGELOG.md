@@ -21,6 +21,9 @@
 - 2026-10-05: Plan meetings with an optional title, browser-local date and
   times persisted canonically, and keep immediate guest and host access.
 
+- 2026-10-05: Show planned meetings on their scheduled home day after
+  creation and reload, with canonical times and existing host access.
+
 - 2026-10-05: Move settings to a row above the sidebar profile, kept as a
   white button with a menu chevron.
 

@@ -8,12 +8,15 @@ import { historyItemsOf } from './historyItems'
 import type { MeetingHistoryItem } from './types'
 import { useMeetingHistory } from './useMeetingHistory'
 
-/** Meetings that started on `day` (YYYY-MM-DD) in the user's time zone. */
+/** Unplanned history meetings on `day`; scheduled rows have their own canonical read. */
 export const meetingsOfDay = (
   items: MeetingHistoryItem[],
   day: string,
   timeZone?: string
-) => items.filter((item) => dayKey(item.startedAt, timeZone) === day)
+) =>
+  items.filter(
+    (item) => !item.scheduledStartAt && dayKey(item.startedAt, timeZone) === day
+  )
 
 /**
  * History pages come most recent first: an older page can still hold

@@ -97,7 +97,9 @@
       "count_one": "{{count}} Meeting",
       "count_other": "{{count}} Meetings",
       "loading": "Meetings werden geladen…",
-      "errorTitle": "Die Meetings dieses Tages können nicht angezeigt werden"
+      "errorTitle": "Die Meetings dieses Tages können nicht angezeigt werden",
+      "planned": "Geplant",
+      "closed": "Zugang geschlossen"
     }
   },
   "homeV2": {

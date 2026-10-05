@@ -9,6 +9,7 @@ from django.test import Client, RequestFactory, override_settings
 import pytest
 
 from core.mastrao_meeting_history import MAX_CREATION_BODY_BYTES, create_meeting
+from core.mastrao_platform_facade import MAX_PLATFORM_RESPONSE_BYTES
 
 PLATFORM = "https://app.mastrao-staging.com"
 TOKEN = "opaque-access-token-123"
@@ -272,6 +273,138 @@ def test_create_meeting_requires_a_bounded_idempotency_key():
 
     assert response.status_code == 422
     session.assert_not_called()
+
+
+@pytest.mark.parametrize("cursor", [None, "opaque_123-456"])
+@override_settings(**TEST_SETTINGS)
+def test_day_list_forwards_exact_query_and_retains_canonical_metadata(cursor):
+    """Return Platform's UTC metadata and states without minting credentials."""
+
+    body = {
+        "results": [
+            {
+                "meeting_ref": f"meeting_0123456789abcdef_{state}",
+                "room_ref": f"room_0123456789abcdef_{state}",
+                "title": "Réunion d'équipe",
+                "created_at": 1_799_900_000,
+                "scheduled_start_at": 1_800_000_000,
+                "scheduled_end_at": 1_800_003_600,
+                "timezone": "Europe/Paris",
+                "state": state,
+                "ended_at": 1_800_002_000 if state == "ended" else None,
+            }
+            for state in ("admitted", "ready", "cancelled", "ending", "ended")
+        ],
+        "next_cursor": "opaque_next-page",
+    }
+    session = _session_returning(_upstream(200, body))
+    query = "day_start=1800000000&day_end=1800086400"
+    if cursor is not None:
+        query += f"&cursor={cursor}"
+    with (
+        patch("core.mastrao_platform_facade.requests.Session", return_value=session),
+        patch(
+            "core.mastrao_meeting_history.consume_host_handoff_for_oidc_session"
+        ) as consume,
+    ):
+        response = _client_with_token().get(f"/api/v1.0/meetings/?{query}")
+
+    assert response.status_code == 200
+    assert response.json() == body
+    assert TOKEN not in response.content.decode()
+    assert "host_handoff" not in response.content.decode()
+    assert response.headers["Cache-Control"] == "private, no-store"
+    consume.assert_not_called()
+    session.request.assert_called_once_with(
+        "GET",
+        f"{PLATFORM}/api/meet/meetings?{query}",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        timeout=5,
+        allow_redirects=False,
+        stream=True,
+    )
+    assert session.trust_env is False
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "",
+        "day_start=1800000000",
+        "day_end=1800086400",
+        "day_start=&day_end=1800086400",
+        "day_start=1800000000&day_end=",
+        "day_start=-1&day_end=1800086400",
+        "day_start=1.5&day_end=1800086400",
+        "day_start=1e9&day_end=1800086400",
+        "day_start=NaN&day_end=1800086400",
+        "day_start=1800000000&day_end=Infinity",
+        "day_start=1800000000&day_end=9007199254740992",
+        "day_start=1800000000&day_end=" + "9" * 5000,
+        "day_start=1800000000&day_end=1800000000",
+        "day_start=1800086400&day_end=1800000000",
+        "day_start=1&day_start=2&day_end=1800086400",
+        "day_start=1&day_end=2&day_end=3",
+        "day_start=1&day_end=2&cursor=one&cursor=two",
+        "day_start=1&day_end=2&timezone=Europe%2FParis",
+        "day_start=1&day_end=2&cursor=",
+        "day_start=1&day_end=2&cursor=bad%2Fcursor",
+        "day_start=1&day_end=2&cursor=" + "x" * 513,
+    ],
+)
+@override_settings(**TEST_SETTINGS)
+def test_day_list_rejects_invalid_query_before_platform(query):
+    """Refuse missing, malformed, duplicate, unknown or oversized parameters."""
+
+    with patch("core.mastrao_platform_facade.requests.Session") as session:
+        response = _client_with_token().get(f"/api/v1.0/meetings/?{query}")
+
+    assert response.status_code == 422
+    assert response.headers["Cache-Control"] == "private, no-store"
+    session.assert_not_called()
+
+
+@override_settings(**TEST_SETTINGS)
+def test_day_list_requires_access_token_and_clears_platform_refusal():
+    """Use the same authentication boundary as existing meeting history."""
+
+    target = "/api/v1.0/meetings/?day_start=1800000000&day_end=1800086400"
+    with patch("core.mastrao_platform_facade.requests.Session") as session:
+        response = Client().get(target)
+    assert response.status_code == 401
+    assert response.headers["Cache-Control"] == "private, no-store"
+    session.assert_not_called()
+
+    client = _client_with_token()
+    session = _session_returning(_upstream(401, {"message": "unauthorized"}))
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = client.get(target)
+
+    assert response.status_code == 401
+    assert "oidc_access_token" not in client.session
+    assert TOKEN not in response.content.decode()
+
+
+@pytest.mark.parametrize("declared", [True, False])
+@override_settings(**TEST_SETTINGS)
+def test_day_list_keeps_existing_platform_response_size_limit(declared):
+    """Reject excessive declared or streamed response bytes and close the peer."""
+
+    upstream = _upstream(200, {"results": [], "next_cursor": None})
+    if declared:
+        upstream.headers["content-length"] = str(MAX_PLATFORM_RESPONSE_BYTES + 1)
+    else:
+        upstream.headers = {}
+        upstream.iter_content.return_value = [b" " * MAX_PLATFORM_RESPONSE_BYTES, b" "]
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().get(
+            "/api/v1.0/meetings/?day_start=1800000000&day_end=1800086400"
+        )
+
+    assert response.status_code == 503
+    assert TOKEN not in response.content.decode()
+    upstream.close.assert_called_once()
 
 
 @override_settings(**TEST_SETTINGS)

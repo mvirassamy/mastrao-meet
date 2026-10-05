@@ -1,4 +1,5 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { plannedMeetingsQueryKey } from './plannedMeetings'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import type { MeetingSchedule } from '../utils/meetingSchedule'
@@ -94,9 +95,17 @@ export const canonicalMeetingMutationKey = ['createCanonicalMeeting'] as const
  * The caller generates the key once per action and passes it as the mutation
  * variable: automatic retries replay the exact same key.
  */
-export const useCreateCanonicalMeeting = () =>
-  useMutation<CanonicalMeeting, unknown, CreateMeetingRequest>({
+export const useCreateCanonicalMeeting = () => {
+  const queryClient = useQueryClient()
+  return useMutation<CanonicalMeeting, unknown, CreateMeetingRequest>({
     mutationKey: canonicalMeetingMutationKey,
     mutationFn: createCanonicalMeeting,
+    onSuccess: (_meeting, request) => {
+      if (request.schedule)
+        void queryClient.invalidateQueries({
+          queryKey: plannedMeetingsQueryKey,
+        })
+    },
     retry: (failureCount, error) => isRetryable(error) && failureCount < 2,
   })
+}

@@ -10,6 +10,9 @@ import { MeetingHistoryStatePanel } from '@/features/meetingHistory/components/M
 import { useRestoreOpenedMeetingFocus } from '@/features/meetingHistory/utils/focusReturn'
 import { CreateMeetingMenu } from '../CreateMeetingMenu'
 import { DayMeetingEvent } from './DayMeetingEvent'
+import { ScheduledMeetingEvent } from './ScheduledMeetingEvent'
+import { usePlannedMeetingsOfDay } from '../../api/plannedMeetings'
+import { isAuthRequiredError } from '@/features/meetingHistory/api/authRedirect'
 
 /** Position of the selected day relative to today. */
 export type DayPosition = 'past' | 'today' | 'future'
@@ -35,8 +38,8 @@ const container = css({
 })
 
 /**
- * Meetings of the day selected in the home calendar. Only past meetings
- * exist for now: they come from the meeting history.
+ * Planned meetings use their canonical scheduled day. Unplanned meetings
+ * keep the existing historical day and detail navigation.
  */
 export const DayMeetings = ({
   day,
@@ -51,13 +54,27 @@ export const DayMeetings = ({
   const { t, i18n } = useTranslation(['home', 'meetingHistory'])
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const meetings = useMeetingsOfDay(day, timeZone)
+  const planned = usePlannedMeetingsOfDay(day, timeZone)
+  const plannedLoading =
+    planned.isPending || (planned.hasNextPage && !planned.isFetchNextPageError)
+  const isLoading =
+    meetings.status === 'loading' ||
+    plannedLoading ||
+    isAuthRequiredError(planned.error)
+  const hasError =
+    meetings.status === 'error' ||
+    planned.isError ||
+    planned.isFetchNextPageError
   const listRef = useRef<HTMLUListElement>(null)
   useRestoreOpenedMeetingFocus(
     listRef,
-    meetings.status === 'ready' && meetings.items.length > 0
+    meetings.status === 'ready' &&
+      !isLoading &&
+      !hasError &&
+      (meetings.items.length > 0 || planned.items.length > 0)
   )
 
-  if (meetings.status === 'loading')
+  if (isLoading)
     return (
       <div className={container}>
         <MeetingHistorySkeleton
@@ -67,7 +84,7 @@ export const DayMeetings = ({
       </div>
     )
 
-  if (meetings.status === 'error')
+  if (hasError)
     return (
       <div className={container}>
         <MeetingHistoryStatePanel
@@ -82,9 +99,19 @@ export const DayMeetings = ({
               icon={<RetryIcon aria-hidden="true" />}
               // Pending keeps the button, and the keyboard focus, in place;
               // loading shows the spinner while the page is fetched again.
-              isPending={meetings.retrying}
-              loading={meetings.retrying}
-              onPress={meetings.retry}
+              isPending={
+                (meetings.status === 'error' && meetings.retrying) ||
+                planned.isFetching
+              }
+              loading={
+                (meetings.status === 'error' && meetings.retrying) ||
+                planned.isFetching
+              }
+              onPress={() => {
+                if (meetings.status === 'error') meetings.retry()
+                if (planned.isFetchNextPageError) void planned.fetchNextPage()
+                else if (planned.isError) void planned.refetch()
+              }}
             >
               {t('error.retry', { ns: 'meetingHistory' })}
             </Button>
@@ -93,8 +120,23 @@ export const DayMeetings = ({
       </div>
     )
 
-  if (meetings.items.length === 0)
-    return <NoMeetingsOfDay position={position} />
+  // Canonical references also guard against duplicated rows during a refresh.
+  const plannedIds = new Set(planned.items.map((item) => item.id))
+  const history = meetings.items.filter((item) => !plannedIds.has(item.id))
+  const events = [
+    ...history.map((item) => ({
+      kind: 'history' as const,
+      item,
+      startsAt: item.startedAt,
+    })),
+    ...planned.items.map((item) => ({
+      kind: 'planned' as const,
+      item,
+      startsAt: item.startsAt,
+    })),
+  ].sort((left, right) => right.startsAt.getTime() - left.startsAt.getTime())
+
+  if (events.length === 0) return <NoMeetingsOfDay position={position} />
 
   return (
     <section aria-labelledby="day-meetings-heading" className={container}>
@@ -111,7 +153,7 @@ export const DayMeetings = ({
           textTransform: 'uppercase',
         })}
       >
-        {t('dashboard.meetings.count', { count: meetings.items.length })}
+        {t('dashboard.meetings.count', { count: events.length })}
       </h1>
       <ul
         ref={listRef}
@@ -124,15 +166,28 @@ export const DayMeetings = ({
           listStyle: 'none',
         })}
       >
-        {meetings.items.map((item, index) => (
-          <DayMeetingEvent
-            key={item.id}
-            item={item}
-            color={EVENT_COLORS[index % EVENT_COLORS.length]}
-            locale={locale}
-            timeZone={timeZone}
-          />
-        ))}
+        {events.map((event, index) => {
+          const color = EVENT_COLORS[index % EVENT_COLORS.length]
+          if (event.kind === 'planned')
+            return (
+              <ScheduledMeetingEvent
+                key={event.item.id}
+                meeting={event.item}
+                color={color}
+                locale={locale}
+                timeZone={timeZone}
+              />
+            )
+          return (
+            <DayMeetingEvent
+              key={event.item.id}
+              item={event.item}
+              color={color}
+              locale={locale}
+              timeZone={timeZone}
+            />
+          )
+        })}
       </ul>
     </section>
   )

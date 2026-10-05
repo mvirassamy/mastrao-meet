@@ -8,6 +8,7 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchApi } from '@/api/fetchApi'
+import { meetingBackPath } from '@/features/meetingHistory/utils/meetingOrigin'
 import { DayMeetings, type DayPosition } from './DayMeetings'
 
 vi.mock('react-i18next', () => ({
@@ -37,18 +38,28 @@ const meeting = (id: string, startedAt: string) => ({
   transcript_status: 'available',
 })
 
+const mockHistoryFetch = (read: (url: string) => Promise<unknown>) =>
+  fetchApiMock.mockImplementation(async (url) => {
+    if (url.startsWith('meetings/?')) return { results: [], next_cursor: null }
+    return read(url)
+  })
+
 const FIRST_PAGE = 'meetings/history/'
 const OLDER_PAGE = 'meetings/history/?cursor=page-2'
 
-const renderDay = (day: string, position: DayPosition = 'past') => {
-  const client = new QueryClient({
+const renderDay = (
+  day: string,
+  position: DayPosition = 'past',
+  client = new QueryClient({
     defaultOptions: { queries: { retryDelay: 0 } },
   })
+) => {
   render(
     <QueryClientProvider client={client}>
       <DayMeetings day={day} position={position} timeZone="Europe/Paris" />
     </QueryClientProvider>
   )
+  return client
 }
 
 const callsTo = (url: string) =>
@@ -57,11 +68,53 @@ const callsTo = (url: string) =>
 beforeEach(() => {
   fetchApiMock.mockReset()
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  window.history.replaceState(null, '', '/')
+})
 
 describe('meetings of the selected home day', () => {
+  it('restores focus after returning from detail when planned meetings arrive later', async () => {
+    const history = {
+      results: [meeting('du-jour', '2026-10-01T08:00:00Z')],
+      next_cursor: null,
+    }
+    mockHistoryFetch(async () => history)
+    window.history.replaceState(null, '', '/?jour=2026-10-01')
+    const client = renderDay('2026-10-01')
+    fireEvent.click(
+      await screen.findByRole('link', { name: /Réunion du-jour/ })
+    )
+    const returnPath = meetingBackPath(window.history.state)
+    expect(returnPath).toBe('/?jour=2026-10-01')
+    cleanup()
+
+    client.removeQueries({ queryKey: ['plannedMeetings'] })
+    let finishPlanned: (value: {
+      results: never[]
+      next_cursor: null
+    }) => void = () => undefined
+    const delayedPlanned = new Promise((resolve) => {
+      finishPlanned = resolve
+    })
+    fetchApiMock.mockImplementation(async (url) => {
+      if (url.startsWith('meetings/?')) return delayedPlanned
+      return history
+    })
+    window.history.replaceState(null, '', returnPath)
+    renderDay('2026-10-01', 'past', client)
+    expect(screen.getByRole('status')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /Réunion du-jour/ })).toBeNull()
+
+    finishPlanned({ results: [], next_cursor: null })
+    const restoredLink = await screen.findByRole('link', {
+      name: /Réunion du-jour/,
+    })
+    await waitFor(() => expect(document.activeElement).toBe(restoredLink))
+  })
+
   it('loads older history pages until the day is covered', async () => {
-    fetchApiMock.mockImplementation(async (url: string) => {
+    mockHistoryFetch(async (url: string) => {
       if (url === FIRST_PAGE)
         return {
           results: [meeting('recente', '2026-10-04T08:00:00Z')],
@@ -92,7 +145,7 @@ describe('meetings of the selected home day', () => {
   it('keeps the retry button and its focus while a failed page is retried', async () => {
     let retrying = false
     let failRetry: (error: Error) => void = () => undefined
-    fetchApiMock.mockImplementation(async (url: string) => {
+    mockHistoryFetch(async (url: string) => {
       if (url === FIRST_PAGE)
         return {
           results: [meeting('recente', '2026-10-04T08:00:00Z')],
