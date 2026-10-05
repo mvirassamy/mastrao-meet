@@ -1,7 +1,7 @@
 {
   "description": "Past meetings you have access to, from most recent to oldest.",
   "detail": {
-    "back": "Back to history",
+    "back": "Back",
     "error": {
       "description": "The service is not responding right now. Check your connection, then try again.",
       "title": "Unable to display this meeting"

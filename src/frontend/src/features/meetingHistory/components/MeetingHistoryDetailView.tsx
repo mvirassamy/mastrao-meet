@@ -2,6 +2,7 @@ import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
+import { useHistoryState } from 'wouter/use-browser-location'
 import {
   ChevronLeftIcon,
   CalendarIcon,
@@ -29,7 +30,7 @@ import {
   isAuthRequiredError,
   useLoginRedirectOnAuthError,
 } from '../api/authRedirect'
-import { MEETING_HISTORY_PATH } from '../paths'
+import { meetingBackPath } from '../utils/meetingOrigin'
 import {
   formatMeetingDay,
   formatMeetingTime,
@@ -148,6 +149,7 @@ export const MeetingHistoryDetailView = ({
 }) => {
   const { t } = useTranslation('meetingHistory')
   const query = useMeetingHistoryDetail(meetingId)
+  const backPath = meetingBackPath(useHistoryState())
   useLoginRedirectOnAuthError(query.error)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const settled = !query.isPending
@@ -239,7 +241,7 @@ export const MeetingHistoryDetailView = ({
       })}
     >
       <Link
-        to={MEETING_HISTORY_PATH}
+        to={backPath}
         className={css({
           display: 'inline-flex',
           alignItems: 'center',

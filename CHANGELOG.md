@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-05: The meeting detail "Retour" link now returns to the list the
+  meeting was opened from: the home day or the history.
+
 - 2026-10-05: Show an interrupted transcription as a small floating
   "Reconnexion…" bubble that leaves the transcript untouched.
 

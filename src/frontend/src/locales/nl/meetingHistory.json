@@ -1,7 +1,7 @@
 {
   "description": "Afgelopen vergaderingen waartoe u toegang hebt, van de meest recente tot de oudste.",
   "detail": {
-    "back": "Terug naar geschiedenis",
+    "back": "Terug",
     "error": {
       "description": "De dienst reageert momenteel niet. Controleer uw verbinding en probeer het opnieuw.",
       "title": "Deze vergadering kan niet worden weergegeven"
