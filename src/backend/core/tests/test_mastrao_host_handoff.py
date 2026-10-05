@@ -111,6 +111,12 @@ def _signed_host_grant(private_key, organization_external_id):
         "issued_at": now,
         "expires_at": now + 3_600,
     }
+    return _sign_host_grant_payload(private_key, payload)
+
+
+def _sign_host_grant_payload(private_key, payload):
+    """Sign the exact Core authority exercised by the token issuance boundary."""
+
     header = {
         "alg": "EdDSA",
         "kid": "core-room-key",
@@ -327,6 +333,8 @@ def test_sentry_scrubs_host_handoff_credentials():
             "data": {
                 "host_handoff": "header.payload.signature",
                 "host_grant": "grant.payload.signature",
+                "participant_authority": "authority.payload.signature",
+                "observation_assertion": "observation.payload.signature",
                 "close_assertion": "close.payload.signature",
                 "room_close_effect": "effect.payload.signature",
                 "room_close_receipt": "receipt.payload.signature",
@@ -340,6 +348,8 @@ def test_sentry_scrubs_host_handoff_credentials():
     assert scrubbed["request"]["data"] == {
         "host_handoff": "[Filtered]",
         "host_grant": "[Filtered]",
+        "participant_authority": "[Filtered]",
+        "observation_assertion": "[Filtered]",
         "close_assertion": "[Filtered]",
         "room_close_effect": "[Filtered]",
         "room_close_receipt": "[Filtered]",
@@ -536,14 +546,16 @@ def test_host_platform_return_rejects_a_grant_binding_mismatch():
     MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
-def test_host_handoff_creates_session_bound_grant_without_durable_access(client):
+def test_host_handoff_creates_session_bound_grant_without_durable_access(
+    client, handoff_signing
+):
     """A valid handoff creates only a nonce-bound temporary host grant."""
 
     binding = _room_binding()
     grant = _grant(binding)
     with mock.patch(
         "core.mastrao_host_handoff._redeem",
-        return_value=(grant, "aaa.bbb.ccc"),
+        return_value=(grant, _sign_host_grant_payload(handoff_signing, grant)),
     ):
         response = client.post(
             reverse("consume_mastrao_host_handoff"),
@@ -641,14 +653,14 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
     MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
 )
-def test_exact_host_can_end_and_retry_after_tombstone(client):
+def test_exact_host_can_end_and_retry_after_tombstone(client, handoff_signing):
     """A lost response can be retried without restoring any media capability."""
 
     binding = _room_binding()
     grant = _grant(binding)
     with mock.patch(
         "core.mastrao_host_handoff._redeem",
-        return_value=(grant, "aaa.bbb.ccc"),
+        return_value=(grant, _sign_host_grant_payload(handoff_signing, grant)),
     ):
         response = client.post(
             reverse("consume_mastrao_host_handoff"),

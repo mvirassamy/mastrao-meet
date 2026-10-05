@@ -7,14 +7,18 @@ No names, arbitrary attributes, bearer tokens or raw payloads are retained.
 """
 
 import hashlib
+import json
 import re
 from uuid import UUID
 
 from django.conf import settings
 from django.db import transaction
 
+from livekit.protocol.models import ParticipantInfo
+
 from core import models
 from core.mastrao_native_admission import wake_native_admissions
+from core.mastrao_rtc_admissions import deliver_rtc_admission
 from core.mastrao_rtc_correlation import correlate_verified_observation
 
 PARTICIPANT_EVENTS = frozenset({"participant_joined", "participant_left"})
@@ -45,7 +49,21 @@ def _sid(value, prefix):
     return value
 
 
-def _facts(event):
+def _verified_participant_kind(event, verified_body):
+    """The SDK ignores unknown enums; never interpret one as default STANDARD."""
+    kind = event.participant.kind
+    if kind != ParticipantInfo.STANDARD:  # pylint: disable=no-member
+        return kind
+    participant = json.loads(verified_body)["participant"]
+    if "kind" not in participant:
+        return kind  # Protobuf omits the zero-valued STANDARD enum.
+    raw_kind = participant["kind"]
+    if raw_kind == "STANDARD" or (type(raw_kind) is int and raw_kind == 0):  # pylint: disable=unidiomatic-typecheck
+        return kind
+    return None
+
+
+def _facts(event, verified_body):
     participant = event.participant
     # Documented UUIDs and older EV-prefixed IDs are both opaque server keys.
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", event.id):
@@ -61,6 +79,7 @@ def _facts(event):
         "room_sid": _sid(event.room.sid, "RM"),
         "participant_sid": _sid(participant.sid, "PA"),
         "rtc_identity": participant.identity,
+        "participant_kind": _verified_participant_kind(event, verified_body),
         "token_binding_ref": _uuid_or_none(
             participant.attributes.get(MEDIA_BINDING_ATTRIBUTE)
         ),
@@ -103,12 +122,13 @@ def _persist_observation(event, verified_body, room_id):
     )
     if binding is None:
         return
-    facts = _facts(event)
+    facts = _facts(event, verified_body)
     digest = hashlib.sha256(verified_body).hexdigest()
     existing = models.MastraoRtcObservation.objects.filter(event_id=event.id).first()
     if existing is not None:
         if existing.payload_digest != digest or existing.room_binding_id != binding.pk:
             raise RtcObservationConflict("Conflicting RTC event ID")
+        transaction.on_commit(lambda: deliver_rtc_admission(existing.pk))
         return
     observation = models.MastraoRtcObservation.objects.create(
         room_binding=binding, payload_digest=digest, **facts
@@ -120,3 +140,4 @@ def _persist_observation(event, verified_body, room_id):
         participant_sid=observation.participant_sid,
     )
     transaction.on_commit(lambda: wake_native_admissions(connection.pk))
+    transaction.on_commit(lambda: deliver_rtc_admission(observation.pk))

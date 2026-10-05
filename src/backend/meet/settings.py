@@ -46,6 +46,8 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "receipt_assertion",
     "media_request_assertion",
     "media_grant",
+    "participant_authority",
+    "observation_assertion",
     "close_assertion",
     "room_close_effect",
     "room_close_receipt",
@@ -313,6 +315,11 @@ class Base(Configuration):
     MASTRAO_ROOM_EFFECT_KEY_ID = values.Value(
         "", environ_name="MASTRAO_ROOM_EFFECT_KEY_ID", environ_prefix=None
     )
+    # Required for verified RTC delivery; excluded from the base opt-in contract.
+    MASTRAO_CORE_RTC_ADMISSION_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_RTC_ADMISSION_ENDPOINT", environ_prefix=None
+    )
+
     MASTRAO_ROOM_RECEIPT_ISSUER = values.Value(
         "", environ_name="MASTRAO_ROOM_RECEIPT_ISSUER", environ_prefix=None
     )

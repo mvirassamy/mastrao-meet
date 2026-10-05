@@ -213,8 +213,8 @@ def _verify(compact_jws, jose_type, fields):
     return payload
 
 
-def _validate_times(payload, maximum_seconds):
-    now = int(time.time())
+def _validate_times(payload, maximum_seconds, *, observed_at=None):
+    now = int(time.time()) if observed_at is None else observed_at
     issued_at = payload.get("issued_at")
     expires_at = payload.get("expires_at")
     if (
@@ -410,11 +410,11 @@ def sign_guest_media_request(grant, compact_guest_grant):
     return _sign(payload, GUEST_MEDIA_REQUEST_JOSE_TYPE), payload
 
 
-def verify_guest_media_grant(compact_jws):
+def verify_guest_media_grant(compact_jws, *, observed_at=None):
     """Verify fresh Core authorization for one participant token."""
 
     payload = _verify(compact_jws, GUEST_MEDIA_GRANT_JOSE_TYPE, MEDIA_GRANT_FIELDS)
-    _validate_times(payload, MAX_MEDIA_SECONDS)
+    _validate_times(payload, MAX_MEDIA_SECONDS, observed_at=observed_at)
     if (
         payload.get("version") != CONTRACT_VERSION
         or payload.get("type") != GUEST_MEDIA_GRANT_TYPE

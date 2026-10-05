@@ -247,8 +247,10 @@ def verify_host_handoff(  # noqa: PLR0912  # pylint: disable=too-many-branches
 
 def verify_host_grant(  # noqa: PLR0912  # pylint: disable=too-many-branches
     compact_jws,
+    *,
+    observed_at=None,
 ):
-    """Verify and decode an exact Cabinet Core media-host grant."""
+    """Verify a Core media-host grant at issuance or at a historical RTC join."""
     parts = compact_jws.split(".") if isinstance(compact_jws, str) else []
     if len(parts) != 3 or len(compact_jws) > 16_384:
         raise HostHandoffRefused()
@@ -291,7 +293,7 @@ def verify_host_grant(  # noqa: PLR0912  # pylint: disable=too-many-branches
         )
     except (RoomEffectRefused, InvalidSignature, ValueError, TypeError) as error:
         raise HostHandoffRefused() from error
-    now = int(time.time())
+    now = int(time.time()) if observed_at is None else observed_at
     if (  # pylint: disable=too-many-boolean-expressions
         payload.get("version") != CONTRACT_VERSION
         or payload.get("type") != HOST_GRANT_TYPE

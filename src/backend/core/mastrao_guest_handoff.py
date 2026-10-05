@@ -462,7 +462,7 @@ def guest_media_config(request, room, username, color, participant_id):
         raise GuestHandoffRefused() from error
     return generate_guest_media_config(
         guest,
-        compact_digest(body["media_grant"]),
+        body["media_grant"],
         room_id=str(room.id),
         user=request.user,
         username=username,

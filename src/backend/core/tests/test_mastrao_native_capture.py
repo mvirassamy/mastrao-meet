@@ -48,6 +48,7 @@ from core.mastrao_native_capture_contract import (
 from core.mastrao_room_contract import _base64url_decode, _canonical_json
 from core.tests.test_mastrao_media_token_binding import (
     _claims,
+    _media_authority,
     binding,
     guest,
     host,
@@ -281,7 +282,7 @@ def _post(client, signer, payload):
 def _switch_to_guest(client, settings, effect, guest):
     config = generate_guest_media_config(
         guest,
-        "f" * 64,
+        _media_authority(guest),
         room_id=str(guest.room_binding.room_id),
         user=AnonymousUser(),
         username="Same name",
