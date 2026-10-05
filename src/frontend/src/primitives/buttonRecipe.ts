@@ -144,6 +144,7 @@ const bigCircle = {
 // Icons follow the Platform `[&_svg]:size-*` rule, except in call controls.
 const icons = (size: string) => ({
   '&:not([data-call-control]) svg': { width: size, height: size },
+  '& [data-loader]': { width: size, height: size },
 })
 
 export const buttonRecipe = cva({
@@ -306,7 +307,8 @@ export const buttonRecipe = cva({
       true: { width: 'full' },
     },
     loading: {
-      true: {},
+      // A pending action is not a disabled one: keep the full colour.
+      true: { '&[data-disabled]': { opacity: '1!' } },
     },
     // Toggles whose content already shows the state keep the resting style.
     shySelected: {
