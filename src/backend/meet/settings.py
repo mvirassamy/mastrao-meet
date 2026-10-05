@@ -39,6 +39,7 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "host_handoff",
     "host_grant",
     "guest_invitation",
+    "share_ref",
     "guest_grant",
     "decision_grant",
     "redemption_assertion",
@@ -559,6 +560,11 @@ class Base(Configuration):
     )
     MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_GUEST_SHARE_REDEMPTION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_GUEST_SHARE_REDEMPTION_ENDPOINT",
+        environ_prefix=None,
     )
     MASTRAO_CORE_GUEST_DECISION_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_GUEST_DECISION_ENDPOINT", environ_prefix=None

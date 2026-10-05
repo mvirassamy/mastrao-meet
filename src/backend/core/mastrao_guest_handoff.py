@@ -248,6 +248,7 @@ def establish_mastrao_guest_session(request):
                 if isinstance(session_nonce, str) and len(session_nonce) >= 32
                 else secrets.token_urlsafe(32)
             )
+        request.session[SESSION_NONCE_KEY] = nonce
         response = JsonResponse({"version": 1}, status=200, headers=headers)
         response.set_cookie(
             GUEST_RETRY_COOKIE,

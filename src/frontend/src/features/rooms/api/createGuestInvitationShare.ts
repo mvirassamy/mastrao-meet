@@ -1,6 +1,7 @@
 import { fetchApi } from '@/api/fetchApi'
 
-const INVITE_CREDENTIAL = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+const SHARE_REFERENCE = /^share_[A-Za-z0-9_-]{32}$/
+const ORGANIZATION = /^[A-Za-z0-9._:-]{1,200}$/
 
 export class GuestInvitationShareContractError extends Error {
   constructor() {
@@ -11,13 +12,20 @@ export class GuestInvitationShareContractError extends Error {
 const parseInviteUrl = (value: unknown) => {
   if (typeof value !== 'string') throw new GuestInvitationShareContractError()
   const url = new URL(value)
-  const invite = new URLSearchParams(url.hash.slice(1)).get('invite')
+  const fragment = new URLSearchParams(url.hash.slice(1))
+  const share = fragment.get('share')
+  const organization = fragment.get('organization')
   if (
     url.origin !== window.location.origin ||
+    url.username ||
+    url.password ||
     url.pathname !== '/guest' ||
     url.search ||
-    !invite ||
-    !INVITE_CREDENTIAL.test(invite)
+    !share ||
+    !SHARE_REFERENCE.test(share) ||
+    !organization ||
+    !ORGANIZATION.test(organization) ||
+    [...fragment.keys()].length !== 2
   )
     throw new GuestInvitationShareContractError()
   return url.href

@@ -20,6 +20,7 @@
     "error": "Das Meeting konnte nicht erstellt werden. Versuche es erneut."
   },
   "laterMeetingDialog": {
+    "recoverHost": "Gastgeberzugang speichern",
     "heading": "Zugangsdaten",
     "description": "Teile diese Einladung mit deinen Gästen. Sie können ohne Anmeldung um Einlass bitten. Der Link ist nur begrenzt gültig. Wenn du das Meeting für alle beendest, kann niemand erneut beitreten.",
     "preparing": "Der sichere Einladungslink wird vorbereitet…",
