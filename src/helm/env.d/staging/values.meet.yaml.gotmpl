@@ -4,6 +4,8 @@ backend:
   envVars:
     OIDC_STORE_ACCESS_TOKEN: True
     MASTRAO_PLATFORM_API_BASE_URL: https://app.mastrao-staging.com
+    MASTRAO_CORE_VIDEO_DELIVERY_ENDPOINT: http://cabinet-core:8080/internal/v1/meetings/video-invitations/delivery
+    MASTRAO_CORE_VIDEO_PARTICIPANT_ENDPOINT: http://cabinet-core:8080/internal/v1/meetings/video-invitations/participant
     MASTRAO_MEETING_RECORDING_ENABLED: False
     MASTRAO_MEETING_RECORDING_START_ENABLED: False
     MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED: False

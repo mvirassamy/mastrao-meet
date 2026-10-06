@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-06: Declare the two private video invitation endpoints in the staging
+  overlay and document the coordinated relay delivery and rollback.
+
 - 2026-10-06: Reject invitations without complete planned meeting times
   before creating the meeting or claiming an email send.
 
