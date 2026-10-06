@@ -12,14 +12,14 @@ import translations from '@/locales/en/home.json'
 
 vi.mock('react-i18next', () => ({
   useTranslation: (_ns: string, options?: { keyPrefix?: string }) => ({
-    t: (key: string, values?: { timeZone: string }) => {
+    t: (key: string, values?: Record<string, string>) => {
       if (!options?.keyPrefix) return key
       const copy = translations.scheduleMeetingDialog
       if (key.startsWith('errors.'))
         return copy.errors[key.slice(7) as keyof typeof copy.errors]
       return copy[key as keyof typeof copy]
         .toString()
-        .replace('{{timeZone}}', values?.timeZone ?? '')
+        .replace(/{{(\w+)}}/g, (_match, name: string) => values?.[name] ?? '')
     },
   }),
 }))
@@ -97,6 +97,44 @@ describe('schedule meeting dialog with real application primitives', () => {
       startsAt: new Date('2026-10-06T10:00:00').getTime() / 1000,
       endsAt: new Date('2026-10-06T11:00:00').getTime() / 1000,
     })
+  })
+
+  it('adds multiple guest emails, deduplicates them and removes one before creation', async () => {
+    const create = vi.fn().mockResolvedValue(undefined)
+    render(<ScheduleMeetingDialog isOpen onClose={vi.fn()} onCreate={create} />)
+    fill()
+    fireEvent.change(screen.getByLabelText('Guests'), {
+      target: {
+        value:
+          'Alice@example.com, alice@example.com; bob@example.com carol@example.com',
+      },
+    })
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove bob@example.com' })
+    )
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    submit()
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
+    expect(create.mock.calls[0][0].invitees).toEqual([
+      'alice@example.com',
+      'carol@example.com',
+    ])
+  })
+
+  it('rejects invalid guest email input without sending a partial invitation list', () => {
+    const create = vi.fn()
+    render(<ScheduleMeetingDialog isOpen onClose={vi.fn()} onCreate={create} />)
+    fill()
+    fireEvent.change(screen.getByLabelText('Guests'), {
+      target: { value: 'alice@example.com, invalid-address' },
+    })
+    submit()
+    const guests = screen.getByRole('textbox', { name: 'Guests' })
+    expect(document.activeElement).toBe(guests)
+    expect(guests.getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByRole('alert').textContent).toContain('email addresses')
+    expect(create).not.toHaveBeenCalled()
   })
 
   it('does not offer a day before today', () => {

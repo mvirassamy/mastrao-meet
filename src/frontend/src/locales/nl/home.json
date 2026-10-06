@@ -32,7 +32,9 @@
     "phone": {
       "call": "Bel:",
       "pinCode": "Code:"
-    }
+    },
+    "invitationsSubmitted": "De verzenddienst heeft de uitnodigingen geaccepteerd. Ontvangst is niet bevestigd.",
+    "invitationsUnconfirmed": "Verzending niet bevestigd voor: {{emails}}. Deze gasten moeten in de vergadering toestemming geven voor video-opname."
   },
   "introSlider": {
     "previous": {
@@ -138,7 +140,13 @@
       "nonexistentTime": "Deze tijd bestaat niet in deze tijdzone vanwege de klokverandering.",
       "ambiguousTime": "Deze tijd komt tweemaal voor bij een klokverandering. Kies een andere tijd.",
       "endBeforeStart": "Het einde moet na het begin liggen.",
-      "pastTime": "Deze tijd is al voorbij. Kies een later tijdstip."
-    }
+      "pastTime": "Deze tijd is al voorbij. Kies een later tijdstip.",
+      "invalidInvitees": "Controleer de e-mailadressen van de genodigden.",
+      "tooManyInvitees": "U kunt maximaal 50 personen uitnodigen."
+    },
+    "invitees": "Genodigden",
+    "inviteesDescription": "Optioneel. Scheid e-mailadressen met een komma.",
+    "inviteesPlaceholder": "alice@voorbeeld.nl, bob@voorbeeld.nl",
+    "removeInvitee": "{{email}} verwijderen"
   }
 }

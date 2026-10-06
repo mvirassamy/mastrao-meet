@@ -1,7 +1,9 @@
 """Invitation Service."""
 
 import smtplib
+from datetime import datetime
 from logging import getLogger
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
@@ -20,6 +22,35 @@ class InvitationError(Exception):
 
 class InvitationService:
     """Service for invitations to users."""
+
+    @staticmethod
+    def invite_to_scheduled_room(*, sender, email, schedule, room_url, choice_url):
+        """Send one recipient their meeting link and personal video choice."""
+
+        zone = ZoneInfo(schedule["timezone"])
+        context = {
+            "title": schedule.get("title", ""),
+            "sender_email": sender.email,
+            "starts_at": datetime.fromtimestamp(schedule["scheduled_start_at"], zone),
+            "ends_at": datetime.fromtimestamp(schedule["scheduled_end_at"], zone),
+            "timezone": schedule["timezone"],
+            "room_url": room_url,
+            "choice_url": choice_url,
+        }
+        message = EmailMultiAlternatives(
+            subject=str(_("Invitation to a scheduled meeting")),
+            body=render_to_string("invitations/scheduled.txt", context),
+            from_email=settings.EMAIL_FROM,
+            to=[email],
+        )
+        message.attach_alternative(
+            render_to_string("invitations/scheduled.html", context), "text/html"
+        )
+        try:
+            if message.send() != 1:
+                raise InvitationError("Could not confirm invitation send")
+        except smtplib.SMTPException as error:
+            raise InvitationError("Could not confirm invitation send") from error
 
     @staticmethod
     def invite_to_room(room, sender, emails):

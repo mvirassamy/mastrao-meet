@@ -1,0 +1,15 @@
+{% load i18n tz %}{% localtime off %}
+<!doctype html>
+<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#202124">
+<h1>{% trans "Invitation to a scheduled meeting" %}</h1>
+<p>{{ sender_email }} — {{ title }}</p>
+<p>{{ starts_at|date:"d/m/Y H:i" }} – {{ ends_at|date:"H:i" }} ({{ timezone }})</p>
+<p><a href="{{ room_url }}">{% trans "Join the meeting" %}</a></p>
+<h2>{% trans "Video recording may be requested" %}</h2>
+<p>{% trans "The host may manually start video recording. Any refusal prevents video recording for the whole meeting. Without an objection after this email, your response remains no objection, not an explicit acceptance." %}</p>
+<p><a href="{{ choice_url }}">{% trans "Choose yes or no without an account" %}</a></p>
+<p>{% trans "You may change your choice until video capture actually starts. While a start request is being resolved, changes cannot be confirmed. Stopping video recording is permanent for this meeting." %}</p>
+<p>{% trans "Audio capture for transcription has a separate choice when you join. Refusing video does not refuse audio transcription." %}</p>
+</body></html>
+
+{% endlocaltime %}

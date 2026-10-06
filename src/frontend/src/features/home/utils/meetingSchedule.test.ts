@@ -22,6 +22,34 @@ afterEach(() => {
 })
 
 describe('browser-local meeting schedule', () => {
+  it('preserves creation without guests and validates the entire optional email list', () => {
+    expect(validateMeetingSchedule({ ...draft, invitees: '' })).toEqual(
+      validateMeetingSchedule(draft)
+    )
+    const result = validateMeetingSchedule({
+      ...draft,
+      invitees: ' Alice@example.com, alice@example.com; bob@example.com ',
+    })
+    expect('schedule' in result && result.schedule.invitees).toEqual([
+      'alice@example.com',
+      'bob@example.com',
+    ])
+    expect(
+      validateMeetingSchedule({
+        ...draft,
+        invitees: 'alice@example.com, broken',
+      })
+    ).toEqual({ errors: { invitees: 'invalidInvitees' } })
+    expect(
+      validateMeetingSchedule({
+        ...draft,
+        invitees: Array.from(
+          { length: 51 },
+          (_, index) => `guest${index}@example.com`
+        ).join(','),
+      })
+    ).toEqual({ errors: { invitees: 'tooManyInvitees' } })
+  })
   it('rejects a start that has already passed today', () => {
     vi.stubEnv('TZ', 'Europe/Paris')
     const now = new Date('2026-10-07T08:30:00Z')
