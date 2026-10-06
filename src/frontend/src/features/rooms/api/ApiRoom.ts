@@ -66,6 +66,7 @@ export type ApiRoom = {
     transcription_mode?: 'disabled' | 'transcribed'
     transcription_notice_version?: string
     transcription_notice_digest?: string
+    transcription_profile_ref?: 'mistral-eu-standard-managed-demo-v1'
     transcription_decision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
   }
   /**

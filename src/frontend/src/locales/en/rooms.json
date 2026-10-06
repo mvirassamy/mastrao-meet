@@ -145,7 +145,8 @@
       "accept": "Accept transcription",
       "refuse": "Continue without transcription",
       "checkbox": "I also agree to a written transcript of this meeting",
-      "notice": "Transcription: the recorded audio will be transcribed to text, stored in the matter with the same access and retention as the recording. Without your explicit agreement, no transcript is produced."
+      "notice": "Transcription: the recorded audio will be transcribed to text, stored in the matter with the same access and retention as the recording. Without your explicit agreement, no transcript is produced.",
+      "managedProviderNotice": "Audio will be processed by Mistral · Voxtral Mini Transcribe 2 in the European Union, with the provider’s standard retention for this demo. This processing does not have zero data retention (ZDR). The resulting text must be reviewed."
     }
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",

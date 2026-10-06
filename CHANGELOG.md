@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-06: Display the sealed normal Mistral standard-retention profile
+  before initial or delayed participant transcription consent.
+
 - 2026-10-06: Name immutable audio and profile checks in normal ASR attempt
   replay and remove unused test bindings.
 
