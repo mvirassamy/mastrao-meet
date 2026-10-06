@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-06: Name immutable audio and profile checks in normal ASR attempt
+  replay and remove unused test bindings.
+
 - 2026-10-06: Consume normal post-meeting transcription submit v4 and egress v2
   without campaign bindings, retain approved budgets and authority limits, and
   reconcile only normal intents with recovery-only fencing after uncertain

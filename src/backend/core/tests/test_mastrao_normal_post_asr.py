@@ -314,7 +314,7 @@ def test_normal_arguments_digest_has_top_level_version_and_authority(settings):
     "field", ["authority_version", "maximum_audio_seconds", "maximum_audio_bytes"]
 )
 def test_normal_grant_refuses_limits_substituted_after_submit(settings, field):
-    recording, effect, _binding, _local_effect, attempt = _prepared(settings)
+    _recording, effect, _binding, _local_effect, attempt = _prepared(settings)
     request = build_transcription_egress_request_claims(effect, attempt, "send_allowed")
     grant = _grant(request, effect, settings)
     grant[field] += 1
@@ -323,7 +323,7 @@ def test_normal_grant_refuses_limits_substituted_after_submit(settings, field):
 
 
 def test_normal_grant_digest_requires_version_discriminator(settings):
-    recording, effect, _binding, _local_effect, attempt = _prepared(settings)
+    _recording, effect, _binding, _local_effect, attempt = _prepared(settings)
     request = build_transcription_egress_request_claims(effect, attempt, "recover_only")
     grant = _grant(request, effect, settings)
     semantic = {
@@ -363,7 +363,7 @@ def test_normal_audio_limit_refuses_attempt_before_egress(settings, field):
 
 
 def test_normal_signed_grant_has_immutable_authority_and_recovery_mode(settings):
-    recording, effect, _binding, _local_effect, attempt = _prepared(settings)
+    _recording, effect, _binding, _local_effect, attempt = _prepared(settings)
     request = build_transcription_egress_request_claims(effect, attempt, "send_allowed")
     grant = _grant(request, effect, settings)
     attempt = bind_egress_grant(attempt, grant)
@@ -508,7 +508,7 @@ def test_scheduler_skips_normal_intent_before_due_time(settings):
 
 
 def test_normal_receipts_retain_grant_provenance_without_campaign(settings):
-    recording, effect, _binding, _local_effect, attempt = _prepared(settings)
+    _recording, effect, _binding, _local_effect, attempt = _prepared(settings)
     request = build_transcription_egress_request_claims(effect, attempt, "send_allowed")
     attempt = bind_egress_grant(attempt, _grant(request, effect, settings))
     artifact = {
@@ -633,7 +633,7 @@ def test_normal_submit_cannot_replace_a_persisted_legacy_job(settings, version):
 
 
 def test_normal_lost_response_only_refreshes_recovery_grants(settings):
-    recording, effect, binding, _local_effect, attempt = _prepared(settings)
+    _recording, effect, binding, _local_effect, attempt = _prepared(settings)
     modes = []
 
     def authorize_core(**kwargs):

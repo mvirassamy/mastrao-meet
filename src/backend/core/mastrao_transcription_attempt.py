@@ -81,15 +81,18 @@ def prepare_attempt(local_effect, extracted):
             .first()
         )
         if existing:
-            if (
-                existing.audio_sha256 != extracted.sha256
-                or existing.audio_duration_ms != extracted.duration_ms
-                or existing.input_bytes != extracted.byte_size
-                or existing.audio_codec != extracted.codec
-                or existing.provider_ref != provider
-                or existing.requested_model_ref != model
-                or existing.request_config_digest != digest
-            ):
+            audio_matches = (
+                existing.audio_sha256 == extracted.sha256
+                and existing.audio_duration_ms == extracted.duration_ms
+                and existing.input_bytes == extracted.byte_size
+                and existing.audio_codec == extracted.codec
+            )
+            profile_matches = (
+                existing.provider_ref == provider
+                and existing.requested_model_ref == model
+                and existing.request_config_digest == digest
+            )
+            if not audio_matches or not profile_matches:
                 raise TranscriptionPipelineFailed("asr_failed")
             return existing
         if binding.contract_operation_version != 4:
