@@ -1,5 +1,18 @@
 # Changelog
 
+- 2026-10-06: Display the sealed normal Mistral standard-retention profile
+  before initial or delayed participant transcription consent.
+
+- 2026-10-06: Name immutable audio and profile checks in normal ASR attempt
+  replay and remove unused test bindings.
+
+- 2026-10-06: Consume normal post-meeting transcription submit v4 and egress v2
+  without campaign bindings, retain approved budgets and authority limits, and
+  reconcile only normal intents with recovery-only fencing after uncertain
+  sends.
+  Persist the dedicated transcription notice for exact replay and egress grant
+  validation independently of the recording notice.
+
 - 2026-10-05: "Rejoindre" on a planned meeting now opens the room directly,
   without the intermediate "Reprendre cette réunion" page.
 

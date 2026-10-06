@@ -145,7 +145,8 @@
       "accept": "Transkription akzeptieren",
       "refuse": "Ohne Transkription fortfahren",
       "checkbox": "Ich stimme auch einer schriftlichen Transkription dieses Meetings zu",
-      "notice": "Transkription: Die aufgezeichnete Tonspur wird in Text umgewandelt und mit denselben Zugriffsrechten und derselben Aufbewahrungsdauer wie die Aufzeichnung in der Akte gespeichert. Ohne Ihre ausdrückliche Zustimmung wird keine Transkription erstellt."
+      "notice": "Transkription: Die aufgezeichnete Tonspur wird in Text umgewandelt und mit denselben Zugriffsrechten und derselben Aufbewahrungsdauer wie die Aufzeichnung in der Akte gespeichert. Ohne Ihre ausdrückliche Zustimmung wird keine Transkription erstellt.",
+      "managedProviderNotice": "Das Audio wird von Mistral · Voxtral Mini Transcribe 2 in der Europäischen Union verarbeitet, mit der standardmäßigen Aufbewahrung des Anbieters für diese Demo. Diese Verarbeitung bietet keine Zero Data Retention (ZDR). Der erzeugte Text muss geprüft werden."
     }
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
