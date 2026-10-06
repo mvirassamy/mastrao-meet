@@ -118,36 +118,21 @@
     "error": "Hosttoegang kon niet worden bevestigd. Probeer het opnieuw."
   },
   "recordingConsent": {
-    "title": "Deze vergadering wordt opgenomen",
-    "notice": "Audio, video en gedeelde schermen worden opgenomen. U kunt weigeren en zonder opname deelnemen.",
-    "purpose": "Doel: een video-opname van deze vergadering maken en deze in het bijbehorende dossier bewaren.",
-    "recipients": "Toegang: alleen personen die op het moment van raadpleging toegang tot dit dossier hebben, kunnen de opname bekijken.",
-    "retention": "De opname wordt uiterlijk op {{date}} verwijderd.",
-    "rights": "Rechten: neem via het gebruikelijke kanaal van het dossier contact op met de organisator om toegang of verwijdering te vragen of een ander recht uit te oefenen.",
-    "guestIdentity": "De weergegeven naam is door u opgegeven; uw identiteit is niet geverifieerd.",
-    "accept": "Accepteren en doorgaan",
-    "refuse": "Opname weigeren",
-    "error": "Uw keuze kon niet worden opgeslagen. Probeer het opnieuw.",
     "starting": "Opname wordt gestart",
     "active": "Opname bezig",
     "badge": "Opname",
     "stopping": "Opname stoppen…",
-    "withdraw": "Toestemming intrekken",
     "stop": "Opname stoppen",
     "stopShort": "Stoppen",
-    "activationError": "De opname kon niet worden gestart. Nieuwe poging…",
-    "activationExhausted": "De opname kon niet worden gestart.",
-    "activationRetry": "Opnieuw proberen",
     "withdrawError": "De opname kon niet worden gestopt. Probeer het opnieuw.",
-    "transcription": {
-      "title": "Schriftelijke transcriptie",
-      "pendingNotice": "De opname is al geaccepteerd. Kies afzonderlijk of u instemt met een schriftelijke transcriptie.",
-      "accept": "Transcriptie accepteren",
-      "refuse": "Doorgaan zonder transcriptie",
-      "checkbox": "Ik ga ook akkoord met een schriftelijke transcriptie van deze vergadering",
-      "notice": "Transcriptie: de opgenomen audio wordt omgezet naar tekst en bewaard in het dossier met dezelfde toegang en bewaartermijn als de opname. Zonder uw uitdrukkelijke toestemming wordt er geen transcriptie gemaakt.",
-      "managedProviderNotice": "De audio wordt verwerkt door Mistral · Voxtral Mini Transcribe 2 in de Europese Unie, met de standaardbewaartermijn van de aanbieder voor deze demo. Deze verwerking heeft geen zero data retention (ZDR). De geproduceerde tekst moet worden nagelezen."
-    }
+    "videoQuestion": "Staat u video-opname toe?",
+    "videoYes": "Ja",
+    "videoNo": "Nee",
+    "noOpposition": "Geen bezwaar ontvangen na de uitnodiging per e-mail.",
+    "startVideo": "Opnemen",
+    "videoRefused": "Een bezwaar blokkeert de video-opname.",
+    "videoPending": "De vereiste toestemmingen zijn nog niet compleet.",
+    "videoActionError": "De actie kon niet worden bevestigd. Probeer het opnieuw."
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",
   "shareDialog": {
@@ -910,5 +895,8 @@
   },
   "participantTile": {
     "screenShare": "{{name}} scherm"
+  },
+  "nativeConsent": {
+    "managedProviderNotice": "De audio wordt verwerkt door Mistral · Voxtral Mini Transcribe 2 in de Europese Unie, met de standaardbewaartermijn van de aanbieder voor deze demo. Deze verwerking heeft geen zero data retention (ZDR). De geproduceerde tekst moet worden nagelezen."
   }
 }

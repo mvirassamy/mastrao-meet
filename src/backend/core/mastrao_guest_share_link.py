@@ -40,15 +40,29 @@ def consume_guest_share_link(request):
             or request.user.is_authenticated
             or not _same_origin(request)
             or request.content_type != "application/json"
-            or len(request.body) > 1024
+            or len(request.body) > 18_432
         ):
             raise GuestHandoffRefused()
         body = json.loads(request.body)
-        if not isinstance(body, dict) or set(body) != {
+        required = {
             "organization_external_id",
             "share_ref",
             "redemption_id",
-        }:
+        }
+        if (
+            not isinstance(body, dict)
+            or not required <= set(body)
+            or set(body) - required - {"choice_token"}
+        ):
+            raise GuestHandoffRefused()
+        choice_token = body.get("choice_token")
+        if choice_token is not None and (
+            not isinstance(choice_token, str)
+            or len(choice_token) > 16_384
+            or not re.fullmatch(
+                r"[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", choice_token
+            )
+        ):
             raise GuestHandoffRefused()
         organization = body["organization_external_id"]
         share_ref = body["share_ref"]
@@ -107,6 +121,10 @@ def consume_guest_share_link(request):
             raise GuestHandoffRefused()
         # Signature, lifetime and exact room/provider checks are the existing boundary.
         _, binding = _commit_grant(request, grant, result["guest_grant"])
+        if choice_token is not None:
+            choices = request.session.get("mastrao_video_choices", {})
+            choices[binding.meeting_ref] = choice_token
+            request.session["mastrao_video_choices"] = choices
         request.session.pop("mastrao_share_redemption", None)
         return JsonResponse({"room_url": f"/{binding.room.slug}"}, headers=headers)
     except (GuestHandoffRefused, ValueError, TypeError) as error:

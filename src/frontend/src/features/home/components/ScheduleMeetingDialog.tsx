@@ -7,12 +7,14 @@ import {
   CalendarIcon,
   FileTextIcon,
   InformationIcon,
+  MailIcon,
   TimeIcon,
 } from '@/icons'
 import { Button, Field, Text } from '@/primitives'
 import { AppDialog } from '@/primitives/AppDialog'
 import { DatePickerField } from '@/primitives/DatePickerField'
 import { TimeSelectField } from '@/primitives/TimeSelectField'
+import { MeetingInviteesField } from './MeetingInviteesField'
 import { css } from '@/styled-system/css'
 import {
   earliestTimeOn,
@@ -66,6 +68,7 @@ export const ScheduleMeetingDialog = ({
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   const [draft, setDraft] = useState<MeetingScheduleDraft>({
     title: '',
+    invitees: '',
     date: '',
     startTime: '',
     endTime: '',
@@ -174,6 +177,14 @@ export const ScheduleMeetingDialog = ({
             onChange={(value) => change('title', value)}
             isDisabled={pending}
             wrapperProps={{ noMargin: true }}
+          />
+        </FieldRow>
+        <FieldRow Icon={MailIcon}>
+          <MeetingInviteesField
+            value={draft.invitees ?? ''}
+            onChange={(value) => change('invitees', value)}
+            error={errorText('invitees')}
+            isDisabled={pending}
           />
         </FieldRow>
         <FieldRow Icon={CalendarIcon}>

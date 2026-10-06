@@ -1,0 +1,16 @@
+{% load i18n tz %}{% localtime off %}{% autoescape off %}{% trans "Invitation to a scheduled meeting" %}
+{{ sender_email }} — {{ title }}
+{{ starts_at|date:"d/m/Y H:i" }} – {{ ends_at|date:"H:i" }} ({{ timezone }})
+
+{% trans "Join the meeting" %}: {{ room_url }}
+
+{% trans "Video recording may be requested" %}
+{% trans "The host may manually start video recording. Any refusal prevents video recording for the whole meeting. Without an objection after this email, your response remains no objection, not an explicit acceptance." %}
+
+{% trans "Choose yes or no without an account" %}: {{ choice_url }}
+
+{% trans "You may change your choice until video capture actually starts. While a start request is being resolved, changes cannot be confirmed. Stopping video recording is permanent for this meeting." %}
+
+{% trans "Audio capture for transcription has a separate choice when you join. Refusing video does not refuse audio transcription." %}
+
+{% endautoescape %}{% endlocaltime %}

@@ -85,6 +85,19 @@ def projection():
     }
 
 
+def video_projection():
+    """Canonical video policy remains separate from the native notice."""
+    return {
+        "consultation_source": "present",
+        "decision": "absent",
+        "decision_basis": "pending",
+        "start_status": "pending",
+        "decision_lock": "open",
+        "started_at": None,
+        "start_available": True,
+    }
+
+
 @pytest.fixture
 def native_settings(settings, signer):
     settings.MASTRAO_NATIVE_PREENTRY_ENABLED = True
@@ -167,6 +180,7 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
                         "scope": "room_composite_audio_video_screen",
                         "retention_expires_at": int(time.time()) + 3600,
                         "recording_state": "collecting",
+                        "video": video_projection(),
                         "decision": "absent",
                         "transcription_mode": "transcribed",
                         "transcription_notice_version": "transcription_notice_fixture",
@@ -676,8 +690,13 @@ def test_actual_media_gate_before_and_after_native_decision(
     base = f"/api/v1.0/rooms/{host.room_binding.room_id}/"
     status = {
         "mode": "recorded",
-        "recording_state": "active",
-        "decision": "accepted",
+        "recording_state": "collecting",
+        "decision": "refused",
+        "video": {
+            **video_projection(),
+            "decision": "refused",
+            "start_status": "refused",
+        },
         "transcription_mode": "transcribed",
         "transcription_decision": "accepted",
         "recording_ref": "recording_fixture",
@@ -706,12 +725,15 @@ def test_actual_media_gate_before_and_after_native_decision(
                 else client.post(base + "request-entry/", {"username": "Matt"})
             )
 
-        before = read()
-        assert before.status_code == 200, before.content
-        assert before["Cache-Control"] == "private, no-store"
-        assert not before.json().get("livekit")
-        assert before.json()["native_capture"]["decision"] is None
-        assert not models.MastraoMediaTokenBinding.objects.exists()
+        for video_state in ("collecting", "stopping", "available"):
+            status["recording_state"] = video_state
+            before = read()
+            assert before.status_code == 200, before.content
+            assert before["Cache-Control"] == "private, no-store"
+            assert not before.json().get("livekit")
+            assert before.json()["native_capture"]["decision"] is None
+            assert not models.MastraoMediaTokenBinding.objects.exists()
+        status["recording_state"] = "collecting"
         result = client.post(
             base + "native-notice-decision/",
             {"decision": choice, "notice": notice["notice"]},
@@ -726,6 +748,17 @@ def test_actual_media_gate_before_and_after_native_decision(
         assert models.MastraoMediaTokenBinding.objects.filter(
             pk=_claims(token)["attributes"]["mastrao.media_token_binding_ref"]
         ).exists()
+        assert not models.Recording.objects.exists()
+        for video_state in ("active", "stopping", "processing", "available"):
+            status["recording_state"] = video_state
+            after_video_change = read()
+            assert after_video_change.status_code == 200, after_video_change.content
+            assert after_video_change.json()["livekit"]
+            assert (
+                after_video_change.json()["native_capture"]["decision"]["decision"]
+                == choice
+            )
+        assert not models.Recording.objects.exists()
 
 
 def test_preentry_off_preserves_native_room_and_does_not_contact_core(

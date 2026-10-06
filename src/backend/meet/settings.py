@@ -440,6 +440,16 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT",
         environ_prefix=None,
     )
+    MASTRAO_CORE_VIDEO_DELIVERY_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_VIDEO_DELIVERY_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_VIDEO_PARTICIPANT_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_VIDEO_PARTICIPANT_ENDPOINT",
+        environ_prefix=None,
+    )
     MASTRAO_CORE_RECORDING_DECISION_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_RECORDING_DECISION_ENDPOINT",

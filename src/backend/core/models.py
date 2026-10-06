@@ -1275,15 +1275,6 @@ class MastraoRecordingDecision(BaseModel):
         db_table = "meet_mastrao_recording_decision"
         ordering = ("created_at",)
         constraints = [
-            models.UniqueConstraint(
-                fields=[
-                    "recording_binding",
-                    "participant_ref",
-                    "participant_session_digest",
-                    "decision",
-                ],
-                name="unique_mastrao_recording_session_decision",
-            ),
             models.CheckConstraint(
                 condition=models.Q(participant_session_digest__regex=r"^[a-f0-9]{64}$"),
                 name="mastrao_recording_session_digest_format",

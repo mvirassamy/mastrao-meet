@@ -14,10 +14,20 @@ from core.mastrao_platform_facade import (
     meeting_path,
     request_platform,
 )
+from core.mastrao_video_invitations import (
+    deliver_meeting_invitations,
+    validate_invitations,
+)
 
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
-MAX_CREATION_BODY_BYTES = 8192
-CREATION_FIELDS = {"title", "scheduled_start_at", "scheduled_end_at", "timezone"}
+MAX_CREATION_BODY_BYTES = 16384
+CREATION_FIELDS = {
+    "title",
+    "scheduled_start_at",
+    "scheduled_end_at",
+    "timezone",
+    "invitee_emails",
+}
 DAY_QUERY_FIELDS = {"day_start", "day_end", "cursor"}
 UNIX_SECONDS = re.compile(r"^[0-9]{1,16}$")
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
@@ -28,7 +38,7 @@ def _reject_json_constant(_value):
 
 
 def _creation_body(request):
-    """Bound the JSON envelope; Platform validates canonical schedule values."""
+    """Bound the envelope and invitation prerequisites before any creation call."""
 
     declared = request.META.get("CONTENT_LENGTH")
     if declared and (
@@ -45,6 +55,11 @@ def _creation_body(request):
     except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise PlatformFacadeError(status=422) from error
     if not isinstance(body, dict) or set(body) - CREATION_FIELDS:
+        raise PlatformFacadeError(status=422)
+    if body.get("invitee_emails") and any(
+        body.get(field) is None
+        for field in ("scheduled_start_at", "scheduled_end_at", "timezone")
+    ):
         raise PlatformFacadeError(status=422)
     return body
 
@@ -134,6 +149,11 @@ def create_meeting(request):
             raise PlatformFacadeError(status=error.status) from error
         if binding.room.slug != body.get("room_ref"):
             raise PlatformFacadeError()
+        invitations = validate_invitations(body.get("video_invitations", []))
+        if invitations:
+            body["video_invitations"] = deliver_meeting_invitations(
+                request, binding, invitations, payload
+            )
         return body, status
 
     return _response(create_and_bind)

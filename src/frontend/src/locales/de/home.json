@@ -32,7 +32,9 @@
     "phone": {
       "call": "Ruf an:",
       "pinCode": "Code:"
-    }
+    },
+    "invitationsSubmitted": "Der Versanddienst hat die Einladungen angenommen. Der Empfang ist nicht bestätigt.",
+    "invitationsUnconfirmed": "Versand nicht bestätigt für: {{emails}}. Diese Gäste müssen der Videoaufzeichnung in der Besprechung zustimmen."
   },
   "introSlider": {
     "previous": {
@@ -138,7 +140,13 @@
       "nonexistentTime": "Diese Uhrzeit existiert wegen der Zeitumstellung in dieser Zeitzone nicht.",
       "ambiguousTime": "Diese Uhrzeit tritt bei der Zeitumstellung zweimal auf. Wählen Sie eine andere Uhrzeit.",
       "endBeforeStart": "Das Ende muss nach dem Beginn liegen.",
-      "pastTime": "Diese Uhrzeit ist bereits vorbei. Wählen Sie eine spätere Uhrzeit."
-    }
+      "pastTime": "Diese Uhrzeit ist bereits vorbei. Wählen Sie eine spätere Uhrzeit.",
+      "invalidInvitees": "Prüfen Sie die E-Mail-Adressen der Gäste.",
+      "tooManyInvitees": "Sie können bis zu 50 Personen einladen."
+    },
+    "invitees": "Gäste",
+    "inviteesDescription": "Optional. E-Mail-Adressen durch Kommas trennen.",
+    "inviteesPlaceholder": "alice@beispiel.de, bob@beispiel.de",
+    "removeInvitee": "{{email}} entfernen"
   }
 }

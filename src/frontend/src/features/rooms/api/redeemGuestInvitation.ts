@@ -41,7 +41,8 @@ export const redeemGuestInvitation = async (
 export const redeemGuestShare = async (
   organization: string,
   share: string,
-  redemptionId: string
+  redemptionId: string,
+  choiceToken?: string
 ) => {
   await establishGuestSession()
   const response = await fetch(`${handoffUrl()}share/`, {
@@ -52,6 +53,7 @@ export const redeemGuestShare = async (
       organization_external_id: organization,
       share_ref: share,
       redemption_id: redemptionId,
+      ...(choiceToken && { choice_token: choiceToken }),
     }),
   })
   const result = (await response.json()) as GuestRedemptionResponse

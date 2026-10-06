@@ -54,10 +54,14 @@ vi.mock('@/features/rooms/api/createGuestInvitationShare', () => ({
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: (namespace: string) => ({
-    t: (key: string, values?: { roomUrl?: string }) => {
+    t: (key: string, values?: { roomUrl?: string; emails?: string }) => {
       if (namespace === 'home') {
         const translations = homeTranslations.laterMeetingDialog
-        return translations[key as keyof typeof translations] ?? key
+        const text = translations[key as keyof typeof translations]
+        return (typeof text === 'string' ? text : key).replace(
+          '{{emails}}',
+          values?.emails ?? ''
+        )
       }
       return values?.roomUrl ?? key
     },
@@ -100,6 +104,55 @@ describe('LaterMeetingDialog invitation sharing', () => {
   afterEach(() => {
     cleanup()
     client.clear()
+  })
+
+  it('shows SMTP acceptance without claiming recipient delivery', () => {
+    render(
+      <QueryClientProvider client={client}>
+        <LaterMeetingDialog
+          room={room}
+          invitations={[
+            {
+              invitation_ref: 'invitation_0123456789',
+              email: 'alice@example.com',
+              delivery_state: 'sent',
+            },
+          ]}
+        />
+      </QueryClientProvider>
+    )
+    expect(
+      screen
+        .getByText(homeTranslations.laterMeetingDialog.invitationsSubmitted)
+        .getAttribute('role')
+    ).toBe('status')
+  })
+
+  it('identifies uncertain sends without claiming notification or agreement', () => {
+    render(
+      <QueryClientProvider client={client}>
+        <LaterMeetingDialog
+          room={room}
+          invitations={[
+            {
+              invitation_ref: 'invitation_0123456789',
+              email: 'alice@example.com',
+              delivery_state: 'unknown',
+            },
+          ]}
+        />
+      </QueryClientProvider>
+    )
+    expect(
+      screen
+        .getByText(/Envoi non confirmé pour : alice@example.com/)
+        .getAttribute('role')
+    ).toBe('status')
+    expect(
+      screen.queryByText(
+        homeTranslations.laterMeetingDialog.invitationsSubmitted
+      )
+    ).toBeNull()
   })
 
   it.each([false, true])(

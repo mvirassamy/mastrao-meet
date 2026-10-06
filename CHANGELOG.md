@@ -3,6 +3,18 @@
 - 2026-10-06: Declare the two private video invitation endpoints in the staging
   overlay and document the coordinated relay delivery and rollback.
 
+- 2026-10-06: Reject invitations without complete planned meeting times
+  before creating the meeting or claiming an email send.
+
+- 2026-10-05: Invite optional email recipients to planned meetings with
+  personal video choices and an honest email send status.
+
+- 2026-10-06: Keep video choices available while recording start is queued,
+  until Core locks the choices, with host Stop and no second Start.
+
+- 2026-10-05: Start video with the host recording button and keep video
+  choices separate from the native microphone transcription notice.
+
 - 2026-10-06: Display the sealed normal Mistral standard-retention profile
   before initial or delayed participant transcription consent.
 
