@@ -16,6 +16,7 @@ export const RecordingConsent = ({
   transcriptionOffered,
   recordingDecision,
   transcriptionDecision,
+  transcriptionProfileRef,
   onDecided,
 }: {
   roomId: string
@@ -24,6 +25,7 @@ export const RecordingConsent = ({
   transcriptionOffered?: boolean
   recordingDecision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
   transcriptionDecision?: 'absent' | 'accepted' | 'refused' | 'withdrawn'
+  transcriptionProfileRef?: 'mistral-eu-standard-managed-demo-v1'
   onDecided: () => Promise<void>
 }) => {
   const { t, i18n } = useTranslation('rooms', {
@@ -119,6 +121,11 @@ export const RecordingConsent = ({
             {t('transcription.notice')}
           </Text>
         </VStack>
+      )}
+      {transcriptionOffered && transcriptionProfileRef && (
+        <Text as="p" variant="note">
+          {t('transcription.managedProviderNotice')}
+        </Text>
       )}
       {failed && (
         <Text as="p" role="alert">

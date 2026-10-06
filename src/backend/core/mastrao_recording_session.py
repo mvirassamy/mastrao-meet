@@ -124,6 +124,14 @@ def _validate_status(status, participant, room):
         expected = TRANSCRIBED_STATUS_FIELDS
     else:
         expected = RECORDED_STATUS_FIELDS
+    if "transcription_profile_ref" in status:
+        if (
+            status.get("transcription_mode") != "transcribed"
+            or status["transcription_profile_ref"]
+            != "mistral-eu-standard-managed-demo-v1"
+        ):
+            raise RecordingContractRefused(status=503)
+        expected = expected | {"transcription_profile_ref"}
     claims = participant["claims"]
     if (
         fields != expected
@@ -330,6 +338,8 @@ def public_projection(status):
                 )
             }
         )
+    if "transcription_profile_ref" in status:
+        projection["transcription_profile_ref"] = status["transcription_profile_ref"]
     return projection
 
 
@@ -359,6 +369,16 @@ def _validate_core_status(result, session_status):
         expected = base
     else:
         raise RecordingContractRefused(status=503)
+    profile_ref = session_status.get("transcription_profile_ref")
+    if profile_ref:
+        managed = result.get("managed_transcription")
+        if mode != "recorded" or managed != {
+            "profile_ref": profile_ref,
+            "notice_version": session_status["transcription_notice_version"],
+            "notice_digest": session_status["transcription_notice_digest"],
+        }:
+            raise RecordingContractRefused(status=503)
+        expected = expected | {"managed_transcription"}
     if (
         set(result) != expected
         or result.get("version") != 1

@@ -244,6 +244,7 @@ export const Lobby = ({
         transcriptionOffered={recording.transcription_mode === 'transcribed'}
         recordingDecision={recording.decision}
         transcriptionDecision={recording.transcription_decision}
+        transcriptionProfileRef={recording.transcription_profile_ref}
         onDecided={async () => {
           await refetchRoom()
         }}

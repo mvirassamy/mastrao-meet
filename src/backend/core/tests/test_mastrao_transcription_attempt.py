@@ -7,6 +7,7 @@
 
 import hashlib
 import json
+from types import SimpleNamespace
 from unittest import mock
 
 from django.core.files.base import ContentFile
@@ -20,6 +21,7 @@ from core.mastrao_transcription_adapter import (
     _accepted_recovery_transcript,
     _apply_transcription,
     _authorize_egress,
+    _effect_from_local,
     _notify_core_failure,
     _produce_transcript,
     _resume_or_transcribe,
@@ -43,8 +45,13 @@ from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
 )
-from core.mastrao_transcription_pipeline import complete_transcription
+from core.mastrao_transcription_pipeline import (
+    _persist_artifact_pending,
+    _persist_failure_pending,
+    complete_transcription,
+)
 from core.mastrao_transcription_worker import (
+    _fake_transcribe,
     _gateway_diarize,
     _gateway_fingerprint,
     _gateway_transcribe,
@@ -53,10 +60,13 @@ from core.mastrao_transcription_worker import (
 )
 from core.tests.test_mastrao_transcription import (
     ENQUEUE,
+    _contract_effect,
     _effect,
     _fake_artifact,
     _finalized_recording_binding,
-    _v3_effect,
+    _normal_effect,
+    _persisted_attempt,
+    _persisted_effect,
 )
 
 pytestmark = pytest.mark.django_db
@@ -65,14 +75,38 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture(autouse=True)
 def transcription_settings(settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
+
+
+def test_missing_confidence_is_accepted_and_not_fabricated(settings):
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "fake"
-
-
-def test_missing_confidence_is_accepted_and_not_fabricated():
     transcript = transcribe_audio(b"optional confidence")
     del transcript["segments"][0]["confidence"]
     validated = _validated_transcript(transcript)
     assert "confidence" not in validated["segments"][0]
+
+
+def _normal_grant_binding(effect, execution_mode="send_allowed"):
+    """Exact submitted authority for lifecycle tests below the JOSE boundary."""
+
+    assert effect["operation_version"] == 4
+    assert "campaign_ref" not in effect
+    return {
+        "grant_semantic_digest": "b" * 64,
+        **{
+            name: effect[name]
+            for name in (
+                "authority_version",
+                "authorized_cost_ceiling_micros",
+                "currency",
+                "tariff_catalog_version",
+                "maximum_audio_seconds",
+                "maximum_audio_bytes",
+                "notice_digest",
+            )
+        },
+        "execution_mode": execution_mode,
+    }
 
 
 def test_gateway_fingerprint_binds_signed_request_configuration():
@@ -134,7 +168,7 @@ def test_gateway_fingerprint_binds_signed_request_configuration():
 def test_managed_mistral_demo_requests_diarization(settings):
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
     recording = _finalized_recording_binding("diarizedpost012345")
-    effect = _v3_effect(
+    effect = _normal_effect(
         recording,
         transcription_ref="transcription_diarizedpost01",
         asr_profile_ref="mistral-eu-standard-managed-demo-v1",
@@ -183,7 +217,7 @@ def test_managed_mistral_demo_requests_diarization(settings):
 
 def test_enqueue_uses_dedicated_mastrao_transcription_queue():
     binding = _finalized_recording_binding("queueiso_012345678")
-    effect = _effect(binding, transcription_ref="transcription_queueiso012345")
+    effect = _normal_effect(binding, transcription_ref="transcription_queueiso012345")
     with (
         mock.patch(ENQUEUE) as enqueue,
         mock.patch(
@@ -197,7 +231,7 @@ def test_enqueue_uses_dedicated_mastrao_transcription_queue():
 
 def test_concurrent_prepare_creates_one_attempt():
     binding = _finalized_recording_binding("oneattempt01234567")
-    effect = _effect(binding, transcription_ref="transcription_oneattempt012")
+    effect = _normal_effect(binding, transcription_ref="transcription_oneattempt012")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -227,7 +261,7 @@ def test_concurrent_prepare_creates_one_attempt():
 
 def test_grant_refresh_only_downgrades_to_recover_only():
     binding = _finalized_recording_binding("grantrefresh012345")
-    effect = _effect(binding, transcription_ref="transcription_grantrefresh")
+    effect = _normal_effect(binding, transcription_ref="transcription_grantrefresh")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -247,14 +281,7 @@ def test_grant_refresh_only_downgrades_to_recover_only():
         byte_size = 128
 
     attempt = prepare_attempt(local_effect, Extracted())
-    grant = {
-        "grant_semantic_digest": "b" * 64,
-        "authority_version": 7,
-        "campaign_ref": "managed-canary",
-        "authorized_cost_ceiling_micros": 1_000,
-        "tariff_catalog_version": "asr-tariff-v2",
-        "execution_mode": "send_allowed",
-    }
+    grant = _normal_grant_binding(effect, "send_allowed")
     bound = bind_egress_grant(attempt, grant)
     grant["execution_mode"] = "recover_only"
     recovered = bind_egress_grant(bound, grant)
@@ -268,7 +295,7 @@ def test_core_egress_authorization_refreshes_the_caller_attempt(settings):
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
     settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
     recording = _finalized_recording_binding("grantcallerrefresh1")
-    effect = _v3_effect(recording, transcription_ref="transcription_grantcaller")
+    effect = _normal_effect(recording, transcription_ref="transcription_grantcaller")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -288,14 +315,7 @@ def test_core_egress_authorization_refreshes_the_caller_attempt(settings):
         byte_size = 128
 
     attempt = prepare_attempt(local_effect, Extracted())
-    grant = {
-        "grant_semantic_digest": "b" * 64,
-        "authority_version": 7,
-        "campaign_ref": "managed-canary-2026-08",
-        "authorized_cost_ceiling_micros": 10_000,
-        "tariff_catalog_version": "asr-tariff-v2",
-        "execution_mode": "send_allowed",
-    }
+    grant = _normal_grant_binding(effect, "send_allowed")
     with (
         mock.patch(
             "core.mastrao_transcription_adapter.sign_transcription_egress_request",
@@ -312,14 +332,14 @@ def test_core_egress_authorization_refreshes_the_caller_attempt(settings):
     ):
         _authorize_egress(local_effect.transcription_binding, attempt, "send_allowed")
     assert attempt.grant_semantic_digest == "b" * 64
-    assert attempt.authority_version == 7
+    assert attempt.authority_version == effect["authority_version"]
     assert attempt.execution_mode == "send_allowed"
 
 
 def test_core_pre_send_refusal_is_persisted_without_a_grant(settings):
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
     recording = _finalized_recording_binding("egressrefused0123")
-    effect = _v3_effect(recording, transcription_ref="transcription_egress_refused")
+    effect = _normal_effect(recording, transcription_ref="transcription_egress_refused")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -376,7 +396,7 @@ def test_local_rate_limit_retries_with_send_grant(settings, tmp_path):
         },
     }
     recording = _finalized_recording_binding("ratelimitrecover1")
-    effect = _v3_effect(recording, transcription_ref="transcription_ratelimit")
+    effect = _normal_effect(recording, transcription_ref="transcription_ratelimit")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -398,7 +418,7 @@ def test_local_rate_limit_retries_with_send_grant(settings, tmp_path):
     attempt = prepare_attempt(local_effect, Extracted())
     transcript = {
         "schema_version": 1,
-        "engine_ref": "openai:gpt-transcribe",
+        "engine_ref": "mistral:voxtral-mini-2602",
         "language": "fr",
         "audio_digest": Extracted.sha256,
         "segments": [],
@@ -406,11 +426,11 @@ def test_local_rate_limit_retries_with_send_grant(settings, tmp_path):
     provenance = {
         "attempt_ref": attempt.attempt_ref,
         "grant_semantic_digest": "b" * 64,
-        "authority_version": 7,
-        "provider_ref": "openai",
-        "requested_model_ref": "gpt-transcribe",
-        "processing_region_ref": "openai-eu",
-        "data_control_ref": "openai-zdr-approved-v1",
+        "authority_version": effect["authority_version"],
+        "provider_ref": "mistral",
+        "requested_model_ref": "voxtral-mini-2602",
+        "processing_region_ref": "mistral-eu",
+        "data_control_ref": "mistral-standard-retention-test-data-v1",
         "usage_audio_seconds": 4,
         "estimated_cost_micros": 300,
         "currency": "USD",
@@ -422,14 +442,7 @@ def test_local_rate_limit_retries_with_send_grant(settings, tmp_path):
 
     def authorize(_binding, current, execution_mode):
         modes.append(execution_mode)
-        grant = {
-            "grant_semantic_digest": "b" * 64,
-            "authority_version": 7,
-            "campaign_ref": "managed-canary-2026-08",
-            "authorized_cost_ceiling_micros": 10_000,
-            "tariff_catalog_version": "asr-tariff-v2",
-            "execution_mode": execution_mode,
-        }
+        grant = _normal_grant_binding(effect, execution_mode)
         bind_egress_grant(current, grant)
         current.refresh_from_db()
         return f"grant-{execution_mode}"
@@ -472,7 +485,7 @@ def test_local_rate_limit_retries_with_send_grant(settings, tmp_path):
         )
     assert modes == ["send_allowed", "send_allowed"]
     assert gateway.call_count == 2
-    assert resumed["engine_ref"] == "openai:gpt-transcribe"
+    assert resumed["engine_ref"] == "mistral:voxtral-mini-2602"
 
 
 def test_lost_gateway_response_replays_recover_only_without_second_send(
@@ -490,7 +503,7 @@ def test_lost_gateway_response_replays_recover_only_without_second_send(
         },
     }
     recording = _finalized_recording_binding("lostresponse012345")
-    effect = _v3_effect(recording, transcription_ref="transcription_lostresponse")
+    effect = _normal_effect(recording, transcription_ref="transcription_lostresponse")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -513,18 +526,18 @@ def test_lost_gateway_response_replays_recover_only_without_second_send(
     now = int(timezone.now().timestamp())
     transcript = {
         "schema_version": 1,
-        "engine_ref": "openai:gpt-transcribe",
+        "engine_ref": "mistral:voxtral-mini-2602",
         "language": "fr",
         "audio_digest": Extracted.sha256,
         "segments": [],
         "_usage": {
             "attempt_ref": attempt.attempt_ref,
             "grant_semantic_digest": "b" * 64,
-            "authority_version": 7,
-            "provider_ref": "openai",
-            "requested_model_ref": "gpt-transcribe",
-            "processing_region_ref": "openai-eu",
-            "data_control_ref": "openai-zdr-approved-v1",
+            "authority_version": effect["authority_version"],
+            "provider_ref": "mistral",
+            "requested_model_ref": "voxtral-mini-2602",
+            "processing_region_ref": "mistral-eu",
+            "data_control_ref": "mistral-standard-retention-test-data-v1",
             "usage_audio_seconds": 4,
             "estimated_cost_micros": 300,
             "currency": "USD",
@@ -539,14 +552,7 @@ def test_lost_gateway_response_replays_recover_only_without_second_send(
         modes.append(execution_mode)
         bind_egress_grant(
             current,
-            {
-                "grant_semantic_digest": "b" * 64,
-                "authority_version": 7,
-                "campaign_ref": "managed-canary-2026-08",
-                "authorized_cost_ceiling_micros": 10_000,
-                "tariff_catalog_version": "asr-tariff-v2",
-                "execution_mode": execution_mode,
-            },
+            _normal_grant_binding(effect, execution_mode),
         )
         current.refresh_from_db()
         return f"grant-{execution_mode}"
@@ -589,7 +595,7 @@ def test_lost_gateway_response_replays_recover_only_without_second_send(
         )
     assert modes == ["send_allowed", "recover_only", "recover_only"]
     assert gateway.call_count == 3
-    assert resumed["engine_ref"] == "openai:gpt-transcribe"
+    assert resumed["engine_ref"] == "mistral:voxtral-mini-2602"
 
 
 @pytest.mark.parametrize(
@@ -650,7 +656,7 @@ def test_gateway_429_ingests_bounded_provenance_and_retry_after(settings, tmp_pa
     )
     settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
     recording = _finalized_recording_binding("ratebodyprovenance")
-    effect = _v3_effect(recording, transcription_ref="transcription_ratebody")
+    effect = _normal_effect(recording, transcription_ref="transcription_ratebody")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -673,23 +679,16 @@ def test_gateway_429_ingests_bounded_provenance_and_retry_after(settings, tmp_pa
         byte_size = len(b"bounded flac fixture")
 
     attempt = prepare_attempt(local_effect, Extracted())
-    grant = {
-        "grant_semantic_digest": "b" * 64,
-        "authority_version": 7,
-        "campaign_ref": "managed-canary-2026-08",
-        "authorized_cost_ceiling_micros": 10_000,
-        "tariff_catalog_version": "asr-tariff-v2",
-        "execution_mode": "send_allowed",
-    }
+    grant = _normal_grant_binding(effect, "send_allowed")
     attempt = bind_egress_grant(attempt, grant)
     provenance = {
         "attempt_ref": attempt.attempt_ref,
         "grant_semantic_digest": "b" * 64,
-        "authority_version": 7,
-        "provider_ref": "openai",
-        "requested_model_ref": "gpt-transcribe",
-        "processing_region_ref": "openai-eu",
-        "data_control_ref": "openai-zdr-approved-v1",
+        "authority_version": effect["authority_version"],
+        "provider_ref": "mistral",
+        "requested_model_ref": "voxtral-mini-2602",
+        "processing_region_ref": "mistral-eu",
+        "data_control_ref": "mistral-standard-retention-test-data-v1",
         "usage_audio_seconds": 4,
         "estimated_cost_micros": 300,
         "currency": "USD",
@@ -747,7 +746,7 @@ def test_v2_attempt_uses_signed_provider_binding_not_runtime_default(settings):
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(effect)
+        _persisted_effect(recording, effect)
     local_effect = models.MastraoTranscriptionEffect.objects.select_related(
         "transcription_binding"
     ).get()
@@ -758,7 +757,9 @@ def test_v2_attempt_uses_signed_provider_binding_not_runtime_default(settings):
         codec = "flac"
         byte_size = 128
 
+    persisted = _persisted_attempt(local_effect, _Extracted())
     attempt = prepare_attempt(local_effect, _Extracted())
+    assert attempt.pk == persisted.pk
     assert attempt.provider_ref == "openai"
     assert attempt.requested_model_ref == "gpt-transcribe"
     assert attempt.request_config_digest == "2" * 64
@@ -791,7 +792,7 @@ def test_v3_attempt_uses_signed_request_config_digest(settings):
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(effect)
+        _persisted_effect(recording, effect)
     local_effect = models.MastraoTranscriptionEffect.objects.select_related(
         "transcription_binding"
     ).get()
@@ -802,7 +803,9 @@ def test_v3_attempt_uses_signed_request_config_digest(settings):
         codec = "flac"
         byte_size = 128
 
+    persisted = _persisted_attempt(local_effect, _Extracted())
     attempt = prepare_attempt(local_effect, _Extracted())
+    assert attempt.pk == persisted.pk
     assert attempt.provider_ref == "openai"
     assert attempt.requested_model_ref == "gpt-transcribe"
     assert attempt.request_config_digest == "2" * 64
@@ -838,7 +841,7 @@ def test_v2_attempt_refuses_execution_mode_profile_mismatch(
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(effect)
+        _persisted_effect(recording, effect)
     local_effect = models.MastraoTranscriptionEffect.objects.select_related(
         "transcription_binding"
     ).get()
@@ -849,6 +852,7 @@ def test_v2_attempt_refuses_execution_mode_profile_mismatch(
         codec = "flac"
         byte_size = 128
 
+    _persisted_attempt(local_effect, _Extracted())
     with pytest.raises(TranscriptionPipelineFailed):
         prepare_attempt(local_effect, _Extracted())
 
@@ -859,7 +863,7 @@ def test_paid_sending_crash_becomes_unknown_and_is_not_resent(settings):
     settings.MASTRAO_TRANSCRIPTION_MODEL = "voxtral-mini-2602"
     settings.MASTRAO_ASR_GATEWAY_AUTH_TOKEN = "workload-token"
     binding = _finalized_recording_binding("unknownsend0123456")
-    effect = _effect(binding, transcription_ref="transcription_unknownsend01")
+    effect = _normal_effect(binding, transcription_ref="transcription_unknownsend01")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -895,7 +899,7 @@ def test_crash_after_object_save_resumes_without_asr(settings, tmp_path):
         },
     }
     binding = _finalized_recording_binding("objcrash_012345678")
-    effect = _effect(binding, transcription_ref="transcription_objcrash01234")
+    effect = _normal_effect(binding, transcription_ref="transcription_objcrash01234")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -904,7 +908,7 @@ def test_crash_after_object_save_resumes_without_asr(settings, tmp_path):
         ),
     ):
         _apply_transcription(effect)
-    transcript = transcribe_audio(b"recovery audio")
+    transcript = _fake_transcribe(b"recovery audio")
     artifact = persist_transcript(effect["transcription_ref"], transcript)
     transcription = models.MastraoTranscriptionBinding.objects.get()
     transcription.object_ref = artifact["object_ref"]
@@ -922,6 +926,198 @@ def test_crash_after_object_save_resumes_without_asr(settings, tmp_path):
     assert default_storage.exists(artifact["object_ref"])
 
 
+@pytest.mark.parametrize("durable_result", ["object", "recovery"])
+@pytest.mark.parametrize("version", [1, 2, 3])
+def test_queued_legacy_with_local_result_stays_parked(
+    settings, tmp_path, durable_result, version
+):
+    """A historical object alone never authorizes redispatch or new completion."""
+
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    }
+    recording = _finalized_recording_binding("legacyparked012345")
+    effect = _contract_effect(recording, settings, operation_version=version)
+    local_effect = _persisted_effect(recording, effect)
+    binding = local_effect.transcription_binding
+    if durable_result == "object":
+        artifact = persist_transcript(
+            effect["transcription_ref"], _fake_transcribe(b"old audio")
+        )
+        binding.object_ref = artifact["object_ref"]
+        binding.engine_ref = artifact["engine_ref"]
+        binding.save()
+        object_ref = artifact["object_ref"]
+    else:
+        transcript = _fake_transcribe(b"old audio")
+        audio = SimpleNamespace(
+            sha256=transcript["audio_digest"],
+            duration_ms=4000,
+            codec="flac",
+            byte_size=128,
+        )
+        attempt = _persisted_attempt(local_effect, audio)
+        object_ref, checksum = persist_result_recovery(attempt.attempt_ref, transcript)
+        attempt.result_recovery_ref = object_ref
+        attempt.result_checksum = checksum
+        attempt.save()
+    before = (
+        local_effect.state,
+        local_effect.dispatch_state,
+        binding.state,
+        binding.object_ref,
+    )
+    with (
+        mock.patch("core.mastrao_transcription_adapter._produce_transcript") as produce,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact"
+        ) as notify,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure"
+        ) as failure,
+    ):
+        complete_transcription(local_effect.pk)
+    produce.assert_not_called()
+    notify.assert_not_called()
+    failure.assert_not_called()
+    local_effect.refresh_from_db()
+    binding.refresh_from_db()
+    assert (
+        local_effect.state,
+        local_effect.dispatch_state,
+        binding.state,
+        binding.object_ref,
+    ) == before
+    assert default_storage.exists(object_ref)
+
+
+def _persisted_legacy_drain(settings, tmp_path, version, action):
+    """Prepare one historical result at an already durable drainage action."""
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(tmp_path)},
+        },
+        "staticfiles": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    }
+    recording = _finalized_recording_binding("legacydurabledrain")
+    effect = _contract_effect(recording, settings, operation_version=version)
+    local_effect = _persisted_effect(recording, effect)
+    binding = local_effect.transcription_binding
+    transcript = _fake_transcribe(b"historical provider result")
+    audio = SimpleNamespace(
+        sha256=transcript["audio_digest"], duration_ms=4000, codec="flac", byte_size=128
+    )
+    attempt = _persisted_attempt(local_effect, audio)
+    if version >= 2:
+        transcript["engine_ref"] = (
+            f"{attempt.provider_ref}:{attempt.requested_model_ref}"
+        )
+    if version == 3:
+        bind_egress_grant(
+            attempt,
+            {
+                "grant_semantic_digest": "d" * 64,
+                "authority_version": 7,
+                "campaign_ref": effect["campaign_ref"],
+                "authorized_cost_ceiling_micros": effect[
+                    "authorized_cost_ceiling_micros"
+                ],
+                "currency": effect["currency"],
+                "tariff_catalog_version": effect["tariff_catalog_version"],
+                "execution_mode": "send_allowed",
+            },
+        )
+    recovery_ref, _checksum = persist_result_recovery(attempt.attempt_ref, transcript)
+    mark_result(attempt, transcript, recovery_ref=recovery_ref)
+    if action == "failure":
+        _persist_failure_pending(local_effect.pk, "asr_failed")
+    else:
+        _persist_artifact_pending(local_effect.pk, binding.pk, _fake_artifact())
+        if action in {"cleanup", "completed"}:
+            local_effect.state = local_effect.State.APPLIED
+            local_effect.dispatch_state = local_effect.DispatchState.CLEANUP_PENDING
+            if action == "completed":
+                local_effect.dispatch_state = local_effect.DispatchState.COMPLETED
+            local_effect.save()
+            binding.refresh_from_db()
+            binding.state = binding.State.AVAILABLE
+            binding.save()
+    expected_effect = _effect_from_local(binding, local_effect)
+    return local_effect, binding, attempt, recovery_ref, expected_effect
+
+
+@pytest.mark.parametrize("version", [1, 2, 3])
+@pytest.mark.parametrize("action", ["artifact", "failure", "cleanup", "completed"])
+def test_persisted_legacy_actions_drain_without_new_provider_work(
+    settings, tmp_path, version, action
+):
+    local_effect, binding, attempt, recovery_ref, expected_effect = (
+        _persisted_legacy_drain(settings, tmp_path, version, action)
+    )
+    with (
+        mock.patch("core.mastrao_transcription_adapter._produce_transcript") as produce,
+        mock.patch("core.mastrao_transcription_adapter._authorize_egress") as authorize,
+        mock.patch(
+            "core.mastrao_transcription_adapter.transcribe_extracted"
+        ) as provider,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_artifact"
+        ) as artifact_callback,
+        mock.patch(
+            "core.mastrao_transcription_adapter._notify_core_failure",
+            return_value={"state": "failed", "outcome": "failed"},
+        ) as failure_callback,
+        mock.patch(
+            "core.mastrao_transcription_worker.ack_gateway_attempt"
+        ) as acknowledge,
+    ):
+        complete_transcription(local_effect.pk)
+        local_effect.refresh_from_db()
+        binding.refresh_from_db()
+        first_outcome = (local_effect.state, local_effect.dispatch_state, binding.state)
+        complete_transcription(local_effect.pk)
+    produce.assert_not_called()
+    authorize.assert_not_called()
+    provider.assert_not_called()
+    expected_artifact_callbacks = 0
+    if action == "cleanup":
+        expected_artifact_callbacks = 1
+    if action in {"artifact", "completed"}:
+        expected_artifact_callbacks = 2
+    assert (
+        artifact_callback.call_args_list
+        == [mock.call(expected_effect, _fake_artifact())] * expected_artifact_callbacks
+    )
+    assert failure_callback.call_args_list == [
+        mock.call(expected_effect, "asr_failed")
+    ] * (2 * int(action == "failure"))
+    assert acknowledge.call_count == 2 * int(version >= 2)
+    for call in acknowledge.call_args_list:
+        assert call.args[0].pk == attempt.pk
+        assert call.args[0].effect_id == local_effect.pk
+        assert call.args[0].request_config_digest == attempt.request_config_digest
+    local_effect.refresh_from_db()
+    binding.refresh_from_db()
+    assert (
+        local_effect.state,
+        local_effect.dispatch_state,
+        binding.state,
+    ) == first_outcome
+    assert _effect_from_local(binding, local_effect) == expected_effect
+    assert local_effect.dispatch_state == local_effect.DispatchState.COMPLETED
+    assert binding.contract_operation_version == version
+    assert binding.state == (
+        binding.State.FAILED if action == "failure" else binding.State.AVAILABLE
+    )
+    assert local_effect.provider_attempts.count() == 1
+    assert not default_storage.exists(recovery_ref)
+
+
 def test_second_provider_result_cannot_overwrite_first_checksum(settings, tmp_path):
     settings.STORAGES = {
         "default": {
@@ -934,7 +1130,7 @@ def test_second_provider_result_cannot_overwrite_first_checksum(settings, tmp_pa
         },
     }
     binding = _finalized_recording_binding("firstwrite01234567")
-    effect = _effect(binding, transcription_ref="transcription_firstwrite012")
+    effect = _normal_effect(binding, transcription_ref="transcription_firstwrite012")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -978,7 +1174,7 @@ def test_real_prepare_refuses_implicit_mistral_defaults(settings):
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(effect)
+        _persisted_effect(binding, effect)
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class _Extracted:
@@ -1011,7 +1207,7 @@ def test_recovery_copy_is_deleted_after_cleanup(settings, tmp_path):
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(effect)
+        _persisted_effect(binding, effect)
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class _Extracted:
@@ -1020,8 +1216,8 @@ def test_recovery_copy_is_deleted_after_cleanup(settings, tmp_path):
         codec = "flac"
         byte_size = 128
 
-    attempt = prepare_attempt(local_effect, _Extracted())
-    transcript = transcribe_audio(b"cleanup audio")
+    attempt = _persisted_attempt(local_effect, _Extracted())
+    transcript = _fake_transcribe(b"cleanup audio")
     recovery_ref, checksum = persist_result_recovery(attempt.attempt_ref, transcript)
     attempt.result_recovery_ref = recovery_ref
     attempt.result_checksum = checksum
@@ -1038,7 +1234,7 @@ def test_recovery_copy_is_deleted_after_cleanup(settings, tmp_path):
 
 def test_proven_pre_egress_failure_stays_retryable_from_sending():
     binding = _finalized_recording_binding("preeegress01234567")
-    effect = _effect(binding, transcription_ref="transcription_preeegress012")
+    effect = _normal_effect(binding, transcription_ref="transcription_preeegress012")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1084,7 +1280,7 @@ def test_recovery_object_is_discovered_without_db_bind(settings, tmp_path):
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(effect)
+        _persisted_effect(binding, effect)
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class _Extracted:
@@ -1093,8 +1289,8 @@ def test_recovery_object_is_discovered_without_db_bind(settings, tmp_path):
         codec = "flac"
         byte_size = 128
 
-    attempt = prepare_attempt(local_effect, _Extracted())
-    transcript = transcribe_audio(b"unbound recovery")
+    attempt = _persisted_attempt(local_effect, _Extracted())
+    transcript = _fake_transcribe(b"unbound recovery")
     transcript["audio_digest"] = _Extracted.sha256
     persist_result_recovery(attempt.attempt_ref, transcript)
     sending = cas_sending(attempt)
@@ -1127,7 +1323,7 @@ def test_substituted_recovery_is_refused_before_mark_result(settings, tmp_path):
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(effect)
+        _persisted_effect(binding, effect)
     local_effect = models.MastraoTranscriptionEffect.objects.get()
 
     class _Extracted:
@@ -1136,8 +1332,8 @@ def test_substituted_recovery_is_refused_before_mark_result(settings, tmp_path):
         codec = "flac"
         byte_size = 128
 
-    attempt = prepare_attempt(local_effect, _Extracted())
-    persist_result_recovery(attempt.attempt_ref, transcribe_audio(b"other audio"))
+    attempt = _persisted_attempt(local_effect, _Extracted())
+    persist_result_recovery(attempt.attempt_ref, _fake_transcribe(b"other audio"))
     sending = cas_sending(attempt)
     with pytest.raises(TranscriptionPipelineFailed):
         _resume_or_transcribe(
@@ -1157,7 +1353,7 @@ def test_paid_recovery_requires_exact_provider_model_engine():
     class _Extracted:
         sha256 = "a" * 64
 
-    transcript = transcribe_audio(b"engine binding")
+    transcript = _fake_transcribe(b"engine binding")
     transcript["audio_digest"] = _Extracted.sha256
     transcript["engine_ref"] = "mistral:voxtral-mini-2602"
     assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt())
@@ -1179,7 +1375,7 @@ def test_fake_recovery_accepts_unprefixed_deterministic_engine():
     class _Extracted:
         sha256 = "b" * 64
 
-    transcript = transcribe_audio(b"fake engine")
+    transcript = _fake_transcribe(b"fake engine")
     transcript["audio_digest"] = _Extracted.sha256
     transcript["engine_ref"] = "fake-asr-deterministic-v1"
     assert _accepted_recovery_transcript(transcript, _Extracted(), _Attempt())
@@ -1227,7 +1423,7 @@ def test_ack_failure_after_core_acceptance_replays_only_ack(settings, tmp_path):
         "https://asr.example.test/v1/transcribe"
     )
     binding = _finalized_recording_binding("ackreplay012345678")
-    effect = _effect(binding, transcription_ref="transcription_ackreplay0123")
+    effect = _normal_effect(binding, transcription_ref="transcription_ackreplay0123")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1315,7 +1511,9 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
         "https://asr.example.test/v1/transcribe"
     )
     binding = _finalized_recording_binding(f"terminalack{status}012345")
-    effect = _v3_effect(binding, transcription_ref=f"transcription_terminalack{status}")
+    effect = _normal_effect(
+        binding, transcription_ref=f"transcription_terminalack{status}"
+    )
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1328,14 +1526,7 @@ def test_terminal_core_acceptance_replays_only_failed_ack(
     attempt = _paid_attempt_with_recovery(local_effect)
     attempt = bind_egress_grant(
         attempt,
-        {
-            "grant_semantic_digest": "d" * 64,
-            "authority_version": 7,
-            "campaign_ref": "managed-canary-2026-08",
-            "authorized_cost_ceiling_micros": 10_000,
-            "tariff_catalog_version": "asr-tariff-v2",
-            "execution_mode": "send_allowed",
-        },
+        _normal_grant_binding(effect, "send_allowed"),
     )
     recovery_ref = attempt.result_recovery_ref
     acknowledgements = []
@@ -1406,7 +1597,9 @@ def test_terminal_outcome_remains_immutable_when_artifact_refusal_changes(
     }
     settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "real"
     binding = _finalized_recording_binding("terminalimmutable01")
-    effect = _v3_effect(binding, transcription_ref="transcription_terminalimmutable")
+    effect = _normal_effect(
+        binding, transcription_ref="transcription_terminalimmutable"
+    )
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1418,14 +1611,7 @@ def test_terminal_outcome_remains_immutable_when_artifact_refusal_changes(
     local_effect = models.MastraoTranscriptionEffect.objects.get()
     attempt = bind_egress_grant(
         _paid_attempt_with_recovery(local_effect),
-        {
-            "grant_semantic_digest": "d" * 64,
-            "authority_version": 7,
-            "campaign_ref": "managed-canary-2026-08",
-            "authorized_cost_ceiling_micros": 10_000,
-            "tariff_catalog_version": "asr-tariff-v2",
-            "execution_mode": "send_allowed",
-        },
+        _normal_grant_binding(effect, "send_allowed"),
     )
     recovery_ref = attempt.result_recovery_ref
     with (
@@ -1486,7 +1672,7 @@ def test_core_retry_precedes_ack_and_does_not_rerun_asr(settings, tmp_path):
         "https://asr.example.test/v1/transcribe"
     )
     binding = _finalized_recording_binding("corebeforeack01234")
-    effect = _effect(binding, transcription_ref="transcription_corebeforeack")
+    effect = _normal_effect(binding, transcription_ref="transcription_corebeforeack")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1533,6 +1719,7 @@ def test_core_retry_precedes_ack_and_does_not_rerun_asr(settings, tmp_path):
 
 
 def test_revocation_discards_an_inflight_second_run_recovery(settings, tmp_path):
+    settings.MASTRAO_TRANSCRIPTION_ASR_MODE = "fake"
     settings.STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -1560,8 +1747,8 @@ def test_revocation_discards_an_inflight_second_run_recovery(settings, tmp_path)
             return_value="receipt.payload.signature",
         ),
     ):
-        _apply_transcription(first_effect)
-        _apply_transcription(second_effect)
+        _persisted_effect(recording, first_effect)
+        second_local_effect = _persisted_effect(recording, second_effect)
 
     first = models.MastraoTranscriptionBinding.objects.get(
         transcription_ref=first_effect["transcription_ref"]
@@ -1580,8 +1767,13 @@ def test_revocation_discards_an_inflight_second_run_recovery(settings, tmp_path)
         def close():
             return None
 
-    transcript = transcribe_audio(b"late alternate transcript")
+    transcript = _fake_transcribe(b"late alternate transcript")
     transcript["audio_digest"] = _Extracted.sha256
+    stored_attempt = _persisted_attempt(second_local_effect, _Extracted())
+    recovery_ref, _checksum = persist_result_recovery(
+        stored_attempt.attempt_ref, transcript
+    )
+    mark_result(stored_attempt, transcript, recovery_ref=recovery_ref)
     authority_revoked = TranscriptionContractRefused(status=404, outcome="deleted")
     with (
         mock.patch(
@@ -1590,7 +1782,7 @@ def test_revocation_discards_an_inflight_second_run_recovery(settings, tmp_path)
         ),
         mock.patch(
             "core.mastrao_transcription_adapter._assert_transcription_authority",
-            side_effect=[alternate, alternate, alternate, authority_revoked],
+            side_effect=[alternate, authority_revoked],
         ),
         mock.patch(
             "core.mastrao_transcription_adapter.transcribe_extracted",
@@ -1601,7 +1793,7 @@ def test_revocation_discards_an_inflight_second_run_recovery(settings, tmp_path)
             _produce_transcript(alternate)
 
     assert refused.value.outcome == "deleted"
-    provider.assert_called_once()
+    provider.assert_not_called()
     attempt = models.MastraoTranscriptionProviderAttempt.objects.get(
         effect__transcription_binding=alternate
     )
@@ -1618,7 +1810,7 @@ def test_revocation_discards_an_inflight_second_run_recovery(settings, tmp_path)
 
 def test_pre_egress_failure_defers_without_notifying_core():
     binding = _finalized_recording_binding("defercore012345678")
-    effect = _effect(binding, transcription_ref="transcription_defercore0123")
+    effect = _normal_effect(binding, transcription_ref="transcription_defercore0123")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1648,7 +1840,7 @@ def test_pre_egress_failure_defers_without_notifying_core():
 
 def test_retry_after_holds_deadline_without_burning_retries():
     binding = _finalized_recording_binding("retryafter01234567")
-    effect = _effect(binding, transcription_ref="transcription_retryafter012")
+    effect = _normal_effect(binding, transcription_ref="transcription_retryafter012")
     with (
         mock.patch(ENQUEUE),
         mock.patch(
