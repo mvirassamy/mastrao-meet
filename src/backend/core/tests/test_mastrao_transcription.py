@@ -42,8 +42,12 @@ from core.mastrao_transcription_artifact import (
     map_speakers,
     persist_transcript,
 )
+from core.mastrao_transcription_attempt import _config_digest
 from core.mastrao_transcription_contract import (
     MANAGED_PROFILE_BINDINGS,
+    NORMAL_ASR_PROFILE_REF,
+    NORMAL_MAXIMUM_AUDIO_BYTES,
+    NORMAL_MAXIMUM_AUDIO_SECONDS,
     PURPOSE,
     SCOPE,
     SUBMIT_EFFECT_FIELDS,
@@ -176,6 +180,105 @@ def _v2_effect(binding, **overrides):
     )
     effect.update(overrides)
     return effect
+
+
+def _normal_effect(binding, **overrides):
+    """New admission: exact approved profile, dedicated notice and submit v4."""
+
+    effect = _effect(binding)
+    effect.update(
+        operation_version=4,
+        asr_profile_ref=NORMAL_ASR_PROFILE_REF,
+        **MANAGED_PROFILE_BINDINGS[NORMAL_ASR_PROFILE_REF],
+        normalization_version="meeting-transcript-v1",
+        authorized_cost_ceiling_micros=198_000,
+        currency="USD",
+        authority_version=1,
+        maximum_audio_seconds=NORMAL_MAXIMUM_AUDIO_SECONDS,
+        maximum_audio_bytes=NORMAL_MAXIMUM_AUDIO_BYTES,
+        notice_version="notice_transcription_normal_v1",
+        notice_digest="8" * 64,
+    )
+    effect.update(overrides)
+    effect["arguments_digest"] = _sha256_canonical(_submit_arguments(effect))
+    return effect
+
+
+def _persisted_effect(recording, effect, *, dispatch_state=None):
+    """Seed an already accepted legacy run; never call admission or dispatch."""
+
+    binding_fields = (
+        "organization_external_id",
+        "meeting_ref",
+        "room_ref",
+        "recording_ref",
+        "transcription_ref",
+        "provider_binding_digest",
+        "asr_profile_ref",
+        "asr_profile_digest",
+        "asr_provider_ref",
+        "requested_model_ref",
+        "request_config_digest",
+        "normalization_version",
+        "processing_region_ref",
+        "data_control_ref",
+        "campaign_ref",
+        "authorized_cost_ceiling_micros",
+        "currency",
+        "tariff_catalog_version",
+    )
+    binding = models.MastraoTranscriptionBinding.objects.create(
+        recording_binding=recording,
+        **{name: effect[name] for name in binding_fields if name in effect},
+        contract_operation_version=effect.get("operation_version", 1),
+        artifact_ref=effect["recording_artifact_ref"],
+        artifact_checksum_digest=effect["recording_checksum_digest"],
+        artifact_byte_size=recording.byte_size,
+        state=models.MastraoTranscriptionBinding.State.PROCESSING,
+    )
+    return models.MastraoTranscriptionEffect.objects.create(
+        transcription_binding=binding,
+        effect_key=effect["effect_key"],
+        arguments_digest=effect["arguments_digest"],
+        effect_jti=effect["jti"],
+        receipt_claims=build_submit_receipt_claims(effect, "submitted"),
+        state=models.MastraoTranscriptionEffect.State.APPLYING,
+        dispatch_state=dispatch_state
+        or models.MastraoTranscriptionEffect.DispatchState.QUEUED,
+    )
+
+
+def _persisted_attempt(local_effect, extracted, **overrides):
+    """Seed a historical attempt only for persisted recovery/drainage proofs."""
+
+    binding = local_effect.transcription_binding
+    facts = {
+        "provider_ref": binding.asr_provider_ref or "fake",
+        "requested_model_ref": binding.requested_model_ref or FAKE_ENGINE_REF,
+        "state": models.MastraoTranscriptionProviderAttempt.State.SENDING,
+        **overrides,
+    }
+    facts.setdefault(
+        "request_config_digest",
+        binding.request_config_digest
+        or _config_digest(
+            facts["provider_ref"],
+            facts["requested_model_ref"],
+            extracted.codec,
+            extracted.duration_ms,
+        ),
+    )
+    return models.MastraoTranscriptionProviderAttempt.objects.create(
+        effect=local_effect,
+        generation=1,
+        attempt_ref=f"attempt_{local_effect.pk.hex}",
+        adapter_version="asr-gateway-v1",
+        audio_sha256=extracted.sha256,
+        audio_duration_ms=extracted.duration_ms,
+        audio_codec=extracted.codec,
+        input_bytes=extracted.byte_size,
+        **facts,
+    )
 
 
 def _v3_effect(binding, **overrides):
@@ -836,7 +939,7 @@ def test_recording_disabled_refuses_new_transcription_effects(settings):
     binding = _finalized_recording_binding("recording_off_012345")
 
     with pytest.raises(TranscriptionContractRefused):
-        _prepare_transcription(_effect(binding))
+        _prepare_transcription(_normal_effect(binding))
 
     assert not models.MastraoTranscriptionBinding.objects.exists()
     assert not models.MastraoTranscriptionEffect.objects.exists()
@@ -845,18 +948,20 @@ def test_recording_disabled_refuses_new_transcription_effects(settings):
 def test_unfinalized_or_mismatched_artifact_is_refused():
     binding = _finalized_recording_binding("mismatch_0123456789")
     with pytest.raises(TranscriptionContractRefused):
-        _prepare_transcription(_effect(binding, recording_checksum_digest="f" * 64))
+        _prepare_transcription(
+            _normal_effect(binding, recording_checksum_digest="f" * 64)
+        )
     binding.state = models.MastraoRecordingBinding.State.PROCESSING
     binding.save(update_fields=["state", "updated_at"])
     with pytest.raises(TranscriptionContractRefused):
-        _prepare_transcription(_effect(binding))
+        _prepare_transcription(_normal_effect(binding))
 
 
 def test_locally_verified_processing_artifact_accepts_core_submit():
     binding = _finalized_recording_binding("core_ack_012345678")
     _mark_locally_verified_processing(binding)
 
-    transcription, effect = _prepare_transcription(_effect(binding))
+    transcription, effect = _prepare_transcription(_normal_effect(binding))
 
     assert transcription.recording_binding == binding
     assert effect.state == models.MastraoTranscriptionEffect.State.APPLYING
@@ -866,7 +971,7 @@ def test_processing_authority_accepts_verified_submit_and_replay():
     binding = _mark_locally_verified_processing(
         _finalized_recording_binding("authority_replay_0123")
     )
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -886,7 +991,7 @@ def test_processing_authority_accepts_verified_submit_and_replay():
 
 def test_processing_authority_refuses_unverified_recording():
     binding = _finalized_recording_binding("authority_unverified")
-    transcription, _effect_row = _prepare_transcription(_effect(binding))
+    transcription, _effect_row = _prepare_transcription(_normal_effect(binding))
     binding.state = models.MastraoRecordingBinding.State.PROCESSING
     binding.save(update_fields=["state", "updated_at"])
 
@@ -901,7 +1006,7 @@ def test_processing_authority_refuses_corrupted_local_proof():
     binding = _mark_locally_verified_processing(
         _finalized_recording_binding("authority_corrupt_01")
     )
-    transcription, _effect_row = _prepare_transcription(_effect(binding))
+    transcription, _effect_row = _prepare_transcription(_normal_effect(binding))
     binding.artifact_receipt_digest = "e" * 64
     binding.save(update_fields=["artifact_receipt_digest", "updated_at"])
 
@@ -914,7 +1019,7 @@ def test_processing_authority_refuses_corrupted_local_proof():
 
 def test_finalized_recording_retains_transcription_authority():
     binding = _finalized_recording_binding("authority_finalized01")
-    transcription, _effect_row = _prepare_transcription(_effect(binding))
+    transcription, _effect_row = _prepare_transcription(_normal_effect(binding))
 
     assert _assert_transcription_authority(transcription).pk == transcription.pk
 
@@ -960,7 +1065,7 @@ def test_processing_artifact_requires_exact_receipt_integrity(corruption):
     binding.save()
 
     with pytest.raises(TranscriptionContractRefused):
-        _prepare_transcription(_effect(binding))
+        _prepare_transcription(_normal_effect(binding))
 
 
 def _fake_artifact(**overrides):
@@ -978,7 +1083,7 @@ def _fake_artifact(**overrides):
 
 def test_apply_transcription_returns_submitted_receipt_without_running_asr():
     binding = _finalized_recording_binding("apply_0123456789abc")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE) as enqueue,
         mock.patch(
@@ -1003,7 +1108,7 @@ def test_apply_transcription_returns_submitted_receipt_without_running_asr():
 
 def test_exact_replay_republishes_while_dispatch_is_pending():
     binding = _finalized_recording_binding("replay_0123456789ab")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(
             ENQUEUE, side_effect=ConnectionError("broker_unavailable")
@@ -1030,7 +1135,7 @@ def test_exact_replay_republishes_while_dispatch_is_pending():
 
 def test_divergent_replay_is_refused_with_conflict():
     binding = _finalized_recording_binding("conflict_0123456789")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(
             "core.mastrao_transcription_adapter._produce_transcript",
@@ -1045,12 +1150,12 @@ def test_divergent_replay_is_refused_with_conflict():
         _apply_transcription(effect)
     with pytest.raises(TranscriptionContractRefused) as refusal:
         _prepare_transcription(
-            _effect(binding, effect_key="effect_transcribe_divergent01")
+            _normal_effect(binding, effect_key="effect_transcribe_divergent01")
         )
     assert refusal.value.status == 409
 
 
-def test_two_transcription_runs_can_share_one_recording():
+def test_two_persisted_legacy_transcription_runs_share_one_recording():
     binding = _finalized_recording_binding("multirun_012345678")
     first = _effect(binding)
     second = _v2_effect(
@@ -1060,8 +1165,8 @@ def test_two_transcription_runs_can_share_one_recording():
         arguments_digest="f" * 64,
         jti="request_transcribe_second_012345",
     )
-    _prepare_transcription(first)
-    _prepare_transcription(second)
+    _persisted_effect(binding, first)
+    _persisted_effect(binding, second)
     runs = models.MastraoTranscriptionBinding.objects.order_by("transcription_ref")
     assert runs.count() == 2
     assert {run.recording_binding_id for run in runs} == {binding.pk}
@@ -1070,7 +1175,9 @@ def test_two_transcription_runs_can_share_one_recording():
 def test_v2_replay_requires_the_exact_signed_profile_binding():
     recording = _finalized_recording_binding("v2binding_01234567")
     effect = _v2_effect(recording)
-    transcription, _local_effect = _prepare_transcription(effect)
+    persisted = _persisted_effect(recording, effect)
+    transcription, local_effect = _prepare_transcription(effect)
+    assert local_effect.pk == persisted.pk
     assert transcription.asr_provider_ref == "openai"
     assert transcription.requested_model_ref == "gpt-transcribe"
     assert (
@@ -1084,10 +1191,10 @@ def test_v2_replay_requires_the_exact_signed_profile_binding():
     assert refusal.value.status == 409
 
 
-def test_resolve_only_never_creates_a_first_effect():
+def test_resolve_only_never_creates_a_first_normal_effect():
     binding = _finalized_recording_binding("resolve_0123456789a")
     with pytest.raises(TranscriptionContractRefused):
-        _prepare_transcription(_effect(binding, resolve_only=True))
+        _prepare_transcription(_normal_effect(binding, resolve_only=True))
     assert not models.MastraoTranscriptionEffect.objects.exists()
 
 
@@ -1175,9 +1282,9 @@ def test_endpoint_refuses_oversized_and_malformed_bodies(rf):
     assert response.status_code == 404
 
 
-def test_endpoint_returns_signed_receipt_for_verified_effect(rf):
+def test_endpoint_returns_signed_receipt_for_verified_normal_effect(rf):
     binding = _finalized_recording_binding("endpoint_0123456789")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     request = rf.post(
         "/internal/mastrao/transcriptions/transcribe/",
         data=json.dumps({"transcription_submit_effect": "header.payload.signature"}),
@@ -1209,9 +1316,9 @@ def test_invalid_asr_mode_fails_explicitly(settings):
         transcribe_audio(b"audio")
 
 
-def test_concurrent_submit_creates_one_effect():
+def test_concurrent_submit_creates_one_normal_effect():
     binding = _finalized_recording_binding("applying_0123456789")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE) as enqueue,
         mock.patch(
@@ -1235,7 +1342,7 @@ def test_concurrent_submit_creates_one_effect():
 
 def test_celery_completion_notifies_core_after_submit_receipt():
     binding = _finalized_recording_binding("notify_0123456789ab")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1323,7 +1430,7 @@ def test_failure_notification_accepts_available_when_core_already_has_artifact(
 
 def test_pipeline_failure_marks_local_state_and_notifies_core():
     binding = _finalized_recording_binding("failure_0123456789a")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1499,7 +1606,7 @@ def test_long_running_asr_does_not_block_the_submit_receipt():
     """Core's HTTP claim window must not wait for ffmpeg or ASR."""
 
     binding = _finalized_recording_binding("slowasr_0123456789")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1519,7 +1626,7 @@ def test_long_running_asr_does_not_block_the_submit_receipt():
 
 def test_artifact_callback_never_runs_before_submit_receipt():
     binding = _finalized_recording_binding("order_0123456789abc")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     events = []
     with (
         mock.patch(ENQUEUE),
@@ -1554,7 +1661,7 @@ def test_deleted_recording_refusal_removes_the_written_object(settings, tmp_path
         },
     }
     binding = _finalized_recording_binding("orphan_0123456789a")
-    effect = _effect(binding, transcription_ref="transcription_persist_01234")
+    effect = _normal_effect(binding, transcription_ref="transcription_persist_01234")
     transcript = map_speakers(transcribe_audio(b"deleted recording audio"))
     artifact = persist_transcript(effect["transcription_ref"], transcript)
     object_path = (
@@ -1602,7 +1709,7 @@ def test_already_failed_artifact_callback_cleans_and_completes(settings, tmp_pat
         },
     }
     binding = _finalized_recording_binding("failedwin_01234567")
-    effect = _effect(binding, transcription_ref="transcription_failedwin_012")
+    effect = _normal_effect(binding, transcription_ref="transcription_failedwin_012")
     transcript = map_speakers(transcribe_audio(b"already failed audio"))
     artifact = persist_transcript(effect["transcription_ref"], transcript)
     object_path = (
@@ -1645,7 +1752,7 @@ def test_divergent_conflict_deletes_the_object_and_fails(settings, tmp_path):
         },
     }
     binding = _finalized_recording_binding("conflictwin_012345")
-    effect = _effect(binding, transcription_ref="transcription_conflictwin01")
+    effect = _normal_effect(binding, transcription_ref="transcription_conflictwin01")
     transcript = map_speakers(transcribe_audio(b"divergent conflict audio"))
     artifact = persist_transcript(effect["transcription_ref"], transcript)
     object_path = (
@@ -1682,7 +1789,7 @@ def test_divergent_conflict_deletes_the_object_and_fails(settings, tmp_path):
 
 def test_late_failure_callback_converges_to_available_after_artifact():
     binding = _finalized_recording_binding("latefail_012345678")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1727,7 +1834,7 @@ def test_late_failure_callback_converges_to_available_after_artifact():
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_failure_does_not_notify_after_artifact_persisted():
     binding = _finalized_recording_binding("racefail_012345678")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     produce_entered = threading.Event()
     artifact_written = threading.Event()
     notify_failure = mock.Mock(return_value=CORE_FAILED_OUTCOME)
@@ -1788,7 +1895,7 @@ def test_first_artifact_pending_is_not_replaced_by_a_concurrent_producer():
         byte_size=1024,
     )
     binding = _finalized_recording_binding("raceart_012345678")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -1825,7 +1932,7 @@ def test_losing_artifact_is_deleted_after_core_confirms_failure(settings, tmp_pa
         },
     }
     binding = _finalized_recording_binding("loserart_01234567")
-    effect = _effect(binding, transcription_ref="transcription_loserart_012")
+    effect = _normal_effect(binding, transcription_ref="transcription_loserart_012")
     notify_artifact = mock.Mock()
     with (
         mock.patch(ENQUEUE),
@@ -1880,7 +1987,7 @@ def test_losing_artifact_delete_retries_after_storage_503(settings, tmp_path):
         },
     }
     binding = _finalized_recording_binding("del503_0123456789")
-    effect = _effect(binding, transcription_ref="transcription_del503_01234")
+    effect = _normal_effect(binding, transcription_ref="transcription_del503_01234")
     delete_attempts = []
 
     def flaky_delete(object_ref):
@@ -1935,7 +2042,7 @@ def test_losing_artifact_delete_retries_after_storage_503(settings, tmp_path):
 @pytest.mark.django_db(transaction=True)
 def test_failure_callback_before_submit_confirmation_is_retryable():
     binding = _finalized_recording_binding("earlyfail_01234567")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     core_confirmed = threading.Event()
     first_503 = threading.Event()
     notify_attempts = []
@@ -1993,26 +2100,17 @@ def test_failure_callback_before_submit_confirmation_is_retryable():
 
 def _dispatch_row(suffix, dispatch_state, next_attempt_at):
     binding = _finalized_recording_binding(suffix)
-    transcription = models.MastraoTranscriptionBinding.objects.create(
-        recording_binding=binding,
-        organization_external_id=binding.organization_external_id,
-        meeting_ref=binding.meeting_ref,
-        room_ref=binding.room_ref,
-        recording_ref=binding.recording_ref,
+    effect = _normal_effect(
+        binding,
         transcription_ref=f"transcription_{suffix}"[:32].ljust(32, "0"),
-        artifact_ref=binding.artifact_ref,
-        provider_binding_digest=binding.provider_binding_digest,
-        artifact_checksum_digest=binding.checksum_digest,
-        artifact_byte_size=binding.byte_size,
-    )
-    return models.MastraoTranscriptionEffect.objects.create(
-        transcription_binding=transcription,
         effect_key=f"effect_transcribe_{suffix}",
-        arguments_digest="e" * 64,
-        effect_jti=f"request_transcribe_{suffix}",
-        dispatch_state=dispatch_state,
-        next_attempt_at=next_attempt_at,
+        jti=f"request_transcribe_{suffix}",
     )
+    _transcription, local_effect = _prepare_transcription(effect)
+    local_effect.dispatch_state = dispatch_state
+    local_effect.next_attempt_at = next_attempt_at
+    local_effect.save()
+    return local_effect
 
 
 def test_reconcile_skips_rows_that_are_not_due():
@@ -2086,7 +2184,7 @@ def test_reconcile_poison_rows_do_not_starve_healthy_rows():
 
 def test_broker_failure_keeps_the_effect_dispatchable():
     binding = _finalized_recording_binding("brokerfail_01234567")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE, side_effect=ConnectionError("broker")) as enqueue,
         mock.patch(
@@ -2128,7 +2226,7 @@ def test_broker_failure_keeps_the_effect_dispatchable():
 
 def test_crash_after_publish_before_local_confirmation_redelivers():
     binding = _finalized_recording_binding("crashpub_012345678")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     with (
         mock.patch(ENQUEUE),
         mock.patch(
@@ -2159,7 +2257,7 @@ def test_crash_after_publish_before_local_confirmation_redelivers():
 
 def test_artifact_callback_503_then_success_does_not_rerun_asr():
     binding = _finalized_recording_binding("retry503_012345678")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     notify_attempts = []
 
     def notify(*_args, **_kwargs):
@@ -2201,7 +2299,7 @@ def test_artifact_callback_503_then_success_does_not_rerun_asr():
 
 def test_failure_callback_503_then_success_marks_failed():
     binding = _finalized_recording_binding("fail503_0123456789")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     notify_attempts = []
 
     def notify(*_args, **_kwargs):
@@ -2246,7 +2344,7 @@ def test_failure_callback_503_then_success_marks_failed():
 
 def test_redelivery_after_object_write_skips_asr():
     binding = _finalized_recording_binding("redeliver_01234567")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     notify_attempts = []
 
     def notify(*_args, **_kwargs):
@@ -2284,7 +2382,7 @@ def test_redelivery_after_object_write_skips_asr():
 @pytest.mark.django_db(transaction=True)
 def test_worker_callback_before_submit_confirmation_is_retryable():
     binding = _finalized_recording_binding("earlycb_0123456789")
-    effect = _effect(binding)
+    effect = _normal_effect(binding)
     core_confirmed = threading.Event()
     first_503 = threading.Event()
     notify_attempts = []
@@ -2353,7 +2451,7 @@ def test_503_does_not_delete_the_written_object(settings, tmp_path):
         },
     }
     binding = _finalized_recording_binding("keep503_0123456789")
-    effect = _effect(binding, transcription_ref="transcription_persist_01234")
+    effect = _normal_effect(binding, transcription_ref="transcription_persist_01234")
     transcript = map_speakers(transcribe_audio(b"retryable callback audio"))
     artifact = persist_transcript(effect["transcription_ref"], transcript)
     object_path = (

@@ -39,6 +39,7 @@ from core.mastrao_transcription_attempt import (
     prepare_attempt,
 )
 from core.mastrao_transcription_contract import (
+    NORMAL_AUTHORITY_FIELDS,
     TranscriptionContractRefused,
     TranscriptionPipelineFailed,
     build_submit_receipt_claims,
@@ -190,7 +191,7 @@ def _prepare_transcription(effect):
         )
         if stored_identity != expected_identity:
             raise TranscriptionContractRefused(status=409)
-        if effect.get("operation_version", 1) in {2, 3} and any(
+        if effect.get("operation_version", 1) in {2, 3, 4} and any(
             getattr(transcription_binding, name) != effect[name]
             for name in (
                 "asr_profile_ref",
@@ -214,7 +215,18 @@ def _prepare_transcription(effect):
             )
         ):
             raise TranscriptionContractRefused(status=409)
+        if effect.get("operation_version") == 4 and any(
+            getattr(transcription_binding, name) != effect[name]
+            for name in (*NORMAL_AUTHORITY_FIELDS, "notice_version", "notice_digest")
+        ):
+            raise TranscriptionContractRefused(status=409)
     else:
+        if effect.get("operation_version") != 4 or effect["resolve_only"]:
+            raise TranscriptionContractRefused()
+        if recording_binding.transcription_bindings.exclude(
+            contract_operation_version=4
+        ).exists():
+            raise TranscriptionContractRefused(status=409)
         if not settings.MASTRAO_MEETING_RECORDING_ENABLED:
             raise TranscriptionContractRefused()
         transcription_binding = models.MastraoTranscriptionBinding.objects.create(
@@ -239,6 +251,11 @@ def _prepare_transcription(effect):
             authorized_cost_ceiling_micros=effect.get("authorized_cost_ceiling_micros"),
             currency=effect.get("currency"),
             tariff_catalog_version=effect.get("tariff_catalog_version"),
+            authority_version=effect.get("authority_version"),
+            maximum_audio_seconds=effect.get("maximum_audio_seconds"),
+            maximum_audio_bytes=effect.get("maximum_audio_bytes"),
+            notice_version=effect["notice_version"],
+            notice_digest=effect["notice_digest"],
             artifact_checksum_digest=effect["recording_checksum_digest"],
             artifact_byte_size=recording_binding.byte_size,
         )
@@ -249,7 +266,7 @@ def _prepare_transcription(effect):
     )
     if existing:
         return transcription_binding, _exact_effect(existing, effect)
-    if effect["resolve_only"]:
+    if effect["resolve_only"] or effect.get("operation_version") != 4:
         raise TranscriptionContractRefused()
     created = models.MastraoTranscriptionEffect.objects.create(
         transcription_binding=transcription_binding,
@@ -384,6 +401,8 @@ def _resume_or_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
             recovery_ref=recovery_object_ref(sending.attempt_ref),
         )
         return transcript
+    if transcription_binding.contract_operation_version != 4:
+        raise TranscriptionPipelineFailed("asr_failed", status=409)
     if may_replay_gateway(sending):
         grant = _authorize_egress(
             transcription_binding, sending, execution_mode="recover_only"
@@ -392,12 +411,7 @@ def _resume_or_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
     if not may_call_provider(sending):
         mark_unknown(sending)
         raise TranscriptionPipelineFailed("asr_failed", status=409)
-    _assert_transcription_authority(transcription_binding)
-    grant = _authorize_egress(
-        transcription_binding, sending, execution_mode="send_allowed"
-    )
-    _assert_transcription_authority(transcription_binding)
-    sending = cas_sending(sending)
+    sending, grant = _claim_send_authority(transcription_binding, sending)
     try:
         transcript = transcribe_extracted(extracted, sending, egress_grant=grant)
     except TranscriptionContractRefused as error:
@@ -431,6 +445,23 @@ def _resume_or_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
     usage = transcript.pop("_usage", None)
     _bind_gateway_result(sending, transcript, usage)
     return transcript
+
+
+def _claim_send_authority(transcription_binding, sending):
+    """Revalidate authority and own the send transition before opening egress."""
+
+    _assert_transcription_authority(transcription_binding)
+    grant = _authorize_egress(
+        transcription_binding, sending, execution_mode="send_allowed"
+    )
+    _assert_transcription_authority(transcription_binding)
+    sending = cas_sending(sending)
+    if (
+        sending.state != sending.State.SENDING
+        or sending.execution_mode != sending.ExecutionMode.SEND_ALLOWED
+    ):
+        raise TranscriptionContractRefused(status=503, outcome="retry")
+    return sending, grant
 
 
 def _discard_late_result(local_effect, outcome):
@@ -507,6 +538,11 @@ def _authorize_egress(transcription_binding, attempt, execution_mode):
         raise
     compact_grant = result["transcription_egress_grant"]
     grant = verify_transcription_egress_grant(compact_grant, claims)
+    if (
+        transcription_binding.contract_operation_version == 4
+        and grant["notice_digest"] != transcription_binding.notice_digest
+    ):
+        raise TranscriptionContractRefused()
     bind_egress_grant(attempt, grant)
     # The caller keeps using this instance to validate Gateway provenance and
     # build the v2 receipt. Refresh the immutable grant binding that was
@@ -519,6 +555,7 @@ def _authorize_egress(transcription_binding, attempt, execution_mode):
             "campaign_ref",
             "authorized_cost_ceiling_micros",
             "tariff_catalog_version",
+            "currency",
         ]
     )
     return compact_grant
@@ -595,6 +632,17 @@ def _effect_from_local(transcription_binding, local_effect):
                 )
             }
         )
+    if transcription_binding.contract_operation_version == 4:
+        effect.update(
+            {
+                name: getattr(transcription_binding, name)
+                for name in (
+                    *NORMAL_AUTHORITY_FIELDS,
+                    "notice_version",
+                    "notice_digest",
+                )
+            }
+        )
     return effect
 
 
@@ -602,7 +650,7 @@ def _notify_core_artifact(effect, artifact):
     """Report one exact persisted transcript artifact to Core."""
 
     attempt = None
-    if effect.get("operation_version") == 3:
+    if effect.get("operation_version") in {3, 4}:
         attempt = (
             models.MastraoTranscriptionProviderAttempt.objects.filter(
                 effect__effect_key=effect["effect_key"], generation=1
@@ -632,7 +680,7 @@ def _notify_core_artifact(effect, artifact):
 def _notify_core_failure(effect, failure_code):
     """Report one pipeline failure to Core. A 503 must be retried."""
 
-    if effect.get("operation_version") == 3:
+    if effect.get("operation_version") in {3, 4}:
         attempt = (
             models.MastraoTranscriptionProviderAttempt.objects.filter(
                 effect__effect_key=effect["effect_key"], generation=1
@@ -720,7 +768,8 @@ def _apply_transcription(effect):
         raise TranscriptionContractRefused(status=409)
     claims = _persist_submit_receipt(local_effect, effect)
     if (
-        local_effect.dispatch_state
+        effect.get("operation_version") == 4
+        and local_effect.dispatch_state
         != models.MastraoTranscriptionEffect.DispatchState.COMPLETED
     ):
         publish_transcription_job(local_effect.pk)

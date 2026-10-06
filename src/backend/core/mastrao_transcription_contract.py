@@ -94,6 +94,28 @@ SUBMIT_EFFECT_V3_FIELDS = SUBMIT_EFFECT_V2_FIELDS | {
     "currency",
     "tariff_catalog_version",
 }
+SUBMIT_EFFECT_V4_FIELDS = (SUBMIT_EFFECT_V3_FIELDS - {"campaign_ref"}) | {
+    "authority_version",
+    "maximum_audio_seconds",
+    "maximum_audio_bytes",
+}
+NORMAL_AUTHORITY_FIELDS = (
+    "authorized_cost_ceiling_micros",
+    "currency",
+    "tariff_catalog_version",
+    "authority_version",
+    "maximum_audio_seconds",
+    "maximum_audio_bytes",
+)
+NORMAL_ASR_PROFILE_REF = "mistral-eu-standard-managed-demo-v1"
+NORMAL_ASR_REQUEST_OPTIONS = {
+    "language": "fr",
+    "diarize": True,
+    "context_bias_version": "generic-legal-fr-v1",
+    "context_bias_digest": "4ddf5bf12848d6be696b30565c6124beef41855d8056733da098e6180c58122c",
+}
+NORMAL_MAXIMUM_AUDIO_SECONDS = 3_600
+NORMAL_MAXIMUM_AUDIO_BYTES = 25_000_000
 ASR_REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,160}$")
 V2_NORMALIZATION_VERSION = "meeting-transcript-v1"
 MAX_EGRESS_GRANT_SECONDS = 30
@@ -224,7 +246,7 @@ def _submit_arguments(effect):
         "room_ref": effect["room_ref"],
         "provider_binding_digest": effect["provider_binding_digest"],
     }
-    if effect["operation_version"] in {2, 3}:
+    if effect["operation_version"] in {2, 3, 4}:
         arguments.update(
             {
                 name: effect[name]
@@ -252,29 +274,25 @@ def _submit_arguments(effect):
                 )
             }
         )
+    if effect["operation_version"] == 4:
+        arguments.update(operation_version=4)
+        arguments.update({name: effect[name] for name in NORMAL_AUTHORITY_FIELDS})
     return arguments
 
 
 def _verified_submit_payload(compact_jws):
-    """Verify either exact submit schema without trusting an unverified version."""
+    """Verify exact signed schemas without trusting an unverified version."""
 
-    try:
-        return (
-            _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V2_FIELDS),
-            2,
-        )
-    except RecordingContractRefused:
-        pass
-    try:
-        return (
-            _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V3_FIELDS),
-            3,
-        )
-    except RecordingContractRefused:
-        return (
-            _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_FIELDS),
-            1,
-        )
+    for fields, version in (
+        (SUBMIT_EFFECT_V2_FIELDS, 2),
+        (SUBMIT_EFFECT_V3_FIELDS, 3),
+        (SUBMIT_EFFECT_FIELDS, 1),
+    ):
+        try:
+            return _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, fields), version
+        except RecordingContractRefused:
+            pass
+    return _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V4_FIELDS), 4
 
 
 def _validate_asr_reference(effect, name):
@@ -298,14 +316,34 @@ def _validate_v2_profile(effect):
         raise TranscriptionContractRefused()
 
 
-def _validate_v3_reservation(effect):
+def _validate_managed_reservation(effect):
+    if (
+        effect["operation_version"] == 4
+        and effect.get("asr_profile_ref") != NORMAL_ASR_PROFILE_REF
+    ):
+        raise TranscriptionContractRefused()
     expected = MANAGED_PROFILE_BINDINGS.get(effect.get("asr_profile_ref"))
     if expected is None or any(
         effect.get(name) != value for name, value in expected.items()
     ):
         raise TranscriptionContractRefused()
-    for name in ("campaign_ref", "tariff_catalog_version"):
-        _validate_asr_reference(effect, name)
+    _validate_asr_reference(effect, "tariff_catalog_version")
+    if effect["operation_version"] == 3:
+        _validate_asr_reference(effect, "campaign_ref")
+    else:
+        for name in (
+            "authority_version",
+            "maximum_audio_seconds",
+            "maximum_audio_bytes",
+        ):
+            value = effect.get(name)
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise TranscriptionContractRefused()
+        if (
+            effect["maximum_audio_seconds"] != NORMAL_MAXIMUM_AUDIO_SECONDS
+            or effect["maximum_audio_bytes"] != NORMAL_MAXIMUM_AUDIO_BYTES
+        ):
+            raise TranscriptionContractRefused()
     ceiling = effect.get("authorized_cost_ceiling_micros")
     if (
         not isinstance(ceiling, int)
@@ -370,7 +408,7 @@ def verify_transcription_submit_effect(compact_jws):
             raise TranscriptionContractRefused()
     if effect["operation_version"] == 2:
         _validate_v2_profile(effect)
-    if effect["operation_version"] == 3:
+    if effect["operation_version"] in {3, 4}:
         for name in ("asr_profile_digest", "request_config_digest"):
             if not DIGEST.fullmatch(effect.get(name, "")):
                 raise TranscriptionContractRefused()
@@ -382,7 +420,7 @@ def verify_transcription_submit_effect(compact_jws):
             "data_control_ref",
         ):
             _validate_asr_reference(effect, name)
-        _validate_v3_reservation(effect)
+        _validate_managed_reservation(effect)
     retention = effect.get("retention_expires_at")
     if (
         not isinstance(retention, int)
@@ -398,7 +436,7 @@ def verify_transcription_submit_effect(compact_jws):
 def build_transcription_egress_request_claims(effect, attempt, execution_mode):
     """Build the exact, short-lived disclosure request for one prepared audio."""
 
-    if effect.get("operation_version") != 3 or execution_mode not in {
+    if effect.get("operation_version") not in {3, 4} or execution_mode not in {
         "send_allowed",
         "recover_only",
     }:
@@ -431,7 +469,6 @@ def build_transcription_egress_request_claims(effect, attempt, execution_mode):
         "normalization_version": effect["normalization_version"],
         "processing_region_ref": effect["processing_region_ref"],
         "data_control_ref": effect["data_control_ref"],
-        "campaign_ref": effect["campaign_ref"],
         "authorized_cost_ceiling_micros": effect["authorized_cost_ceiling_micros"],
         "currency": effect["currency"],
         "tariff_catalog_version": effect["tariff_catalog_version"],
@@ -440,6 +477,16 @@ def build_transcription_egress_request_claims(effect, attempt, execution_mode):
         "expires_at": now + MAX_EGRESS_GRANT_SECONDS,
         "jti": f"transcript_egress_{uuid4().hex}",
     }
+    if effect["operation_version"] == 4:
+        claims.update(operation_version=2)
+        claims.update({name: effect[name] for name in NORMAL_AUTHORITY_FIELDS})
+        if (
+            attempt.audio_duration_ms > effect["maximum_audio_seconds"] * 1_000
+            or attempt.input_bytes > effect["maximum_audio_bytes"]
+        ):
+            raise TranscriptionContractRefused()
+    else:
+        claims["campaign_ref"] = effect["campaign_ref"]
     return claims
 
 
@@ -476,10 +523,21 @@ EGRESS_GRANT_FIELDS = {
 }
 
 
+EGRESS_GRANT_V2_FIELDS = (EGRESS_GRANT_FIELDS - {"campaign_ref"}) | {
+    "maximum_audio_bytes",
+}
+
+
 def verify_transcription_egress_grant(compact_jws, request_claims):
     """Verify Core's exact grant and its semantic binding before disclosure."""
 
-    grant = _verify(compact_jws, EGRESS_GRANT_JOSE_TYPE, EGRESS_GRANT_FIELDS)
+    operation_version = request_claims.get("operation_version")
+    if operation_version not in {1, 2}:
+        raise TranscriptionContractRefused()
+    fields = EGRESS_GRANT_FIELDS
+    if operation_version == 2:
+        fields = EGRESS_GRANT_V2_FIELDS
+    grant = _verify(compact_jws, EGRESS_GRANT_JOSE_TYPE, fields)
     _validate_time(grant, maximum=MAX_EGRESS_GRANT_SECONDS)
     if (
         grant.get("version") != CONTRACT_VERSION
@@ -487,7 +545,7 @@ def verify_transcription_egress_grant(compact_jws, request_claims):
         or grant.get("issuer") != settings.MASTRAO_RECORDING_EFFECT_ISSUER
         or grant.get("audience") != settings.MASTRAO_TRANSCRIPTION_EGRESS_GRANT_AUDIENCE
         or grant.get("operation") != "authorize_meeting_transcription_egress"
-        or grant.get("operation_version") != 1
+        or grant.get("operation_version") != operation_version
         or not DIGEST.fullmatch(grant.get("notice_digest", ""))
         or not DIGEST.fullmatch(grant.get("grant_semantic_digest", ""))
         or not REQUEST_ID.fullmatch(grant.get("jti", ""))
@@ -533,6 +591,16 @@ def verify_transcription_egress_grant(compact_jws, request_claims):
             "version",
         }
     }
+    if operation_version == 2:
+        semantic["operation_version"] = 2
+        if (
+            not isinstance(grant.get("maximum_audio_bytes"), int)
+            or isinstance(grant.get("maximum_audio_bytes"), bool)
+            or grant["maximum_audio_bytes"] <= 0
+            or grant["audio_bytes"] > grant["maximum_audio_bytes"]
+            or grant["audio_duration_ms"] > grant["maximum_audio_seconds"] * 1_000
+        ):
+            raise TranscriptionContractRefused()
     if grant.get("grant_semantic_digest") != _sha256_canonical(semantic):
         raise TranscriptionContractRefused()
     return grant
@@ -646,7 +714,7 @@ def build_transcript_artifact_receipt_claims(effect, artifact, attempt=None):
         "expires_at": now + MAX_ASSERTION_SECONDS,
         "jti": f"transcript_artifact_{uuid4().hex}",
     }
-    if effect.get("operation_version") == 3:
+    if effect.get("operation_version") in {3, 4}:
         if attempt is None:
             raise TranscriptionContractRefused()
         claims.update(
