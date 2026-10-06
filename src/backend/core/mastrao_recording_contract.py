@@ -82,6 +82,7 @@ START_EFFECT_FIELDS = {
     *EFFECT_BINDING_FIELDS,
     *POLICY_FIELDS,
     "resolve_only",
+    "claim_id",
     "issued_at",
     "expires_at",
     "jti",
@@ -297,7 +298,7 @@ def verify_recording_start_effect(compact_jws):
         or not isinstance(effect.get("resolve_only"), bool)
     ):
         raise RecordingContractRefused()
-    for name in ("policy_ref", "notice_version"):
+    for name in ("policy_ref", "notice_version", "claim_id"):
         _validate_ref(effect, name)
     if not DIGEST.fullmatch(effect.get("notice_digest", "")):
         raise RecordingContractRefused()
@@ -398,7 +399,58 @@ def sign_decision_assertion(payload):
 
 def sign_activation_assertion(payload):
     """Sign one host activation assertion."""
-    return _sign(payload, ACTIVATION_JOSE_TYPE)
+    _validate_time(payload)
+    _validate_activation_roster(payload)
+    compact = _sign(payload, ACTIVATION_JOSE_TYPE)
+    if len(compact) > 16_384:
+        raise RecordingContractRefused(status=503)
+    return compact
+
+
+def _validate_activation_roster(payload):
+    observed_at = payload.get("observed_at")
+    participants = payload.get("participants")
+    if (
+        not isinstance(observed_at, int)
+        or isinstance(observed_at, bool)
+        or observed_at <= 0
+        or not 0 <= payload["issued_at"] - observed_at <= 10
+        or not 0 <= int(time.time()) - observed_at <= 10
+        or not isinstance(participants, list)
+        or not 1 <= len(participants) <= 100
+    ):
+        raise RecordingContractRefused()
+    references = set()
+    for participant in participants:
+        if (
+            not isinstance(participant, dict)
+            or set(participant)
+            != {
+                "participant_kind",
+                "participant_ref",
+                "grant_ref",
+                "participant_session_digest",
+                "participant_grant_digest",
+            }
+            or not isinstance(participant["participant_kind"], str)
+            or participant["participant_kind"] not in {"host", "guest"}
+        ):
+            raise RecordingContractRefused()
+        for name in ("participant_ref", "grant_ref"):
+            _validate_ref(participant, name)
+        for name in ("participant_session_digest", "participant_grant_digest"):
+            if not isinstance(participant[name], str) or not DIGEST.fullmatch(
+                participant[name]
+            ):
+                raise RecordingContractRefused()
+        reference = (
+            participant["participant_kind"],
+            participant["participant_ref"],
+            participant["participant_session_digest"],
+        )
+        if reference in references:
+            raise RecordingContractRefused()
+        references.add(reference)
 
 
 def sign_stop_request_assertion(payload):

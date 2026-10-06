@@ -22,8 +22,8 @@ import {
   isMastraoRoomId,
   shouldWaitForCanonicalRoom,
 } from '../utils/isRoomValid'
-import { RecordingConsent } from './RecordingConsent'
 import { NativeRecordingConsent } from './NativeRecordingConsent'
+import { ManagedTranscriptionNotice } from './ManagedTranscriptionNotice'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 
@@ -209,54 +209,12 @@ export const Lobby = ({
   }
 
   const recording = roomData?.recording
-  if (
-    recording?.mode === 'recorded' &&
-    recording.recording_state === 'stopping'
-  ) {
-    return (
-      <VStack alignItems="center" textAlign="center">
-        <H lvl={1} margin={false} centered>
-          {t('recordingStopping.title')}
-        </H>
-        <Text as="p" variant="note">
-          {t('recordingStopping.body')}
-        </Text>
-        <Spinner />
-      </VStack>
-    )
-  }
-
-  if (
-    recording?.mode === 'recorded' &&
-    (recording.decision === 'absent' ||
-      (recording.transcription_mode === 'transcribed' &&
-        recording.transcription_decision === 'absent')) &&
-    ['collecting', 'authorized', 'starting', 'active'].includes(
-      recording.recording_state ?? ''
-    ) &&
-    recording.retention_expires_at
-  ) {
-    return (
-      <RecordingConsent
-        roomId={roomId}
-        retentionExpiresAt={recording.retention_expires_at}
-        participantKind={recording.participant_kind}
-        transcriptionOffered={recording.transcription_mode === 'transcribed'}
-        recordingDecision={recording.decision}
-        transcriptionDecision={recording.transcription_decision}
-        transcriptionProfileRef={recording.transcription_profile_ref}
-        onDecided={async () => {
-          await refetchRoom()
-        }}
-      />
-    )
-  }
-
   if (roomData?.native_capture && !roomData.native_capture.decision) {
     return (
       <NativeRecordingConsent
         roomId={roomId}
         projection={roomData.native_capture}
+        transcriptionProfileRef={recording?.transcription_profile_ref}
         onDecided={async () => {
           const result = await refetchRoom()
           if (result.isError) throw result.error
@@ -376,6 +334,9 @@ export const Lobby = ({
                 maxLength={50}
               />
             )}
+            <ManagedTranscriptionNotice
+              profileRef={recording?.transcription_profile_ref}
+            />
           </VStack>
         </Form>
       )

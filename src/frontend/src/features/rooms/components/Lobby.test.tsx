@@ -10,6 +10,7 @@ import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApiRoom } from '../api/ApiRoom'
 import { ApiLobbyStatus } from '../api/requestEntry'
 import { ApiError } from '@/api/ApiError'
 import { Lobby } from './Lobby'
@@ -23,6 +24,8 @@ let lobbyStatus = ApiLobbyStatus.IDLE
 let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
   'active'
 let lifecycleCloseRequestId: string | undefined
+let roomRecording: ApiRoom['recording']
+let nativeCapture: ApiRoom['native_capture']
 let roomQueryError: unknown
 
 vi.mock('react-i18next', () => ({
@@ -33,7 +36,8 @@ vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({
     data: {
       livekit: { token: 'token', url: 'wss://livekit.test' },
-      recording: { mode: 'unrecorded' },
+      recording: roomRecording,
+      native_capture: nativeCapture,
     },
     error: roomQueryError,
     isError: roomQueryError !== undefined,
@@ -107,8 +111,8 @@ vi.mock('@/primitives', () => ({
   ),
   Text: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }))
-vi.mock('./RecordingConsent', () => ({
-  RecordingConsent: () => <div>recording consent</div>,
+vi.mock('./NativeRecordingConsent', () => ({
+  NativeRecordingConsent: () => <div>native audio consent</div>,
 }))
 
 const InitialPhase = () => {
@@ -158,6 +162,8 @@ describe('Lobby lifecycle reconciliation', () => {
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
     roomQueryError = undefined
+    roomRecording = undefined
+    nativeCapture = undefined
     refetchRoom.mockResolvedValue({
       data: {
         livekit: { token: 'token', url: 'wss://livekit.test' },
@@ -167,6 +173,70 @@ describe('Lobby lifecycle reconciliation', () => {
   })
 
   afterEach(cleanup)
+
+  it('shows the sealed normal provider before Join without native capture or automatic consent', () => {
+    roomRecording = {
+      mode: 'recorded',
+      recording_state: 'collecting',
+      decision: 'absent',
+      transcription_mode: 'transcribed',
+      transcription_profile_ref: 'mistral-eu-standard-managed-demo-v1',
+    }
+    const enterRoom = vi.fn()
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={enterRoom}
+      />
+    )
+    expect(screen.getByText('managedProviderNotice')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
+    expect(enterRoom).not.toHaveBeenCalled()
+    expect(refetchRoom).not.toHaveBeenCalled()
+  })
+
+  it('does not claim a normal provider before Join without a sealed profile', () => {
+    roomRecording = { mode: 'recorded', recording_state: 'collecting' }
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={vi.fn()}
+      />
+    )
+    expect(screen.queryByText('managedProviderNotice')).toBeNull()
+    expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
+  })
+
+  it.each(['collecting', 'stopping', 'processing'] as const)(
+    'keeps joining available while video is %s and undecided',
+    (recording_state) => {
+      roomRecording = { mode: 'recorded', decision: 'absent', recording_state }
+      render(
+        <Lobby
+          roomId="room_0123456789abcdef0123456789abcdef"
+          enterRoom={vi.fn()}
+        />
+      )
+      expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
+    }
+  )
+
+  it('retains the independent native audio notice before joining', () => {
+    roomRecording = {
+      mode: 'recorded',
+      decision: 'refused',
+      recording_state: 'collecting',
+    }
+    nativeCapture = { decision: null } as ApiRoom['native_capture']
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={vi.fn()}
+      />
+    )
+    expect(screen.getByText('native audio consent')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'joinLabel' })).toBeNull()
+  })
 
   it('keeps a restored close intent out of the join flow', () => {
     lifecyclePhase = 'uncertain'

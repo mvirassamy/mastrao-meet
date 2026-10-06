@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-10-06: Keep video choices available while recording start is queued,
+  until Core locks the choices, with host Stop and no second Start.
+
+- 2026-10-05: Start video with the host recording button and keep video
+  choices separate from the native microphone transcription notice.
+
 - 2026-10-06: Display the sealed normal Mistral standard-retention profile
   before initial or delayed participant transcription consent.
 

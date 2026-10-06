@@ -35,7 +35,10 @@ const projection: NativeNoticeProjection = {
     retention_expires_at: 2_000_000_000,
   },
 }
-const setup = (onDecided = vi.fn(async () => undefined)) => {
+const setup = (
+  onDecided = vi.fn(async () => undefined),
+  transcriptionProfileRef?: 'mistral-eu-standard-managed-demo-v1'
+) => {
   const query = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   })
@@ -44,6 +47,7 @@ const setup = (onDecided = vi.fn(async () => undefined)) => {
       <NativeRecordingConsent
         roomId="room_fixture"
         projection={projection}
+        transcriptionProfileRef={transcriptionProfileRef}
         onDecided={onDecided}
       />
     </QueryClientProvider>
@@ -56,9 +60,28 @@ afterEach(() => {
 })
 
 describe('Native preentry decision', () => {
-  it.each(['accepted', 'refused'] as const)(
-    'sends only explicit %s plus exact notice with the CSRF/session transport',
-    async (choice) => {
+  it('discloses the sealed normal provider before either audio choice without changing the notice', () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    setup(undefined, 'mistral-eu-standard-managed-demo-v1')
+    expect(screen.getByText('managedProviderNotice')).toBeTruthy()
+    expect(screen.getByText(projection.text)).toBeTruthy()
+    expect(fetch).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('button')).toHaveLength(2)
+  })
+
+  it('does not claim a normal provider without a sealed profile', () => {
+    setup()
+    expect(screen.queryByText('managedProviderNotice')).toBeNull()
+  })
+  it.each([
+    ['accepted', undefined],
+    ['refused', undefined],
+    ['accepted', 'mistral-eu-standard-managed-demo-v1'],
+    ['refused', 'mistral-eu-standard-managed-demo-v1'],
+  ] as const)(
+    'sends only explicit %s plus exact notice with profile %s and the CSRF/session transport',
+    async (choice, profile) => {
       const fetch = vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
@@ -75,7 +98,7 @@ describe('Native preentry decision', () => {
       )
       vi.stubGlobal('fetch', fetch)
       document.cookie = 'csrftoken=synthetic-csrf-only'
-      const done = setup()
+      const done = setup(undefined, profile)
       expect(screen.getByText(projection.text)).toBeTruthy()
       expect(fetch).not.toHaveBeenCalled()
       fireEvent.click(

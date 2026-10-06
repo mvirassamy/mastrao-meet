@@ -25,7 +25,7 @@ let liveKitAudio: unknown
 let liveKitVideo: unknown
 let createdRoomOptions: unknown
 const roomInstances: unknown[] = []
-let localTrackPublished: (() => void) | undefined
+let localTrackPublished: () => void
 const refetchRoom = vi.fn().mockResolvedValue(undefined)
 
 let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
@@ -92,6 +92,10 @@ vi.mock('livekit-client', () => ({
     constructor(options?: unknown) {
       createdRoomOptions = options
       roomInstances.push(this)
+      localTrackPublished = () => {
+        this.localParticipant.trackPublications.set('audio', {})
+        this.trackPublishedHandlers.forEach((handler) => handler())
+      }
     }
     numParticipants = 0
     localParticipant = {
@@ -99,15 +103,14 @@ vi.mock('livekit-client', () => ({
       trackPublications: new Map(),
     }
     prepareConnection = vi.fn()
+    trackPublishedHandlers = new Set<() => void>()
     on = vi.fn((event: string, handler: () => void) => {
-      if (event === 'localTrackPublished') {
-        localTrackPublished = () => {
-          this.localParticipant.trackPublications.set('audio', {})
-          handler()
-        }
-      }
+      if (event === 'localTrackPublished')
+        this.trackPublishedHandlers.add(handler)
     })
-    off = vi.fn()
+    off = vi.fn((_event: string, handler: () => void) => {
+      this.trackPublishedHandlers.delete(handler)
+    })
   },
   VideoPresets: { h360: { resolution: { width: 640, height: 360 } } },
 }))
@@ -256,7 +259,6 @@ describe('Conference room lookup', () => {
     userChoicesStore.videoDeviceId = 'camera-initial'
     userChoicesStore.audioOutputDeviceId = 'speaker-initial'
     userChoicesStore.videoPublishResolution = undefined
-    localTrackPublished = undefined
     lifecyclePhase = 'active'
     lifecycleCloseRequestId = undefined
     vi.mocked(activateRecording).mockResolvedValue(
@@ -265,7 +267,7 @@ describe('Conference room lookup', () => {
   })
 
   it.each([false, true, undefined])(
-    'respects video activation availability %s after connection',
+    'never activates video on entry or track publication (availability %s)',
     async (available) => {
       const room: ApiRoom = {
         id: 'room_0123456789abcdef0123456789abcdef',
@@ -278,7 +280,15 @@ describe('Conference room lookup', () => {
           mode: 'recorded',
           recording_state: 'collecting',
           decision: 'accepted',
-          activation_available: available,
+          video: {
+            consultation_source: 'present',
+            decision: 'accepted',
+            decision_basis: 'explicit',
+            start_status: 'authorized',
+            decision_lock: 'open',
+            started_at: null,
+            start_available: available ?? false,
+          },
         },
       }
       fetchRoom.mockResolvedValue(room)
@@ -288,11 +298,9 @@ describe('Conference room lookup', () => {
       })
       expect(activateRecording).not.toHaveBeenCalled()
       await act(async () => {
-        localTrackPublished?.()
+        localTrackPublished()
       })
-      expect(activateRecording).toHaveBeenCalledTimes(
-        available === false ? 0 : 1
-      )
+      expect(activateRecording).not.toHaveBeenCalled()
     }
   )
 
@@ -316,14 +324,13 @@ describe('Conference room lookup', () => {
           mode: 'recorded',
           recording_state: state,
           decision: 'accepted',
-          activation_available: true,
         },
       }
       fetchRoom.mockResolvedValue(room)
       render(<Conference roomId={room.id} initialRoomData={room} />)
       await act(async () => {
         await liveKitOnConnected?.()
-        localTrackPublished?.()
+        localTrackPublished()
       })
       expect(activateRecording).not.toHaveBeenCalled()
       expect(liveKitAudio).toBe(true)

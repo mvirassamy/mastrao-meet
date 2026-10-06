@@ -118,36 +118,21 @@
     "error": "Host access could not be confirmed. Try again."
   },
   "recordingConsent": {
-    "title": "This meeting will be recorded",
-    "notice": "Audio, video and shared screens will be recorded for this meeting. You can refuse and still join without being recorded.",
-    "purpose": "Purpose: create a video recording of this meeting and retain it in the relevant case file.",
-    "recipients": "Access: only people who have permission to this case file at the time of access will be able to view the recording.",
-    "retention": "The recording is scheduled for deletion by {{date}}.",
-    "rights": "Rights: to request access, deletion, or exercise another right, contact the organizer through the usual case-file channel.",
-    "guestIdentity": "The displayed name is provided by you; your identity has not been verified.",
-    "accept": "Accept and continue",
-    "refuse": "Refuse recording",
-    "error": "Your choice could not be saved. Please try again.",
     "starting": "Recording is starting",
     "active": "Recording in progress",
     "badge": "Recording",
     "stopping": "Stopping recording…",
-    "withdraw": "Withdraw consent",
     "stop": "Stop recording",
     "stopShort": "Stop",
-    "activationError": "Recording could not start. Retrying…",
-    "activationExhausted": "Recording could not start.",
-    "activationRetry": "Retry",
     "withdrawError": "Recording could not be stopped. Try again.",
-    "transcription": {
-      "title": "Written transcript",
-      "pendingNotice": "Recording has already been accepted. Choose separately whether you agree to a written transcript.",
-      "accept": "Accept transcription",
-      "refuse": "Continue without transcription",
-      "checkbox": "I also agree to a written transcript of this meeting",
-      "notice": "Transcription: the recorded audio will be transcribed to text, stored in the matter with the same access and retention as the recording. Without your explicit agreement, no transcript is produced.",
-      "managedProviderNotice": "Audio will be processed by Mistral · Voxtral Mini Transcribe 2 in the European Union, with the provider’s standard retention for this demo. This processing does not have zero data retention (ZDR). The resulting text must be reviewed."
-    }
+    "videoQuestion": "Do you allow video recording?",
+    "videoYes": "Yes",
+    "videoNo": "No",
+    "noOpposition": "No objection received after the email invitation.",
+    "startVideo": "Record",
+    "videoRefused": "An objection blocks video recording.",
+    "videoPending": "The required permissions are not yet complete.",
+    "videoActionError": "The action could not be confirmed. Try again."
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",
   "shareDialog": {
@@ -910,5 +895,8 @@
   },
   "participantTile": {
     "screenShare": "{{name}}'s screen"
+  },
+  "nativeConsent": {
+    "managedProviderNotice": "Audio will be processed by Mistral · Voxtral Mini Transcribe 2 in the European Union, with the provider’s standard retention for this demo. This processing does not have zero data retention (ZDR). The resulting text must be reviewed."
   }
 }

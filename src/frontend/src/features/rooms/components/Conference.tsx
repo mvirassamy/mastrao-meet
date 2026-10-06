@@ -6,7 +6,6 @@ import {
   DisconnectReason,
   MediaDeviceFailure,
   Room,
-  RoomEvent,
   type RoomOptions,
   VideoPresets,
 } from 'livekit-client'
@@ -36,8 +35,6 @@ import { userPreferencesStore } from '@/stores/userPreferences'
 import { userStore } from '@/stores/user'
 import { WatchMediaDeviceErrors } from './WatchMediaDeviceErrors'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
-import { activateRecording } from '../api/recordingConsent'
-import { Button } from '@/primitives'
 import {
   cachePlatformReturn,
   readCachedPlatformReturn,
@@ -72,11 +69,6 @@ export const Conference = ({
   const fetchKey = [keys.room, roomId]
 
   const [isConnectionWarmedUp, setIsConnectionWarmedUp] = useState(false)
-  const [isLiveKitConnected, setIsLiveKitConnected] = useState(false)
-  const [hasPublishedMedia, setHasPublishedMedia] = useState(false)
-  const [activationFailed, setActivationFailed] = useState(false)
-  const [activationExhausted, setActivationExhausted] = useState(false)
-  const [activationRetry, setActivationRetry] = useState(0)
 
   const userPreferencesSnap = useSnapshot(userPreferencesStore)
 
@@ -126,19 +118,19 @@ export const Conference = ({
       if (isEnding) return false
       const state = (query.state.data as ApiRoom | undefined)?.recording
         ?.recording_state
-      return state &&
-        [
+      if (state === 'active') return 2000
+      if (
+        !state ||
+        ![
           'collecting',
           'authorized',
           'starting',
-          'active',
           'stopping',
           'processing',
         ].includes(state)
-        ? state === 'active'
-          ? 2000
-          : 1000
-        : false
+      )
+        return false
+      return 1000
     },
     refetchIntervalInBackground: true,
   })
@@ -261,88 +253,6 @@ export const Conference = ({
   const isMobile = useIsMobile()
 
   const hasAutoMutedRef = useRef(false)
-  const activationRequestId = useRef(
-    `activation_${crypto.randomUUID().replaceAll('-', '')}`
-  )
-  const activationSent = useRef(false)
-  const activationAttempts = useRef(0)
-
-  useEffect(() => {
-    const refreshPublishedMedia = () => {
-      setHasPublishedMedia(room.localParticipant.trackPublications.size > 0)
-    }
-    refreshPublishedMedia()
-    room.on(RoomEvent.LocalTrackPublished, refreshPublishedMedia)
-    room.on(RoomEvent.LocalTrackUnpublished, refreshPublishedMedia)
-    return () => {
-      room.off(RoomEvent.LocalTrackPublished, refreshPublishedMedia)
-      room.off(RoomEvent.LocalTrackUnpublished, refreshPublishedMedia)
-    }
-  }, [room])
-
-  useEffect(() => {
-    if (isEnding) return
-    const recording = data?.recording
-    const shouldActivate =
-      isLiveKitConnected &&
-      hasPublishedMedia &&
-      data?.can_end &&
-      recording?.mode === 'recorded' &&
-      recording.activation_available !== false &&
-      recording.decision === 'accepted' &&
-      ['collecting', 'authorized'].includes(recording.recording_state ?? '')
-
-    if (!shouldActivate) {
-      if (recording?.recording_state !== 'collecting') {
-        activationAttempts.current = 0
-        setActivationFailed(false)
-        setActivationExhausted(false)
-      }
-      return
-    }
-    if (activationSent.current || activationAttempts.current >= 3) return
-
-    activationSent.current = true
-    activationAttempts.current += 1
-    let retryTimer: ReturnType<typeof setTimeout> | undefined
-    void activateRecording(roomId, activationRequestId.current)
-      .then(async () => {
-        await refetchRoom()
-        activationAttempts.current = 0
-        setActivationFailed(false)
-        setActivationExhausted(false)
-      })
-      .catch((error) => {
-        setActivationFailed(true)
-        reportError('livekit_room_error', error, {
-          path: 'recording_activation_after_livekit_connected',
-        })
-        if (activationAttempts.current < 3) {
-          retryTimer = setTimeout(
-            () => setActivationRetry((value) => value + 1),
-            1000 * 2 ** (activationAttempts.current - 1)
-          )
-        } else {
-          setActivationExhausted(true)
-        }
-      })
-      .finally(() => {
-        activationSent.current = false
-      })
-
-    return () => {
-      if (retryTimer) clearTimeout(retryTimer)
-    }
-  }, [
-    activationRetry,
-    data?.can_end,
-    data?.recording,
-    isEnding,
-    hasPublishedMedia,
-    isLiveKitConnected,
-    refetchRoom,
-    roomId,
-  ])
 
   /*
    * Ensure stable WebSocket connection URL. This is critical for legacy browser compatibility
@@ -403,7 +313,6 @@ export const Conference = ({
             })
           }}
           onConnected={async () => {
-            setIsLiveKitConnected(true)
             if (!apiConfig) return
             if (
               userPreferencesSnap.is_auto_mute_large_room_enabled &&
@@ -417,7 +326,6 @@ export const Conference = ({
             }
           }}
           onDisconnected={(e) => {
-            setIsLiveKitConnected(false)
             const metadata = {
               room_id: roomId,
               pc_publisher: connectionObserverStore.publisher && {
@@ -502,41 +410,6 @@ export const Conference = ({
           }}
         >
           <WatchMediaDeviceErrors />
-          {activationFailed && (
-            <div
-              role="alert"
-              className={css({
-                position: 'absolute',
-                top: '1rem',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1002,
-                padding: '0.75rem 1rem',
-                borderRadius: 'surface',
-                backgroundColor: 'recording',
-                color: 'recording-foreground',
-              })}
-            >
-              {t(
-                activationExhausted
-                  ? 'recordingConsent.activationExhausted'
-                  : 'recordingConsent.activationError'
-              )}
-              {activationExhausted && (
-                <Button
-                  variant="outline"
-                  onPress={() => {
-                    activationAttempts.current = 0
-                    setActivationFailed(false)
-                    setActivationExhausted(false)
-                    setActivationRetry((value) => value + 1)
-                  }}
-                >
-                  {t('recordingConsent.activationRetry')}
-                </Button>
-              )}
-            </div>
-          )}
           <VideoConference
             roomId={roomId}
             canEnd={data?.can_end}

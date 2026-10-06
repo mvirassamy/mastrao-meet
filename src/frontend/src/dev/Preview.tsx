@@ -34,7 +34,7 @@ import GuestInvitation from '@/features/rooms/routes/GuestInvitation'
 import Feedback from '@/features/rooms/routes/Feedback'
 import { Join } from '@/features/rooms/components/Join'
 import { Permissions } from '@/features/rooms/components/Permissions'
-import { RecordingConsent } from '@/features/rooms/components/RecordingConsent'
+import { NativeRecordingConsent } from '@/features/rooms/components/NativeRecordingConsent'
 import { MeetingLifecycleProvider } from '@/features/rooms/contexts/MeetingLifecycleProvider'
 import { VideoConference } from '@/features/rooms/livekit/prefabs/VideoConference'
 import { userChoicesStore } from '@/stores/userChoices'
@@ -182,13 +182,22 @@ const PreviewScreen = () => {
     return (
       <Screen layout="centered" footer={false}>
         <section>
-          <RecordingConsent
+          <NativeRecordingConsent
             roomId={previewRoomId}
-            retentionExpiresAt={1790000000}
-            participantKind="guest"
-            transcriptionOffered
-            recordingDecision="absent"
-            transcriptionDecision="absent"
+            projection={{
+              version: 1,
+              text: 'Votre microphone sera enregistré sur une piste audio séparée pour produire la transcription de cette réunion. La transcription audio peut être traitée sans attendre la vidéo.',
+              notice: {
+                policy_ref: 'policy_preview_native',
+                notice_version: 'notice_preview_native',
+                notice_digest: 'a'.repeat(64),
+                purpose: 'meeting_transcription_source_audio',
+                scope: 'consented_microphone_track_epoch',
+                retention_expires_at: 2000000000,
+              },
+              decision: null,
+              capture_authorized: false,
+            }}
             onDecided={async () => undefined}
           />
         </section>

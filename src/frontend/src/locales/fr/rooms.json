@@ -118,36 +118,21 @@
     "error": "L’accès hôte n’a pas pu être confirmé. Réessayez."
   },
   "recordingConsent": {
-    "title": "Cette réunion sera enregistrée",
-    "notice": "L’audio, la vidéo et les écrans partagés seront enregistrés. Vous pouvez refuser et rejoindre sans être enregistré.",
-    "purpose": "Finalité : créer un enregistrement vidéo de cette réunion et le conserver dans le dossier concerné.",
-    "recipients": "Accès : seules les personnes disposant, au moment de la consultation, des droits sur ce dossier pourront voir l’enregistrement.",
-    "retention": "La suppression de l’enregistrement est prévue au plus tard le {{date}}.",
-    "rights": "Droits : pour demander l’accès, la suppression ou exercer un autre droit, contactez l’organisateur par le canal habituel du dossier.",
-    "guestIdentity": "Le nom que vous affichez est déclaré par vous ; votre identité n’est pas vérifiée.",
-    "accept": "Accepter et continuer",
-    "refuse": "Refuser l’enregistrement",
-    "error": "Votre choix n’a pas pu être enregistré. Réessayez.",
     "starting": "Démarrage de l’enregistrement",
     "active": "Enregistrement en cours",
     "badge": "Enregistrement",
     "stopping": "Arrêt de l’enregistrement…",
-    "withdraw": "Retirer mon accord",
     "stop": "Arrêter l’enregistrement",
     "stopShort": "Arrêter",
-    "activationError": "L’enregistrement n’a pas pu démarrer. Nouvelle tentative…",
-    "activationExhausted": "L’enregistrement n’a pas pu démarrer.",
-    "activationRetry": "Réessayer",
     "withdrawError": "L’enregistrement n’a pas pu être arrêté. Réessayez.",
-    "transcription": {
-      "title": "Transcription écrite",
-      "pendingNotice": "L’enregistrement est déjà accepté. Choisissez séparément si vous acceptez sa transcription écrite.",
-      "accept": "Accepter la transcription",
-      "refuse": "Continuer sans transcription",
-      "checkbox": "J’accepte aussi la transcription écrite de cette réunion",
-      "notice": "Transcription : l’audio enregistré sera transcrit en texte, conservé dans le dossier avec les mêmes accès et la même durée que l’enregistrement. Sans votre accord explicite, aucune transcription n’est produite.",
-      "managedProviderNotice": "L’audio sera traité par Mistral · Voxtral Mini Transcribe 2 dans l’Union européenne, avec la rétention standard du fournisseur pour cette démo. Ce traitement ne bénéficie pas d’une conservation nulle (ZDR). Le texte produit devra être relu."
-    }
+    "videoQuestion": "Autorisez-vous l’enregistrement vidéo ?",
+    "videoYes": "Oui",
+    "videoNo": "Non",
+    "noOpposition": "Aucune opposition reçue après l’invitation par email.",
+    "startVideo": "Enregistrer",
+    "videoRefused": "Un refus bloque l’enregistrement vidéo.",
+    "videoPending": "Les accords requis ne sont pas encore réunis.",
+    "videoActionError": "L’action n’a pas pu être confirmée. Réessayez."
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",
   "shareDialog": {
@@ -910,5 +895,8 @@
   },
   "participantTile": {
     "screenShare": "Écran de {{name}}"
+  },
+  "nativeConsent": {
+    "managedProviderNotice": "L’audio sera traité par Mistral · Voxtral Mini Transcribe 2 dans l’Union européenne, avec la rétention standard du fournisseur pour cette démo. Ce traitement ne bénéficie pas d’une conservation nulle (ZDR). Le texte produit devra être relu."
   }
 }

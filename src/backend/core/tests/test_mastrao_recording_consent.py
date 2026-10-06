@@ -27,6 +27,7 @@ from rest_framework.test import APIClient
 
 from core import models, utils
 from core.factories import RoomFactory, UserFactory
+from core.mastrao_native_notice import native_media_allowed, native_notice_projection
 from core.mastrao_recording_access import RETRY_COOKIE, SESSION_KEY
 from core.mastrao_recording_adapter import (
     _apply_start,
@@ -52,7 +53,6 @@ from core.mastrao_recording_session import (
     _validate_core_status,
     _validate_status,
     activate_recording,
-    media_allowed,
     public_projection,
     recording_session_status,
 )
@@ -70,24 +70,99 @@ def recording_rollout_settings(settings):
     settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
 
 
+def _video():
+    return {
+        "consultation_source": "present",
+        "decision": "absent",
+        "decision_basis": "pending",
+        "start_status": "pending",
+        "decision_lock": "open",
+        "started_at": None,
+        "start_available": True,
+    }
+
+
 def _recorded(state, decision="absent"):
     return {
         "mode": "recorded",
         "recording_state": state,
+        "video": _video(),
+        "transcription_mode": "disabled",
         "decision": decision,
     }
 
 
-def test_recording_media_gate_matches_capture_semantics():
-    assert media_allowed(None)
-    assert media_allowed({"mode": "disabled"})
-    assert not media_allowed({"mode": "unset"})
-    for state in ("collecting", "authorized", "starting", "active"):
-        assert not media_allowed(_recorded(state))
-        assert media_allowed(_recorded(state, "accepted"))
-    assert not media_allowed(_recorded("stopping", "accepted"))
-    for state in ("cancelled", "failed", "processing", "available"):
-        assert media_allowed(_recorded(state))
+@pytest.mark.parametrize(
+    "projection,allowed",
+    [
+        (None, True),
+        ({"decision": None}, False),
+        ({"decision": {"decision": "accepted"}}, True),
+        ({"decision": {"decision": "refused"}}, True),
+    ],
+)
+def test_native_media_requires_an_explicit_audio_choice(projection, allowed):
+    assert native_media_allowed(projection) is allowed
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "collecting",
+        "authorized",
+        "starting",
+        "active",
+        "stopping",
+        "processing",
+        "available",
+        "cancelled",
+        "failed",
+    ],
+)
+@pytest.mark.parametrize("video_decision", ["absent", "refused"])
+def test_audio_notice_survives_video_refusal_and_stop(settings, state, video_decision):
+    settings.MASTRAO_NATIVE_PREENTRY_ENABLED = True
+    request, room = mock.Mock(), mock.Mock()
+    notice = {
+        "text": "Votre microphone sera enregistré sur une piste audio séparée.",
+        "notice": {
+            "purpose": "meeting_transcription_source_audio",
+            "scope": "consented_microphone_track_epoch",
+        },
+        "decision": None,
+        "capture_authorized": False,
+    }
+    status = {
+        **_recorded(state, video_decision),
+        "transcription_mode": "transcribed",
+    }
+    with mock.patch(
+        "core.mastrao_native_notice.native_notice", return_value=notice
+    ) as read_notice:
+        result = native_notice_projection(request, room, status)
+
+    assert result == notice
+    assert not native_media_allowed(result)
+    read_notice.assert_called_once_with(request, room)
+
+
+@pytest.mark.parametrize(
+    "enabled,status",
+    [
+        (False, {"mode": "recorded", "transcription_mode": "transcribed"}),
+        (True, None),
+        (True, {"mode": "disabled", "transcription_mode": "transcribed"}),
+        (True, {"mode": "unset", "transcription_mode": "transcribed"}),
+        (True, {"mode": "recorded", "transcription_mode": "disabled"}),
+    ],
+)
+def test_audio_notice_still_requires_explicit_native_configuration(
+    settings, enabled, status
+):
+    settings.MASTRAO_NATIVE_PREENTRY_ENABLED = enabled
+    with mock.patch("core.mastrao_native_notice.native_notice") as read_notice:
+        assert native_notice_projection(mock.Mock(), mock.Mock(), status) is None
+    read_notice.assert_not_called()
 
 
 def test_livekit_egress_reference_is_a_valid_provider_receipt_reference():
@@ -127,10 +202,10 @@ def test_feature_off_does_not_call_core_or_change_native_projection(settings):
 
 
 @pytest.mark.parametrize("native_preentry,existing", [(False, True), (True, False)])
-def test_feature_off_keeps_existing_recording_policy_fail_closed(
+def test_feature_off_keeps_existing_recording_policy_projection(
     settings, native_preentry, existing
 ):
-    """Refuse existing recording policy access when the rollout is disabled."""
+    """Keep reading the exact Core policy without changing its video decision."""
 
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     settings.MASTRAO_NATIVE_PREENTRY_ENABLED = native_preentry
@@ -164,6 +239,7 @@ def test_feature_off_keeps_existing_recording_policy_fail_closed(
         "recording_state": "active",
         "decision": "absent",
         "transcription_mode": "disabled",
+        "video": _video(),
     }
     with (
         mock.patch(
@@ -182,7 +258,7 @@ def test_feature_off_keeps_existing_recording_policy_fail_closed(
 
     post_core_json.assert_called_once()
     assert projection["mode"] == "recorded"
-    assert not media_allowed(projection)
+    assert projection["decision"] == "absent"
 
 
 def test_recorded_projection_refuses_notice_manifest_drift(settings):
@@ -216,6 +292,7 @@ def test_recorded_projection_refuses_notice_manifest_drift(settings):
         "recording_state": "collecting",
         "decision": "absent",
         "transcription_mode": "disabled",
+        "video": _video(),
     }
     with (
         mock.patch(
@@ -382,12 +459,13 @@ def test_recorded_public_projection_exposes_only_safe_participant_kind(
     )
 
     assert projection["participant_kind"] == "guest"
-    assert projection["activation_available"] is video_enabled
+    assert projection["video"]["start_available"] is video_enabled
     assert "participant_ref" not in projection
     assert "participant_session_digest" not in projection
 
 
-def test_recorded_absent_never_mints_livekit_token(db):
+def test_video_undecided_allows_media_without_native_notice(db):
+    """A pending video choice does not gate an independently allowed audio session."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     status = _recorded("collecting")
     status.update(
@@ -404,15 +482,18 @@ def test_recorded_absent_never_mints_livekit_token(db):
     client = APIClient()
     with (
         mock.patch("core.api.viewsets.recording_session_status", return_value=status),
-        mock.patch.object(utils, "generate_livekit_config") as generate,
+        mock.patch.object(
+            utils, "generate_livekit_config", return_value={"token": "native-allowed"}
+        ) as generate,
+        mock.patch("core.services.lobby.ensure_livekit_room"),
     ):
         response = client.post(
             f"/api/v1.0/rooms/{room.id}/request-entry/", {"username": "guest"}
         )
     assert response.status_code == 200
-    assert response.json()["livekit"] is None
+    assert response.json()["livekit"] == {"token": "native-allowed"}
     assert response.json()["recording"]["decision"] == "absent"
-    generate.assert_not_called()
+    generate.assert_called_once()
 
 
 def test_recorded_terminal_state_allows_unrecorded_token(db):
@@ -473,6 +554,7 @@ def test_recording_start_locks_only_the_non_nullable_binding(db, settings):
         "retention_expires_at": int((timezone.now() + timedelta(days=30)).timestamp()),
         "effect_key": "effect_start_0123456789",
         "arguments_digest": "d" * 64,
+        "claim_id": "claim_start_0123456789abcdef",
         "jti": "request_0123456789abcdef",
     }
 
@@ -514,6 +596,7 @@ def test_start_control_off_refuses_a_new_recording_start(db, settings):
         "retention_expires_at": int((timezone.now() + timedelta(days=30)).timestamp()),
         "effect_key": "effect_start_disabled_012345",
         "arguments_digest": "d" * 64,
+        "claim_id": "claim_disabled_0123456789abcdef",
         "jti": "request_start_disabled_01234",
     }
 
@@ -589,6 +672,7 @@ def test_start_retry_discovers_exact_egress_without_starting_again(db, settings)
         "retention_expires_at": int((timezone.now() + timedelta(days=30)).timestamp()),
         "effect_key": "effect_start_retry_012345",
         "arguments_digest": "d" * 64,
+        "claim_id": "claim_retry_0123456789abcdef",
         "resolve_only": False,
         "jti": "request_start_retry_012345",
     }
@@ -623,6 +707,8 @@ def test_resolve_only_start_without_provider_converges_after_grace_period():
     local_effect = SimpleNamespace(
         state=models.MastraoRecordingEffect.State.APPLYING,
         created_at=timezone.now() - timedelta(seconds=31),
+        applied_at=None,
+        receipt_claims={},
     )
     effect = {"resolve_only": True}
     with (
@@ -1549,7 +1635,10 @@ def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
 @pytest.mark.parametrize("profile", [None, "mistral-eu-standard-managed-demo-v1"])
 def test_sealed_transcription_profile_is_projected_without_inventing_legacy_provenance(
     profile,
+    settings,
 ):
+    settings.MASTRAO_MEETING_RECORDING_ENABLED = True
+    settings.MASTRAO_MEETING_RECORDING_START_ENABLED = True
     claims = {
         "organization_external_id": "organization_0123456789",
         "meeting_ref": "meeting_0123456789abcdef",
@@ -1572,6 +1661,7 @@ def test_sealed_transcription_profile_is_projected_without_inventing_legacy_prov
         "transcription_notice_version": "transcription_notice_0123456789",
         "transcription_notice_digest": "b" * 64,
         "transcription_decision": "absent",
+        "video": _video(),
     }
     if profile:
         status["transcription_profile_ref"] = profile
@@ -1580,6 +1670,7 @@ def test_sealed_transcription_profile_is_projected_without_inventing_legacy_prov
     status["participant_kind"] = "host"
     projection = public_projection(status)
     assert projection.get("transcription_profile_ref") == profile
+    assert projection["video"] == status["video"]
     assert projection["transcription_notice_digest"] == "b" * 64
     substituted = {
         **status,

@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, H, Text } from '@/primitives'
 import { HStack, VStack } from '@/styled-system/jsx'
+import { ManagedTranscriptionNotice } from './ManagedTranscriptionNotice'
 import {
   decideNativeNotice,
   type NativeNoticeProjection,
@@ -10,10 +11,12 @@ import {
 export const NativeRecordingConsent = ({
   roomId,
   projection,
+  transcriptionProfileRef,
   onDecided,
 }: {
   roomId: string
   projection: NativeNoticeProjection
+  transcriptionProfileRef?: 'mistral-eu-standard-managed-demo-v1'
   onDecided: () => Promise<void>
 }) => {
   const { t, i18n } = useTranslation('rooms', { keyPrefix: 'nativeConsent' })
@@ -31,6 +34,7 @@ export const NativeRecordingConsent = ({
         {t('title', { defaultValue: 'Audio individuel pour la transcription' })}
       </H>
       <Text as="p">{projection.text}</Text>
+      <ManagedTranscriptionNotice profileRef={transcriptionProfileRef} />
       <Text as="p" variant="note">
         {t('retention', {
           defaultValue: 'Conservation prévue jusqu’au {{date}}.',
@@ -42,7 +46,7 @@ export const NativeRecordingConsent = ({
       <Text as="p" variant="note">
         {t('scope', {
           defaultValue:
-            'Ce choix concerne votre piste audio individuelle. Il ne modifie pas votre choix précédent concernant l’enregistrement vidéo de la réunion.',
+            'Ce choix concerne votre piste audio individuelle. Il est indépendant de votre choix concernant l’enregistrement vidéo de la réunion.',
         })}
       </Text>
       {decision.isError && (

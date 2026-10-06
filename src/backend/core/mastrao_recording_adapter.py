@@ -29,12 +29,14 @@ from core.mastrao_recording_contract import (
     verify_recording_stop_effect,
 )
 from core.mastrao_recording_failure import report_mastrao_recording_failure
+from core.mastrao_video_roster import authorize_video_start
 from core.recording.worker.exceptions import RecordingStartError, RecordingStopError
 from core.recording.worker.factories import get_worker_service
 from core.recording.worker.mediator import WorkerServiceMediator
 
 MAX_BODY_BYTES = 32_768
 PROVIDER_REGISTRATION_GRACE_SECONDS = 30
+VIDEO_START_REFUSED = "video_start_refused"
 
 ACTIVE_EGRESS_STATES = {
     livekit_api.EgressStatus.EGRESS_STARTING,
@@ -141,6 +143,13 @@ def _exact_provider_egress(recording):
     return matches[0] if matches else None
 
 
+def _start_attempted_at(start_effect):
+    attempted_at = start_effect.receipt_claims.get("start_attempted_at")
+    if isinstance(attempted_at, int) and not isinstance(attempted_at, bool):
+        return datetime.fromtimestamp(attempted_at, tz=UTC)
+    return start_effect.applied_at or start_effect.created_at
+
+
 def _provider_registration_started_at(recording_binding):
     start_effect = (
         models.MastraoRecordingEffect.objects.filter(
@@ -152,7 +161,7 @@ def _provider_registration_started_at(recording_binding):
     )
     if start_effect is None:
         return recording_binding.created_at
-    return start_effect.applied_at or start_effect.created_at
+    return _start_attempted_at(start_effect)
 
 
 def _provider_registration_timed_out(recording_binding):
@@ -216,7 +225,36 @@ def _prepare_start(effect):
         .first()
     )
     if existing:
-        return recording_binding, _exact_effect(existing, effect, "start"), False
+        _exact_effect(existing, effect, "start")
+        if (
+            existing.state == models.MastraoRecordingEffect.State.PENDING
+            and existing.provider_observation == VIDEO_START_REFUSED
+            and existing.receipt_claims.get("claim_id") != effect["claim_id"]
+            and not effect["resolve_only"]
+            and recording_binding.recording is not None
+            and recording_binding.recording.status
+            == models.RecordingStatusChoices.INITIATED
+            and settings.MASTRAO_MEETING_RECORDING_ENABLED
+            and settings.MASTRAO_MEETING_RECORDING_START_ENABLED
+        ):
+            existing.state = models.MastraoRecordingEffect.State.APPLYING
+            existing.provider_observation = None
+            existing.receipt_claims = {
+                "claim_id": effect["claim_id"],
+                "start_attempted_at": int(timezone.now().timestamp()),
+            }
+            existing.save(
+                update_fields=[
+                    "state",
+                    "provider_observation",
+                    "receipt_claims",
+                    "updated_at",
+                ]
+            )
+            recording_binding.state = models.MastraoRecordingBinding.State.STARTING
+            recording_binding.save(update_fields=["state", "updated_at"])
+            return recording_binding, existing, True
+        return recording_binding, existing, False
     if not (
         settings.MASTRAO_MEETING_RECORDING_ENABLED
         and settings.MASTRAO_MEETING_RECORDING_START_ENABLED
@@ -229,6 +267,10 @@ def _prepare_start(effect):
         arguments_digest=effect["arguments_digest"],
         effect_jti=effect["jti"],
         state=models.MastraoRecordingEffect.State.APPLYING,
+        receipt_claims={
+            "claim_id": effect["claim_id"],
+            "start_attempted_at": int(timezone.now().timestamp()),
+        },
     )
     recording = models.Recording.objects.create(
         room=room_binding.room,
@@ -251,10 +293,38 @@ def _prepare_start(effect):
     return recording_binding, created, True
 
 
+@transaction.atomic
+def _persist_video_refusal(local_effect, recording_binding, effect, authorization):
+    """Journal a definite no-dispatch decision, retaining the refused claim."""
+    # Lock binding before effect, matching preparation's lock order. A refusal
+    # has no provider registration to time out while waiting for another click.
+    models.MastraoRecordingBinding.objects.filter(pk=recording_binding.pk).update(
+        state=models.MastraoRecordingBinding.State.PREPARED,
+    )
+    locked = models.MastraoRecordingEffect.objects.select_for_update().get(
+        pk=local_effect.pk
+    )
+    if locked.state != models.MastraoRecordingEffect.State.APPLYING:
+        raise RecordingContractRefused(status=409)
+    locked.state = models.MastraoRecordingEffect.State.PENDING
+    locked.provider_observation = VIDEO_START_REFUSED
+    # Only APPLIED rows contain a signed provider receipt. A pending row keeps
+    # Core's refusal so this claim cannot be mistaken for a new manual click.
+    locked.receipt_claims = {
+        "claim_id": effect["claim_id"],
+        "start_authorization": authorization,
+    }
+    locked.save(
+        update_fields=["state", "provider_observation", "receipt_claims", "updated_at"]
+    )
+
+
 def _apply_start(effect):
     recording_binding, local_effect, first_delivery = _prepare_start(effect)
     if local_effect.state == models.MastraoRecordingEffect.State.APPLIED:
         return sign_start_receipt(local_effect.receipt_claims)
+    if local_effect.state == models.MastraoRecordingEffect.State.PENDING:
+        raise RecordingContractRefused(status=409)
 
     recording = models.Recording.objects.select_related("room").get(
         pk=recording_binding.recording_id
@@ -266,7 +336,7 @@ def _apply_start(effect):
         recording.status = models.RecordingStatusChoices.ACTIVE
         recording.save(update_fields=["worker_id", "status", "updated_at"])
     elif effect["resolve_only"]:
-        if timezone.now() - local_effect.created_at >= timedelta(seconds=30):
+        if timezone.now() - _start_attempted_at(local_effect) >= timedelta(seconds=30):
             # A previously accepted start with no matching provider Egress is
             # terminal after the provider registration grace period.
             report_mastrao_recording_failure(recording, None)
@@ -274,10 +344,17 @@ def _apply_start(effect):
     elif not first_delivery:
         raise RecordingContractRefused(status=503)
     elif recording.status == models.RecordingStatusChoices.INITIATED:
+        worker = WorkerServiceMediator(
+            get_worker_service(mode=models.RecordingModeChoices.SCREEN_RECORDING)
+        )
+        authorization = authorize_video_start(effect, recording_binding, recording)
+        if not authorization["authorized"]:
+            _persist_video_refusal(
+                local_effect, recording_binding, effect, authorization
+            )
+            raise RecordingContractRefused(status=409)
         try:
-            WorkerServiceMediator(
-                get_worker_service(mode=models.RecordingModeChoices.SCREEN_RECORDING)
-            ).start(recording)
+            worker.start(recording)
         except RecordingStartError as error:
             provider_egress = _exact_provider_egress(recording)
             if provider_egress is None:
