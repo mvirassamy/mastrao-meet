@@ -23,6 +23,7 @@ import {
   shouldWaitForCanonicalRoom,
 } from '../utils/isRoomValid'
 import { NativeRecordingConsent } from './NativeRecordingConsent'
+import { ManagedTranscriptionNotice } from './ManagedTranscriptionNotice'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 
@@ -213,6 +214,7 @@ export const Lobby = ({
       <NativeRecordingConsent
         roomId={roomId}
         projection={roomData.native_capture}
+        transcriptionProfileRef={recording?.transcription_profile_ref}
         onDecided={async () => {
           const result = await refetchRoom()
           if (result.isError) throw result.error
@@ -332,6 +334,9 @@ export const Lobby = ({
                 maxLength={50}
               />
             )}
+            <ManagedTranscriptionNotice
+              profileRef={recording?.transcription_profile_ref}
+            />
           </VStack>
         </Form>
       )

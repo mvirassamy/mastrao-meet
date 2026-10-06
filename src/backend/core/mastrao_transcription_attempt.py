@@ -44,7 +44,7 @@ def _config_digest(provider, model, codec, duration_ms):
 def _provider_profile(local_effect=None):
     if (
         local_effect is not None
-        and local_effect.transcription_binding.contract_operation_version in {2, 3}
+        and local_effect.transcription_binding.contract_operation_version in {2, 3, 4}
     ):
         binding = local_effect.transcription_binding
         mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
@@ -70,7 +70,7 @@ def prepare_attempt(local_effect, extracted):
     binding = local_effect.transcription_binding
     digest = (
         binding.request_config_digest
-        if binding.contract_operation_version in {2, 3}
+        if binding.contract_operation_version in {2, 3, 4}
         else _config_digest(provider, model, extracted.codec, extracted.duration_ms)
     )
     attempt_ref = f"attempt_{uuid4().hex}"
@@ -81,14 +81,27 @@ def prepare_attempt(local_effect, extracted):
             .first()
         )
         if existing:
-            if (
-                existing.audio_sha256 != extracted.sha256
-                or existing.provider_ref != provider
-                or existing.requested_model_ref != model
-                or existing.request_config_digest != digest
-            ):
+            audio_matches = (
+                existing.audio_sha256 == extracted.sha256
+                and existing.audio_duration_ms == extracted.duration_ms
+                and existing.input_bytes == extracted.byte_size
+                and existing.audio_codec == extracted.codec
+            )
+            profile_matches = (
+                existing.provider_ref == provider
+                and existing.requested_model_ref == model
+                and existing.request_config_digest == digest
+            )
+            if not audio_matches or not profile_matches:
                 raise TranscriptionPipelineFailed("asr_failed")
             return existing
+        if binding.contract_operation_version != 4:
+            raise TranscriptionPipelineFailed("asr_failed", status=409)
+        if (
+            extracted.duration_ms > binding.maximum_audio_seconds * 1_000
+            or extracted.byte_size > binding.maximum_audio_bytes
+        ):
+            raise TranscriptionPipelineFailed("asr_failed")
         return models.MastraoTranscriptionProviderAttempt.objects.create(
             effect=local_effect,
             generation=1,
@@ -155,9 +168,10 @@ def bind_egress_grant(attempt, grant):
     fields = {
         "grant_semantic_digest": grant["grant_semantic_digest"],
         "authority_version": grant["authority_version"],
-        "campaign_ref": grant["campaign_ref"],
+        "campaign_ref": grant.get("campaign_ref"),
         "authorized_cost_ceiling_micros": grant["authorized_cost_ceiling_micros"],
         "tariff_catalog_version": grant["tariff_catalog_version"],
+        "currency": grant["currency"],
     }
     mode = grant["execution_mode"]
     if mode not in ExecutionMode.values:
@@ -426,6 +440,8 @@ def mark_succeeded(attempt):
 def may_replay_gateway(attempt):
     """Return whether Meet may POST the same attempt to recover a durable result."""
 
+    if attempt.execution_mode == ExecutionMode.RECOVER_ONLY:
+        return True
     if attempt.state == AttemptState.UNKNOWN:
         return True
     if attempt.state == AttemptState.SENDING and attempt.provider_ref in PAID_PROVIDERS:
@@ -469,6 +485,8 @@ def cleanup_attempt_recovery(attempt):
 def may_call_provider(attempt):
     """Return whether this attempt may still open a provider request."""
 
+    if attempt.execution_mode == ExecutionMode.RECOVER_ONLY:
+        return False
     if attempt.state == AttemptState.UNKNOWN:
         return False
     if attempt.state in {

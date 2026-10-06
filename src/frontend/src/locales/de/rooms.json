@@ -895,5 +895,8 @@
   },
   "participantTile": {
     "screenShare": "{{name}}’s Bildschirm"
+  },
+  "nativeConsent": {
+    "managedProviderNotice": "Das Audio wird von Mistral · Voxtral Mini Transcribe 2 in der Europäischen Union verarbeitet, mit der standardmäßigen Aufbewahrung des Anbieters für diese Demo. Diese Verarbeitung bietet keine Zero Data Retention (ZDR). Der erzeugte Text muss geprüft werden."
   }
 }

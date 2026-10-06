@@ -174,6 +174,39 @@ describe('Lobby lifecycle reconciliation', () => {
 
   afterEach(cleanup)
 
+  it('shows the sealed normal provider before Join without native capture or automatic consent', () => {
+    roomRecording = {
+      mode: 'recorded',
+      recording_state: 'collecting',
+      decision: 'absent',
+      transcription_mode: 'transcribed',
+      transcription_profile_ref: 'mistral-eu-standard-managed-demo-v1',
+    }
+    const enterRoom = vi.fn()
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={enterRoom}
+      />
+    )
+    expect(screen.getByText('managedProviderNotice')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
+    expect(enterRoom).not.toHaveBeenCalled()
+    expect(refetchRoom).not.toHaveBeenCalled()
+  })
+
+  it('does not claim a normal provider before Join without a sealed profile', () => {
+    roomRecording = { mode: 'recorded', recording_state: 'collecting' }
+    render(
+      <Lobby
+        roomId="room_0123456789abcdef0123456789abcdef"
+        enterRoom={vi.fn()}
+      />
+    )
+    expect(screen.queryByText('managedProviderNotice')).toBeNull()
+    expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
+  })
+
   it.each(['collecting', 'stopping', 'processing'] as const)(
     'keeps joining available while video is %s and undecided',
     (recording_state) => {

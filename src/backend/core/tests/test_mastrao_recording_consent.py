@@ -50,6 +50,8 @@ from core.mastrao_recording_reconciler import (
 )
 from core.mastrao_recording_session import (
     _sync_binding,
+    _validate_core_status,
+    _validate_status,
     activate_recording,
     public_projection,
     recording_session_status,
@@ -1628,3 +1630,111 @@ def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
         binding.artifact_receipt_claims["checksum_digest"]
         == first_claims["checksum_digest"]
     )
+
+
+@pytest.mark.parametrize("profile", [None, "mistral-eu-standard-managed-demo-v1"])
+def test_sealed_transcription_profile_is_projected_without_inventing_legacy_provenance(
+    profile,
+    settings,
+):
+    settings.MASTRAO_MEETING_RECORDING_ENABLED = True
+    settings.MASTRAO_MEETING_RECORDING_START_ENABLED = True
+    claims = {
+        "organization_external_id": "organization_0123456789",
+        "meeting_ref": "meeting_0123456789abcdef",
+        "room_ref": "room_0123456789abcdef",
+    }
+    status = {
+        "version": 1,
+        **claims,
+        "mode": "recorded",
+        "recording_ref": "recording_0123456789abcdef",
+        "policy_ref": "policy_0123456789abcdef",
+        "notice_version": "notice_0123456789abcdef",
+        "notice_digest": "a" * 64,
+        "purpose": "meeting_recording",
+        "scope": "room_composite_audio_video_screen",
+        "retention_expires_at": int(time.time()) + 3600,
+        "recording_state": "collecting",
+        "decision": "absent",
+        "transcription_mode": "transcribed",
+        "transcription_notice_version": "transcription_notice_0123456789",
+        "transcription_notice_digest": "b" * 64,
+        "transcription_decision": "absent",
+        "video": _video(),
+    }
+    if profile:
+        status["transcription_profile_ref"] = profile
+    room = SimpleNamespace(mastrao_binding=SimpleNamespace(room_ref=claims["room_ref"]))
+    _validate_status(status, {"claims": claims}, room)
+    status["participant_kind"] = "host"
+    projection = public_projection(status)
+    assert projection.get("transcription_profile_ref") == profile
+    assert projection["video"] == status["video"]
+    assert projection["transcription_notice_digest"] == "b" * 64
+    substituted = {
+        **status,
+        "transcription_profile_ref": "openai-eu-zdr-gpt-transcribe-canary-v1",
+    }
+    substituted.pop("participant_kind")
+    with pytest.raises(RecordingContractRefused):
+        _validate_status(substituted, {"claims": claims}, room)
+
+
+def test_activation_response_preserves_the_sealed_normal_profile_and_notice():
+    session = {
+        "meeting_ref": "meeting_0123456789abcdef",
+        "room_ref": "room_0123456789abcdef",
+        "recording_ref": "recording_0123456789abcdef",
+        "policy_ref": "policy_0123456789abcdef",
+        "notice_version": "notice_0123456789abcdef",
+        "notice_digest": "a" * 64,
+        "retention_expires_at": int(time.time()) + 3600,
+        "transcription_profile_ref": "mistral-eu-standard-managed-demo-v1",
+        "transcription_notice_version": "transcription_notice_0123456789",
+        "transcription_notice_digest": "b" * 64,
+    }
+    managed = {
+        "profile_ref": session["transcription_profile_ref"],
+        "notice_version": session["transcription_notice_version"],
+        "notice_digest": session["transcription_notice_digest"],
+    }
+    result = {
+        "version": 1,
+        "matter_ref": "matter_0123456789abcdef",
+        "state_version": 1,
+        **{
+            name: session[name]
+            for name in (
+                "meeting_ref",
+                "room_ref",
+                "recording_ref",
+                "policy_ref",
+                "notice_version",
+                "notice_digest",
+                "retention_expires_at",
+            )
+        },
+        "mode": "recorded",
+        "state": "starting",
+        "purpose": "meeting_recording",
+        "scope": "room_composite_audio_video_screen",
+        "managed_transcription": managed,
+    }
+    assert _validate_core_status(result, session) == result
+    with pytest.raises(RecordingContractRefused):
+        _validate_core_status(
+            {**result, "managed_transcription": {**managed, "notice_digest": "c" * 64}},
+            session,
+        )
+    with pytest.raises(RecordingContractRefused):
+        _validate_core_status(
+            {
+                **result,
+                "managed_transcription": {
+                    **managed,
+                    "profile_ref": "openai-eu-zdr-gpt-transcribe-canary-v1",
+                },
+            },
+            session,
+        )

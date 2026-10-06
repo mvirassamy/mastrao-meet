@@ -18,6 +18,7 @@ from core.mastrao_transcription_attempt import (
     cleanup_attempt_recovery,
     mark_succeeded,
     mark_terminal,
+    mark_unknown,
 )
 from core.mastrao_transcription_contract import (
     TranscriptionContractRefused,
@@ -86,7 +87,7 @@ def publish_transcription_job(effect_pk):
 
 
 def reconcile_transcription_dispatches(limit=20):
-    """Republish due pending, notifying or crash-expired transcription jobs."""
+    """Republish only normal v4 intents; uncertain sends remain recovery-only."""
 
     now = timezone.now()
     due_states = [
@@ -101,7 +102,11 @@ def reconcile_transcription_dispatches(limit=20):
             models.MastraoTranscriptionEffect.objects.select_for_update(
                 skip_locked=True
             )
-            .filter(dispatch_state__in=due_states, next_attempt_at__lte=now)
+            .filter(
+                transcription_binding__contract_operation_version=4,
+                dispatch_state__in=due_states,
+                next_attempt_at__lte=now,
+            )
             .order_by("next_attempt_at", "updated_at")[:limit]
         )
         stale_before = now - timezone.timedelta(seconds=_pipeline_timeout_seconds())
@@ -110,6 +115,7 @@ def reconcile_transcription_dispatches(limit=20):
                 skip_locked=True
             )
             .filter(
+                transcription_binding__contract_operation_version=4,
                 dispatch_state=DispatchState.RUNNING,
                 updated_at__lte=stale_before,
                 next_attempt_at__lte=now,
@@ -118,6 +124,7 @@ def reconcile_transcription_dispatches(limit=20):
         )
         claimed_pks = []
         for local_effect in [*due, *stale_running]:
+            _fence_uncertain_attempt(local_effect)
             if _reserve_dispatch_attempt(local_effect, now):
                 claimed_pks.append(local_effect.pk)
     republished = 0
@@ -125,6 +132,27 @@ def reconcile_transcription_dispatches(limit=20):
         if publish_transcription_job(effect_pk):
             republished += 1
     return republished
+
+
+def _fence_uncertain_attempt(local_effect):
+    """A sending crash or unknown outcome can only recover the same attempt."""
+
+    attempt = (
+        models.MastraoTranscriptionProviderAttempt.objects.select_for_update()
+        .filter(
+            effect=local_effect,
+            generation=1,
+            state__in=[
+                models.MastraoTranscriptionProviderAttempt.State.SENDING,
+                models.MastraoTranscriptionProviderAttempt.State.UNKNOWN,
+            ],
+        )
+        .first()
+    )
+    if attempt is not None:
+        mark_unknown(attempt)
+        attempt.execution_mode = attempt.ExecutionMode.RECOVER_ONLY
+        attempt.save(update_fields=["execution_mode", "updated_at"])
 
 
 def _backoff_seconds(attempt_count):
@@ -264,6 +292,8 @@ def _acquire_completion_lease(effect_pk):
         durable = _action_for_dispatch(local_effect)
         if durable is not None:
             return transcription_binding, local_effect, durable
+        if transcription_binding.contract_operation_version != 4:
+            return transcription_binding, local_effect, "wait"
         if (
             local_effect.dispatch_state == DispatchState.DISPATCH_PENDING
             and local_effect.next_attempt_at > timezone.now()
@@ -547,7 +577,7 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
         if outcome == "available":
             _commit_available(local_effect.pk, transcription_binding.pk)
             return
-        if effect.get("operation_version") == 3:
+        if effect.get("operation_version") in {3, 4}:
             attempt = (
                 models.MastraoTranscriptionProviderAttempt.objects.filter(
                     effect_id=local_effect.pk,

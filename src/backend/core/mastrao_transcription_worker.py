@@ -28,6 +28,9 @@ import requests
 
 from core.mastrao_transcription_contract import (
     DIARIZED_MANAGED_PROFILE_REFS,
+    MANAGED_PROFILE_BINDINGS,
+    NORMAL_ASR_PROFILE_REF,
+    NORMAL_ASR_REQUEST_OPTIONS,
     TranscriptionContractRefused,
 )
 
@@ -196,6 +199,27 @@ def _gateway_diarize(attempt):
     return profile_ref in DIARIZED_MANAGED_PROFILE_REFS
 
 
+def _gateway_request_options(attempt):
+    """Select the exact request options of the signed normal profile."""
+
+    binding = getattr(getattr(attempt, "effect", None), "transcription_binding", None)
+    if binding is not None and binding.contract_operation_version == 4:
+        expected = MANAGED_PROFILE_BINDINGS[NORMAL_ASR_PROFILE_REF]
+        if (
+            binding.asr_profile_ref != NORMAL_ASR_PROFILE_REF
+            or binding.asr_profile_digest != expected["asr_profile_digest"]
+            or attempt.request_config_digest != expected["request_config_digest"]
+        ):
+            raise TranscriptionContractRefused(status=503)
+        # Gateway resolves the generic legal bias from the approved catalog
+        # bound by request_config_digest. Client-supplied terms are refused.
+        return {
+            "language": NORMAL_ASR_REQUEST_OPTIONS["language"],
+            "diarize": NORMAL_ASR_REQUEST_OPTIONS["diarize"],
+        }
+    return {"language": "fr", "diarize": _gateway_diarize(attempt)}
+
+
 def _gateway_fingerprint(extracted, attempt, language=""):
     return _fingerprint(
         attempt,
@@ -249,8 +273,8 @@ def _gateway_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
     token = getattr(settings, "MASTRAO_ASR_GATEWAY_AUTH_TOKEN", "") or ""
     if not token:
         raise TranscriptionContractRefused(status=503)
-    language = "fr"
-    diarize = _gateway_diarize(attempt)
+    request_options = _gateway_request_options(attempt)
+    language = request_options["language"]
     metadata = {
         "attempt_ref": attempt.attempt_ref,
         "fingerprint": _gateway_fingerprint(
@@ -266,8 +290,7 @@ def _gateway_transcribe(  # noqa: PLR0912  # pylint: disable=too-many-branches
         "adapter_version": "asr-gateway-v1",
         "normalization_schema_version": "1",
         "request_config_digest": attempt.request_config_digest,
-        "language": language,
-        "diarize": diarize,
+        **request_options,
     }
     headers = {}
     if token:

@@ -4,7 +4,7 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-    dependencies = [("core", "0050_native_source_manifest")]
+    dependencies = [("core", "0051_normal_post_meeting_transcription")]
 
     operations = [
         migrations.RemoveConstraint(

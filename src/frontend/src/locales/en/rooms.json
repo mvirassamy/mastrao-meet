@@ -895,5 +895,8 @@
   },
   "participantTile": {
     "screenShare": "{{name}}'s screen"
+  },
+  "nativeConsent": {
+    "managedProviderNotice": "Audio will be processed by Mistral · Voxtral Mini Transcribe 2 in the European Union, with the provider’s standard retention for this demo. This processing does not have zero data retention (ZDR). The resulting text must be reviewed."
   }
 }

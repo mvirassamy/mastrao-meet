@@ -1412,6 +1412,11 @@ class MastraoTranscriptionBinding(BaseModel):
     )
     currency = models.CharField(max_length=8, null=True, blank=True)
     tariff_catalog_version = models.CharField(max_length=160, null=True, blank=True)
+    authority_version = models.PositiveBigIntegerField(null=True, blank=True)
+    maximum_audio_seconds = models.PositiveIntegerField(null=True, blank=True)
+    maximum_audio_bytes = models.PositiveBigIntegerField(null=True, blank=True)
+    notice_version = models.CharField(max_length=160, null=True, blank=True)
+    notice_digest = models.CharField(max_length=64, null=True, blank=True)
     artifact_checksum_digest = models.CharField(max_length=64)
     artifact_byte_size = models.PositiveBigIntegerField()
     purpose = models.CharField(max_length=64, default="meeting_transcription")
@@ -1455,13 +1460,18 @@ class MastraoTranscriptionBinding(BaseModel):
                 name="mastrao_transcription_scope_fixed",
             ),
             models.CheckConstraint(
-                condition=models.Q(contract_operation_version__in=[1, 2, 3]),
+                condition=models.Q(contract_operation_version__in=[1, 2, 3, 4]),
                 name="mastrao_tx_contract_version_closed",
             ),
             models.CheckConstraint(
                 condition=(
                     models.Q(
                         contract_operation_version=1,
+                        notice_version__isnull=True,
+                        notice_digest__isnull=True,
+                        authority_version__isnull=True,
+                        maximum_audio_seconds__isnull=True,
+                        maximum_audio_bytes__isnull=True,
                         asr_profile_ref__isnull=True,
                         asr_profile_digest__isnull=True,
                         asr_provider_ref__isnull=True,
@@ -1477,6 +1487,11 @@ class MastraoTranscriptionBinding(BaseModel):
                     )
                     | models.Q(
                         contract_operation_version=2,
+                        notice_version__isnull=True,
+                        notice_digest__isnull=True,
+                        authority_version__isnull=True,
+                        maximum_audio_seconds__isnull=True,
+                        maximum_audio_bytes__isnull=True,
                         asr_profile_ref__isnull=False,
                         asr_profile_digest__isnull=False,
                         asr_provider_ref__isnull=False,
@@ -1492,6 +1507,11 @@ class MastraoTranscriptionBinding(BaseModel):
                     )
                     | models.Q(
                         contract_operation_version=3,
+                        notice_version__isnull=True,
+                        notice_digest__isnull=True,
+                        authority_version__isnull=True,
+                        maximum_audio_seconds__isnull=True,
+                        maximum_audio_bytes__isnull=True,
                         asr_profile_ref__isnull=False,
                         asr_profile_digest__isnull=False,
                         asr_provider_ref__isnull=False,
@@ -1504,6 +1524,30 @@ class MastraoTranscriptionBinding(BaseModel):
                         authorized_cost_ceiling_micros__isnull=False,
                         currency="USD",
                         tariff_catalog_version__isnull=False,
+                    )
+                    | models.Q(
+                        contract_operation_version=4,
+                        notice_version__isnull=False,
+                        notice_digest__isnull=False,
+                        notice_digest__regex=r"^[a-f0-9]{64}$",
+                        asr_profile_ref__isnull=False,
+                        asr_profile_digest__isnull=False,
+                        asr_provider_ref__isnull=False,
+                        requested_model_ref__isnull=False,
+                        request_config_digest__isnull=False,
+                        normalization_version__isnull=False,
+                        processing_region_ref__isnull=False,
+                        data_control_ref__isnull=False,
+                        campaign_ref__isnull=True,
+                        authorized_cost_ceiling_micros__isnull=False,
+                        currency="USD",
+                        tariff_catalog_version__isnull=False,
+                        authority_version__isnull=False,
+                        authority_version__gt=0,
+                        maximum_audio_seconds__isnull=False,
+                        maximum_audio_seconds__gt=0,
+                        maximum_audio_bytes__isnull=False,
+                        maximum_audio_bytes__gt=0,
                     )
                 ),
                 name="mastrao_tx_profile_complete_by_version",

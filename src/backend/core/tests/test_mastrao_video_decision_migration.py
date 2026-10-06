@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from django.db import IntegrityError, connection
 from django.db.migrations.executor import MigrationExecutor
+from django.db.migrations.recorder import MigrationRecorder
 from django.utils import timezone
 
 import pytest
@@ -20,7 +21,14 @@ def test_yes_no_yes_fails_before_migration_and_succeeds_after_with_exact_replay(
     """Run the real decision boundary against both schema versions."""
     assert connection.vendor == "postgresql"
     executor = MigrationExecutor(connection)
-    executor.migrate([("core", "0050_native_source_manifest")])
+    assert executor.loader.graph.leaf_nodes("core") == [
+        ("core", "0052_mutable_video_decisions")
+    ]
+    normal_migration = MigrationRecorder(connection).migration_qs.get(
+        app="core", name="0051_normal_post_meeting_transcription"
+    )
+    normal_applied_at = normal_migration.applied
+    executor.migrate([("core", "0051_normal_post_meeting_transcription")])
     try:
         room = RoomFactory()
         room_binding = models.MastraoRoomBinding.objects.create(
@@ -109,7 +117,7 @@ def test_yes_no_yes_fails_before_migration_and_succeeds_after_with_exact_replay(
                 == "unique_mastrao_recording_session_decision"
             )
             MigrationExecutor(connection).migrate(
-                [("core", "0051_mutable_video_decisions")]
+                [("core", "0052_mutable_video_decisions")]
             )
             record_decision(object(), room, "accepted", "decision_third_0123456789")
             record_decision(object(), room, "accepted", "decision_third_0123456789")
@@ -123,7 +131,9 @@ def test_yes_no_yes_fails_before_migration_and_succeeds_after_with_exact_replay(
             == decisions
         )
         assert binding.decisions.count() == 3
+        normal_migration.refresh_from_db()
+        assert normal_migration.applied == normal_applied_at
     finally:
         MigrationExecutor(connection).migrate(
-            [("core", "0051_mutable_video_decisions")]
+            [("core", "0052_mutable_video_decisions")]
         )

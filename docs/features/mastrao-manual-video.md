@@ -24,12 +24,25 @@ The existing native notice explicitly names transcription. It does not explicitl
 
 Core and Meet must use the coordinated video contracts: recorded session status has a required `video` projection; activation assertions carry `observed_at` and server-produced `participants`; start effects carry `claim_id`; the existing recording receipt key signs the start-authorization roster. Older Core/Meet combinations are not supported by a compatibility fallback.
 
-Migration `0051_mutable_video_decisions` removes only the uniqueness of the combination recording/participant/session/decision. The globally unique `decision_request_id` and assertion JTI, participant/session/grant evidence, recording foreign key and digest checks remain. A distinct request can therefore express yes → no → yes; replaying one request retains one local receipt.
+Migration `0052_mutable_video_decisions` removes only the uniqueness of the combination recording/participant/session/decision. The globally unique `decision_request_id` and assertion JTI, participant/session/grant evidence, recording foreign key and digest checks remain. A distinct request can therefore express yes → no → yes; replaying one request retains one local receipt.
 
 An application-code rollback may retain the expanded schema. A schema downgrade restores the old uniqueness and must first verify that no repeated decision exists for a recording/participant/session. After mutable responses have been recorded, do not automatically reverse the migration or delete receipt history to force a downgrade. No staging migration is applied by this qualification work.
-
-Open branches also add `0051_verified_rtc_admission` and `0051_mastrao_idle_close` from `0050`. Before integration, reconcile the actual merge order and migration graph. Renaming this migration alone does not resolve sibling leaves.
 
 ## Qualification
 
 The draft PR records the exact tested head and distinguishes real PostgreSQL/Redis tests, SMTP captured by the test backend, browser component tests, and tests with provider/Core doubles. Integrated local HTTP qualification is required before readiness. No real recipient email or staging operation is part of these tests.
+
+## Stable post-ASR integration
+
+Video migration `0052_mutable_video_decisions` depends on `0051_normal_post_meeting_transcription`, which remains unchanged. The upgrade proof starts at normal migration `0051` and applies `0052` without downgrading or replaying the normal-ASR migration. PR102 and PR114 are open, unmerged sibling proposals and are not dependencies of this graph.
+
+The normal sealed profile remains authoritative in the recording projection and activation response. Its existing provider disclosure is shown as supplementary UI information before Join and in the native audio notice; it does not modify the canonical notice text, purpose, version or digest or create a new consent contract. The removed combined recording/transcription gate is not restored. Normal submit v4, egress v2, ASR engines and speaker attribution are preserved.
+
+### Integration conflict resolutions
+
+- CHANGELOG: retain the stable normal-ASR entries and the video entries.
+- Lobby: retain independent native audio decisions and manual video start; show sealed normal provider information before Join without a new gate.
+- RecordingConsent.tsx and RecordingConsent.test.tsx: keep deletion of the superseded combined gate; carry the stable provider disclosure and its provenance checks into the current UI tests.
+- Four room locale files: retain video labels and reuse the exact stable managed-provider wording under the current audio notice namespace.
+
+The backend automatic merge retains sealed-profile validation/projection and exact managed activation notice binding alongside the required video schema. Stable profile fixtures now include that required video projection. The normal-ASR adapter, attempt, contract, pipeline, worker, speaker-attribution implementation and migration `0051` are unchanged relative to the stable develop.
