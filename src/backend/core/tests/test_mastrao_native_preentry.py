@@ -286,6 +286,8 @@ def test_first_native_entry_authorizes_policy_and_admits_without_video(
         assert authorize_native_policy(request, room, status) == result
         changed_status = {**status, "transcription_notice_digest": "e" * 64}
         assert authorize_native_policy(request, room, changed_status) == result
+        changed_policy = {**changed_status, "policy_ref": "changed_policy_fixture"}
+        assert authorize_native_policy(request, room, changed_policy) == result
         assert (
             recording_session_status(request, room)["recording_ref"]
             == policy.recording_ref
@@ -297,6 +299,7 @@ def test_first_native_entry_authorizes_policy_and_admits_without_video(
             epoch_for(client, native_settings, grant, kind)
         assert reconcile_native_admissions() == 1
         assert [call[0] for call in calls] == [
+            AUTHORIZATION_PATH,
             AUTHORIZATION_PATH,
             AUTHORIZATION_PATH,
             OBSERVED_PATH,

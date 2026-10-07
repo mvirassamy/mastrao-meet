@@ -89,6 +89,7 @@ def _authorization_fingerprint(participant, recording_status):
                 "participant_kind": participant["kind"],
                 "participant_ref": participant["ref"],
                 "recording_ref": recording_status.get("recording_ref"),
+                "policy_ref": recording_status.get("policy_ref"),
                 "transcription_notice_version": recording_status.get(
                     "transcription_notice_version"
                 ),
