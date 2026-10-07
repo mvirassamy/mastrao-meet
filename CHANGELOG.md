@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-07: Align the candidate publication runbook with the current
+  `develop` default branch and publication restricted to that branch.
+
 - 2026-10-07: Exclude the LiveKit transcription agent from the human video
   roster while keeping malformed participant records fail-closed.
 
