@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-07: Exclude the LiveKit transcription agent from the human video
+  roster while keeping malformed participant records fail-closed.
+
 - 2026-10-07: Authorize native transcription from the meeting policy once per
   grant, session and policy when issuing media, without a participant audio
   consent screen or provider copy. Rename the coordinated Core endpoint to
