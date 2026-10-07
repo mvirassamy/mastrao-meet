@@ -13,7 +13,7 @@ from django.conf import settings
 import requests
 
 from core.mastrao_core_http import post_core_json, read_bounded_core_json
-from core.mastrao_native_notice import native_envelope
+from core.mastrao_native_authorization import native_envelope
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
 
 PREPARE_PATH = "/internal/v1/meetings/capture/native/asr/prepare"

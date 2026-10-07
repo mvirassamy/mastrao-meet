@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-07: Authorize native transcription from the meeting policy once per
+  grant, session and policy when issuing media, without a participant audio
+  consent screen or provider copy. Rename the coordinated Core endpoint to
+  `MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT`.
+
 - 2026-10-07: Treat the host recording action as the host video decision and
   ask present guests only after that action.
 

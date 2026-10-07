@@ -256,11 +256,11 @@ def effect(client, settings, receipt, signer):
         "participant_kind": "host",
         "participant_ref": grant.identity.host_ref,
         "policy_ref": "policy_native_fixture",
-        "notice_version": "notice_native_fixture",
-        "notice_digest": "e" * 64,
-        "consent_snapshot_digest": "f" * 64,
+        "policy_version": "policy_version_native_fixture",
+        "policy_digest": "e" * 64,
+        "policy_authorization_digest": "f" * 64,
         "purpose": "meeting_transcription_source_audio",
-        "scope": "consented_microphone_track_epoch",
+        "scope": "authorized_microphone_track_epoch",
         "retention_expires_at": now + 3600,
         "profile_digest": PROFILE_DIGEST,
         "issued_at": now,
@@ -654,7 +654,7 @@ def test_local_denials_do_not_create_intent(  # noqa: PLR0913,PLR0917 - explicit
     [
         "effect_key",
         "capture_ref",
-        "consent_snapshot_digest",
+        "policy_authorization_digest",
         "organization_external_id",
     ],
 )
@@ -664,7 +664,7 @@ def test_epoch_cannot_be_restarted_with_another_key_or_authority(
     assert _post(client, signer, effect).status_code == 200
     if changed == "capture_ref":
         effect[changed] = str(uuid4())
-    elif changed == "consent_snapshot_digest":
+    elif changed == "policy_authorization_digest":
         effect[changed] = "a" * 64
     else:
         effect[changed] += "changed"

@@ -25,7 +25,6 @@ let lifecyclePhase: 'active' | 'requesting' | 'ending' | 'uncertain' | 'ended' =
   'active'
 let lifecycleCloseRequestId: string | undefined
 let roomRecording: ApiRoom['recording']
-let nativeCapture: ApiRoom['native_capture']
 let roomQueryError: unknown
 
 vi.mock('react-i18next', () => ({
@@ -37,7 +36,6 @@ vi.mock('@tanstack/react-query', () => ({
     data: {
       livekit: { token: 'token', url: 'wss://livekit.test' },
       recording: roomRecording,
-      native_capture: nativeCapture,
     },
     error: roomQueryError,
     isError: roomQueryError !== undefined,
@@ -111,10 +109,6 @@ vi.mock('@/primitives', () => ({
   ),
   Text: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }))
-vi.mock('./NativeRecordingConsent', () => ({
-  NativeRecordingConsent: () => <div>native audio consent</div>,
-}))
-
 const InitialPhase = () => {
   const { beginEnding, markEndingUncertain } = useMeetingLifecycle()
   useEffect(() => {
@@ -163,7 +157,6 @@ describe('Lobby lifecycle reconciliation', () => {
     lifecycleCloseRequestId = undefined
     roomQueryError = undefined
     roomRecording = undefined
-    nativeCapture = undefined
     refetchRoom.mockResolvedValue({
       data: {
         livekit: { token: 'token', url: 'wss://livekit.test' },
@@ -174,7 +167,7 @@ describe('Lobby lifecycle reconciliation', () => {
 
   afterEach(cleanup)
 
-  it('shows the sealed normal provider before Join without native capture or automatic consent', () => {
+  it('joins without provider copy or audio consent when transcription is enabled', () => {
     roomRecording = {
       mode: 'recorded',
       recording_state: 'collecting',
@@ -189,22 +182,9 @@ describe('Lobby lifecycle reconciliation', () => {
         enterRoom={enterRoom}
       />
     )
-    expect(screen.getByText('managedProviderNotice')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
     expect(enterRoom).not.toHaveBeenCalled()
     expect(refetchRoom).not.toHaveBeenCalled()
-  })
-
-  it('does not claim a normal provider before Join without a sealed profile', () => {
-    roomRecording = { mode: 'recorded', recording_state: 'collecting' }
-    render(
-      <Lobby
-        roomId="room_0123456789abcdef0123456789abcdef"
-        enterRoom={vi.fn()}
-      />
-    )
-    expect(screen.queryByText('managedProviderNotice')).toBeNull()
-    expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
   })
 
   it.each(['collecting', 'stopping', 'processing'] as const)(
@@ -220,23 +200,6 @@ describe('Lobby lifecycle reconciliation', () => {
       expect(screen.getByRole('button', { name: 'joinLabel' })).toBeTruthy()
     }
   )
-
-  it('retains the independent native audio notice before joining', () => {
-    roomRecording = {
-      mode: 'recorded',
-      decision: 'refused',
-      recording_state: 'collecting',
-    }
-    nativeCapture = { decision: null } as ApiRoom['native_capture']
-    render(
-      <Lobby
-        roomId="room_0123456789abcdef0123456789abcdef"
-        enterRoom={vi.fn()}
-      />
-    )
-    expect(screen.getByText('native audio consent')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'joinLabel' })).toBeNull()
-  })
 
   it('keeps a restored close intent out of the join flow', () => {
     lifecyclePhase = 'uncertain'

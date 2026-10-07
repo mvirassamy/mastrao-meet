@@ -13,13 +13,10 @@ from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import Http404
-from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.utils.decorators import method_decorator
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
-from django.views.decorators.csrf import csrf_protect
 
 from django_filters import rest_framework as django_filters
 from rest_framework import (
@@ -57,10 +54,9 @@ from core.mastrao_guest_handoff import decide_guest_admission
 from core.mastrao_host_contract import HostHandoffRefused
 from core.mastrao_host_grant import active_host_close_grant_for_room_ref
 from core.mastrao_meeting_close import request_meeting_close
-from core.mastrao_native_notice import (
-    native_media_allowed,
-    native_notice,
-    native_notice_projection,
+from core.mastrao_native_authorization import (
+    authorize_native_policy,
+    native_policy_required,
 )
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
@@ -110,6 +106,7 @@ from core.services.livekit_events import (
 )
 from core.services.lobby import (
     LobbyParticipantNotFound,
+    LobbyParticipantStatus,
     LobbyService,
 )
 from core.services.participants_management import (
@@ -298,7 +295,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         action = getattr(self, "action", None)
         if action == "subtitle_state" or (
             settings.MASTRAO_NATIVE_PREENTRY_ENABLED
-            and action in ("retrieve", "request_entry", "native_notice_decision")
+            and action in ("retrieve", "request_entry")
         ):
             response["Cache-Control"] = "private, no-store"
         if getattr(self, "action", None) == "mastrao_meeting_lifecycle":
@@ -360,10 +357,6 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
                     {"message": "Unavailable"}, status=error.status
                 )
 
-        if data.get("native_capture") is not None:
-            # Anonymous guests do not pass through login, which seeds CSRF for
-            # hosts. Supply it when serving the protected native decision form.
-            get_token(request)
         return drf_response.Response(data)
 
     def list(self, request, *args, **kwargs):
@@ -595,15 +588,26 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
 
         try:
             recording_status = recording_session_status(request, room)
-            native_projection = native_notice_projection(
-                request, room, recording_status
-            )
-            participant, livekit = lobby_service.request_entry(
-                room=room,
-                request=request,
-                allow_media=native_media_allowed(native_projection),
-                **serializer.validated_data,
-            )
+            if native_policy_required(recording_status):
+                participant, livekit = lobby_service.request_entry(
+                    room=room,
+                    request=request,
+                    allow_media=False,
+                    **serializer.validated_data,
+                )
+                if participant.status == LobbyParticipantStatus.ACCEPTED:
+                    authorize_native_policy(request, room, recording_status)
+                    participant, livekit = lobby_service.request_entry(
+                        room=room,
+                        request=request,
+                        **serializer.validated_data,
+                    )
+            else:
+                participant, livekit = lobby_service.request_entry(
+                    room=room,
+                    request=request,
+                    **serializer.validated_data,
+                )
         except (GuestHandoffRefused, HostHandoffRefused, MastraoRoomClosed) as error:
             return drf_response.Response(
                 {
@@ -621,45 +625,10 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
         recording_projection = public_projection(recording_status)
         if recording_projection is not None:
             response_payload["recording"] = recording_projection
-        if native_projection is not None:
-            response_payload["native_capture"] = native_projection
         response = drf_response.Response(response_payload)
         lobby_service.prepare_response(response, participant.id)
 
         return response
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
-        url_path="native-notice-decision",
-        permission_classes=[],
-    )
-    @method_decorator(csrf_protect)
-    def native_notice_decision(self, request, pk=None):  # pylint: disable=unused-argument
-        """Record the explicit native choice of this exact browser session."""
-        if (
-            not isinstance(request.data, dict)
-            or set(request.data) != {"decision", "notice"}
-            or request.data.get("decision") not in ("accepted", "refused")
-            or not isinstance(request.data.get("notice"), dict)
-        ):
-            return drf_response.Response({"message": "Invalid decision"}, status=400)
-        room = self.get_object()
-        if not can_access_canonical_room(request, room):
-            raise Http404
-        try:
-            result = native_notice(request, room, {"kind": "decide", **request.data})
-        except (
-            RecordingContractRefused,
-            HostHandoffRefused,
-            GuestHandoffRefused,
-        ) as error:
-            return drf_response.Response(
-                {"message": "Unavailable"}, status=error.status
-            )
-        return drf_response.Response(
-            result, headers={"Cache-Control": "private, no-store"}
-        )
 
     @decorators.action(
         detail=True,

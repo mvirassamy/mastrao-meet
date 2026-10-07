@@ -22,8 +22,6 @@ import {
   isMastraoRoomId,
   shouldWaitForCanonicalRoom,
 } from '../utils/isRoomValid'
-import { NativeRecordingConsent } from './NativeRecordingConsent'
-import { ManagedTranscriptionNotice } from './ManagedTranscriptionNotice'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
 
@@ -99,9 +97,6 @@ export const Lobby = ({
       ...roomData,
       livekit: response.livekit,
       ...(response.recording ? { recording: response.recording } : {}),
-      ...(response.native_capture
-        ? { native_capture: response.native_capture }
-        : {}),
     })
     enterRoom()
   }
@@ -209,20 +204,6 @@ export const Lobby = ({
   }
 
   const recording = roomData?.recording
-  if (roomData?.native_capture && !roomData.native_capture.decision) {
-    return (
-      <NativeRecordingConsent
-        roomId={roomId}
-        projection={roomData.native_capture}
-        transcriptionProfileRef={recording?.transcription_profile_ref}
-        onDecided={async () => {
-          const result = await refetchRoom()
-          if (result.isError) throw result.error
-        }}
-      />
-    )
-  }
-
   if (recording?.mode === 'unset') {
     return (
       <VStack alignItems="center" textAlign="center">
@@ -334,9 +315,6 @@ export const Lobby = ({
                 maxLength={50}
               />
             )}
-            <ManagedTranscriptionNotice
-              profileRef={recording?.transcription_profile_ref}
-            />
           </VStack>
         </Form>
       )

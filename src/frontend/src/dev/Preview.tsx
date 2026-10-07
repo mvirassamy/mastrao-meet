@@ -34,7 +34,6 @@ import GuestInvitation from '@/features/rooms/routes/GuestInvitation'
 import Feedback from '@/features/rooms/routes/Feedback'
 import { Join } from '@/features/rooms/components/Join'
 import { Permissions } from '@/features/rooms/components/Permissions'
-import { NativeRecordingConsent } from '@/features/rooms/components/NativeRecordingConsent'
 import { MeetingLifecycleProvider } from '@/features/rooms/contexts/MeetingLifecycleProvider'
 import { VideoConference } from '@/features/rooms/livekit/prefabs/VideoConference'
 import { userChoicesStore } from '@/stores/userChoices'
@@ -178,31 +177,6 @@ const PreviewScreen = () => {
     return <PreviewWorkspace />
   if (content === 'invitation') return <GuestInvitation />
   if (content === 'feedback') return <Feedback />
-  if (content === 'consent')
-    return (
-      <Screen layout="centered" footer={false}>
-        <section>
-          <NativeRecordingConsent
-            roomId={previewRoomId}
-            projection={{
-              version: 1,
-              text: 'Votre microphone sera enregistré sur une piste audio séparée pour produire la transcription de cette réunion. La transcription audio peut être traitée sans attendre la vidéo.',
-              notice: {
-                policy_ref: 'policy_preview_native',
-                notice_version: 'notice_preview_native',
-                notice_digest: 'a'.repeat(64),
-                purpose: 'meeting_transcription_source_audio',
-                scope: 'consented_microphone_track_epoch',
-                retention_expires_at: 2000000000,
-              },
-              decision: null,
-              capture_authorized: false,
-            }}
-            onDecided={async () => undefined}
-          />
-        </section>
-      </Screen>
-    )
   if (content === 'error') return <ErrorScreen />
   if (content === 'not-found') return <NotFoundScreen />
   if (content === 'loading') return <LoadingScreen delay={0} />

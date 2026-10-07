@@ -1,4 +1,4 @@
-"""Real cross-language authority contract; synthetic consent and Core SQL peer.
+"""Real cross-language authority contract; synthetic policy and Core SQL peer.
 
 Meet issuance, signed RTC intake, HTTP native Start and PostgreSQL are real.
 Core service/signatures are real; its ledger is an explicit memory seam here,
@@ -137,15 +137,12 @@ def _candidate(epoch, issued, grant, kind):
         "participant_ref": grant.identity.host_ref
         if kind == "host"
         else grant.guest_ref,
-        "consent": {
-            "decision_ref": "native_decision_fixture",
-            "decision": "accepted",
-            "decided_at": now,
+        "authorization": {
             "policy_ref": "native_policy_fixture",
-            "notice_version": "native_notice_fixture",
-            "notice_digest": "e" * 64,
+            "policy_version": "native_policy_version_fixture",
+            "policy_digest": "e" * 64,
             "purpose": "meeting_transcription_source_audio",
-            "scope": "consented_microphone_track_epoch",
+            "scope": "authorized_microphone_track_epoch",
             "retention_expires_at": now + 3600,
         },
         "issued_at": now,

@@ -523,8 +523,10 @@ class Base(Configuration):
     MASTRAO_NATIVE_PREENTRY_ENABLED = values.BooleanValue(
         False, environ_name="MASTRAO_NATIVE_PREENTRY_ENABLED", environ_prefix=None
     )
-    MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT = values.Value(
-        "", environ_name="MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT", environ_prefix=None
+    MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT",
+        environ_prefix=None,
     )
     MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT", environ_prefix=None
