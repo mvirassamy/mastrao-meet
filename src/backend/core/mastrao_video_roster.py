@@ -65,20 +65,13 @@ def _humans(participants):
     humans = []
     identities, sids = set(), set()
     for participant in participants:
-        is_livekit_agent = (
-            participant.kind == api.ParticipantInfo.AGENT
-            and participant.permission.agent
-        )
         if (
             participant.permission.recorder
             or participant.kind == api.ParticipantInfo.EGRESS
-            or is_livekit_agent
         ):
             continue
         if (
-            participant.kind != api.ParticipantInfo.STANDARD
-            or participant.permission.agent
-            or not participant.identity
+            not participant.identity
             or not participant.sid
             or participant.identity in identities
             or participant.sid in sids
@@ -86,6 +79,17 @@ def _humans(participants):
             raise RecordingContractRefused(status=503)
         identities.add(participant.identity)
         sids.add(participant.sid)
+        is_livekit_agent = (
+            participant.kind == api.ParticipantInfo.AGENT
+            and participant.permission.agent
+        )
+        if is_livekit_agent:
+            continue
+        if (
+            participant.kind != api.ParticipantInfo.STANDARD
+            or participant.permission.agent
+        ):
+            raise RecordingContractRefused(status=503)
         humans.append(participant)
         if len(humans) > MAX_PARTICIPANTS:
             raise RecordingContractRefused(status=503)

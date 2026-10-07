@@ -533,16 +533,22 @@ def test_nonhuman_participant_fails_closed(authority, sfu, kind):
 
 
 @pytest.mark.parametrize(
-    "kind,is_agent",
+    "kind,is_agent,missing_field",
     [
-        (api.ParticipantInfo.AGENT, False),
-        (api.ParticipantInfo.STANDARD, True),
+        (api.ParticipantInfo.AGENT, False, None),
+        (api.ParticipantInfo.STANDARD, True, None),
+        (api.ParticipantInfo.AGENT, True, "identity"),
+        (api.ParticipantInfo.AGENT, True, "sid"),
     ],
 )
-def test_malformed_agent_participant_fails_closed(authority, sfu, kind, is_agent):
+def test_malformed_agent_participant_fails_closed(
+    authority, sfu, kind, is_agent, missing_field
+):
     _, _, participant, _ = sfu
     participant.kind = kind
     participant.permission.agent = is_agent
+    if missing_field:
+        setattr(participant, missing_field, "")
     with pytest.raises(RecordingContractRefused):
         roster._bound_roster(
             authority.room_binding, "RM_current_incarnation", [participant]
