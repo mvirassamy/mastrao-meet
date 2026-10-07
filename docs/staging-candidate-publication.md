@@ -47,9 +47,9 @@ enforced by GitHub itself. In this order:
 2. Store `MEET_STAGING_REGISTRY_PASSWORD` **only** as a secret of that
    environment. Never define it as a repository or organisation secret: the
    workflow cannot tell where the secret came from.
-3. Make the workflow dispatchable: GitHub only offers `workflow_dispatch` for
-   workflows present on the default branch (currently `main`), so either
-   switch the default branch to `develop` or sync this workflow to `main`.
+3. Keep the workflow on the default branch, `develop`. GitHub only offers
+   `workflow_dispatch` for workflows present on the default branch; dispatch
+   this workflow from `develop`, as required by its publication job.
 
 The "Require the dedicated registry publisher" step only fails closed while
 no `MEET_STAGING_REGISTRY_PASSWORD` is visible to the job. It does not check
