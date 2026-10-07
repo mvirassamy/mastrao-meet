@@ -65,9 +65,14 @@ def _humans(participants):
     humans = []
     identities, sids = set(), set()
     for participant in participants:
+        is_livekit_agent = (
+            participant.kind == api.ParticipantInfo.AGENT
+            and participant.permission.agent
+        )
         if (
             participant.permission.recorder
             or participant.kind == api.ParticipantInfo.EGRESS
+            or is_livekit_agent
         ):
             continue
         if (

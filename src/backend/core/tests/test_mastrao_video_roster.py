@@ -416,7 +416,7 @@ def test_actual_callback_boundary_uses_signed_roster_before_sfu_start(
     worker.start.assert_called_once_with(recording)
 
 
-def test_guest_and_host_are_included_but_recorder_is_excluded(
+def test_humans_are_included_but_recorder_and_agent_are_excluded(
     authority, effect, signer, sfu, core_reply
 ):
     client, query, host, connection = sfu
@@ -424,8 +424,14 @@ def test_guest_and_host_are_included_but_recorder_is_excluded(
     recorder = api.ParticipantInfo(
         sid="PA_recorder", identity="recorder", kind=api.ParticipantInfo.EGRESS
     )
+    transcription_agent = api.ParticipantInfo(
+        sid="PA_transcription_agent",
+        identity="multi-user-transcriber-room",
+        kind=api.ParticipantInfo.AGENT,
+        permission=api.ParticipantPermission(agent=True),
+    )
     client.room.list_participants.return_value = api.ListParticipantsResponse(
-        participants=[host, guest, recorder]
+        participants=[host, guest, recorder, transcription_agent]
     )
     query.return_value.select_related.return_value = [connection, guest_connection]
     roster.authorize_video_start(effect, authority, _recording(authority))
@@ -512,7 +518,6 @@ def test_unknown_or_ambiguous_roster_never_calls_core_or_provider(
 @pytest.mark.parametrize(
     "kind",
     [
-        api.ParticipantInfo.AGENT,
         api.ParticipantInfo.INGRESS,
         api.ParticipantInfo.SIP,
         api.ParticipantInfo.BRIDGE,
@@ -521,6 +526,23 @@ def test_unknown_or_ambiguous_roster_never_calls_core_or_provider(
 def test_nonhuman_participant_fails_closed(authority, sfu, kind):
     _, _, participant, _ = sfu
     participant.kind = kind
+    with pytest.raises(RecordingContractRefused):
+        roster._bound_roster(
+            authority.room_binding, "RM_current_incarnation", [participant]
+        )
+
+
+@pytest.mark.parametrize(
+    "kind,is_agent",
+    [
+        (api.ParticipantInfo.AGENT, False),
+        (api.ParticipantInfo.STANDARD, True),
+    ],
+)
+def test_malformed_agent_participant_fails_closed(authority, sfu, kind, is_agent):
+    _, _, participant, _ = sfu
+    participant.kind = kind
+    participant.permission.agent = is_agent
     with pytest.raises(RecordingContractRefused):
         roster._bound_roster(
             authority.room_binding, "RM_current_incarnation", [participant]
