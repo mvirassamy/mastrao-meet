@@ -1719,6 +1719,13 @@ class Development(Base):
         self.INSTALLED_APPS += ["django_extensions", "drf_spectacular_sidecar"]
 
 
+def redis_url_with_database(redis_url, database):
+    """Return a Redis URL that keeps its endpoint and selects one database."""
+
+    parsed_url = urlparse(redis_url)
+    return parsed_url._replace(path=f"/{database}").geturl()
+
+
 class Test(Base):
     """Test environment settings"""
 
@@ -1775,7 +1782,10 @@ class Test(Base):
     CACHES = {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": f"redis://redis:6379/{_xdist_cache_db}",
+            "LOCATION": redis_url_with_database(
+                environ.get("REDIS_URL", "redis://redis:6379/1"),
+                _xdist_cache_db,
+            ),
             "KEY_PREFIX": f"meet-test-{_xdist_worker}",
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",

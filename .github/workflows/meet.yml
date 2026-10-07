@@ -284,10 +284,10 @@ jobs:
       - name: Prove the S3 create, put, get and delete path
         run: uv run python ../../scripts/ci/s3_smoke.py
 
-      - name: Install gettext (required to compile messages)
+      - name: Install backend system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gettext
+          sudo apt-get install -y ffmpeg gettext
 
       - name: Generate a MO file from strings extracted from the project
         run: uv run python manage.py compilemessages
