@@ -17,6 +17,7 @@ and this project adheres to
 
 - 🔧(ci) use the maintained S3 emulator for backend tests on main
 - 🔧(ci) honor the Redis test endpoint and install required ffmpeg
+- 🔧(tests) restore isolated guest and speaker-evidence fixtures
 - 🎨(backend) apply the required formatter to existing backend files
 
 - 🐛(frontend) preserve share glyphs and compact host toolbar visibility
