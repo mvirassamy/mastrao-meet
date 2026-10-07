@@ -480,7 +480,7 @@ def test_host_handoff_creates_session_bound_grant_without_durable_access(client)
             content_type="application/x-www-form-urlencoded",
             HTTP_ORIGIN="https://platform.mastrao.test",
             HTTP_SEC_FETCH_SITE="cross-site",
-    )
+        )
     assert response.status_code == 303
     assert response["Location"] == f"https://meet.mastrao.test/{binding.room.slug}"
     assert response["Referrer-Policy"] == "no-referrer"
@@ -588,9 +588,7 @@ def test_exact_host_can_end_and_retry_after_tombstone(client):
             HTTP_SEC_FETCH_SITE="cross-site",
         )
     assert response.status_code == 303
-    with mock.patch(
-        "core.api.serializers.recording_session_status", return_value=None
-    ):
+    with mock.patch("core.api.serializers.recording_session_status", return_value=None):
         room_response = client.get(f"/api/v1.0/rooms/{binding.room.slug}/")
     assert room_response.status_code == 200
     assert room_response.json()["can_end"] is True

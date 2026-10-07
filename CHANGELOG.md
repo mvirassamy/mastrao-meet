@@ -15,6 +15,9 @@ and this project adheres to
 
 ### Fixed
 
+- 🔧(ci) use the maintained S3 emulator for backend tests on main
+- 🎨(backend) apply the required formatter to existing backend files
+
 - 🐛(frontend) preserve share glyphs and compact host toolbar visibility
 
 - 🎨(frontend) use native solid icons throughout the interface
