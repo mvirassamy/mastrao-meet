@@ -20,6 +20,7 @@ const video: VideoRecordingPolicy = {
   start_status: 'pending',
   decision_lock: 'open',
   started_at: null,
+  start_requested: false,
   start_available: true,
 }
 
@@ -51,12 +52,14 @@ it('only requests capture after the host clicks and rereads authoritative status
     <RecordingPreparation
       roomId="room-1"
       canStart
+      isHost
       video={video}
       onRecordingChanged={refresh}
     />
   )
   expect(activateRecording).not.toHaveBeenCalled()
   expect(decideRecording).not.toHaveBeenCalled()
+  expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'startVideo' }))
   await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
   expect(activateRecording).toHaveBeenCalledWith(
@@ -66,10 +69,40 @@ it('only requests capture after the host clicks and rereads authoritative status
   expect(screen.queryByText('active')).toBeNull()
 })
 
-it('does not give guests a start action', () => {
-  render(<RecordingPreparation roomId="room-1" video={video} />)
+it('does not ask guests before the host requests recording', () => {
+  const { container } = render(
+    <RecordingPreparation roomId="room-1" video={video} />
+  )
   expect(screen.queryByRole('button', { name: 'startVideo' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
+  expect(container.firstChild).toBeNull()
+})
+
+it('asks a present guest after the host requests recording', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      video={{ ...video, start_requested: true }}
+    />
+  )
   expect(screen.getByRole('button', { name: 'videoYes' })).toBeDefined()
+  expect(screen.getByRole('button', { name: 'videoNo' })).toBeDefined()
+})
+
+it('lets a present guest reverse a refusal after the request closes', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      video={{
+        ...video,
+        decision: 'refused',
+        decision_basis: 'explicit',
+        start_status: 'refused',
+      }}
+    />
+  )
+  expect(screen.getByRole('button', { name: 'videoYes' })).toBeDefined()
+  expect(screen.getByRole('button', { name: 'videoNo' })).toBeDefined()
 })
 
 it.each(['pending', 'refused'] as const)(
@@ -79,6 +112,7 @@ it.each(['pending', 'refused'] as const)(
       <RecordingPreparation
         roomId="room-1"
         canStart
+        isHost
         video={{ ...video, start_status, start_available: false }}
       />
     )
@@ -89,7 +123,7 @@ it.each(['pending', 'refused'] as const)(
   }
 )
 
-it('shows absence of opposition without a false explicit yes', () => {
+it('does not ask an invitee whose email choice already applies', () => {
   render(
     <RecordingPreparation
       roomId="room-1"
@@ -97,15 +131,11 @@ it('shows absence of opposition without a false explicit yes', () => {
         ...video,
         consultation_source: 'email',
         decision_basis: 'no_opposition',
+        start_requested: true,
       }}
     />
   )
-  expect(screen.getByText('noOpposition')).toBeDefined()
-  expect(
-    screen
-      .getByRole('button', { name: 'videoYes' })
-      .getAttribute('aria-pressed')
-  ).toBe('false')
+  expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
 })
 
 it('does not confirm a response when the server rejects a locked decision', async () => {
@@ -114,7 +144,7 @@ it('does not confirm a response when the server rejects a locked decision', asyn
   render(
     <RecordingPreparation
       roomId="room-1"
-      video={video}
+      video={{ ...video, start_requested: true }}
       onRecordingChanged={refresh}
     />
   )
@@ -133,7 +163,7 @@ it('allows changing yes to no and back with a new idempotency identifier', async
   const { rerender } = render(
     <RecordingPreparation
       roomId="room-1"
-      video={video}
+      video={{ ...video, start_requested: true }}
       onRecordingChanged={refresh}
     />
   )
@@ -142,7 +172,12 @@ it('allows changing yes to no and back with a new idempotency identifier', async
   rerender(
     <RecordingPreparation
       roomId="room-1"
-      video={{ ...video, decision: 'accepted', decision_basis: 'explicit' }}
+      video={{
+        ...video,
+        start_requested: true,
+        decision: 'accepted',
+        decision_basis: 'explicit',
+      }}
       onRecordingChanged={refresh}
     />
   )
@@ -151,7 +186,12 @@ it('allows changing yes to no and back with a new idempotency identifier', async
   rerender(
     <RecordingPreparation
       roomId="room-1"
-      video={{ ...video, decision: 'refused', decision_basis: 'explicit' }}
+      video={{
+        ...video,
+        start_requested: true,
+        decision: 'refused',
+        decision_basis: 'explicit',
+      }}
       onRecordingChanged={refresh}
     />
   )
@@ -174,6 +214,7 @@ it.each(['start_in_progress', 'started', 'stopped'] as const)(
       <RecordingPreparation
         roomId="room-1"
         canStart
+        isHost
         video={{ ...video, decision_lock }}
       />
     )
@@ -187,7 +228,7 @@ it.each(['start_in_progress', 'started', 'stopped'] as const)(
 
 it('blocks actions while the meeting closes', () => {
   isEnding = true
-  render(<RecordingPreparation roomId="room-1" canStart video={video} />)
+  render(<RecordingPreparation roomId="room-1" canStart isHost video={video} />)
   screen.getAllByRole('button').forEach((button) => {
     expect(button.hasAttribute('disabled')).toBe(true)
     fireEvent.click(button)
@@ -208,6 +249,7 @@ it('prevents duplicate requests while start is in flight', async () => {
     <RecordingPreparation
       roomId="room-1"
       canStart
+      isHost
       video={video}
       onRecordingChanged={refresh}
     />
@@ -227,6 +269,7 @@ it('retries an unconfirmed activation using the same identifier', async () => {
     <RecordingPreparation
       roomId="room-1"
       canStart
+      isHost
       video={video}
       onRecordingChanged={refresh}
     />
@@ -246,6 +289,7 @@ it('creates a new request when a completed attempt returns to pending decisions'
     <RecordingPreparation
       roomId="room-1"
       canStart
+      isHost
       video={video}
       onRecordingChanged={refresh}
     />

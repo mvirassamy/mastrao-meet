@@ -20,6 +20,7 @@ const video: VideoRecordingPolicy = {
   start_status: 'pending',
   decision_lock: 'open',
   started_at: null,
+  start_requested: false,
   start_available: true,
 }
 const beginEnding = vi.fn()
@@ -192,18 +193,21 @@ it('allows retrying a failed stop with the same request identifier', async () =>
   expect(stopRecording.mock.calls[1]).toEqual(stopRecording.mock.calls[0])
 })
 
-it('keeps choices during queued start until the fence, with stop and no second start', async () => {
+it('keeps participant choices during queued start until the fence', async () => {
   const refresh = vi.fn().mockResolvedValue(undefined)
   const { rerender } = render(
     <RecordingIndicator
       roomId="room-1"
-      canEnd
-      recording={{ mode: 'recorded', recording_state: 'starting', video }}
+      recording={{
+        mode: 'recorded',
+        recording_state: 'starting',
+        video: { ...video, start_requested: true },
+      }}
       onRecordingChanged={refresh}
     />
   )
   expect(screen.queryByRole('button', { name: 'startVideo' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'stop' })).toBeDefined()
+  expect(screen.queryByRole('button', { name: 'stop' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'videoNo' }))
   await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
   expect(decideRecording).toHaveBeenCalledWith(
@@ -217,11 +221,15 @@ it('keeps choices during queued start until the fence, with stop and no second s
   rerender(
     <RecordingIndicator
       roomId="room-1"
-      canEnd
       recording={{
         mode: 'recorded',
         recording_state: 'starting',
-        video: { ...video, decision: 'refused', decision_basis: 'explicit' },
+        video: {
+          ...video,
+          start_requested: true,
+          decision: 'refused',
+          decision_basis: 'explicit',
+        },
       }}
       onRecordingChanged={refresh}
     />
@@ -244,6 +252,7 @@ it('keeps choices during queued start until the fence, with stop and no second s
         recording_state: 'starting',
         video: {
           ...video,
+          start_requested: true,
           decision_lock: 'start_in_progress',
           start_available: false,
         },
@@ -254,8 +263,24 @@ it('keeps choices during queued start until the fence, with stop and no second s
   expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'videoNo' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'startVideo' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'stop' }))
-  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(3))
-  expect(stopRecording).toHaveBeenCalledOnce()
   expect(activateRecording).not.toHaveBeenCalled()
+})
+
+it('never asks the host for a second decision while recording waits for guests', () => {
+  render(
+    <RecordingIndicator
+      roomId="room-1"
+      canEnd
+      recording={{
+        mode: 'recorded',
+        recording_state: 'starting',
+        video: { ...video, start_requested: true },
+      }}
+    />
+  )
+
+  expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'videoNo' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'startVideo' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'stop' })).toBeDefined()
 })

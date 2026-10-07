@@ -53,6 +53,7 @@ export function RecordingIndicator({
       <RecordingPreparation
         roomId={roomId}
         canStart={canEnd}
+        isHost={canEnd}
         video={recording.video}
         onRecordingChanged={onRecordingChanged}
       />
@@ -88,6 +89,7 @@ export function RecordingIndicator({
       {choicesRemainOpen && recording.video && (
         <RecordingPreparation
           roomId={roomId}
+          isHost={canEnd}
           video={recording.video}
           onRecordingChanged={onRecordingChanged}
         />

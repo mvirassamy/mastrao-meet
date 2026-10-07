@@ -20,6 +20,7 @@ VIDEO = {
     "start_status": "pending",
     "decision_lock": "open",
     "started_at": None,
+    "start_requested": False,
     "start_available": True,
 }
 PARTICIPANT = {
@@ -136,6 +137,7 @@ def test_a_lost_binding_response_keeps_the_capability_for_the_exact_retry():
         ("decision", "accepted_by_default"),
         ("decision", []),
         ("start_available", 1),
+        ("start_requested", 1),
         ("started_at", True),
         ("decision_lock", "closed"),
     ],

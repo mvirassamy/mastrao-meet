@@ -29,6 +29,7 @@ export type VideoRecordingPolicy = {
   start_status: 'pending' | 'refused' | 'authorized'
   decision_lock: 'open' | 'start_in_progress' | 'started' | 'stopped'
   started_at: number | null
+  start_requested: boolean
   start_available: boolean
 }
 

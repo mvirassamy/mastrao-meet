@@ -190,6 +190,7 @@ def _validate_video(video):
         "start_status",
         "decision_lock",
         "started_at",
+        "start_requested",
         "start_available",
     }
     if not isinstance(video, dict) or set(video) != fields:
@@ -205,12 +206,16 @@ def _validate_video(video):
         if not isinstance(video[name], str) or video[name] not in values:
             raise RecordingContractRefused(status=503)
     started_at = video["started_at"]
-    if not isinstance(video["start_available"], bool) or (
-        started_at is not None
-        and (
-            not isinstance(started_at, int)
-            or isinstance(started_at, bool)
-            or started_at <= 0
+    if (
+        not isinstance(video["start_requested"], bool)
+        or not isinstance(video["start_available"], bool)
+        or (
+            started_at is not None
+            and (
+                not isinstance(started_at, int)
+                or isinstance(started_at, bool)
+                or started_at <= 0
+            )
         )
     ):
         raise RecordingContractRefused(status=503)

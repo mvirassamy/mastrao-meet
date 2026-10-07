@@ -287,6 +287,7 @@ describe('Conference room lookup', () => {
             start_status: 'authorized',
             decision_lock: 'open',
             started_at: null,
+            start_requested: false,
             start_available: available ?? false,
           },
         },

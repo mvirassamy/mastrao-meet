@@ -1475,6 +1475,7 @@ def _transcribed_status(**overrides):
             "start_status": "pending",
             "decision_lock": "open",
             "started_at": None,
+            "start_requested": False,
             "start_available": True,
         },
         "transcription_mode": "transcribed",
