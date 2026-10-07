@@ -89,6 +89,22 @@ it('asks a present guest after the host requests recording', () => {
   expect(screen.getByRole('button', { name: 'videoNo' })).toBeDefined()
 })
 
+it('lets a present guest reverse a refusal after the request closes', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      video={{
+        ...video,
+        decision: 'refused',
+        decision_basis: 'explicit',
+        start_status: 'refused',
+      }}
+    />
+  )
+  expect(screen.getByRole('button', { name: 'videoYes' })).toBeDefined()
+  expect(screen.getByRole('button', { name: 'videoNo' })).toBeDefined()
+})
+
 it.each(['pending', 'refused'] as const)(
   'honors unavailable start with %s decisions',
   (start_status) => {

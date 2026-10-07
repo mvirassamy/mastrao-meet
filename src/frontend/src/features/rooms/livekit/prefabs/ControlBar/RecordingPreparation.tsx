@@ -44,7 +44,7 @@ export const RecordingPreparation = ({
     connectionState !== ConnectionState.Connected
   const showParticipantChoice =
     !isHost &&
-    video.start_requested &&
+    (video.start_requested || video.decision === 'refused') &&
     video.consultation_source === 'present' &&
     video.decision_lock === 'open'
   const showRefused = video.start_status === 'refused'
