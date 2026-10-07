@@ -26,6 +26,7 @@ const video: VideoRecordingPolicy = {
   start_status: 'authorized',
   decision_lock: 'open',
   started_at: null,
+  start_requested: false,
   start_available: true,
 }
 
@@ -46,16 +47,14 @@ it.each([
   vi.stubGlobal('fetch', fetch)
   render(
     <RoomContext.Provider value={room}>
-      <RecordingPreparation roomId="room-1" canStart video={video} />
+      <RecordingPreparation roomId="room-1" canStart isHost video={video} />
     </RoomContext.Provider>
   )
   const start = screen.getByRole('button', { name: 'startVideo' })
   expect(start.hasAttribute('disabled')).toBe(true)
   fireEvent.click(start)
   expect(fetch).not.toHaveBeenCalled()
-  expect(
-    screen.getByRole('button', { name: 'videoNo' }).hasAttribute('disabled')
-  ).toBe(false)
+  expect(screen.queryByRole('button', { name: 'videoNo' })).toBeNull()
 })
 
 it('recovers from a roster 503 only after another explicit host click', async () => {
@@ -82,6 +81,7 @@ it('recovers from a roster 503 only after another explicit host click', async ()
       <RecordingPreparation
         roomId="room-1"
         canStart
+        isHost
         video={video}
         onRecordingChanged={refresh}
       />
@@ -110,7 +110,7 @@ it('enables start on connection and disables it again on reconnect without activ
   vi.stubGlobal('fetch', fetch)
   render(
     <RoomContext.Provider value={room}>
-      <RecordingPreparation roomId="room-1" canStart video={video} />
+      <RecordingPreparation roomId="room-1" canStart isHost video={video} />
     </RoomContext.Provider>
   )
   const start = screen.getByRole('button', { name: 'startVideo' })

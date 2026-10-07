@@ -17,11 +17,13 @@ type Action = 'start' | 'accepted' | 'refused'
 export const RecordingPreparation = ({
   roomId,
   canStart,
+  isHost,
   video,
   onRecordingChanged,
 }: {
   roomId: string
   canStart?: boolean
+  isHost?: boolean
   video: VideoRecordingPolicy
   onRecordingChanged?: () => Promise<unknown>
 }) => {
@@ -40,6 +42,18 @@ export const RecordingPreparation = ({
     !canStart ||
     !video.start_available ||
     connectionState !== ConnectionState.Connected
+  const showParticipantChoice =
+    !isHost &&
+    video.start_requested &&
+    video.consultation_source === 'present' &&
+    video.decision_lock === 'open'
+  const showRefused = video.start_status === 'refused'
+  const showHostPending =
+    canStart &&
+    video.start_requested &&
+    video.start_status === 'pending' &&
+    video.decision_lock === 'open'
+  const showStarting = video.decision_lock === 'start_in_progress'
 
   const act = async (action: Action) => {
     if (locked || inFlight.current) return
@@ -68,6 +82,17 @@ export const RecordingPreparation = ({
     }
   }
 
+  if (
+    !showParticipantChoice &&
+    !canStart &&
+    !showRefused &&
+    !showHostPending &&
+    !showStarting &&
+    !failed
+  ) {
+    return null
+  }
+
   return (
     <div
       className={css({
@@ -77,7 +102,7 @@ export const RecordingPreparation = ({
         alignItems: 'center',
       })}
     >
-      {video.decision_lock === 'open' && (
+      {showParticipantChoice && (
         <div
           className={css({
             display: 'flex',
@@ -108,9 +133,6 @@ export const RecordingPreparation = ({
           >
             {t('videoNo')}
           </Button>
-          {video.decision_basis === 'no_opposition' && (
-            <span>{t('noOpposition')}</span>
-          )}
         </div>
       )}
       {canStart && (
@@ -125,15 +147,9 @@ export const RecordingPreparation = ({
           {t('startVideo')}
         </Button>
       )}
-      {video.start_status === 'refused' && (
-        <span role="status">{t('videoRefused')}</span>
-      )}
-      {video.start_status === 'pending' && video.decision_lock === 'open' && (
-        <span role="status">{t('videoPending')}</span>
-      )}
-      {video.decision_lock === 'start_in_progress' && (
-        <span role="status">{t('starting')}</span>
-      )}
+      {showRefused && <span role="status">{t('videoRefused')}</span>}
+      {showHostPending && <span role="status">{t('videoPending')}</span>}
+      {showStarting && <span role="status">{t('starting')}</span>}
       {failed && <span role="alert">{t('videoActionError')}</span>}
     </div>
   )

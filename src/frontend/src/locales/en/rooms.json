@@ -128,7 +128,6 @@
     "videoQuestion": "Do you allow video recording?",
     "videoYes": "Yes",
     "videoNo": "No",
-    "noOpposition": "No objection received after the email invitation.",
     "startVideo": "Record",
     "videoRefused": "An objection blocks video recording.",
     "videoPending": "The required permissions are not yet complete.",

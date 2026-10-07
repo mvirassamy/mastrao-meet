@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-07: Treat the host recording action as the host video decision and
+  ask present guests only after that action.
+
 - 2026-10-06: Declare the two private video invitation endpoints in the staging
   overlay and document the coordinated relay delivery and rollback.
 
