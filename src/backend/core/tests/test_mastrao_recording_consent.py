@@ -27,7 +27,7 @@ from rest_framework.test import APIClient
 
 from core import models, utils
 from core.factories import RoomFactory, UserFactory
-from core.mastrao_native_notice import native_media_allowed, native_notice_projection
+from core.mastrao_native_authorization import native_policy_required
 from core.mastrao_recording_access import RETRY_COOKIE, SESSION_KEY
 from core.mastrao_recording_adapter import (
     _apply_start,
@@ -94,19 +94,6 @@ def _recorded(state, decision="absent"):
 
 
 @pytest.mark.parametrize(
-    "projection,allowed",
-    [
-        (None, True),
-        ({"decision": None}, False),
-        ({"decision": {"decision": "accepted"}}, True),
-        ({"decision": {"decision": "refused"}}, True),
-    ],
-)
-def test_native_media_requires_an_explicit_audio_choice(projection, allowed):
-    assert native_media_allowed(projection) is allowed
-
-
-@pytest.mark.parametrize(
     "state",
     [
         "collecting",
@@ -121,30 +108,15 @@ def test_native_media_requires_an_explicit_audio_choice(projection, allowed):
     ],
 )
 @pytest.mark.parametrize("video_decision", ["absent", "refused"])
-def test_audio_notice_survives_video_refusal_and_stop(settings, state, video_decision):
+def test_native_policy_stays_required_across_video_lifecycle(
+    settings, state, video_decision
+):
     settings.MASTRAO_NATIVE_PREENTRY_ENABLED = True
-    request, room = mock.Mock(), mock.Mock()
-    notice = {
-        "text": "Votre microphone sera enregistré sur une piste audio séparée.",
-        "notice": {
-            "purpose": "meeting_transcription_source_audio",
-            "scope": "consented_microphone_track_epoch",
-        },
-        "decision": None,
-        "capture_authorized": False,
-    }
     status = {
         **_recorded(state, video_decision),
         "transcription_mode": "transcribed",
     }
-    with mock.patch(
-        "core.mastrao_native_notice.native_notice", return_value=notice
-    ) as read_notice:
-        result = native_notice_projection(request, room, status)
-
-    assert result == notice
-    assert not native_media_allowed(result)
-    read_notice.assert_called_once_with(request, room)
+    assert native_policy_required(status)
 
 
 @pytest.mark.parametrize(
@@ -157,13 +129,11 @@ def test_audio_notice_survives_video_refusal_and_stop(settings, state, video_dec
         (True, {"mode": "recorded", "transcription_mode": "disabled"}),
     ],
 )
-def test_audio_notice_still_requires_explicit_native_configuration(
+def test_native_policy_requires_explicit_native_configuration(
     settings, enabled, status
 ):
     settings.MASTRAO_NATIVE_PREENTRY_ENABLED = enabled
-    with mock.patch("core.mastrao_native_notice.native_notice") as read_notice:
-        assert native_notice_projection(mock.Mock(), mock.Mock(), status) is None
-    read_notice.assert_not_called()
+    assert not native_policy_required(status)
 
 
 def test_livekit_egress_reference_is_a_valid_provider_receipt_reference():
@@ -465,7 +435,7 @@ def test_recorded_public_projection_exposes_only_safe_participant_kind(
     assert "participant_session_digest" not in projection
 
 
-def test_video_undecided_allows_media_without_native_notice(db):
+def test_video_undecided_allows_media_without_native_decision(db):
     """A pending video choice does not gate an independently allowed audio session."""
     room = RoomFactory(access_level=RoomAccessLevel.PUBLIC)
     status = _recorded("collecting")

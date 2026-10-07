@@ -28,7 +28,7 @@ from core.mastrao_host_grant import (
 )
 from core.mastrao_identity import is_mastrao_host_subject
 from core.mastrao_media_token_binding import generate_host_media_config
-from core.mastrao_native_notice import native_media_allowed, native_notice_projection
+from core.mastrao_native_authorization import authorize_native_policy
 from core.mastrao_recording_session import (
     public_projection,
     recording_session_status,
@@ -213,13 +213,7 @@ class RoomSerializer(serializers.ModelSerializer):
         if recording_projection is not None:
             output["recording"] = recording_projection
 
-        native_projection = native_notice_projection(
-            request, instance, recording_status
-        )
-        if native_projection is not None:
-            output["native_capture"] = native_projection
-
-        should_access_room = native_media_allowed(native_projection) and (
+        should_access_room = (
             (
                 instance.access_level == models.RoomAccessLevel.TRUSTED
                 and request.user.is_authenticated
@@ -230,6 +224,7 @@ class RoomSerializer(serializers.ModelSerializer):
         )
 
         if should_access_room:
+            authorize_native_policy(request, instance, recording_status)
             room_id = f"{instance.id!s}"
             username = request.query_params.get("username", None)
             try:

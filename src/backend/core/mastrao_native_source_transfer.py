@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from core import models
 from core.mastrao_core_http import post_core_json
-from core.mastrao_native_notice import native_envelope
+from core.mastrao_native_authorization import native_envelope
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
 from core.mastrao_room_contract import _sha256_canonical
 

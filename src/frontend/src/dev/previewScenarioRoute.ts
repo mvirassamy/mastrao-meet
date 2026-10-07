@@ -14,7 +14,6 @@ export const previewScreens = [
   ['recording-stopping', 'Enregistrement en arrêt (état visuel)'],
   ['room', 'Salle'],
   ['notifications', 'Notification de démonstration'],
-  ['consent', 'Consentement'],
   ['invitation', 'Invitation'],
   ['feedback', 'Après la réunion'],
   ['error', 'Erreur d’accès'],
@@ -46,7 +45,6 @@ export type PreviewContent =
   | 'meeting-history'
   | 'invitation'
   | 'feedback'
-  | 'consent'
   | 'error'
   | 'not-found'
   | 'loading'
@@ -86,7 +84,6 @@ export const getPreviewContent = (scenario: string): PreviewContent => {
     return 'meeting-history'
   if (scenario === 'invitation') return 'invitation'
   if (scenario === 'feedback') return 'feedback'
-  if (scenario === 'consent') return 'consent'
   if (scenario === 'error') return 'error'
   if (scenario === 'not-found') return 'not-found'
   if (scenario === 'loading') return 'loading'

@@ -38,11 +38,11 @@ from core.mastrao_native_admission import (
     reconcile_native_admissions,
     wake_native_admissions,
 )
-from core.mastrao_native_notice import (
-    NOTICE_JOSE,
-    NOTICE_PATH,
-    _validate_projection,
-    native_notice_projection,
+from core.mastrao_native_authorization import (
+    AUTHORIZATION_JOSE,
+    AUTHORIZATION_PATH,
+    _validate_authorization,
+    authorize_native_policy,
 )
 from core.mastrao_recording_contract import (
     RecordingContractRefused,
@@ -50,7 +50,7 @@ from core.mastrao_recording_contract import (
     compact_digest,
 )
 from core.mastrao_recording_session import activate_recording, recording_session_status
-from core.mastrao_room_contract import _sha256_canonical
+from core.services.lobby import LobbyParticipant, LobbyParticipantStatus
 from core.tests.test_mastrao_media_token_binding import (
     _claims,
     _host_config,
@@ -67,26 +67,23 @@ from core.tests.test_mastrao_rtc_correlation import _assert_post, _event, _join
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-def projection():
-    text = "Votre microphone sera enregistré sur une piste audio séparée."
+def authorization_projection():
     return {
         "version": 1,
-        "text": text,
-        "decision": None,
         "capture_authorized": False,
-        "notice": {
+        "authorization": {
             "policy_ref": "native_policy_fixture",
-            "notice_version": "native_notice_fixture",
-            "notice_digest": _sha256_canonical({"text": text}),
+            "policy_version": "native_policy_version_fixture",
+            "policy_digest": "d" * 64,
             "purpose": "meeting_transcription_source_audio",
-            "scope": "consented_microphone_track_epoch",
+            "scope": "authorized_microphone_track_epoch",
             "retention_expires_at": int(time.time()) + 3600,
         },
     }
 
 
 def video_projection():
-    """Canonical video policy remains separate from the native notice."""
+    """Canonical video policy remains separate from transcription policy."""
     return {
         "consultation_source": "present",
         "decision": "absent",
@@ -139,8 +136,8 @@ def browser_session(client, grant, kind):
 
 @contextmanager
 def core_peer(settings, *, lose_first=False, denied=False, session_policy=False):
-    calls, errors, decisions, captures = [], [], {}, {}
-    notice = projection()
+    calls, errors, captures = [], [], {}
+    authorization = authorization_projection()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -194,7 +191,11 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
                     self.wfile.write(json.dumps(result).encode())
                     return
                 compact = body.get("request") or body["candidate"]
-                expected = NOTICE_JOSE if self.path == NOTICE_PATH else OBSERVED_JOSE
+                expected = (
+                    AUTHORIZATION_JOSE
+                    if self.path == AUTHORIZATION_PATH
+                    else OBSERVED_JOSE
+                )
                 assert jwt.get_unverified_header(compact)["typ"] == expected
                 claims = jwt.decode(
                     compact,
@@ -209,21 +210,10 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
                 )
                 calls.append((self.path, claims, set(body)))
                 code = 200
-                if self.path == NOTICE_PATH:
+                if self.path == AUTHORIZATION_PATH:
                     assert set(body) == {"request", "participant_grant"}
-                    action = claims["action"]
-                    if action["kind"] == "decide":
-                        assert action["notice"] == notice["notice"]
-                        decisions.setdefault(
-                            claims["grant_ref"],
-                            {
-                                **notice["notice"],
-                                "decision": action["decision"],
-                                "decision_ref": "decision_" + uuid4().hex,
-                                "decided_at": int(time.time()),
-                            },
-                        )
-                    result = {**notice, "decision": decisions.get(claims["grant_ref"])}
+                    assert "action" not in claims and "decision" not in claims
+                    result = authorization
                 else:
                     assert self.path == OBSERVED_PATH and set(body) == {"candidate"}
                     assert "consent" not in claims and "participant_grant" not in claims
@@ -252,14 +242,14 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     origin = f"http://127.0.0.1:{server.server_port}"
-    settings.MASTRAO_CORE_NATIVE_NOTICE_ENDPOINT = origin + NOTICE_PATH
+    settings.MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT = origin + AUTHORIZATION_PATH
     settings.MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT = origin + OBSERVED_PATH
     if session_policy:
         settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
             origin + "/internal/v1/meetings/recording/session-status"
         )
     try:
-        yield calls, notice
+        yield calls, authorization
     finally:
         server.shutdown()
         server.server_close()
@@ -268,7 +258,7 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
 
 
 @pytest.mark.parametrize("kind", ["host", "guest"])
-def test_first_native_entry_syncs_policy_and_admits_without_video(
+def test_first_native_entry_authorizes_policy_and_admits_without_video(
     client, native_settings, host, guest, kind
 ):
     """Real session verification, HTTP and PG; Core peer/RTC are synthetic."""
@@ -291,7 +281,11 @@ def test_first_native_entry_syncs_policy_and_admits_without_video(
         )
         assert policy.organization_external_id == "organization_media_fixture"
         assert policy.recording_id is None
-        assert native_notice_projection(request, room, status)["decision"] is None
+        result = authorize_native_policy(request, room, status)
+        assert result["authorization"]["scope"] == ("authorized_microphone_track_epoch")
+        assert authorize_native_policy(request, room, status) == result
+        changed_status = {**status, "transcription_notice_digest": "e" * 64}
+        assert authorize_native_policy(request, room, changed_status) == result
         assert (
             recording_session_status(request, room)["recording_ref"]
             == policy.recording_ref
@@ -302,17 +296,20 @@ def test_first_native_entry_syncs_policy_and_admits_without_video(
         with patch("core.mastrao_rtc_observations.wake_native_admissions"):
             epoch_for(client, native_settings, grant, kind)
         assert reconcile_native_admissions() == 1
-        assert [
-            call[1]["participant_kind"] for call in calls if call[0] == OBSERVED_PATH
-        ] == [kind]
+        assert [call[0] for call in calls] == [
+            AUTHORIZATION_PATH,
+            AUTHORIZATION_PATH,
+            OBSERVED_PATH,
+        ]
+        assert calls[0][1]["participant_kind"] == kind
+        assert calls[1][1]["participant_kind"] == kind
         assert not models.Recording.objects.exists()
 
 
 @pytest.mark.parametrize("kind", ["host", "guest"])
-def test_native_preentry_bootstraps_csrf_for_a_fresh_browser(
+def test_native_preentry_has_no_browser_decision_or_public_projection(
     native_settings, host, guest, kind
 ):
-    """A real notice GET must supply the token used by the first decision POST."""
     native_settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     native_settings.MASTRAO_RECORDING_NOTICE_VERSION = "legacy_notice_fixture"
     native_settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
@@ -320,80 +317,58 @@ def test_native_preentry_bootstraps_csrf_for_a_fresh_browser(
     grant = host if kind == "host" else guest
     browser_session(client, grant, kind)
     base = f"/api/v1.0/rooms/{grant.room_binding.room_id}/"
-    with core_peer(native_settings, session_policy=True) as (calls, notice):
+    with (
+        core_peer(native_settings, session_policy=True) as (calls, _),
+        patch("core.utils.notify_participants"),
+        patch("core.services.lobby.ensure_livekit_room"),
+    ):
         page = client.get(base)
         assert page.status_code == 200, page.content
-        assert page.json()["native_capture"]["decision"] is None
-        assert "csrftoken" in page.cookies
-        csrf = page.cookies["csrftoken"].value
-        body = {"decision": "accepted", "notice": notice["notice"]}
-        decisions_before = len(calls)
-        for headers in ({}, {"HTTP_X_CSRFTOKEN": "b" * 32}):
-            assert (
-                client.post(
-                    base + "native-notice-decision/",
-                    body,
-                    content_type="application/json",
-                    **headers,
-                ).status_code
-                == 403
+        assert "native_capture" not in page.json()
+        authorization_calls = [call for call in calls if call[0] == AUTHORIZATION_PATH]
+        if kind == "host":
+            assert len(authorization_calls) == 1
+            refreshed = client.get(base)
+            assert refreshed.status_code == 200, refreshed.content
+            assert len([call for call in calls if call[0] == AUTHORIZATION_PATH]) == 1
+        else:
+            assert authorization_calls == []
+            waiting = LobbyParticipant(
+                status=LobbyParticipantStatus.WAITING,
+                username="Guest",
+                id=grant.guest_ref,
+                color="#112233",
             )
-        assert len(calls) == decisions_before
-        result = client.post(
-            base + "native-notice-decision/",
-            body,
-            content_type="application/json",
-            HTTP_X_CSRFTOKEN=csrf,
-        )
-        assert result.status_code == 200, result.content
-        assert result.json()["decision"]["decision"] == "accepted"
-        assert not models.MastraoMediaTokenBinding.objects.exists()
-
-
-@pytest.mark.parametrize("kind", ["host", "guest"])
-@pytest.mark.parametrize("choice", ["accepted", "refused"])
-def test_notice_session_signed_http_and_csrf(
-    native_settings, host, guest, kind, choice
-):
-    grant = host if kind == "host" else guest
-    client = Client(enforce_csrf_checks=True)
-    browser_session(client, grant, kind)
-    url = f"/api/v1.0/rooms/{grant.room_binding.room_id}/native-notice-decision/"
-    with core_peer(native_settings) as (calls, notice):
-        body = {"decision": choice, "notice": notice["notice"]}
-        assert (
-            client.post(url, body, content_type="application/json").status_code == 403
-        )
-        assert calls == []
-        csrf = "a" * 32
-        client.cookies["csrftoken"] = csrf
-        result = client.post(
-            url, body, content_type="application/json", HTTP_X_CSRFTOKEN=csrf
-        )
-        assert result.status_code == 200, result.content
-        assert result.json()["decision"]["decision"] == choice
-        assert result["Cache-Control"] == "private, no-store"
-        assert calls[0][1]["grant_ref"] == grant.grant_ref
-        assert calls[0][1]["session_nonce_digest"] == grant.session_nonce_digest
-        assert calls[0][1]["grant_digest"] == grant.grant_digest
+            with patch(
+                "core.api.viewsets.LobbyService.request_entry",
+                return_value=(waiting, None),
+            ):
+                entry = client.post(base + "request-entry/", {"username": "Guest"})
+            assert entry.status_code == 200, entry.content
+            assert entry.json()["livekit"] is None
+            assert [call for call in calls if call[0] == AUTHORIZATION_PATH] == []
+            accepted = LobbyParticipant(
+                status=LobbyParticipantStatus.ACCEPTED,
+                username="Guest",
+                id=grant.guest_ref,
+                color="#112233",
+            )
+            with patch(
+                "core.api.viewsets.LobbyService.request_entry",
+                return_value=(accepted, {"token": "guest-livekit-token"}),
+            ):
+                admitted = client.post(base + "request-entry/", {"username": "Guest"})
+            assert admitted.status_code == 200, admitted.content
+            assert admitted.json()["livekit"]
+            assert len([call for call in calls if call[0] == AUTHORIZATION_PATH]) == 1
+            with patch(
+                "core.api.viewsets.LobbyService.request_entry",
+                return_value=(accepted, {"token": "refreshed-livekit-token"}),
+            ):
+                refreshed = client.post(base + "request-entry/", {"username": "Guest"})
+            assert refreshed.status_code == 200, refreshed.content
+            assert len([call for call in calls if call[0] == AUTHORIZATION_PATH]) == 1
         assert not models.MastraoNativeCaptureStart.objects.exists()
-        injected = client.post(
-            url,
-            {**body, "participant_ref": "crossed"},
-            content_type="application/json",
-            HTTP_X_CSRFTOKEN=csrf,
-        )
-        assert injected.status_code == 400
-        session = client.session
-        session[f"mastrao_{kind}_session_nonce"] = "wrong-browser-session" * 3
-        session.save()
-        assert (
-            client.post(
-                url, body, content_type="application/json", HTTP_X_CSRFTOKEN=csrf
-            ).status_code
-            == 404
-        )
-        assert len(calls) == 1
 
 
 def epoch_for(  # noqa: PLR0913 - fixture inputs plus event-order/reconnection cases
@@ -675,17 +650,19 @@ def test_claim_fence_and_broker_failure_preserve_pending_epoch(
 
 @pytest.mark.parametrize(
     "field,value",
-    [("capture_authorized", True), ("text", "changed"), ("decision", {"decision": []})],
+    [
+        ("capture_authorized", True),
+        ("authorization", {"scope": "authorized_microphone_track_epoch"}),
+    ],
 )
-def test_notice_peer_drift_fails_closed(field, value):
+def test_authorization_peer_drift_fails_closed(field, value):
     with pytest.raises(RecordingContractRefused):
-        _validate_projection({**projection(), field: value})
+        _validate_authorization({**authorization_projection(), field: value})
 
 
 @pytest.mark.parametrize("route", ["retrieve", "request-entry"])
-@pytest.mark.parametrize("choice", ["accepted", "refused"])
-def test_actual_media_gate_before_and_after_native_decision(
-    client, native_settings, host, route, choice
+def test_native_policy_authorization_keeps_media_entry_available(
+    client, native_settings, host, route
 ):
     browser_session(client, host, "host")
     base = f"/api/v1.0/rooms/{host.room_binding.room_id}/"
@@ -699,7 +676,7 @@ def test_actual_media_gate_before_and_after_native_decision(
             "start_status": "refused",
         },
         "transcription_mode": "transcribed",
-        "transcription_decision": "accepted",
+        "transcription_decision": "absent",
         "recording_ref": "recording_fixture",
         "notice_version": "legacy_notice_fixture",
         "notice_digest": "a" * 64,
@@ -711,73 +688,45 @@ def test_actual_media_gate_before_and_after_native_decision(
         "transcription_notice_digest": "b" * 64,
     }
     with (
-        core_peer(native_settings) as (_, notice),
+        core_peer(native_settings) as (calls, _),
         patch("core.api.serializers.recording_session_status", return_value=status),
         patch("core.api.viewsets.recording_session_status", return_value=status),
         patch("core.api.serializers.ensure_livekit_room"),
         patch("core.services.lobby.ensure_livekit_room"),
         patch("core.utils.notify_participants"),
     ):
-
-        def read():
-            return (
-                client.get(base)
-                if route == "retrieve"
-                else client.post(base + "request-entry/", {"username": "Matt"})
-            )
-
-        for video_state in ("collecting", "stopping", "available"):
-            status["recording_state"] = video_state
-            before = read()
-            assert before.status_code == 200, before.content
-            assert before["Cache-Control"] == "private, no-store"
-            assert not before.json().get("livekit")
-            assert before.json()["native_capture"]["decision"] is None
-            assert not models.MastraoMediaTokenBinding.objects.exists()
-        status["recording_state"] = "collecting"
-        result = client.post(
-            base + "native-notice-decision/",
-            {"decision": choice, "notice": notice["notice"]},
-            content_type="application/json",
+        result = (
+            client.get(base)
+            if route == "retrieve"
+            else client.post(base + "request-entry/", {"username": "Matt"})
         )
         assert result.status_code == 200, result.content
-        after = read()
-        assert after.status_code == 200, after.content
-        assert after["Cache-Control"] == "private, no-store"
-        token = after.json()["livekit"]
-        assert after.json()["native_capture"]["decision"]["decision"] == choice
-        assert models.MastraoMediaTokenBinding.objects.filter(
-            pk=_claims(token)["attributes"]["mastrao.media_token_binding_ref"]
-        ).exists()
-        assert not models.Recording.objects.exists()
-        for video_state in ("active", "stopping", "processing", "available"):
-            status["recording_state"] = video_state
-            after_video_change = read()
-            assert after_video_change.status_code == 200, after_video_change.content
-            assert after_video_change.json()["livekit"]
-            assert (
-                after_video_change.json()["native_capture"]["decision"]["decision"]
-                == choice
-            )
+        assert result["Cache-Control"] == "private, no-store"
+        assert result.json()["livekit"]
+        assert "native_capture" not in result.json()
+        authorization = [call for call in calls if call[0] == AUTHORIZATION_PATH]
+        assert len(authorization) == 1
+        assert authorization[0][2] == {"request", "participant_grant"}
+        assert "action" not in authorization[0][1]
         assert not models.Recording.objects.exists()
 
 
-def test_preentry_off_preserves_native_room_and_does_not_contact_core(
+def test_preentry_off_preserves_room_and_does_not_contact_core(
     client, native_settings, host
 ):
     native_settings.MASTRAO_NATIVE_PREENTRY_ENABLED = False
     browser_session(client, host, "host")
-    with core_peer(native_settings) as (calls, notice):
+    request = _request(host)
+    with core_peer(native_settings) as (calls, _):
         assert (
-            native_notice_projection(
-                _request(host), host.room_binding.room, {"mode": "recorded"}
+            authorize_native_policy(
+                request,
+                host.room_binding.room,
+                {"mode": "recorded", "transcription_mode": "transcribed"},
             )
             is None
         )
-        result = client.post(
-            f"/api/v1.0/rooms/{host.room_binding.room_id}/native-notice-decision/",
-            {"decision": "accepted", "notice": notice["notice"]},
-            content_type="application/json",
-        )
-        assert result.status_code == 404
+        result = client.get(f"/api/v1.0/rooms/{host.room_binding.room_id}/")
+        assert result.status_code == 200
+        assert "native_capture" not in result.json()
         assert calls == []

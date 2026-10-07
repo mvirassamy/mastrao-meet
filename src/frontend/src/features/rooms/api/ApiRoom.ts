@@ -1,5 +1,4 @@
 import type { Track } from 'livekit-client'
-import type { NativeNoticeProjection } from './nativeNotice'
 type Source = Track.Source
 
 export type ApiLiveKit = {
@@ -48,7 +47,6 @@ export type ApiRoom = {
   livekit?: ApiLiveKit
   configuration?: RoomConfiguration
   can_end?: boolean
-  native_capture?: NativeNoticeProjection
   platform_return?: {
     url: string
     expires_at: number

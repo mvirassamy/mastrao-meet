@@ -48,9 +48,9 @@ AUTHORITY_FIELDS = {
     "participant_kind",
     "participant_ref",
     "policy_ref",
-    "notice_version",
-    "notice_digest",
-    "consent_snapshot_digest",
+    "policy_version",
+    "policy_digest",
+    "policy_authorization_digest",
     "purpose",
     "scope",
     "retention_expires_at",
@@ -91,7 +91,7 @@ def verify_native_start(compact):
         or effect["issuer"] != settings.MASTRAO_RECORDING_EFFECT_ISSUER
         or effect["audience"] != settings.MASTRAO_RECORDING_EFFECT_AUDIENCE
         or effect["purpose"] != "meeting_transcription_source_audio"
-        or effect["scope"] != "consented_microphone_track_epoch"
+        or effect["scope"] != "authorized_microphone_track_epoch"
         or effect["profile_digest"] != PROFILE_DIGEST
         or effect["participant_kind"] not in ("host", "guest")
         or type(effect["resolve_only"]) is not bool
@@ -110,7 +110,7 @@ def verify_native_start(compact):
         "grant_ref",
         "participant_ref",
         "policy_ref",
-        "notice_version",
+        "policy_version",
         "jti",
     ):
         _validate_ref(effect, name)
@@ -124,8 +124,8 @@ def verify_native_start(compact):
         "arguments_digest",
         "grant_digest",
         "session_nonce_digest",
-        "notice_digest",
-        "consent_snapshot_digest",
+        "policy_digest",
+        "policy_authorization_digest",
     ):
         if not isinstance(effect[name], str) or not DIGEST.fullmatch(effect[name]):
             raise RecordingContractRefused()
