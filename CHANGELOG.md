@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-08: Accept LiveKit-redacted S3 credentials while matching every
+  non-secret TrackEgress output field exactly.
+
 - 2026-10-08: Make the PPTX extension fallback test independent of the
   operating system MIME registry while keeping its exact type assertion.
 

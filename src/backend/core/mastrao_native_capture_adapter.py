@@ -169,12 +169,22 @@ def native_request(intent):
     )
 
 
+def _without_s3_credentials(request):
+    """Copy a TrackEgress request without provider-redacted credentials."""
+    comparable = api.TrackEgressRequest()
+    comparable.CopyFrom(request)
+    if comparable.HasField("file") and comparable.file.HasField("s3"):
+        comparable.file.s3.access_key = ""
+        comparable.file.s3.secret = ""
+    return comparable
+
+
 def _matches(job, request, room_sid):
     return (
         job.room_id == room_sid
         and job.room_name == request.room_name
         and job.HasField("track")
-        and job.track == request
+        and _without_s3_credentials(job.track) == _without_s3_credentials(request)
         and re.fullmatch(r"EG_[A-Za-z0-9]{1,96}", job.egress_id) is not None
     )
 
