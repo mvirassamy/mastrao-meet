@@ -3,6 +3,20 @@
 - 2026-10-08: Hide the obsolete LiveKit recording banner in canonical Mastrao
   rooms so stopping video cannot leave a false recording status.
 
+- 2026-10-08: Remove the retired consent preview from the existing gallery
+  route test expectations.
+
+- 2026-10-08: Run existing frontend unit tests in the lint gate and build
+  the SDK after lint and formatting with one dependency install.
+
+- 2026-10-08: Pull only the pinned AMD64 S3 emulator used by backend tests
+  and remove the test that required unused ARM64 pulls and image removals.
+
+- 2026-10-08: Enforce the existing PPTX MIME assertion as a passing test.
+
+- 2026-10-08: Check added print calls, including top-level calls, without
+  rejecting removed lines, unchanged context or fingerprint calls.
+
 - 2026-10-07: Retire inherited Docker Hub and Argo CD publication, Crowdin
   download PRs and Helm chart publication workflows.
 

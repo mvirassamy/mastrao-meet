@@ -58,22 +58,6 @@ class S3CIContractTests(unittest.TestCase):
         self.assertNotIn("MINIO_CLIENT_IMAGE", workflow)
         self.assertNotIn("MINIO_SERVER_IMAGE", workflow)
 
-    def test_ci_forces_fresh_pulls_for_both_index_architectures(self):
-        workflow = WORKFLOW.read_text()
-        remove = 'docker image rm --force "$S3_EMULATOR_IMAGE"'
-        self.assertEqual(workflow.count(remove), 2)
-        for platform in ("linux/amd64", "linux/arm64"):
-            with self.subTest(platform=platform):
-                self.assertIn(
-                    f'docker pull --platform {platform} "$S3_EMULATOR_IMAGE"',
-                    workflow,
-                )
-        arm64_pull = workflow.index("docker pull --platform linux/arm64")
-        intermediate_remove = workflow.index(remove, arm64_pull)
-        amd64_pull = workflow.index("docker pull --platform linux/amd64")
-        self.assertLess(arm64_pull, intermediate_remove)
-        self.assertLess(intermediate_remove, amd64_pull)
-
     def test_ci_uses_boto3_smoke_instead_of_mc(self):
         workflow = WORKFLOW.read_text()
         self.assertIn("uv run python ../../scripts/ci/s3_smoke.py", workflow)
