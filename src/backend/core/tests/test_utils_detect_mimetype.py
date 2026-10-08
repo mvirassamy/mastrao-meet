@@ -122,18 +122,17 @@ def test_detect_mimetype_prefers_content_over_extension():
     assert mimetype == "application/pdf"
 
 
-def test_detect_mimetype_powerpoint_pptx():
-    """Test detect_mimetype correctly detects PowerPoint .pptx files."""
-    # .pptx files are ZIP archives, so content might be detected as application/zip or octet-stream
-    # But with the extension, it should be detected as PowerPoint MIME type
-    # Using minimal ZIP-like content that might be detected as generic
-    pptx_content = b"PK\x03\x04"  # ZIP magic bytes (PPTX is a ZIP archive)
-    mimetype = utils.detect_mimetype(pptx_content, filename="presentation.pptx")
-    # Should use extension to get PowerPoint MIME type
-    assert mimetype in [
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
-    ]
+def test_detect_mimetype_uses_registered_pptx_extension(monkeypatch):
+    """Use the registered extension when the content only identifies a ZIP."""
+    expected = (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+    # MIME registrations come from the OS; this unit test supplies its own entry.
+    if not utils.mimetypes.inited:
+        utils.mimetypes.init()
+    monkeypatch.setitem(utils.mimetypes.types_map, ".pptx", expected)
+    mimetype = utils.detect_mimetype(b"PK\x03\x04", filename="presentation.pptx")
+    assert mimetype == expected
 
 
 def test_detect_mimetype_powerpoint_ppt():
