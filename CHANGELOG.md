@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-08: Remove S3 smoke source assertions covered by behavior tests.
+
 - 2026-10-08: Align the signed native capture profile with the existing
   TrackEgress OGG/Opus request and source manifest.
 
