@@ -134,11 +134,9 @@ def _platform_return_origin():
         or parsed.scheme not in ({"http", "https"} if local else {"https"})
         or parsed.username
         or parsed.password
-        or parsed.path not in {"", "/"}
-        or parsed.params
-        or parsed.query
-        or parsed.fragment
     ):
+        return None
+    if parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment:
         return None
     return f"{parsed.scheme}://{parsed.netloc}"
 
@@ -162,9 +160,11 @@ def host_platform_return_projection(request, room):
         or claims["meeting_ref"] != grant.meeting_ref
         or claims["room_ref"] != grant.room_ref
         or claims["platform_session_ref"] != grant.platform_session_ref
-        or claims["provider_binding_digest"] != grant.provider_binding_digest
-        or claims["expires_at"] != int(grant.expires_at.timestamp())
     ):
+        return None
+    if claims["provider_binding_digest"] != grant.provider_binding_digest or claims[
+        "expires_at"
+    ] != int(grant.expires_at.timestamp()):
         return None
     query = urlencode(
         (

@@ -11,6 +11,7 @@ import pytest
 
 from meet import settings as meet_settings
 from meet.settings import (
+    TranscriptionASRConfiguration,
     redis_url_with_database,
     validate_mastrao_meeting_close_configuration,
     validate_mastrao_transcription_configuration,
@@ -106,10 +107,16 @@ def test_transcription_disabled_needs_no_asr_configuration():
     """An untouched deployment stays valid with no ASR endpoint at all."""
 
     validate_mastrao_transcription_configuration(
-        False, "real", "", fake_asr_allowed=False
+        False,
+        TranscriptionASRConfiguration(
+            asr_mode="real", asr_endpoint="", fake_asr_allowed=False
+        ),
     )
     validate_mastrao_transcription_configuration(
-        False, "fake", "", fake_asr_allowed=False
+        False,
+        TranscriptionASRConfiguration(
+            asr_mode="fake", asr_endpoint="", fake_asr_allowed=False
+        ),
     )
 
 
@@ -121,7 +128,10 @@ def test_non_deployable_configurations_may_select_the_deterministic_fake():
     """
 
     validate_mastrao_transcription_configuration(
-        True, "fake", "", fake_asr_allowed=True
+        True,
+        TranscriptionASRConfiguration(
+            asr_mode="fake", asr_endpoint="", fake_asr_allowed=True
+        ),
     )
 
 
@@ -130,7 +140,10 @@ def test_production_transcription_refuses_the_fake_engine():
 
     with pytest.raises(ImproperlyConfigured, match="ASR_MODE=real"):
         validate_mastrao_transcription_configuration(
-            True, "fake", "", fake_asr_allowed=False
+            True,
+            TranscriptionASRConfiguration(
+                asr_mode="fake", asr_endpoint="", fake_asr_allowed=False
+            ),
         )
 
 
@@ -139,7 +152,10 @@ def test_production_transcription_requires_a_real_endpoint():
 
     with pytest.raises(ImproperlyConfigured, match="ASR_ENDPOINT"):
         validate_mastrao_transcription_configuration(
-            True, "real", "", fake_asr_allowed=False
+            True,
+            TranscriptionASRConfiguration(
+                asr_mode="real", asr_endpoint="", fake_asr_allowed=False
+            ),
         )
 
 
@@ -158,7 +174,10 @@ def test_production_transcription_refuses_unqualified_endpoints(endpoint):
 
     with pytest.raises(ImproperlyConfigured):
         validate_mastrao_transcription_configuration(
-            True, "real", endpoint, fake_asr_allowed=False
+            True,
+            TranscriptionASRConfiguration(
+                asr_mode="real", asr_endpoint=endpoint, fake_asr_allowed=False
+            ),
         )
 
 
@@ -167,13 +186,15 @@ def test_production_transcription_accepts_a_qualified_private_endpoint():
 
     validate_mastrao_transcription_configuration(
         True,
-        "real",
-        "https://asr.internal.mastrao/transcribe",
-        fake_asr_allowed=False,
-        asr_provider="mistral",
-        asr_model="voxtral-mini-2602",
-        asr_gateway_token="workload-token",
-        asr_qualification_mode=True,
+        TranscriptionASRConfiguration(
+            asr_mode="real",
+            asr_endpoint="https://asr.internal.mastrao/transcribe",
+            fake_asr_allowed=False,
+            asr_provider="mistral",
+            asr_model="voxtral-mini-2602",
+            asr_gateway_token="workload-token",
+            asr_qualification_mode=True,
+        ),
     )
 
 
@@ -183,28 +204,34 @@ def test_real_mode_refuses_implicit_provider_defaults():
     with pytest.raises(ImproperlyConfigured, match="TRANSCRIPTION_PROVIDER"):
         validate_mastrao_transcription_configuration(
             True,
-            "real",
-            "https://asr.internal.mastrao/transcribe",
-            fake_asr_allowed=False,
+            TranscriptionASRConfiguration(
+                asr_mode="real",
+                asr_endpoint="https://asr.internal.mastrao/transcribe",
+                fake_asr_allowed=False,
+            ),
         )
     with pytest.raises(ImproperlyConfigured, match="ASR_GATEWAY_AUTH_TOKEN"):
         validate_mastrao_transcription_configuration(
             True,
-            "real",
-            "https://asr.internal.mastrao/transcribe",
-            fake_asr_allowed=False,
-            asr_provider="mistral",
-            asr_model="voxtral-mini-2602",
+            TranscriptionASRConfiguration(
+                asr_mode="real",
+                asr_endpoint="https://asr.internal.mastrao/transcribe",
+                fake_asr_allowed=False,
+                asr_provider="mistral",
+                asr_model="voxtral-mini-2602",
+            ),
         )
     with pytest.raises(ImproperlyConfigured, match="QUALIFICATION_MODE"):
         validate_mastrao_transcription_configuration(
             True,
-            "real",
-            "https://asr.internal.mastrao/transcribe",
-            fake_asr_allowed=False,
-            asr_provider="openai",
-            asr_model="gpt-transcribe",
-            asr_gateway_token="workload-token",
+            TranscriptionASRConfiguration(
+                asr_mode="real",
+                asr_endpoint="https://asr.internal.mastrao/transcribe",
+                fake_asr_allowed=False,
+                asr_provider="openai",
+                asr_model="gpt-transcribe",
+                asr_gateway_token="workload-token",
+            ),
         )
 
 
@@ -213,7 +240,10 @@ def test_unknown_asr_mode_is_refused_even_when_transcription_is_disabled():
 
     with pytest.raises(ImproperlyConfigured, match="ASR_MODE"):
         validate_mastrao_transcription_configuration(
-            False, "typo", "", fake_asr_allowed=True
+            False,
+            TranscriptionASRConfiguration(
+                asr_mode="typo", asr_endpoint="", fake_asr_allowed=True
+            ),
         )
 
 
@@ -244,9 +274,11 @@ def test_deployable_transcription_requires_celery(configuration_name):
     with pytest.raises(ImproperlyConfigured, match="CELERY_ENABLED"):
         validate_mastrao_transcription_configuration(
             True,
-            "real",
-            "https://asr.internal.mastrao/transcribe",
-            fake_asr_allowed=False,
+            TranscriptionASRConfiguration(
+                asr_mode="real",
+                asr_endpoint="https://asr.internal.mastrao/transcribe",
+                fake_asr_allowed=False,
+            ),
             celery_enabled=False,
             celery_required=True,
         )

@@ -14,6 +14,7 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 
 import json
 import warnings
+from dataclasses import dataclass
 from os import environ, path
 from socket import gethostbyname, gethostname
 from urllib.parse import urlparse
@@ -89,17 +90,25 @@ def validate_mastrao_meeting_close_configuration(close_enabled, explicit_creatio
 PAID_ASR_PROVIDERS = {"mistral", "openai"}
 
 
-def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
+@dataclass(frozen=True)
+class TranscriptionASRConfiguration:
+    """ASR engine and authorization values checked together before startup."""
+
+    asr_mode: str
+    asr_endpoint: str
+    fake_asr_allowed: bool
+    asr_provider: str = ""
+    asr_model: str = ""
+    asr_gateway_token: str = ""
+    asr_qualification_mode: bool = False
+
+
+def validate_mastrao_transcription_configuration(
     transcription_enabled,
-    asr_mode,
-    asr_endpoint,
-    fake_asr_allowed,
+    asr: TranscriptionASRConfiguration,
+    *,
     celery_enabled=True,
     celery_required=False,
-    asr_provider="",
-    asr_model="",
-    asr_gateway_token="",
-    asr_qualification_mode=False,
 ):
     """Refuse a deployment that could transcribe with the deterministic fake.
 
@@ -116,9 +125,9 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
     Transcription-off deployments stay valid with no ASR configuration at all.
     """
 
-    if asr_mode not in {"fake", "real"}:
+    if asr.asr_mode not in {"fake", "real"}:
         raise ImproperlyConfigured(
-            f"MASTRAO_TRANSCRIPTION_ASR_MODE must be 'fake' or 'real', got {asr_mode!r}"
+            f"MASTRAO_TRANSCRIPTION_ASR_MODE must be 'fake' or 'real', got {asr.asr_mode!r}"
         )
     if not transcription_enabled:
         return
@@ -127,20 +136,20 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
             "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires CELERY_ENABLED=true "
             "in a deployable configuration"
         )
-    if asr_mode == "fake":
-        if not fake_asr_allowed:
+    if asr.asr_mode == "fake":
+        if not asr.fake_asr_allowed:
             raise ImproperlyConfigured(
                 "MASTRAO_MEETING_TRANSCRIPTION_ENABLED requires "
                 "MASTRAO_TRANSCRIPTION_ASR_MODE=real outside local development and "
                 "qualification; the fake engine is a fixture, not a transcription"
             )
         return
-    if not asr_endpoint:
+    if not asr.asr_endpoint:
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
             "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT"
         )
-    parsed = urlparse(asr_endpoint)
+    parsed = urlparse(asr.asr_endpoint)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT must be an absolute http(s) URL"
@@ -150,21 +159,21 @@ def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917
             "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT must not embed credentials, "
             "a query string or a fragment"
         )
-    if asr_provider not in PAID_ASR_PROVIDERS:
+    if asr.asr_provider not in PAID_ASR_PROVIDERS:
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
             "MASTRAO_TRANSCRIPTION_PROVIDER=mistral or openai"
         )
-    if not asr_model:
+    if not asr.asr_model:
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires MASTRAO_TRANSCRIPTION_MODEL"
         )
-    if not asr_gateway_token:
+    if not asr.asr_gateway_token:
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
             "MASTRAO_ASR_GATEWAY_AUTH_TOKEN"
         )
-    if not asr_qualification_mode:
+    if not asr.asr_qualification_mode:
         raise ImproperlyConfigured(
             "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
             "MASTRAO_ASR_QUALIFICATION_MODE=true"
@@ -1624,15 +1633,17 @@ class Base(Configuration):
 
         validate_mastrao_transcription_configuration(
             cls.MASTRAO_MEETING_TRANSCRIPTION_ENABLED,
-            cls.MASTRAO_TRANSCRIPTION_ASR_MODE,
-            cls.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT,
-            cls.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
-            cls.CELERY_ENABLED,
-            cls.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
-            asr_provider=cls.MASTRAO_TRANSCRIPTION_PROVIDER,
-            asr_model=cls.MASTRAO_TRANSCRIPTION_MODEL,
-            asr_gateway_token=cls.MASTRAO_ASR_GATEWAY_AUTH_TOKEN,
-            asr_qualification_mode=cls.MASTRAO_ASR_QUALIFICATION_MODE,
+            TranscriptionASRConfiguration(
+                asr_mode=cls.MASTRAO_TRANSCRIPTION_ASR_MODE,
+                asr_endpoint=cls.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT,
+                fake_asr_allowed=cls.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
+                asr_provider=cls.MASTRAO_TRANSCRIPTION_PROVIDER,
+                asr_model=cls.MASTRAO_TRANSCRIPTION_MODEL,
+                asr_gateway_token=cls.MASTRAO_ASR_GATEWAY_AUTH_TOKEN,
+                asr_qualification_mode=cls.MASTRAO_ASR_QUALIFICATION_MODE,
+            ),
+            celery_enabled=cls.CELERY_ENABLED,
+            celery_required=cls.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
         )
 
         if cls.FILE_UPLOAD_TMP_PATH == cls.FILE_UPLOAD_PATH:

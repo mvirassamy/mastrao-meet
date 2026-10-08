@@ -6,7 +6,7 @@ import time
 from datetime import timedelta
 from unittest import mock
 
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.test import Client, override_settings
@@ -318,7 +318,7 @@ def test_guest_redemption_rotates_the_anonymous_session_key():
     assert response.status_code == 200
     assert client.session.session_key != old_session_key
     fixed_client = Client(HTTP_HOST="meet.test")
-    fixed_client.cookies[settings.SESSION_COOKIE_NAME] = old_session_key
+    fixed_client.cookies[django_settings.SESSION_COOKIE_NAME] = old_session_key
     assert fixed_client.get(f"/api/v1.0/rooms/{binding.room.slug}/").status_code == 404
 
 

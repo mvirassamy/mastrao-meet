@@ -102,6 +102,8 @@ def _effect(private_key, *, jti="claim_0123456789abcdef", owner_ref=None):
 
 @pytest.fixture(name="adapter_settings")
 def fixture_adapter_settings():
+    """Install room command verification and receipt signing keys for one test."""
+
     command_private, command_jwks = _jwk_pair()
     _receipt_private, receipt_jwks = _jwk_pair()
     settings_override = override_settings(

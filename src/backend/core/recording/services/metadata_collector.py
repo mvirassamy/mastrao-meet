@@ -77,10 +77,8 @@ class MetadataCollectorService:
                 )
             except MetadataCollectorException:
                 try:
-                    await lkapi.agent_dispatch.delete_dispatch(
-                        dispatch_id=str(dispatch_id), room_name=room_id
-                    )
-                except Exception:
+                    await self._delete_superseded_dispatch(lkapi, dispatch_id, room_id)
+                except MetadataCollectorException:
                     logger.exception(
                         "Failed to delete superseded metadata collector for room %s",
                         room_id,
@@ -90,6 +88,19 @@ class MetadataCollectorService:
             return dispatch_id
         finally:
             await lkapi.aclose()
+
+    @staticmethod
+    async def _delete_superseded_dispatch(lkapi, dispatch_id, room_id):
+        """Translate cleanup errors so they cannot mask the superseded claim."""
+
+        try:
+            await lkapi.agent_dispatch.delete_dispatch(
+                dispatch_id=str(dispatch_id), room_name=room_id
+            )
+        except Exception as error:
+            raise MetadataCollectorException(
+                "Failed to delete superseded metadata collector"
+            ) from error
 
     @staticmethod
     @transaction.atomic
