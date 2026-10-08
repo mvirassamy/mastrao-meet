@@ -121,13 +121,6 @@ jobs:
         if: steps.mail-templates.outputs.cache-hit != 'true'
         run: yarn build
 
-      - name: Cache mail templates
-        if: steps.mail-templates.outputs.cache-hit != 'true'
-        uses: actions/cache@v5
-        with:
-          path: "src/backend/core/templates/mail"
-          key: mail-templates-${{ hashFiles('src/mail/mjml') }}
-
   lint-back:
     runs-on: ubuntu-latest
     permissions:
