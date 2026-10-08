@@ -15,6 +15,12 @@ and this project adheres to
 
 ### Fixed
 
+- 🔧(ci) run existing frontend unit tests in the lint gate and build the
+  SDK after lint and formatting with one dependency install
+- 🔧(ci) pull only the pinned AMD64 S3 emulator used by backend tests
+- 🔧(ci) inspect only added print calls in pull request diffs
+- 🔧(tests) enforce the existing PPTX MIME assertion as a passing test
+
 - 🔧(ci) use the maintained S3 emulator for backend tests on main
 - 🔧(ci) honor the Redis test endpoint and install required ffmpeg
 - 🔧(tests) restore isolated guest and speaker-evidence fixtures
