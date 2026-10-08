@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-08: Hide the obsolete LiveKit recording banner in canonical Mastrao
+  rooms so stopping video cannot leave a false recording status.
+
 - 2026-10-07: Retire inherited Docker Hub and Argo CD publication, Crowdin
   download PRs and Helm chart publication workflows.
 
