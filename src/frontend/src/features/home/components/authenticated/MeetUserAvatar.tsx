@@ -10,7 +10,8 @@ const firstCharacter = (value: string): string => {
   return Array.from(value)[0] ?? ''
 }
 
-const getUserInitials = (name: string): string => {
+const getUserInitials = (name: string | null | undefined): string => {
+  if (!name) return ''
   const words = name.trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return ''
   if (words.length === 1 && words[0].includes('@')) {
@@ -20,7 +21,7 @@ const getUserInitials = (name: string): string => {
 }
 
 type MeetUserAvatarProps = {
-  name: string
+  name?: string | null
   compact?: boolean
 }
 

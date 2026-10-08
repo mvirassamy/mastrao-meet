@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MeetSidebarUserMenu } from './MeetSidebarUserMenu'
 
 vi.mock('react-i18next', () => ({
@@ -28,6 +28,8 @@ vi.mock('@/primitives', () => ({
 vi.mock('@/features/auth/utils/logout', () => ({ logout: vi.fn() }))
 
 describe('MeetSidebarUserMenu', () => {
+  afterEach(cleanup)
+
   it('falls back to the email when the OIDC profile has no full name', () => {
     render(
       <MeetSidebarUserMenu
@@ -46,5 +48,22 @@ describe('MeetSidebarUserMenu', () => {
     expect(screen.getAllByText('matthias@mastrao.com').length).toBeGreaterThan(
       0
     )
+  })
+
+  it('keeps the menu usable while a constrained profile has no display fields', () => {
+    render(
+      <MeetSidebarUserMenu
+        user={{
+          id: 'user-2',
+          email: null as unknown as string,
+          full_name: null as unknown as string,
+          last_name: '',
+          language: 'fr-fr',
+          timezone: 'Europe/Paris',
+        }}
+      />
+    )
+
+    expect(screen.getByRole('button')).toBeTruthy()
   })
 })

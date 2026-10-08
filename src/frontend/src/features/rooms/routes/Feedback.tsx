@@ -8,7 +8,11 @@ import { useLocation } from 'wouter'
 import { useEffect, useMemo, useRef } from 'react'
 import { DisconnectReason } from 'livekit-client'
 import { useConfig } from '@/api/useConfig'
+import { useUser } from '@/features/auth/api/useUser'
+import { authUrl } from '@/features/auth/utils/authUrl'
 import type { CandidateInfo } from '@/stores/connectionObserver'
+import { useHostHandoff } from '../hooks/useHostHandoff'
+import { isMastraoRoomId } from '../utils/isRoomValid'
 import {
   readCachedPlatformReturn,
   validatePlatformReturn,
@@ -70,6 +74,11 @@ const FeedbackRoute = () => {
       readPlatformReturn(apiConfig?.mastrao_platform_origin, routeState.roomId),
     [apiConfig?.mastrao_platform_origin, routeState.roomId]
   )
+  const { isLoggedIn } = useUser()
+  const hostReturnTo = routeState.roomId
+    ? new URL(`/host/${routeState.roomId}`, window.location.origin).href
+    : undefined
+  const hostHandoff = useHostHandoff(routeState.roomId ?? '', hostReturnTo)
   const headingRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => headingRef.current?.focus(), [])
@@ -103,11 +112,24 @@ const FeedbackRoute = () => {
     DisconnectReasonKey.ParticipantRemoved,
     DisconnectReasonKey.MeetingEnded,
   ].includes(reasonKey as DisconnectReasonKey)
-  const showBackButton = canRejoin && !platformReturn
+  const canRecoverHost =
+    Boolean(platformReturn) && isMastraoRoomId(routeState.roomId ?? '')
+  const showBackButton = canRejoin && Boolean(routeState.roomId)
   const showRating = reasonKey !== DisconnectReasonKey.MeetingEnded
-  const showPlatformReturn =
-    Boolean(platformReturn) &&
-    reasonKey !== DisconnectReasonKey.ParticipantRemoved
+
+  const rejoin = () => {
+    if (!routeState.roomId) return
+    if (!canRecoverHost) {
+      setLocation(`/${routeState.roomId}`)
+      return
+    }
+    if (isLoggedIn === undefined) return
+    if (!isLoggedIn) {
+      window.location.assign(authUrl({ returnTo: hostReturnTo }))
+      return
+    }
+    void hostHandoff.handoff()
+  }
 
   return (
     <Screen layout="centered" footer={false}>
@@ -139,36 +161,29 @@ const FeedbackRoute = () => {
             </Text>
           )}
           <HStack>
-            {showPlatformReturn && (
+            {showBackButton && (
               <Button
                 variant="default"
-                onPress={() => {
-                  window.open(
-                    platformReturn as string,
-                    '_blank',
-                    'noopener,noreferrer'
-                  )
-                }}
+                onPress={rejoin}
+                isDisabled={
+                  canRecoverHost &&
+                  (hostHandoff.pending || isLoggedIn === undefined)
+                }
+                loading={canRecoverHost && hostHandoff.pending}
               >
-                {t(
-                  canRejoin
-                    ? 'feedback.rejoinFromMatter'
-                    : 'feedback.returnToMatter'
-                )}
-              </Button>
-            )}
-            {showBackButton && (
-              <Button variant="outline" onPress={() => window.history.back()}>
                 {t('feedback.back')}
               </Button>
             )}
             <Button
-              variant={showPlatformReturn ? 'outline' : 'default'}
+              variant={showBackButton ? 'outline' : 'default'}
               onPress={() => setLocation('/')}
             >
               {t('feedback.home')}
             </Button>
           </HStack>
+          {canRecoverHost && hostHandoff.failed && (
+            <Text role="alert">{t('hostRecovery.error')}</Text>
+          )}
           {showRating && <Rating metadata={metadata} />}
         </VStack>
       </Center>

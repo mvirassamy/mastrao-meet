@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-09: Rejoin a departed host directly inside Meet with renewed host
+  authority, and keep the authenticated home usable with incomplete profiles.
+
 - 2026-10-08: Check actual Helm worker queues and align the manual Core HTTP
   qualification with scoped shared-schema recording effects.
 

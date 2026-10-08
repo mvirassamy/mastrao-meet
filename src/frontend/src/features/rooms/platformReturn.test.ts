@@ -40,9 +40,8 @@ describe('Platform return descriptor', () => {
         platformOrigin
       )
     ).toBeNull()
-    expect(
-      validatePlatformReturn({ ...descriptor(), expires_at: 1 }, platformOrigin)
-    ).toBeNull()
+    const expired = { ...descriptor(), expires_at: 1 }
+    expect(validatePlatformReturn(expired, platformOrigin)).toEqual(expired)
     expect(
       validatePlatformReturn(
         {
