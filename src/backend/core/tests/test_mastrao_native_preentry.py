@@ -210,7 +210,9 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
                         "notice_digest": settings.MASTRAO_RECORDING_NOTICE_DIGEST,
                         "purpose": "meeting_recording",
                         "scope": "room_composite_audio_video_screen",
-                        "retention_expires_at": int(time.time()) + 3600,
+                        "retention_expires_at": authorization["authorization"][
+                            "retention_expires_at"
+                        ],
                         "recording_state": "collecting",
                         "video": video_projection(),
                         "decision": "absent",
@@ -365,7 +367,8 @@ def test_native_preentry_has_no_browser_decision_or_public_projection(
         authorization_calls = [call for call in calls if call[0] == AUTHORIZATION_PATH]
         if kind == "host":
             assert len(authorization_calls) == 1
-            refreshed = client.get(base)
+            with patch("time.time", return_value=time.time() + 2):
+                refreshed = client.get(base)
             assert refreshed.status_code == 200, refreshed.content
             assert len([call for call in calls if call[0] == AUTHORIZATION_PATH]) == 1
         else:

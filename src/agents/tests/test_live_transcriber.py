@@ -256,8 +256,8 @@ class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(manager._sessions[("alice", "TR_A")], session)
         self.assertEqual(len(room.local_participant.messages), 1)
 
-    def test_provider_is_locked_to_gpt_live_transcribe(self):
-        """The opt-in provider cannot silently select another model."""
+    def test_provider_uses_configured_model_and_realtime_languages(self):
+        """Pass the provider configuration to the realtime STT factory."""
         with patch.dict(
             os.environ,
             {"OPENAI_API_KEY": "test-key", "OPENAI_STT_LANGUAGES": "fr,en"},
