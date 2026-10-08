@@ -21,7 +21,6 @@ describe('getPreviewContent', () => {
       'recording-stopping': 'room',
       room: 'room',
       notifications: 'room',
-      consent: 'consent',
       invitation: 'invitation',
       feedback: 'feedback',
       error: 'error',
