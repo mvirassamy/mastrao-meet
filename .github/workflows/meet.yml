@@ -85,6 +85,11 @@ jobs:
           version: v3.18.4
       - name: Verify agent subtitles Helm rendering
         run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh
+      - name: Verify Mastrao recording routes and worker isolation
+        run: |
+          src/helm/tests/recording-rollout-handoff.sh
+          src/helm/tests/recording-public-route.sh
+          src/helm/tests/mastrao-transcription-queue.sh
 
   build-mails:
     runs-on: ubuntu-latest
@@ -107,19 +112,15 @@ jobs:
         id: mail-templates
         with:
           path: "src/backend/core/templates/mail"
-          key: mail-templates-${{ hashFiles('src/mail/mjml') }}
-
-      - name: Install yarn
-        if: steps.mail-templates.outputs.cache-hit != 'true'
-        run: npm install -g yarn
+          key: mail-templates-${{ hashFiles('src/mail/mjml/**', 'src/mail/bin/**', 'src/mail/html-to-text.config.json', 'src/mail/package.json', 'src/mail/package-lock.json') }}
 
       - name: Install node dependencies
         if: steps.mail-templates.outputs.cache-hit != 'true'
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Build mails
         if: steps.mail-templates.outputs.cache-hit != 'true'
-        run: yarn build
+        run: npm run build
 
   lint-back:
     runs-on: ubuntu-latest
@@ -261,7 +262,7 @@ jobs:
         id: mail-templates
         with:
           path: "src/backend/core/templates/mail"
-          key: mail-templates-${{ hashFiles('src/mail/mjml') }}
+          key: mail-templates-${{ hashFiles('src/mail/mjml/**', 'src/mail/bin/**', 'src/mail/html-to-text.config.json', 'src/mail/package.json', 'src/mail/package-lock.json') }}
 
       - name: Pull the S3 emulator for the CI architecture
         run: docker pull --platform linux/amd64 "$S3_EMULATOR_IMAGE"
