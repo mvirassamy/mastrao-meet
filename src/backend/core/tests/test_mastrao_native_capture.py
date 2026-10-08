@@ -41,10 +41,12 @@ from core.mastrao_native_capture_adapter import native_request
 from core.mastrao_native_capture_contract import (
     EFFECT_TYPE,
     JOSE_TYPE,
+    PROFILE,
     PROFILE_DIGEST,
     RECEIPT_JOSE_TYPE,
     arguments_digest,
 )
+from core.mastrao_native_capture_drain import _source_manifest
 from core.mastrao_room_contract import _base64url_decode, _canonical_json
 from core.tests.test_mastrao_media_token_binding import (
     _claims,
@@ -534,6 +536,60 @@ def test_signed_start_commits_intent_before_send_and_receipt_before_ack(
     assert repeated.content == response.content
     assert provider.egress.start_track_egress.await_count == 1
     provider.egress.list_egress.assert_not_called()
+
+
+def test_signed_profile_matches_track_egress_request_and_manifest(
+    client, signer, effect, provider
+):
+    assert PROFILE == {
+        "version": 2,
+        "engine": "livekit_track_egress",
+        "container": "ogg",
+        "codec": "opus",
+    }
+    # Core's canonicalJsonBytes vector for NATIVE_PROFILE; keep both sides exact.
+    assert _canonical_json(PROFILE) == (
+        b'{"codec":"opus","container":"ogg",'
+        b'"engine":"livekit_track_egress","version":2}\n'
+    )
+    assert PROFILE_DIGEST == (
+        "c5490d2a7e93af79ceefd522b02d1077e99e468a4c0071617456e022f3a8cf91"
+    )
+    assert effect["profile_digest"] == PROFILE_DIGEST
+    assert _post(client, signer, effect).status_code == 200
+
+    intent = models.MastraoNativeCaptureStart.objects.get()
+    request = provider.egress.start_track_egress.await_args.args[0]
+    assert isinstance(request, api.TrackEgressRequest)
+    assert request == native_request(intent)
+    assert request.file.filepath == f"recordings/{intent.capture_ref}.ogg"
+
+    job = provider.jobs[0]
+    job.file_results.append(
+        api.FileInfo(
+            filename=request.file.filepath,
+            started_at=1_000_000_000,
+            ended_at=3_000_000_000,
+            duration=2_000_000_000,
+            size=4096,
+        )
+    )
+    manifest = _source_manifest(intent, job)
+    assert manifest["format"] == "native_track_egress_ogg_opus_v1"
+    assert manifest["object_ref"] == request.file.filepath
+
+
+def test_signed_previous_profile_is_refused_before_start(
+    client, signer, effect, provider
+):
+    effect["profile_digest"] = (
+        "75ba2d7b4ff99321f589272c9c5ea6c2ac335ef8cd5ac1659e80db55e05c5e60"
+    )
+    effect["arguments_digest"] = arguments_digest(effect)
+
+    assert _post(client, signer, effect).status_code == 404
+    provider.egress.start_track_egress.assert_not_called()
+    assert not models.MastraoNativeCaptureStart.objects.exists()
 
 
 def test_lost_response_resolves_exact_job_without_restarting_after_flag_rollback(

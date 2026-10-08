@@ -22,13 +22,10 @@ JOSE_TYPE = "mastrao-native-microphone-start-effect+jws"
 EFFECT_TYPE = "mastrao.core-native-microphone-start-effect"
 RECEIPT_JOSE_TYPE = "mastrao-native-microphone-start-receipt+jws"
 PROFILE = {
-    "version": 1,
-    "engine": "livekit_track_composite",
-    "container": "hls_mpegts",
-    "codec": "aac",
-    "bitrate_kbps": 32,
-    "frequency_hz": 48000,
-    "segment_seconds": 6,
+    "version": 2,
+    "engine": "livekit_track_egress",
+    "container": "ogg",
+    "codec": "opus",
 }
 PROFILE_DIGEST = _sha256_canonical(PROFILE)
 AUTHORITY_FIELDS = {
