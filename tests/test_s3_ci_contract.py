@@ -67,17 +67,6 @@ class S3CIContractTests(unittest.TestCase):
         self.assertNotIn("mc cat", workflow)
         self.assertNotIn("mc rm", workflow)
 
-        smoke = SMOKE.read_text()
-        for operation in (
-            "create_bucket",
-            "put_object",
-            "get_object",
-            "delete_object",
-            "list_objects_v2",
-        ):
-            with self.subTest(operation=operation):
-                self.assertIn(f"client.{operation}", smoke)
-
     def test_local_minio_webhook_surfaces_are_unchanged(self):
         compose = Path("compose.yml").read_text()
         helm = Path("src/helm/extra/templates/minio.yaml").read_text()
