@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-08: Align the signed native capture profile with the existing
+  TrackEgress OGG/Opus request and source manifest.
+
 - 2026-10-08: Hide the obsolete LiveKit recording banner in canonical Mastrao
   rooms so stopping video cannot leave a false recording status.
 
