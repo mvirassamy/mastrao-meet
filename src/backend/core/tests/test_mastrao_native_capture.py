@@ -37,7 +37,7 @@ from livekit import api
 
 from core import models
 from core.mastrao_media_token_binding import generate_guest_media_config
-from core.mastrao_native_capture_adapter import native_request
+from core.mastrao_native_capture_adapter import _matches, native_request
 from core.mastrao_native_capture_contract import (
     EFFECT_TYPE,
     JOSE_TYPE,
@@ -60,6 +60,14 @@ from core.tests.test_mastrao_rtc_correlation import _assert_post, _event, _join,
 
 pytestmark = pytest.mark.django_db(transaction=True)
 URL = "/internal/mastrao/captures/native/start/"
+
+
+def _provider_redacted_request(request):
+    observed_request = api.TrackEgressRequest()
+    observed_request.CopyFrom(request)
+    observed_request.file.s3.access_key = "provider-redacted"
+    observed_request.file.s3.secret = "provider-redacted"
+    return observed_request
 
 
 @contextmanager
@@ -105,7 +113,7 @@ def _twirp_fixture(effect, lose_response, *, lose_stop=False):
                         egress_id="EG_nativehttp",
                         room_id=effect["room_sid"],
                         room_name=request.room_name,
-                        track=request,
+                        track=_provider_redacted_request(request),
                         status=api.EgressStatus.EGRESS_STARTING,
                     )
                     jobs.append(job)
@@ -197,6 +205,40 @@ def test_real_http_consumer_and_livekit_transport(
         assert calls.count("/twirp/livekit.Egress/StartTrackEgress") == 1
         assert len(calls) == (2 if lose_response else 1)
         assert not errors
+
+
+def test_provider_observation_ignores_only_redacted_s3_credentials(effect):
+    request = api.TrackEgressRequest(
+        room_name="room-native-fixture",
+        track_id=effect["track_sid"],
+        file=api.DirectFileOutput(
+            filepath=f"recordings/{effect['capture_ref']}.ogg",
+            s3=api.S3Upload(
+                endpoint="https://native-fixture.invalid",
+                access_key="native-fixture-access-key",
+                secret="native-fixture-secret",
+                region="native-fixture-region",
+                bucket="native-fixture-bucket",
+                force_path_style=True,
+            ),
+        ),
+    )
+    job = api.EgressInfo(
+        egress_id="EG_nativehttp",
+        room_id=effect["room_sid"],
+        room_name=request.room_name,
+        track=_provider_redacted_request(request),
+        status=api.EgressStatus.EGRESS_STARTING,
+    )
+
+    assert _matches(job, request, effect["room_sid"])
+
+    job.track.file.filepath = "recordings/another-capture.ogg"
+    assert not _matches(job, request, effect["room_sid"])
+
+    job.track.CopyFrom(_provider_redacted_request(request))
+    job.track.file.s3.bucket = "another-bucket"
+    assert not _matches(job, request, effect["room_sid"])
 
 
 @pytest.fixture
