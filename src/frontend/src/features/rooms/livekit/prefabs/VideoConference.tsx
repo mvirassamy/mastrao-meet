@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { LiveTranscriptionProvider } from '@/features/subtitle/store'
+import { isMastraoRoomId } from '@/features/rooms/utils/isRoomValid'
 
 /**
  * @public
@@ -158,7 +159,9 @@ export function VideoConference({
         </LiveTranscriptionProvider>
         <RoomAudioRenderer />
         <ConnectionStateToast />
-        <RecordingProvider hideVisual={recording?.mode === 'recorded'} />
+        <RecordingProvider
+          hideVisual={isMastraoRoomId(roomId) || recording?.mode === 'recorded'}
+        />
         <SettingsDialogProvider />
         <ReactionPortals />
       </div>
