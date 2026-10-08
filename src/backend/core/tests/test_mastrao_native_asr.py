@@ -182,7 +182,7 @@ def test_prepare_accepts_scoped_large_response_but_refuses_changed_audio(
     settings.MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = (
         "http://127.0.0.1:9000/internal/v1/meetings/capture/native/asr/prepare"
     )
-    audio = b"fLaC" + b"x" * 30000
+    audio = b"OggS" + b"x" * 30000
     prepared = {
         "version": 1,
         "source_ref": asr_intent.source_receipt["source_ref"],
@@ -190,7 +190,7 @@ def test_prepare_accepts_scoped_large_response_but_refuses_changed_audio(
         "epoch_ref": str(asr_intent.epoch_id),
         "metadata": {
             "provider": "mistral",
-            "audio_codec": "flac",
+            "audio_codec": "ogg",
             "audio_sha256": hashlib.sha256(audio).hexdigest(),
         },
         "native_source_egress_grant": "signed-fixture-placeholder",
@@ -204,6 +204,42 @@ def test_prepare_accepts_scoped_large_response_but_refuses_changed_audio(
         prepared["metadata"]["audio_sha256"] = "f" * 64
         with pytest.raises(RecordingContractRefused):
             prepare_native_asr(asr_intent)
+
+
+def test_gateway_receives_the_core_ogg_contract(settings):
+    settings.MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT = (
+        "http://asr-gateway/v1/native/transcribe"
+    )
+    settings.MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN = "native-gateway-fixture-only-token"
+    audio = b"OggS" + b"audio"
+    prepared = {
+        "metadata": {
+            "audio_sha256": hashlib.sha256(audio).hexdigest(),
+            "audio_codec": "ogg",
+        },
+        "native_source_egress_grant": "signed-fixture-placeholder",
+    }
+    result = {
+        "outcome": "succeeded",
+        "transcript": {
+            "audio_digest": prepared["metadata"]["audio_sha256"],
+        },
+    }
+    with (
+        patch("core.mastrao_native_asr_client.requests.Session") as session,
+        patch(
+            "core.mastrao_native_asr_client.read_bounded_core_json",
+            return_value=result,
+        ),
+    ):
+        assert transcribe_native_asr(prepared, audio) == result
+
+    request = session.return_value.__enter__.return_value.post
+    assert request.call_args.kwargs["files"]["audio"] == (
+        "source.ogg",
+        audio,
+        "audio/ogg",
+    )
 
 
 @pytest.mark.parametrize(

@@ -3,6 +3,9 @@
 - 2026-10-08: Keep native policy test fixtures stable across clock changes,
   run the existing Mastrao Helm checks and build cached mails with npm.
 
+- 2026-10-08: Forward governed TrackEgress audio to native ASR with its OGG
+  filename, codec and media type.
+
 - 2026-10-08: Accept LiveKit-redacted S3 credentials while matching every
   non-secret TrackEgress output field exactly.
 

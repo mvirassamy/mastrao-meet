@@ -68,7 +68,7 @@ def prepare_native_asr(intent):
         not 1 <= len(audio) <= MAX_AUDIO_BYTES
         or hashlib.sha256(audio).hexdigest() != metadata.get("audio_sha256")
         or metadata.get("provider") != "mistral"
-        or metadata.get("audio_codec") != "flac"
+        or metadata.get("audio_codec") != "ogg"
     ):
         raise RecordingContractRefused(status=503)
     return prepared, audio
@@ -103,7 +103,7 @@ def transcribe_native_asr(prepared, audio):
                     json.dumps(prepared["metadata"]),
                     "application/json",
                 ),
-                "audio": ("source.flac", audio, "audio/flac"),
+                "audio": ("source.ogg", audio, "audio/ogg"),
             },
             headers={
                 "Authorization": f"Bearer {token}",
