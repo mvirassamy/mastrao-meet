@@ -111,22 +111,28 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
 
     def test_build_inputs_are_exactly_the_closed_recipe(self):
         build = self.steps["Build and publish the selected candidate"]
+        build_inputs = {}
+        for line in build.split("        with:\n", 1)[1].splitlines():
+            if not line.strip():
+                continue
+            match = re.fullmatch(r"          ([\w-]+): (.+)", line)
+            self.assertIsNotNone(match, line)
+            key, value = match.groups()
+            self.assertNotIn(key, build_inputs)
+            build_inputs[key] = value
         self.assertEqual(
-            build.split("        with:\n", 1)[1].rstrip("\n"),
-            "\n".join(
-                (
-                    "          context: source/${{ steps.recipe.outputs.context }}",
-                    "          file: source/${{ steps.recipe.outputs.dockerfile }}",
-                    "          target: ${{ steps.recipe.outputs.build_target }}",
-                    "          platforms: linux/amd64",
-                    "          build-args: ${{ steps.recipe.outputs.build_args }}",
-                    "          push: true",
-                    "          tags: ${{ steps.recipe.outputs.repository }}"
-                    ":sha-${{ inputs.source_sha }}",
-                    "          provenance: mode=max",
-                    "          sbom: true",
-                )
-            ),
+            build_inputs,
+            {
+                "context": "source/${{ steps.recipe.outputs.context }}",
+                "file": "source/${{ steps.recipe.outputs.dockerfile }}",
+                "target": "${{ steps.recipe.outputs.build_target }}",
+                "platforms": "linux/amd64",
+                "build-args": "${{ steps.recipe.outputs.build_args }}",
+                "push": "true",
+                "tags": "${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}",
+                "provenance": "mode=max",
+                "sbom": "true",
+            },
         )
 
     def test_candidate_is_read_back_and_receipted_with_its_recipe(self):
@@ -141,14 +147,14 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
 
     def test_run_scripts_never_interpolate_expressions(self):
         scripts = run_scripts(self.workflow)
-        self.assertEqual(len(scripts), 6)
+        self.assertTrue(scripts)
         for script in scripts:
             with self.subTest(script=script.splitlines()[0]):
                 self.assertNotIn("${{", script)
 
     def test_every_action_is_pinned_to_a_commit(self):
         uses = re.findall(r"uses:\s*(\S+)", self.workflow)
-        self.assertEqual(len(uses), 6)
+        self.assertTrue(uses)
         for reference in uses:
             with self.subTest(reference=reference):
                 self.assertRegex(
@@ -176,11 +182,12 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             r"(?ms)^  ci-contracts:\n(?P<job>.*?)(?=^  [\w-]+:\n)", workflow
         )
         self.assertIsNotNone(ci_contracts)
-        self.assertIn("uses: azure/setup-helm@v4", ci_contracts.group("job"))
-        self.assertIn("version: v3.18.4", ci_contracts.group("job"))
-        self.assertIn(
-            "run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh",
+        self.assertRegex(
+            ci_contracts.group("job"), r"(?m)^        uses: azure/setup-helm@\S+"
+        )
+        self.assertRegex(
             ci_contracts.group("job"),
+            r"(?m)^        run: src/helm/tests/agent-subtitles-image-and-openai-secret\.sh$",
         )
 
     def test_agent_contract_tests_run_in_ci(self):

@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-10-08: Make the PPTX extension fallback test independent of the
+  operating system MIME registry while keeping its exact type assertion.
+
+- 2026-10-08: Remove duplicate mail caching, simplify workflow contract
+  assertions and retire personal Mac-only interoperability harnesses.
+
 - 2026-10-08: Remove S3 smoke source assertions covered by behavior tests.
 
 - 2026-10-08: Align the signed native capture profile with the existing

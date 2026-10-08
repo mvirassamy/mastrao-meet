@@ -61,7 +61,6 @@ from core.tests.test_mastrao_media_token_binding import (
     isolated_binding_settings,
 )
 from core.tests.test_mastrao_native_capture import signer
-from core.tests.test_mastrao_native_grant_interop import _grant_claims
 from core.tests.test_mastrao_rtc_correlation import _assert_post, _event, _join
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -108,6 +107,41 @@ def native_settings(settings, signer):
     settings.MASTRAO_ROOM_EFFECT_ISSUER = "core-fixture"
     settings.MASTRAO_ROOM_EFFECT_AUDIENCE = "meet-fixture"
     return settings
+
+
+def _grant_claims(grant, kind):
+    now = int(time.time())
+    common = {
+        "version": 1,
+        "issuer": "core-fixture",
+        "audience": "meet-fixture",
+        "organization_external_id": "organization_media_fixture",
+        "meeting_ref": grant.meeting_ref,
+        "room_ref": grant.room_ref,
+        "provider_binding_digest": grant.provider_binding_digest,
+        "credential_digest": grant.credential_digest,
+        "grant_ref": grant.grant_ref,
+        "issued_at": now - 10,
+        "expires_at": now + 300,
+    }
+    if kind == "host":
+        return {
+            **common,
+            "type": "mastrao.core-meeting-host-grant",
+            "purpose": "media_host",
+            "handoff_ref": grant.handoff_ref,
+            "host_ref": grant.identity.host_ref,
+            "platform_session_ref": grant.platform_session_ref,
+            "redemption_id": "redemption_native_fixture",
+        }
+    return {
+        **common,
+        "type": "mastrao.core-meeting-guest-grant",
+        "purpose": "guest_lobby",
+        "invitation_ref": grant.invitation_ref,
+        "guest_ref": grant.guest_ref,
+        "redemption_id": grant.redemption_id,
+    }
 
 
 def browser_session(client, grant, kind):

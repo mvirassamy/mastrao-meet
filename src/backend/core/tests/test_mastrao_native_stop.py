@@ -5,8 +5,6 @@
 # pylint: disable=too-many-positional-arguments,unused-argument,unused-import
 
 import json
-import os
-import subprocess
 
 from django.db import DatabaseError, connection
 from django.utils import timezone
@@ -154,69 +152,3 @@ def test_stop_sql_failure_rolls_back_latch_and_retry_commits(
     assert models.MastraoNativeCaptureStart.objects.get().stop_requested_at is None
     monkeypatch.setattr(models.MastraoNativeCaptureStart, "save", original)
     assert _stop(client, signer, _stop_effect(effect)).status_code == 200
-
-
-@pytest.mark.skipif(
-    os.environ.get("NATIVE_STOP_INTEROP") != "synthetic-only",
-    reason="explicit local cross-repo fixture only",
-)
-def test_core_typescript_signing_and_receipt_verification_interoperate(
-    client, signer, effect, provider, settings
-):
-    assert _post(client, signer, effect).status_code == 200
-    root = "/Users/matthias/Programming/mastrao/mastrao-platform-transcript-review"
-
-    def node(payload):
-        result = subprocess.run(
-            [
-                "/opt/homebrew/bin/pnpm",
-                "exec",
-                "tsx",
-                "--conditions=development",
-                ".agents/tmp/verify-native-core-stop-20260910/interop.ts",
-            ],
-            cwd=root,
-            input=json.dumps(payload),
-            text=True,
-            capture_output=True,
-            timeout=15,
-            env={
-                "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
-                "NATIVE_STOP_INTEROP": "synthetic-only",
-            },
-            check=True,
-        )
-        return result.stdout
-
-    compact = node(
-        {
-            "mode": "sign",
-            "effect": _stop_effect(effect),
-            "key": json.loads(settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK),
-        }
-    )
-    response = client.post(
-        URL, {"native_stop_effect": compact}, content_type="application/json"
-    )
-    assert response.status_code == 200
-    for terminal in (False, True):
-        if terminal:
-            provider.jobs[0].status = api.EgressStatus.EGRESS_COMPLETE
-            models.MastraoNativeCaptureStart.objects.update(
-                next_check_at=timezone.now()
-            )
-            assert reconcile_native_captures() == 1
-            response = client.post(
-                URL, {"native_stop_effect": compact}, content_type="application/json"
-            )
-        snapshot = json.loads(
-            node(
-                {
-                    "mode": "verify",
-                    "receipt": response.json()["native_stop_receipt"],
-                    "key": json.loads(settings.MASTRAO_RECORDING_EFFECT_PUBLIC_JWK),
-                }
-            )
-        )
-        assert snapshot["state"] == ("drained" if terminal else "requested")
-        assert snapshot["capture_ref"] == effect["capture_ref"]
