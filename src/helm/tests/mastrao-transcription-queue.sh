@@ -48,27 +48,31 @@ render "$workdir/values.yaml" templates/celery_transcribe_deployment.yaml "$work
 render "$workdir/disabled.yaml" templates/celery_mastrao_transcription_deployment.yaml "$workdir/disabled-out.yaml" true
 
 python3 - "$workdir/mastrao.yaml" "$workdir/admission.yaml" "$workdir/backend.yaml" "$workdir/transcribe.yaml" "$workdir/disabled-out.yaml" <<'PY'
+import re
 import sys
 from pathlib import Path
 
+
+def worker_queues(manifest):
+    arguments = re.findall(r"^\s*-\s+['\"]?-Q['\"]?\s*\n\s*-\s+([^\n]+)", manifest, re.MULTILINE)
+    flags = re.findall(r"^\s*-\s+['\"]?(?:-Q|--queues)", manifest, re.MULTILINE)
+    if len(arguments) != 1 or len(flags) != 1:
+        raise SystemExit("worker_queue_argument_missing_or_ambiguous")
+    return set(arguments[0].strip().strip("\"'").split(","))
+
+
 mastrao, admission, backend, transcribe, disabled = (Path(p).read_text(encoding="utf8") for p in sys.argv[1:])
-if "mastrao-transcription" not in mastrao:
-    raise SystemExit("dedicated_queue_not_enabled_by_default")
-if "--concurrency=1" not in mastrao and '"--concurrency=1"' not in mastrao:
-    raise SystemExit("concurrency_missing")
-if "meet-backend" in mastrao.split("-Q", 1)[-1][:80] and "mastrao-transcription" not in mastrao:
+if worker_queues(mastrao) != {"mastrao-transcription"}:
     raise SystemExit("dedicated_worker_wrong_queue")
-if "mastrao-transcription" in backend:
+if "--concurrency=1" not in mastrao:
+    raise SystemExit("concurrency_missing")
+if "mastrao-transcription" in worker_queues(backend):
     raise SystemExit("generic_worker_consumes_mastrao_queue")
-if "mastrao-native-admission" not in admission:
-    raise SystemExit("native_admission_worker_missing_queue")
-if "meet-backend" in admission.split("-Q", 1)[-1][:80]:
-    raise SystemExit("native_admission_worker_consumes_backend_queue")
-if "mastrao-native-admission" in backend:
+if worker_queues(admission) != {"mastrao-native-admission"}:
+    raise SystemExit("native_admission_worker_wrong_queue")
+if "mastrao-native-admission" in worker_queues(backend):
     raise SystemExit("generic_worker_consumes_native_admission_queue")
-if "mastrao-native-admission" in mastrao:
-    raise SystemExit("transcription_worker_consumes_native_admission_queue")
-if "mastrao-transcription" in transcribe:
+if "mastrao-transcription" in worker_queues(transcribe):
     raise SystemExit("summary_transcribe_consumes_mastrao_queue")
 if "MISTRAL_ASR_API_KEY" in mastrao or "OPENAI_ASR_API_KEY" in mastrao:
     raise SystemExit("provider_secret_in_meet_worker")

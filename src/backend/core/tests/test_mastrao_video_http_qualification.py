@@ -105,21 +105,36 @@ def _prepare_core_start(config, participants, effect):
         user=config["postgres_fixture_owner"],
     ) as connection:
         connection.execute(
-            "UPDATE native_fixture.meeting_recordings SET state='starting',"
-            "video_activation_roster=%s::jsonb",
-            (json.dumps({"participants": participants}),),
+            "UPDATE core.meeting_recordings SET state='starting',"
+            "video_activation_roster=%s::jsonb "
+            "WHERE tenant_id=%s AND recording_id=%s",
+            (
+                json.dumps({"participants": participants}),
+                config["cabinet_id"],
+                config["meeting_id"],
+            ),
         )
-        connection.execute("DELETE FROM native_fixture.meeting_recording_effects")
         connection.execute(
-            "INSERT INTO native_fixture.meeting_recording_effects "
+            "DELETE FROM core.meeting_recording_effects "
+            "WHERE tenant_id=%s AND recording_id=%s AND operation='start'",
+            (config["cabinet_id"], config["meeting_id"]),
+        )
+        connection.execute(
+            "INSERT INTO core.meeting_recording_effects "
+            "(tenant_id,recording_id,effect_id,effect_key,claim_id,operation,"
+            "state,attempt,claim_expires_at,arguments_digest,"
+            "provider_binding_digest,receipt_jti) "
             "VALUES(%s,%s,%s,%s,%s,'start','claimed',1,"
-            "clock_timestamp()+interval '1 minute')",
+            "clock_timestamp()+interval '1 minute',%s,%s,%s)",
             (
                 config["cabinet_id"],
                 config["meeting_id"],
                 str(uuid4()),
                 effect["effect_key"],
                 effect["claim_id"],
+                "a" * 64,
+                effect["provider_binding_digest"],
+                "video_receipt_fixture",
             ),
         )
 
