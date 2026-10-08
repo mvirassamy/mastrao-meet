@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-08: Check actual Helm worker queues and align the manual Core HTTP
+  qualification with scoped shared-schema recording effects.
+
 - 2026-10-08: Keep native policy test fixtures stable across clock changes,
   run the existing Mastrao Helm checks and build cached mails with npm.
 
