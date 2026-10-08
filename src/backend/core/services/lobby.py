@@ -195,7 +195,17 @@ class LobbyService:
         )
         return participant, None
 
-    def request_entry(  # noqa: PLR0911,PLR0912
+    @staticmethod
+    def _livekit_config(livekit_arguments):
+        """Generate media access only while the canonical room remains open."""
+
+        try:
+            ensure_livekit_room(livekit_arguments["room_id"])
+        except MastraoRoomClosed:
+            return None
+        return utils.generate_livekit_config(**livekit_arguments)
+
+    def request_entry(
         self,
         room: models.Room,
         request,
@@ -260,11 +270,7 @@ class LobbyService:
             }
             if host_expires_at is not None:
                 livekit_arguments["expires_at"] = host_expires_at
-            try:
-                ensure_livekit_room(room_id)
-            except MastraoRoomClosed:
-                return participant, None
-            livekit_config = utils.generate_livekit_config(**livekit_arguments)
+            livekit_config = self._livekit_config(livekit_arguments)
             return participant, livekit_config
 
         livekit_config = None
@@ -290,11 +296,7 @@ class LobbyService:
             }
             if host_expires_at is not None:
                 livekit_arguments["expires_at"] = host_expires_at
-            try:
-                ensure_livekit_room(room_id)
-            except MastraoRoomClosed:
-                return participant, None
-            livekit_config = utils.generate_livekit_config(**livekit_arguments)
+            livekit_config = self._livekit_config(livekit_arguments)
 
         return participant, livekit_config
 

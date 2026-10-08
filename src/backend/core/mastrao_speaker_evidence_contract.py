@@ -99,7 +99,10 @@ def _validate_receipt_common(claims):
         or claims.get("type") != ARTIFACT_RECEIPT_TYPE
         or claims.get("issuer") != settings.MASTRAO_RECORDING_RECEIPT_ISSUER
         or claims.get("audience") != settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE
-        or claims.get("operation") != "confirm_meeting_speaker_evidence_artifact"
+    ):
+        raise RecordingContractRefused()
+    if (
+        claims.get("operation") != "confirm_meeting_speaker_evidence_artifact"
         or claims.get("operation_version") != 1
         or claims.get("purpose") != PURPOSE
         or claims.get("scope") != SCOPE
@@ -145,7 +148,10 @@ def _validate_artifact_receipt_time(claims, *, allow_expired):
         or isinstance(issued_at, bool)
         or not isinstance(expires_at, int)
         or isinstance(expires_at, bool)
-        or issued_at > now
+    ):
+        raise RecordingContractRefused()
+    if (
+        issued_at > now
         or not 1 <= expires_at - issued_at <= MAX_ASSERTION_SECONDS
         or (not allow_expired and expires_at <= now)
     ):
@@ -190,7 +196,10 @@ def verify_speaker_evidence_capture_effect(compact_jws):
         not isinstance(retention, int)
         or isinstance(retention, bool)
         or retention <= int(time.time())
-        or not isinstance(recording_started, int)
+    ):
+        raise RecordingContractRefused()
+    if (
+        not isinstance(recording_started, int)
         or isinstance(recording_started, bool)
         or recording_started < 0
     ):

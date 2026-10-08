@@ -34,6 +34,7 @@ def _encode_silence_flac(destination: Path, seconds: int):
 
 
 def test_thirty_and_sixty_minute_flac_fit_the_provider_cap(tmp_path):
+    """Full 30- and 60-minute FLAC files remain below the provider byte limit."""
     for seconds in (30 * 60, 60 * 60):
         path = tmp_path / f"silence-{seconds}.flac"
         _encode_silence_flac(path, seconds)

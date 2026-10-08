@@ -6,7 +6,7 @@ import time
 from datetime import timedelta
 from unittest import mock
 
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.test import Client, override_settings
@@ -27,6 +27,14 @@ from core.mastrao_guest_handoff import GUEST_RETRY_COOKIE, decide_guest_admissio
 from core.mastrao_identity import mastrao_technical_owner_subject
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def _allow_guest_test_host(request):
+    """Allow the explicit origin exercised by this guest-admission test module."""
+
+    test_settings = request.getfixturevalue("settings")
+    test_settings.ALLOWED_HOSTS = ["meet.test", "testserver"]
 
 
 def _room_binding(suffix="0123456789abcdef0123456789abcdef"):
@@ -310,7 +318,7 @@ def test_guest_redemption_rotates_the_anonymous_session_key():
     assert response.status_code == 200
     assert client.session.session_key != old_session_key
     fixed_client = Client(HTTP_HOST="meet.test")
-    fixed_client.cookies[settings.SESSION_COOKIE_NAME] = old_session_key
+    fixed_client.cookies[django_settings.SESSION_COOKIE_NAME] = old_session_key
     assert fixed_client.get(f"/api/v1.0/rooms/{binding.room.slug}/").status_code == 404
 
 

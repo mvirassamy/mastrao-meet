@@ -6,6 +6,7 @@ import re
 import secrets
 import threading
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
@@ -51,6 +52,18 @@ COMPACT_JWS = re.compile(
     r"^[A-Za-z0-9_-]{1,4096}\.[A-Za-z0-9_-]{1,12288}\.[A-Za-z0-9_-]{1,4096}$"
 )
 _GUEST_VERIFY_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_GUEST_VERIFICATIONS)
+
+
+@contextmanager
+def _guest_verification_slot():
+    """Reserve crypto capacity without waiting and always release the slot."""
+
+    if not _GUEST_VERIFY_SLOTS.acquire(blocking=False):
+        raise GuestHandoffRefused(status=503)
+    try:
+        yield
+    finally:
+        _GUEST_VERIFY_SLOTS.release()
 
 
 def _safe_headers():
@@ -303,12 +316,8 @@ def consume_mastrao_guest_invitation(request):
             r"redemption_[a-f0-9]{32}", redemption_id
         ):
             raise GuestHandoffRefused()
-        if not _GUEST_VERIFY_SLOTS.acquire(blocking=False):
-            raise GuestHandoffRefused(status=503)
-        try:
+        with _guest_verification_slot():
             verify_guest_invitation(compact)
-        finally:
-            _GUEST_VERIFY_SLOTS.release()
         bucket = int(timezone.now().timestamp()) // 60
         key = f"mastrao-guest-attempt:{compact_digest(compact)}:{bucket}"
         attempts = 1 if cache.add(key, 1, timeout=70) else cache.incr(key)

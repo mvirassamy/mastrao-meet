@@ -264,7 +264,188 @@ class UserViewSet(
         )
 
 
+class CanonicalMastraoRoomActionsMixin:
+    """Expose session-bound recording decisions and canonical meeting lifecycle."""
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        """Keep lifecycle reads uncacheable and non-enumerable."""
+
+        response = super().finalize_response(request, response, *args, **kwargs)
+        if getattr(self, "action", None) == "mastrao_meeting_lifecycle":
+            response["Cache-Control"] = "no-store"
+            if response.status_code == drf_status.HTTP_404_NOT_FOUND:
+                response.data = {"detail": "Not found."}
+        return response
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="recording-decision",
+        permission_classes=[],
+    )
+    def recording_decision(self, request, pk=None):  # pylint: disable=unused-argument
+        """Record one exact browser session's informed recording decision."""
+
+        serializer = serializers.RecordingDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = record_decision(request, room, **serializer.validated_data)
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="transcription-decision",
+        permission_classes=[],
+    )
+    def transcription_decision(self, request, pk=None):  # pylint: disable=unused-argument
+        """Record one exact browser session's informed transcription decision."""
+
+        serializer = serializers.TranscriptionDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = record_transcription_decision(
+                request, room, **serializer.validated_data
+            )
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="recording-activate",
+        permission_classes=[],
+    )
+    def recording_activate(self, request, pk=None):  # pylint: disable=unused-argument
+        """Activate recording only after the accepted host connected to LiveKit."""
+
+        serializer = serializers.RecordingActivationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = activate_recording(request, room, **serializer.validated_data)
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="recording-stop",
+        permission_classes=[],
+    )
+    def recording_stop(self, request, pk=None):  # pylint: disable=unused-argument
+        """Ask Core to stop one exact canonical recording."""
+
+        serializer = serializers.RecordingStopSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not can_access_canonical_room(request, room):
+            raise Http404
+        try:
+            result = request_recording_stop(request, room, **serializer.validated_data)
+        except (
+            RecordingContractRefused,
+            HostHandoffRefused,
+            GuestHandoffRefused,
+        ) as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["post"],
+        url_path="end",
+        permission_classes=[permissions.HasMeetingClosePrivilegesOnRoom],
+    )
+    def end_mastrao_meeting(self, request, pk=None):  # pylint: disable=unused-argument
+        """Ask Core to irreversibly end one canonical meeting for everyone."""
+
+        serializer = serializers.EndMeetingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        room = self.get_object()
+        if not hasattr(room, "mastrao_binding"):
+            raise Http404
+        try:
+            result = request_meeting_close(
+                request,
+                room,
+                serializer.validated_data["close_request_id"],
+            )
+        except RoomCloseRefused as error:
+            return drf_response.Response(
+                {"message": "Not found" if error.status == 404 else "Unavailable"},
+                status=error.status,
+            )
+        return drf_response.Response(result)
+
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        url_path="lifecycle",
+        permission_classes=[permissions.HasMeetingLifecycleAccess],
+    )
+    def mastrao_meeting_lifecycle(self, request, pk=None):  # pylint: disable=unused-argument
+        """Return the minimal authoritative lifecycle for this browser session."""
+
+        room_ref = pk
+        if not isinstance(room_ref, str):
+            raise Http404
+        if not CANONICAL_ROOM_SLUG.fullmatch(room_ref):
+            raise Http404
+        grant = active_host_close_grant_for_room_ref(
+            request, room_ref
+        ) or active_guest_lifecycle_grant_for_room_ref(request, room_ref)
+        if grant is None:
+            raise Http404
+        binding = grant.room_binding
+        closure = getattr(binding, "closure", None)
+        if closure and closure.state == models.MastraoRoomClosure.State.APPLIED:
+            state = "ended"
+        elif binding.closing_at is not None or closure is not None:
+            state = "ending"
+        else:
+            state = "open"
+        return drf_response.Response({"state": state})
+
+
 class RoomViewSet(
+    CanonicalMastraoRoomActionsMixin,
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
     mixins.UpdateModelMixin,
@@ -278,16 +459,6 @@ class RoomViewSet(
     permission_classes = [permissions.RoomPermissions]
     queryset = models.Room.objects.all()
     serializer_class = serializers.RoomSerializer
-
-    def finalize_response(self, request, response, *args, **kwargs):
-        """Keep lifecycle reads uncacheable and non-enumerable."""
-
-        response = super().finalize_response(request, response, *args, **kwargs)
-        if getattr(self, "action", None) == "mastrao_meeting_lifecycle":
-            response["Cache-Control"] = "no-store"
-            if response.status_code == drf_status.HTTP_404_NOT_FOUND:
-                response.data = {"detail": "Not found."}
-        return response
 
     def get_object(self):
         """Allow getting a room by its slug."""
@@ -600,116 +771,6 @@ class RoomViewSet(
     @decorators.action(
         detail=True,
         methods=["post"],
-        url_path="recording-decision",
-        permission_classes=[],
-    )
-    def recording_decision(self, request, pk=None):  # pylint: disable=unused-argument
-        """Record one exact browser session's informed recording decision."""
-
-        serializer = serializers.RecordingDecisionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        room = self.get_object()
-        if not can_access_canonical_room(request, room):
-            raise Http404
-        try:
-            result = record_decision(request, room, **serializer.validated_data)
-        except (
-            RecordingContractRefused,
-            HostHandoffRefused,
-            GuestHandoffRefused,
-        ) as error:
-            return drf_response.Response(
-                {"message": "Not found" if error.status == 404 else "Unavailable"},
-                status=error.status,
-            )
-        return drf_response.Response(result)
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
-        url_path="transcription-decision",
-        permission_classes=[],
-    )
-    def transcription_decision(self, request, pk=None):  # pylint: disable=unused-argument
-        """Record one exact browser session's informed transcription decision."""
-
-        serializer = serializers.TranscriptionDecisionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        room = self.get_object()
-        if not can_access_canonical_room(request, room):
-            raise Http404
-        try:
-            result = record_transcription_decision(
-                request, room, **serializer.validated_data
-            )
-        except (
-            RecordingContractRefused,
-            HostHandoffRefused,
-            GuestHandoffRefused,
-        ) as error:
-            return drf_response.Response(
-                {"message": "Not found" if error.status == 404 else "Unavailable"},
-                status=error.status,
-            )
-        return drf_response.Response(result)
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
-        url_path="recording-activate",
-        permission_classes=[],
-    )
-    def recording_activate(self, request, pk=None):  # pylint: disable=unused-argument
-        """Activate recording only after the accepted host connected to LiveKit."""
-
-        serializer = serializers.RecordingActivationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        room = self.get_object()
-        if not can_access_canonical_room(request, room):
-            raise Http404
-        try:
-            result = activate_recording(request, room, **serializer.validated_data)
-        except (
-            RecordingContractRefused,
-            HostHandoffRefused,
-            GuestHandoffRefused,
-        ) as error:
-            return drf_response.Response(
-                {"message": "Not found" if error.status == 404 else "Unavailable"},
-                status=error.status,
-            )
-        return drf_response.Response(result)
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
-        url_path="recording-stop",
-        permission_classes=[],
-    )
-    def recording_stop(self, request, pk=None):  # pylint: disable=unused-argument
-        """Ask Core to stop one exact canonical recording."""
-
-        serializer = serializers.RecordingStopSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        room = self.get_object()
-        if not can_access_canonical_room(request, room):
-            raise Http404
-        try:
-            result = request_recording_stop(request, room, **serializer.validated_data)
-        except (
-            RecordingContractRefused,
-            HostHandoffRefused,
-            GuestHandoffRefused,
-        ) as error:
-            return drf_response.Response(
-                {"message": "Not found" if error.status == 404 else "Unavailable"},
-                status=error.status,
-            )
-        return drf_response.Response(result)
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
         url_path="enter",
         permission_classes=[
             permissions.HasMediaHostPrivilegesOnRoom,
@@ -777,62 +838,6 @@ class RoomViewSet(
 
         participants = lobby_service.list_waiting_participants(room.id)
         return drf_response.Response({"participants": participants})
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
-        url_path="end",
-        permission_classes=[permissions.HasMeetingClosePrivilegesOnRoom],
-    )
-    def end_mastrao_meeting(self, request, pk=None):  # pylint: disable=unused-argument
-        """Ask Core to irreversibly end one canonical meeting for everyone."""
-
-        serializer = serializers.EndMeetingSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        room = self.get_object()
-        if not hasattr(room, "mastrao_binding"):
-            raise Http404
-        try:
-            result = request_meeting_close(
-                request,
-                room,
-                serializer.validated_data["close_request_id"],
-            )
-        except RoomCloseRefused as error:
-            return drf_response.Response(
-                {"message": "Not found" if error.status == 404 else "Unavailable"},
-                status=error.status,
-            )
-        return drf_response.Response(result)
-
-    @decorators.action(
-        detail=True,
-        methods=["get"],
-        url_path="lifecycle",
-        permission_classes=[permissions.HasMeetingLifecycleAccess],
-    )
-    def mastrao_meeting_lifecycle(self, request, pk=None):  # pylint: disable=unused-argument
-        """Return the minimal authoritative lifecycle for this browser session."""
-
-        room_ref = pk
-        if not isinstance(room_ref, str):
-            raise Http404
-        if not CANONICAL_ROOM_SLUG.fullmatch(room_ref):
-            raise Http404
-        grant = active_host_close_grant_for_room_ref(
-            request, room_ref
-        ) or active_guest_lifecycle_grant_for_room_ref(request, room_ref)
-        if grant is None:
-            raise Http404
-        binding = grant.room_binding
-        closure = getattr(binding, "closure", None)
-        if closure and closure.state == models.MastraoRoomClosure.State.APPLIED:
-            state = "ended"
-        elif binding.closing_at is not None or closure is not None:
-            state = "ending"
-        else:
-            state = "open"
-        return drf_response.Response({"state": state})
 
     @decorators.action(
         detail=False,

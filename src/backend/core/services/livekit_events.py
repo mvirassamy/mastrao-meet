@@ -39,8 +39,14 @@ SPEAKER_EVIDENCE_DISPATCH_KEY = "mastrao_speaker_evidence_dispatch_id"
 
 def _stop_metadata_collector_dispatches(recording):
     for dispatch_option_key, warning in (
-        ("metadata_collector_dispatch_id", "Failed to stop the MetadataCollectorService"),
-        (SPEAKER_EVIDENCE_DISPATCH_KEY, "Failed to stop the speaker evidence collector"),
+        (
+            "metadata_collector_dispatch_id",
+            "Failed to stop the MetadataCollectorService",
+        ),
+        (
+            SPEAKER_EVIDENCE_DISPATCH_KEY,
+            "Failed to stop the speaker evidence collector",
+        ),
     ):
         if recording.options.get(dispatch_option_key, None) is None:
             continue
