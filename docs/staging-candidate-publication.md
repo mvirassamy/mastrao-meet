@@ -1,11 +1,13 @@
 # Staging candidate publication
 
-The `Publish one Meet staging candidate` workflow
-(`.github/workflows/staging-candidate.yml`) builds exactly one Meet image,
-`meet-frontend`, `meet-backend` or `meet-agents`, from a full commit SHA
-reachable from `develop`, pushes it to the Scaleway staging registry and
-uploads a digest-pinned receipt. It never deploys: every receipt records
-`PUBLISHED_NOT_DEPLOYED` and `deploymentApplied: false`.
+The `meet Workflow` CI (`.github/workflows/meet.yml`) is the only publication
+entry point, on push or manual dispatch from `develop`. After its checks
+succeed, it calls the reusable `Publish one Meet staging candidate` workflow
+(`.github/workflows/staging-candidate.yml`) for `meet-frontend`, `meet-backend`
+and `meet-agents`. Each call builds one image at the exact CI run SHA, pushes
+it to the Scaleway staging registry and uploads a digest-pinned receipt.
+It never deploys: every receipt records `PUBLISHED_NOT_DEPLOYED` and
+`deploymentApplied: false`.
 
 ## Branches and environments
 
@@ -13,18 +15,20 @@ uploads a digest-pinned receipt. It never deploys: every receipt records
 branch. The `meet Workflow` CI runs on pushes to both branches and on pull
 requests targeting either branch.
 
-A successful push CI run on `develop` calls the local reusable publisher for
+A successful push or manual CI run on `develop` calls the local publisher for
 `meet-frontend`, `meet-backend` and `meet-agents`. Each image is built from the
 exact SHA checked by that run. Publication waits for changelog lint, root and
 Helm contracts, mail generation, backend/agents/summary lint, backend/summary
 tests, frontend lint/format/tests and SDK lint/format/build. PR-only commit
-and changelog-change checks are not publication dependencies on push runs.
+and changelog-change checks are not publication dependencies on push or
+manual runs.
 
-Pull requests and pushes to `main` cannot publish staging candidates.
-Manual dispatch from `develop` remains available for one image from a SHA
-reachable from that branch. This standalone dispatch retains its existing
-build/readback checks; it does not run the full CI gates before publication.
-Neither publication path updates the application running in staging.
+Pull requests and runs on `main` cannot publish staging candidates. Manual
+publication uses the CI workflow with a full `source_sha` equal to the selected
+`develop` revision (`github.sha`). It runs the same ten gates and publishes all
+three images. The callee exposes only `workflow_call`; the standalone dispatch
+that accepted other ancestor SHAs has been removed. Neither publication path
+updates the application running in staging.
 
 There is no production publication or deployment workflow in this repository.
 A push to `main` runs CI only. Production automation is deferred. It will need
@@ -35,7 +39,7 @@ cannot publish production releases.
 
 - A credential-free validation job rejects foreign repositories, events other
   than push/manual dispatch, branches other than protected `develop`, malformed
-  source SHAs and automatic publication of a SHA different from the CI run.
+  source SHAs and any publication of a SHA different from the CI run.
 - The verification tooling (`scripts/ci`) is checked out from the workflow's
   own commit into `ci-tools/`, never from the candidate source, and is
   imported before anything is pushed.
@@ -78,7 +82,7 @@ enforced by GitHub itself. In this order:
    workflow cannot tell where the secret came from.
 4. Keep the workflow on the default branch, `develop`. GitHub only offers
    `workflow_dispatch` for workflows present on the default branch; dispatch
-   this workflow from `develop`, as required by its publication job.
+   the CI workflow from `develop`, as required by its publication job.
 
 The "Require the dedicated registry publisher" step only fails closed while
 no `MEET_STAGING_REGISTRY_PASSWORD` is visible to the job. It does not check
@@ -96,7 +100,12 @@ environment policy or publisher IAM scope.
 
 After fusion to `develop`, wait for CI and all three publication jobs, then
 download each `meet-<target>-<sha>-candidate-receipt` artifact. For a manual
-publication, dispatch from `develop` with the target and the full source SHA.
+publication, select `develop` in the `meet Workflow` dispatch and supply the
+full SHA of that selected revision. The input must equal the SHA GitHub
+records for the run; a different or malformed input fails before publication.
+If the branch moves between reading its SHA and dispatching, use the new
+selected revision and rerun the CI entry point. The callee cannot be
+dispatched directly and no image target is selectable at the CI entry point.
 Promote an image only by its `image.reference` (`repository@digest`).
 
 A partial matrix failure can leave some images published. Do not treat that

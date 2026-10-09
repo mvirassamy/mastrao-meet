@@ -50,11 +50,13 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         cls.steps = steps(cls.workflow)
 
     def test_exposes_exactly_the_closed_targets(self):
-        options = re.search(
-            r"^        options:\n((?:          - .+\n)+)", self.workflow, re.MULTILINE
+        targets = re.search(
+            r"^        target: \[(.+)\]$", CI_WORKFLOW.read_text(), re.MULTILINE
         )
-        self.assertIsNotNone(options)
-        self.assertEqual(re.findall(r"- (\S+)", options.group(1)), list(TARGETS))
+        self.assertIsNotNone(targets)
+        self.assertEqual(
+            [target.strip() for target in targets.group(1).split(",")], list(TARGETS)
+        )
 
     def test_publication_job_is_bound_to_develop_and_its_environment(self):
         self.assertRegex(
@@ -93,7 +95,8 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         }
         cases = (
             ({}, True),
-            ({"SOURCE_EVENT_NAME": "workflow_dispatch", "SOURCE_SHA": "b" * 40}, True),
+            ({"SOURCE_EVENT_NAME": "workflow_dispatch"}, True),
+            ({"SOURCE_EVENT_NAME": "workflow_dispatch", "SOURCE_SHA": "b" * 40}, False),
             ({"SOURCE_REPOSITORY": "someone/mastrao-meet"}, False),
             ({"SOURCE_EVENT_NAME": "pull_request"}, False),
             ({"SOURCE_REF": "refs/heads/main"}, False),

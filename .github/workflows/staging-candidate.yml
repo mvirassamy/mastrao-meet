@@ -15,20 +15,6 @@ on:
     secrets:
       MEET_STAGING_REGISTRY_PASSWORD:
         required: true
-  workflow_dispatch:
-    inputs:
-      target:
-        description: Image to build and publish without deploying it
-        required: true
-        type: choice
-        options:
-          - meet-frontend
-          - meet-backend
-          - meet-agents
-      source_sha:
-        description: Full commit SHA to publish; it must be reachable from develop
-        required: true
-        type: string
 
 concurrency:
   group: meet-staging-candidate-${{ inputs.target }}-${{ inputs.source_sha }}
@@ -58,10 +44,10 @@ jobs:
           test "$SOURCE_REF_PROTECTED" = "true"
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           case "$SOURCE_EVENT_NAME" in
-            push) test "$SOURCE_SHA" = "$TRUSTED_WORKFLOW_SHA" ;;
-            workflow_dispatch) ;;
+            push|workflow_dispatch) ;;
             *) exit 1 ;;
           esac
+          test "$SOURCE_SHA" = "$TRUSTED_WORKFLOW_SHA"
 
   publish-candidate:
     if: github.ref == 'refs/heads/develop'

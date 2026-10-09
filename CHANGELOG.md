@@ -1,7 +1,8 @@
 # Changelog
 
 - 2026-10-09: Publish the three staging candidate images after develop CI
-  passes; check develop and main, reserving production automation for later.
+  passes on push or CI dispatch at the exact run SHA; retire standalone
+  publication and reserve production automation for later.
 
 - 2026-10-09: Split the public home closing section into two watercolor
   cards: sign in to create a meeting, or join one directly with its code

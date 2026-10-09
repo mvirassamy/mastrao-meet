@@ -9,6 +9,12 @@ on:
     branches:
       - develop
       - main
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full commit SHA to publish; it must equal the selected develop revision
+        required: true
+        type: string
 permissions:
   contents: read
 
@@ -410,7 +416,7 @@ jobs:
       - lint-sdk
     if: >-
       github.repository == 'mvirassamy/mastrao-meet' &&
-      github.event_name == 'push' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/develop'
     strategy:
       fail-fast: false
@@ -419,6 +425,6 @@ jobs:
     uses: ./.github/workflows/staging-candidate.yml
     with:
       target: ${{ matrix.target }}
-      source_sha: ${{ github.sha }}
+      source_sha: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
     secrets:
       MEET_STAGING_REGISTRY_PASSWORD: ${{ secrets.MEET_STAGING_REGISTRY_PASSWORD }}
