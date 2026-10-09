@@ -16,7 +16,11 @@ import pytest
 
 from core import models
 from core.mastrao_core_http import read_bounded_core_json
-from core.mastrao_native_asr_client import prepare_native_asr, transcribe_native_asr
+from core.mastrao_native_asr_client import (
+    NativeAsrDeliveryRefused,
+    prepare_native_asr,
+    transcribe_native_asr,
+)
 from core.mastrao_native_asr_worker import (
     _claim,
     _finish,
@@ -133,6 +137,98 @@ def test_upstream_failure_keeps_gateway_cache_and_durable_retry(
     assert asr_intent.asr_error == "native_asr_delivery_failed"
 
 
+def test_rate_limit_waits_until_provider_deadline(asr_intent, peers):
+    now = timezone.now()
+    refusal = NativeAsrDeliveryRefused(
+        status=429, outcome="rejected", retry_at=now + timedelta(seconds=120)
+    )
+    peers[1].side_effect = refusal
+
+    assert not process_next_native_asr()
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_next_at >= now + timedelta(seconds=120)
+
+    with patch(
+        "core.mastrao_native_asr_worker.timezone.now",
+        return_value=now + timedelta(seconds=60),
+    ):
+        assert not process_next_native_asr()
+
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_attempts == 0
+    peers[1].assert_called_once()
+    peers[2].assert_not_called()
+    peers[3].assert_not_called()
+
+
+def test_rejected_terminal_is_not_replayed_to_exhaust_local_budget(asr_intent, peers):
+    peers[1].side_effect = RecordingContractRefused(status=502, outcome="rejected")
+    assert not process_next_native_asr()
+
+    with patch(
+        "core.mastrao_native_asr_worker.timezone.now",
+        return_value=timezone.now() + timedelta(minutes=1),
+    ):
+        assert not process_next_native_asr()
+
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_attempts == 1
+    assert not asr_intent.asr_acknowledged
+    assert asr_intent.asr_receipt is None
+    peers[0].assert_called_once()
+    peers[1].assert_called_once()
+    peers[2].assert_not_called()
+    peers[3].assert_not_called()
+
+
+def test_recovery_preserves_budget_and_prepares_authorized_successor(asr_intent, peers):
+    prepare, transcribe, upload, ack = peers
+    consumed = {"metadata": {"attempt_ref": "consumed_native_attempt"}}
+    prepare.return_value = consumed, b"audio"
+    transcribe.side_effect = NativeAsrDeliveryRefused(status=503, outcome="unknown")
+
+    for _ in range(9):
+        models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+            asr_next_at=timezone.now() - timedelta(seconds=1)
+        )
+        assert not process_next_native_asr()
+        asr_intent.refresh_from_db()
+        assert asr_intent.asr_attempts == 0
+        assert asr_intent.asr_error == "native_asr_outcome_unknown"
+    upload.assert_not_called()
+    ack.assert_not_called()
+
+    deadline = timezone.now() + timedelta(seconds=120)
+    transcribe.side_effect = NativeAsrDeliveryRefused(
+        status=429, outcome="rejected", retry_at=deadline
+    )
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_next_at=timezone.now() - timedelta(seconds=1)
+    )
+    assert not process_next_native_asr()
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_next_at == deadline
+    assert not process_next_native_asr()
+
+    successor = {"metadata": {"attempt_ref": "successor_native_attempt"}}
+    prepare.return_value = successor, b"audio"
+    transcribe.side_effect = None
+    upload.return_value["core"]["attempt_ref"] = successor["metadata"]["attempt_ref"]
+    with patch(
+        "core.mastrao_native_asr_worker.timezone.now",
+        return_value=deadline + timedelta(seconds=1),
+    ):
+        assert process_next_native_asr()
+
+    transcribe.assert_called_with(successor, b"audio")
+    upload.assert_called_once()
+    ack.assert_called_once()
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_attempts == 1
+    assert asr_intent.asr_acknowledged
+    assert not asr_intent.asr_error
+
+
 def test_stale_lease_cannot_finish_or_ack_another_workers_result(asr_intent, peers):
     first = _claim()
     assert first is not None
@@ -232,6 +328,7 @@ def test_gateway_receives_the_core_ogg_contract(settings):
             return_value=result,
         ),
     ):
+        session.return_value.__enter__.return_value.post.return_value.status_code = 200
         assert transcribe_native_asr(prepared, audio) == result
 
     request = session.return_value.__enter__.return_value.post

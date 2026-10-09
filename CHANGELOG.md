@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-09: Preserve native ASR retry deadlines and delivery recovery so a
+  provider rate limit can resume without exhausting Meet's local retry budget.
+
 - 2026-10-09: Publish the three staging candidate images after develop CI
   passes on push or CI dispatch at the exact run SHA; retire standalone
   publication, separate retry tags and receipts by run and attempt, and

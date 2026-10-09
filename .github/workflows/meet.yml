@@ -214,7 +214,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_DB: meet
           POSTGRES_USER: dinum
@@ -224,7 +224,7 @@ jobs:
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
-        image: redis:5
+        image: public.ecr.aws/docker/library/redis:5
         ports:
           - 6379:6379
         # Set health checks to wait until redis has started
