@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-09: Publish the three staging candidate images after develop CI
+  passes on push or CI dispatch at the exact run SHA; retire standalone
+  publication, separate retry tags and receipts by run and attempt, and
+  reserve production automation for later.
+
 - 2026-10-09: Split the public home closing section into two watercolor
   cards: sign in to create a meeting, or join one directly with its code
   or link, and show the 3D meeting icon beside "Mastrao Visio" in the hero.

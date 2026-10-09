@@ -2,20 +2,19 @@ name: Publish one Meet staging candidate
 run-name: Candidate ${{ inputs.target }} @ ${{ inputs.source_sha }}
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       target:
-        description: Image to build and publish without deploying it
-        required: true
-        type: choice
-        options:
-          - meet-frontend
-          - meet-backend
-          - meet-agents
-      source_sha:
-        description: Full commit SHA to publish; it must be reachable from develop
+        description: Image selected from the closed staging build recipes
         required: true
         type: string
+      source_sha:
+        description: Full commit SHA validated by the develop CI run
+        required: true
+        type: string
+    secrets:
+      MEET_STAGING_REGISTRY_PASSWORD:
+        required: true
 
 concurrency:
   group: meet-staging-candidate-${{ inputs.target }}-${{ inputs.source_sha }}
@@ -25,19 +24,40 @@ permissions:
   contents: read
 
 jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Validate authorized staging source
+        shell: bash
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_EVENT_NAME: ${{ github.event_name }}
+          SOURCE_REF: ${{ github.ref }}
+          SOURCE_REF_PROTECTED: ${{ github.ref_protected }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          TRUSTED_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$SOURCE_REPOSITORY" = "mvirassamy/mastrao-meet"
+          test "$SOURCE_REF" = "refs/heads/develop"
+          test "$SOURCE_REF_PROTECTED" = "true"
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          case "$SOURCE_EVENT_NAME" in
+            push|workflow_dispatch) ;;
+            *) exit 1 ;;
+          esac
+          test "$SOURCE_SHA" = "$TRUSTED_WORKFLOW_SHA"
+
   publish-candidate:
     if: github.ref == 'refs/heads/develop'
+    needs: validate-source
     runs-on: ubuntu-latest
     environment: staging-candidates
     defaults:
       run:
         shell: bash
     steps:
-      - name: Validate the selected source shape
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: test "$(printf '%s' "$SOURCE_SHA" | sed -nE '/^[0-9a-f]{40}$/p')" = "$SOURCE_SHA"
-
       - name: Checkout the trusted candidate tooling
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -104,7 +124,7 @@ jobs:
           platforms: linux/amd64
           build-args: ${{ steps.recipe.outputs.build_args }}
           push: true
-          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}
+          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           provenance: mode=max
           sbom: true
 
@@ -156,7 +176,7 @@ jobs:
       - name: Upload the candidate receipt
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: meet-${{ inputs.target }}-${{ inputs.source_sha }}-candidate-receipt
+          name: meet-${{ inputs.target }}-${{ inputs.source_sha }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-candidate-receipt
           path: ${{ runner.temp }}/candidate-receipt.json
           if-no-files-found: error
           retention-days: 14
