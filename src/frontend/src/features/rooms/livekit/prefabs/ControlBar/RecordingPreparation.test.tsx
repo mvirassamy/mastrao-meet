@@ -262,6 +262,23 @@ it('prevents duplicate requests while start is in flight', async () => {
   await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
 })
 
+it('shows recording startup instead of missing agreements while activation is in flight', () => {
+  activateRecording.mockReturnValueOnce(new Promise(() => undefined))
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{ ...video, start_requested: true }}
+    />
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'startVideo' }))
+
+  expect(screen.getByRole('status').textContent).toBe('starting')
+  expect(screen.queryByText('videoPending')).toBeNull()
+})
+
 it('retries an unconfirmed activation using the same identifier', async () => {
   activateRecording.mockRejectedValueOnce(new Error('Unavailable'))
   const refresh = vi.fn().mockResolvedValue(undefined)
