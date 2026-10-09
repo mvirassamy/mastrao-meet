@@ -119,7 +119,15 @@
     },
     "cta": {
       "title": "Bereit für Ihr Treffen?",
-      "body": "Melde dich an, um ein Meeting zu erstellen, oder tritt dem Meeting bei, zu dem du eingeladen wurdest."
+      "body": "Erstelle ein Meeting mit deinem Konto, oder tritt dem Meeting bei, zu dem du eingeladen wurdest.",
+      "create": {
+        "title": "Meeting erstellen",
+        "body": "Plane oder starte eine Videokonferenz, mit Transkript und Zusammenfassung, wenn alle Teilnehmenden zustimmen."
+      },
+      "join": {
+        "title": "An einem Meeting teilnehmen",
+        "body": "Gib den Code ein oder füge den Link aus deiner Einladung ein."
+      }
     }
   },
   "scheduleMeetingDialog": {

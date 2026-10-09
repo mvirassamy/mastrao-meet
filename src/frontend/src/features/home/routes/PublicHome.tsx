@@ -13,11 +13,10 @@ import {
   AdminIcon,
   EffectsIcon,
   LinkIcon,
-  VideoIcon,
   type AppIconComponent,
 } from '@/icons'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
-import { MoreLink } from '../components/MoreLink'
+import { PublicHomeCta } from '../components/PublicHomeCta'
 
 /*
  * Public home: Google Meet structure, Mastrao Platform look, three arguments.
@@ -36,7 +35,7 @@ const container = css({
   paddingX: { base: '1.25rem', md: '2rem' },
 })
 
-const JoinButtons = ({ centered = false }: { centered?: boolean }) => {
+const JoinButtons = () => {
   const { t } = useTranslation('home')
   return (
     <div
@@ -46,7 +45,7 @@ const JoinButtons = ({ centered = false }: { centered?: boolean }) => {
         // Keeps the 38px join button centred next to the taller ProConnect one.
         alignItems: 'center',
         gap: '0.75rem',
-        justifyContent: centered ? 'center' : { base: 'center', lg: 'start' },
+        justifyContent: { base: 'center', lg: 'start' },
       })}
     >
       <LoginButton proConnectHint={false} />
@@ -281,20 +280,12 @@ export const PublicHome = () => {
                   color: 'var(--heading-foreground)',
                 })}
               >
-                <span
-                  aria-hidden="true"
-                  className={css({
-                    display: 'grid',
-                    placeItems: 'center',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '9px',
-                    backgroundColor: 'primary',
-                    color: 'primary-foreground',
-                  })}
-                >
-                  <VideoIcon size={18} />
-                </span>
+                <img
+                  src="/assets/home/reunion-3d.webp"
+                  alt=""
+                  width={32}
+                  height={32}
+                />
                 Mastrao Visio
               </p>
               <h1
@@ -362,42 +353,7 @@ export const PublicHome = () => {
             ))}
           </div>
 
-          <section
-            className={css({
-              marginTop: { base: '1rem', lg: '2rem' },
-              marginBottom: { base: '3rem', lg: '5rem' },
-              paddingX: { base: '1.5rem', md: '3rem' },
-              paddingY: { base: '2.5rem', md: '3.5rem' },
-              borderRadius: '24px',
-              backgroundColor: 'accent',
-              textAlign: 'center',
-            })}
-          >
-            <h2
-              className={css({
-                margin: 0,
-                fontSize: { base: '1.5rem', md: '1.875rem' },
-                lineHeight: 1.2,
-                fontWeight: 600,
-                letterSpacing: '-0.02em',
-                textWrap: 'balance',
-              })}
-            >
-              {t('homeV2.cta.title')}
-            </h2>
-            <p
-              className={css({
-                marginTop: '0.75rem',
-                marginBottom: '1.75rem',
-                fontSize: '1rem',
-                lineHeight: 1.6,
-              })}
-            >
-              {t('homeV2.cta.body')}
-            </p>
-            <JoinButtons centered />
-            <MoreLink />
-          </section>
+          <PublicHomeCta />
         </div>
       </div>
     </Screen>

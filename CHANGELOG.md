@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-09: Split the public home closing section into two watercolor
+  cards: sign in to create a meeting, or join one directly with its code
+  or link, and show the 3D meeting icon beside "Mastrao Visio" in the hero.
+
 - 2026-10-09: Remove unused qualification commands and the redundant Helm
   prefix self-test while keeping rendered recording route checks.
 

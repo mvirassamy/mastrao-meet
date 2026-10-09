@@ -119,7 +119,15 @@
     },
     "cta": {
       "title": "Prêt à vous retrouver ?",
-      "body": "Connectez-vous pour créer une réunion, ou rejoignez celle à laquelle vous êtes invité."
+      "body": "Créez une réunion avec votre compte, ou rejoignez celle à laquelle vous êtes invité.",
+      "create": {
+        "title": "Créer une réunion",
+        "body": "Planifiez ou lancez une visio, avec transcription et compte rendu si les participants l’acceptent."
+      },
+      "join": {
+        "title": "Rejoindre une réunion",
+        "body": "Saisissez le code ou collez le lien reçu dans votre invitation."
+      }
     }
   },
   "scheduleMeetingDialog": {
