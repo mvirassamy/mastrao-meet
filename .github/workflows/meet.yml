@@ -3,10 +3,18 @@ name: meet Workflow
 on:
   push:
     branches:
+      - develop
       - main
   pull_request:
     branches:
-      - "*"
+      - develop
+      - main
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full commit SHA to publish; it must equal the selected develop revision
+        required: true
+        type: string
 permissions:
   contents: read
 
@@ -36,7 +44,7 @@ jobs:
       - name: Install gitlint
         if: always()
         run: pip install --user requests gitlint
-      - name: Lint commit messages added to main
+      - name: Lint commit messages added to the target branch
         if: always()
         run: ~/.local/bin/gitlint --commits origin/${{ github.event.pull_request.base.ref }}..HEAD
 
@@ -393,3 +401,30 @@ jobs:
 
       - name: Build SDK
         run: npm run build
+
+  publish-candidate:
+    needs:
+      - lint-changelog
+      - ci-contracts
+      - build-mails
+      - lint-back
+      - lint-agents
+      - lint-summary
+      - test-back
+      - test-summary
+      - lint-front
+      - lint-sdk
+    if: >-
+      github.repository == 'mvirassamy/mastrao-meet' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/develop'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [meet-frontend, meet-backend, meet-agents]
+    uses: ./.github/workflows/staging-candidate.yml
+    with:
+      target: ${{ matrix.target }}
+      source_sha: ${{ github.event_name == 'push' && github.sha || inputs.source_sha }}
+    secrets:
+      MEET_STAGING_REGISTRY_PASSWORD: ${{ secrets.MEET_STAGING_REGISTRY_PASSWORD }}
