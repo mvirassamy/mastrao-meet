@@ -6,13 +6,20 @@
 import base64
 import hashlib
 import json
+from datetime import UTC, timedelta
+from email.utils import parsedate_to_datetime
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.utils import timezone
 
 import requests
 
-from core.mastrao_core_http import post_core_json, read_bounded_core_json
+from core.mastrao_core_http import (
+    _read_core_body,
+    post_core_json,
+    read_bounded_core_json,
+)
 from core.mastrao_native_authorization import native_envelope
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
 
@@ -23,6 +30,56 @@ RESULT_JOSE = "mastrao-native-source-asr-result+jws"
 GATEWAY_PATH = "/v1/native/transcribe"
 MAX_AUDIO_BYTES = 16 * 1024**2
 MAX_REPLY_BYTES = 24 * 1024**2
+
+
+class NativeAsrDeliveryRefused(RecordingContractRefused):
+    """Keep the native gateway outcome and its absolute delivery deadline."""
+
+    def __init__(self, status, outcome, retry_at=None):
+        super().__init__(status=status, outcome=outcome)
+        self.retry_at = retry_at
+
+
+def _retry_after_at(value):
+    now = timezone.now()
+    minimum = now + timedelta(seconds=30)
+    if not isinstance(value, str) or not 1 <= len(value) <= 128:
+        return minimum
+    try:
+        if value.isdecimal():
+            return max(minimum, now + timedelta(seconds=int(value)))
+        deadline = parsedate_to_datetime(value)
+        if deadline.tzinfo is None:
+            return minimum
+        return max(minimum, deadline.astimezone(UTC))
+    except (ValueError, TypeError, OverflowError):
+        return minimum
+
+
+def _read_native_gateway_response(response):
+    if response.status_code == 200:
+        return read_bounded_core_json(
+            response, RecordingContractRefused, maximum_bytes=MAX_REPLY_BYTES
+        )
+    try:
+        body = _read_core_body(response, RecordingContractRefused)
+        if not isinstance(body, dict) or body.get("outcome") not in {
+            "unknown",
+            "rejected",
+            "retry",
+            "failed_pre_egress",
+        }:
+            raise RecordingContractRefused(status=503)
+        retry_at = None
+        if response.status_code == 429 and body.get("error") == "PROVIDER_RATE_LIMITED":
+            retry_at = _retry_after_at(response.headers.get("Retry-After"))
+        raise NativeAsrDeliveryRefused(
+            status=response.status_code, outcome=body["outcome"], retry_at=retry_at
+        )
+    except (ValueError, TypeError, UnicodeDecodeError) as error:
+        raise RecordingContractRefused(status=503) from error
+    finally:
+        response.close()
 
 
 def prepare_native_asr(intent):
@@ -115,9 +172,7 @@ def transcribe_native_asr(prepared, audio):
             allow_redirects=False,
             stream=True,
         )
-        result = read_bounded_core_json(
-            response, RecordingContractRefused, maximum_bytes=MAX_REPLY_BYTES
-        )
+        result = _read_native_gateway_response(response)
     if result.get("outcome") != "succeeded" or not isinstance(
         result.get("transcript"), dict
     ):

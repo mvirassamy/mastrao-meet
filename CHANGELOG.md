@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-09: Preserve native ASR retry deadlines and delivery recovery so a
+  provider rate limit can resume without exhausting Meet's local retry budget.
+
 - 2026-10-09: Split the public home closing section into two watercolor
   cards: sign in to create a meeting, or join one directly with its code
   or link, and show the 3D meeting icon beside "Mastrao Visio" in the hero.

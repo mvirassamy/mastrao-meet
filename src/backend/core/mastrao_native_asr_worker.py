@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 import requests
@@ -75,18 +75,30 @@ def _fresh(intent):
         raise RecordingContractRefused(status=503)
 
 
-def _finish(intent, acknowledged):
-    return (
-        _owned(intent).update(
-            asr_acknowledged=acknowledged,
-            asr_claim=None,
-            asr_claim_until=None,
-            asr_next_at=timezone.now() + timedelta(seconds=30),
-            asr_error="" if acknowledged else "native_asr_delivery_failed",
-            updated_at=timezone.now(),
-        )
-        == 1
-    )
+def _finish(intent, acknowledged, error=None):
+    now = timezone.now()
+    values = {
+        "asr_acknowledged": acknowledged,
+        "asr_claim": None,
+        "asr_claim_until": None,
+        "asr_next_at": now + timedelta(seconds=30),
+        "asr_error": "" if acknowledged else "native_asr_delivery_failed",
+        "updated_at": now,
+    }
+    if isinstance(error, RecordingContractRefused):
+        if error.status == 429 or error.outcome in {"retry", "unknown"}:
+            # Core bounds provider sends. Recovering a refused/uncertain attempt
+            # must not consume the local delivery budget before Core can replace it.
+            values["asr_attempts"] = F("asr_attempts") - 1
+            deadline = getattr(error, "retry_at", None)
+            if deadline is not None:
+                values["asr_next_at"] = max(values["asr_next_at"], deadline)
+            if error.outcome == "unknown":
+                values["asr_error"] = "native_asr_outcome_unknown"
+        elif error.outcome == "rejected":
+            values["asr_next_at"] = intent.retention_expires_at
+            values["asr_error"] = "native_asr_rejected"
+    return _owned(intent).update(**values) == 1
 
 
 def process_next_native_asr():
@@ -122,9 +134,9 @@ def process_next_native_asr():
         TypeError,
         KeyError,
         OSError,
-    ):
-        _finish(intent, False)
-        logger.warning("Native ASR delivery failed; bounded durable retry retained")
+    ) as error:
+        _finish(intent, False, error)
+        logger.warning("Native ASR delivery failed; durable recovery state retained")
         return False
 
 
