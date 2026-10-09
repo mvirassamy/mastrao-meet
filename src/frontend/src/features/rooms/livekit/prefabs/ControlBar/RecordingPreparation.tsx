@@ -50,10 +50,12 @@ export const RecordingPreparation = ({
   const showRefused = video.start_status === 'refused'
   const showHostPending =
     canStart &&
+    pending !== 'start' &&
     video.start_requested &&
     video.start_status === 'pending' &&
     video.decision_lock === 'open'
-  const showStarting = video.decision_lock === 'start_in_progress'
+  const showStarting =
+    pending === 'start' || video.decision_lock === 'start_in_progress'
 
   const act = async (action: Action) => {
     if (locked || inFlight.current) return

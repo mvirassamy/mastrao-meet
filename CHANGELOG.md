@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-09: Show recording startup while the host request is in flight.
+
 - 2026-10-09: Rejoin a departed host directly inside Meet with renewed host
   authority, and keep the authenticated home usable with incomplete profiles.
 
