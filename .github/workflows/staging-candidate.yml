@@ -124,7 +124,7 @@ jobs:
           platforms: linux/amd64
           build-args: ${{ steps.recipe.outputs.build_args }}
           push: true
-          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}
+          tags: ${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           provenance: mode=max
           sbom: true
 
@@ -176,7 +176,7 @@ jobs:
       - name: Upload the candidate receipt
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: meet-${{ inputs.target }}-${{ inputs.source_sha }}-candidate-receipt
+          name: meet-${{ inputs.target }}-${{ inputs.source_sha }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}-candidate-receipt
           path: ${{ runner.temp }}/candidate-receipt.json
           if-no-files-found: error
           retention-days: 14

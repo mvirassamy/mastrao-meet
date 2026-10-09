@@ -171,7 +171,10 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
                 "platforms": "linux/amd64",
                 "build-args": "${{ steps.recipe.outputs.build_args }}",
                 "push": "true",
-                "tags": "${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}",
+                "tags": (
+                    "${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}"
+                    "-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}"
+                ),
                 "provenance": "mode=max",
                 "sbom": "true",
             },

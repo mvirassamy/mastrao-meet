@@ -99,7 +99,12 @@ environment policy or publisher IAM scope.
 ## Running it
 
 After fusion to `develop`, wait for CI and all three publication jobs, then
-download each `meet-<target>-<sha>-candidate-receipt` artifact. For a manual
+download each
+`meet-<target>-<SHA>-run-<id>-attempt-<attempt>-candidate-receipt` artifact
+for the selected run and attempt. Image tags are
+`sha-<SHA>-run-<id>-attempt-<attempt>` so retries at the same source SHA
+publish to separate tags and upload separate artifacts. The receipt filename
+remains `candidate-receipt.json` and its V1 contract is unchanged. For a manual
 publication, select `develop` in the `meet Workflow` dispatch and supply the
 full SHA of that selected revision. The input must equal the SHA GitHub
 records for the run; a different or malformed input fails before publication.
