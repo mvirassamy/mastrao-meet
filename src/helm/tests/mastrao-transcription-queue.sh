@@ -74,7 +74,7 @@ if "mastrao-native-admission" in worker_queues(backend):
     raise SystemExit("generic_worker_consumes_native_admission_queue")
 if "mastrao-transcription" in worker_queues(transcribe):
     raise SystemExit("summary_transcribe_consumes_mastrao_queue")
-if "MISTRAL_ASR_API_KEY" in mastrao or "OPENAI_ASR_API_KEY" in mastrao:
+if any(name in mastrao for name in ("MISTRAL_ASR_API_KEY", "OPENAI_API_KEY", "OPENAI_ASR_API_KEY")):
     raise SystemExit("provider_secret_in_meet_worker")
 if "kind: Deployment" in disabled:
     raise SystemExit("disabled_worker_still_rendered")

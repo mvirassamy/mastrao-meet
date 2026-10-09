@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-09: Reject the canonical OpenAI credential in the dedicated
+  transcription worker Helm qualification.
+
 - 2026-10-09: Show recording startup while the host request is in flight.
 
 - 2026-10-09: Rejoin a departed host directly inside Meet with renewed host
