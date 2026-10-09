@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-09: Remove unused qualification commands and the redundant Helm
+  prefix self-test while keeping rendered recording route checks.
+
 - 2026-10-09: Show recording startup while the host request is in flight.
 
 - 2026-10-09: Rejoin a departed host directly inside Meet with renewed host

@@ -145,32 +145,4 @@ if grep -q "/recordingsXYZ" "$rendered"; then
   exit 1
 fi
 
-# Prove the declared prefix actually covers the two product endpoints and
-# excludes neighbouring names, using Kubernetes Prefix (element-wise) matching
-# rather than trusting a comment.
-python3 - <<'PY'
-prefix = "/recordings"
-
-
-def matches(prefix, path):
-    """Kubernetes Ingress Prefix matching: split on / and compare elements."""
-
-    p = [e for e in prefix.split("/") if e]
-    q = [e for e in path.split("/") if e]
-    return len(q) >= len(p) and q[: len(p)] == p
-
-
-must_match = ["/recordings", "/recordings/", "/recordings/access/", "/recordings/download/current"]
-must_not_match = ["/recordingsXYZ", "/recordings-legacy/path", "/", "/api/v1.0/rooms/", "/room_abcdef"]
-
-for path in must_match:
-    if not matches(prefix, path):
-        print(f"prefix_does_not_cover:{path}", file=__import__("sys").stderr)
-        raise SystemExit(1)
-for path in must_not_match:
-    if matches(prefix, path):
-        print(f"prefix_over_matches:{path}", file=__import__("sys").stderr)
-        raise SystemExit(1)
-PY
-
 echo "recording_public_route_ok"
