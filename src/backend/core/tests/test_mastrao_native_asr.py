@@ -328,6 +328,7 @@ def test_gateway_receives_the_core_ogg_contract(settings):
             return_value=result,
         ),
     ):
+        session.return_value.__enter__.return_value.post.return_value.status_code = 200
         assert transcribe_native_asr(prepared, audio) == result
 
     request = session.return_value.__enter__.return_value.post
