@@ -16,8 +16,7 @@ export const validatePlatformReturn = (
   if (
     typeof descriptor.url !== 'string' ||
     typeof descriptor.expires_at !== 'number' ||
-    !Number.isInteger(descriptor.expires_at) ||
-    descriptor.expires_at <= Date.now() / 1000
+    !Number.isInteger(descriptor.expires_at)
   ) {
     return null
   }
