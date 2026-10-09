@@ -119,7 +119,15 @@
     },
     "cta": {
       "title": "Ready to meet?",
-      "body": "Sign in to create a meeting, or join the one you were invited to."
+      "body": "Create a meeting with your account, or join the one you were invited to.",
+      "create": {
+        "title": "Create a meeting",
+        "body": "Schedule or start a video call, with a transcript and summary if participants agree."
+      },
+      "join": {
+        "title": "Join a meeting",
+        "body": "Enter the code or paste the link from your invitation."
+      }
     }
   },
   "scheduleMeetingDialog": {

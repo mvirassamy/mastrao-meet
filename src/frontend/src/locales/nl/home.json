@@ -119,7 +119,15 @@
     },
     "cta": {
       "title": "Klaar om samen te komen?",
-      "body": "Log in om een vergadering te maken, of neem deel aan de vergadering waarvoor je bent uitgenodigd."
+      "body": "Maak een vergadering met je account, of neem deel aan de vergadering waarvoor je bent uitgenodigd.",
+      "create": {
+        "title": "Vergadering maken",
+        "body": "Plan of start een videogesprek, met transcriptie en verslag als de deelnemers akkoord gaan."
+      },
+      "join": {
+        "title": "Deelnemen aan een vergadering",
+        "body": "Voer de code in of plak de link uit je uitnodiging."
+      }
     }
   },
   "scheduleMeetingDialog": {
