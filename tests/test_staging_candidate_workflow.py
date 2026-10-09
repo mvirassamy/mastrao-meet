@@ -1,4 +1,6 @@
+import os
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -58,6 +60,7 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         self.assertRegex(
             self.workflow,
             r"(?m)^  publish-candidate:\n    if: github\.ref == 'refs/heads/develop'\n"
+            r"    needs: validate-source\n"
             r"    runs-on: ubuntu-latest\n    environment: staging-candidates\n"
             r"    defaults:\n      run:\n        shell: bash\n",
         )
@@ -69,9 +72,45 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         )
 
     def test_steps_cannot_override_the_job_guarantees(self):
-        self.assertEqual(re.findall(r"(?m)^\s+shell:\s*(.*)$", self.workflow), ["bash"])
+        self.assertEqual(
+            re.findall(r"(?m)^\s+shell:\s*(.*)$", self.workflow), ["bash", "bash"]
+        )
         self.assertEqual(re.findall(r"(?m)^\s+if:", self.workflow), ["    if:"])
         self.assertNotIn("continue-on-error", self.workflow)
+
+    def test_source_guard_accepts_only_authorized_staging_events(self):
+        guard = run_scripts(self.steps["Validate authorized staging source"])[0].split(
+            "\n", 1
+        )[1]
+        environment = {
+            **os.environ,
+            "SOURCE_REPOSITORY": "mvirassamy/mastrao-meet",
+            "SOURCE_EVENT_NAME": "push",
+            "SOURCE_REF": "refs/heads/develop",
+            "SOURCE_REF_PROTECTED": "true",
+            "SOURCE_SHA": "a" * 40,
+            "TRUSTED_WORKFLOW_SHA": "a" * 40,
+        }
+        cases = (
+            ({}, True),
+            ({"SOURCE_EVENT_NAME": "workflow_dispatch", "SOURCE_SHA": "b" * 40}, True),
+            ({"SOURCE_REPOSITORY": "someone/mastrao-meet"}, False),
+            ({"SOURCE_EVENT_NAME": "pull_request"}, False),
+            ({"SOURCE_REF": "refs/heads/main"}, False),
+            ({"SOURCE_REF_PROTECTED": "false"}, False),
+            ({"SOURCE_SHA": ""}, False),
+            ({"SOURCE_SHA": "invalid"}, False),
+            ({"SOURCE_SHA": "b" * 40}, False),
+        )
+        for overrides, accepted in cases:
+            with self.subTest(overrides=overrides):
+                result = subprocess.run(
+                    ["bash", "-c", guard],
+                    env={**environment, **overrides},
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode == 0, accepted)
 
     def test_tooling_comes_from_the_trusted_workflow_commit(self):
         checkout = self.steps["Checkout the trusted candidate tooling"]

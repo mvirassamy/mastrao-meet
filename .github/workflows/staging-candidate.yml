@@ -2,6 +2,19 @@ name: Publish one Meet staging candidate
 run-name: Candidate ${{ inputs.target }} @ ${{ inputs.source_sha }}
 
 on:
+  workflow_call:
+    inputs:
+      target:
+        description: Image selected from the closed staging build recipes
+        required: true
+        type: string
+      source_sha:
+        description: Full commit SHA validated by the develop CI run
+        required: true
+        type: string
+    secrets:
+      MEET_STAGING_REGISTRY_PASSWORD:
+        required: true
   workflow_dispatch:
     inputs:
       target:
@@ -25,19 +38,40 @@ permissions:
   contents: read
 
 jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Validate authorized staging source
+        shell: bash
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_EVENT_NAME: ${{ github.event_name }}
+          SOURCE_REF: ${{ github.ref }}
+          SOURCE_REF_PROTECTED: ${{ github.ref_protected }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          TRUSTED_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$SOURCE_REPOSITORY" = "mvirassamy/mastrao-meet"
+          test "$SOURCE_REF" = "refs/heads/develop"
+          test "$SOURCE_REF_PROTECTED" = "true"
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          case "$SOURCE_EVENT_NAME" in
+            push) test "$SOURCE_SHA" = "$TRUSTED_WORKFLOW_SHA" ;;
+            workflow_dispatch) ;;
+            *) exit 1 ;;
+          esac
+
   publish-candidate:
     if: github.ref == 'refs/heads/develop'
+    needs: validate-source
     runs-on: ubuntu-latest
     environment: staging-candidates
     defaults:
       run:
         shell: bash
     steps:
-      - name: Validate the selected source shape
-        env:
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: test "$(printf '%s' "$SOURCE_SHA" | sed -nE '/^[0-9a-f]{40}$/p')" = "$SOURCE_SHA"
-
       - name: Checkout the trusted candidate tooling
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:

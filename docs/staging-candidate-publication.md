@@ -7,8 +7,35 @@ reachable from `develop`, pushes it to the Scaleway staging registry and
 uploads a digest-pinned receipt. It never deploys: every receipt records
 `PUBLISHED_NOT_DEPLOYED` and `deploymentApplied: false`.
 
+## Branches and environments
+
+`develop` is the staging source branch; `main` is the production source
+branch. The `meet Workflow` CI runs on pushes to both branches and on pull
+requests targeting either branch.
+
+A successful push CI run on `develop` calls the local reusable publisher for
+`meet-frontend`, `meet-backend` and `meet-agents`. Each image is built from the
+exact SHA checked by that run. Publication waits for changelog lint, root and
+Helm contracts, mail generation, backend/agents/summary lint, backend/summary
+tests, frontend lint/format/tests and SDK lint/format/build. PR-only commit
+and changelog-change checks are not publication dependencies on push runs.
+
+Pull requests and pushes to `main` cannot publish staging candidates.
+Manual dispatch from `develop` remains available for one image from a SHA
+reachable from that branch. This standalone dispatch retains its existing
+build/readback checks; it does not run the full CI gates before publication.
+Neither publication path updates the application running in staging.
+
+There is no production publication or deployment workflow in this repository.
+A push to `main` runs CI only. Production automation is deferred. It will need
+its own registry, credentials and release contract; the staging publisher
+cannot publish production releases.
+
 ## What the workflow proves
 
+- A credential-free validation job rejects foreign repositories, events other
+  than push/manual dispatch, branches other than protected `develop`, malformed
+  source SHAs and automatic publication of a SHA different from the CI run.
 - The verification tooling (`scripts/ci`) is checked out from the workflow's
   own commit into `ci-tools/`, never from the candidate source, and is
   imported before anything is pushed.
@@ -32,35 +59,49 @@ uploads a digest-pinned receipt. It never deploys: every receipt records
 
 ## Activation prerequisites
 
-The job-level `if: github.ref == 'refs/heads/develop'` only protects the
+The source guard and job-level branch condition only protect the
 copy of the workflow stored on `develop`. A workflow edited on another
 branch could request the same environment, so the credential boundary must be
 enforced by GitHub itself. In this order:
 
-1. Create the `staging-candidates` environment with:
-   - deployment branches restricted to `develop` only;
-   - at least one required reviewer, with "Prevent self-review" enabled.
+1. Protect `develop` with the CI checks and PR review policy before activation.
+   The source guard requires GitHub to report the branch as protected.
+2. Create the `staging-candidates` environment with deployment branches
+   restricted to `develop` only. Existing reviewer rules still apply: if an
+   approval is required, publication waits for it, including automatic runs.
 
    GitHub creates a missing environment **without** protection rules the
-   first time a job references it, so do this before step 2 and check the
-   rules again if the environment already exists.
-2. Store `MEET_STAGING_REGISTRY_PASSWORD` **only** as a secret of that
+   first time a job references it, so do this before storing the secret and
+   check the rules again if the environment already exists.
+3. Store `MEET_STAGING_REGISTRY_PASSWORD` **only** as a secret of that
    environment. Never define it as a repository or organisation secret: the
    workflow cannot tell where the secret came from.
-3. Keep the workflow on the default branch, `develop`. GitHub only offers
+4. Keep the workflow on the default branch, `develop`. GitHub only offers
    `workflow_dispatch` for workflows present on the default branch; dispatch
    this workflow from `develop`, as required by its publication job.
 
 The "Require the dedicated registry publisher" step only fails closed while
 no `MEET_STAGING_REGISTRY_PASSWORD` is visible to the job. It does not check
-reviewers, branch rules or where the secret is stored: steps 1 and 2 are the
-actual security boundary.
+reviewers or where the secret is stored: environment rules are the actual
+credential boundary. The reusable caller passes only the named publisher
+secret, without `secrets: inherit`; the publication job selects the environment
+secret. This follows the
+[GitHub reusable workflow secret rules](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#using-inputs-and-secrets-in-a-reusable-workflow).
+
+These prerequisites must be verified by the operator before merging the
+activation. Local workflow checks do not prove the remote branch protection,
+environment policy or publisher IAM scope.
 
 ## Running it
 
-Dispatch the workflow from `develop` with the target and the full source
-SHA, then download the `meet-<target>-<sha>-candidate-receipt` artifact and
-promote the image only by its `image.reference` (`repository@digest`).
+After fusion to `develop`, wait for CI and all three publication jobs, then
+download each `meet-<target>-<sha>-candidate-receipt` artifact. For a manual
+publication, dispatch from `develop` with the target and the full source SHA.
+Promote an image only by its `image.reference` (`repository@digest`).
+
+A partial matrix failure can leave some images published. Do not treat that
+as a complete release: all three receipts for the selected SHA must be present
+and verified. No new release coordinator or staging apply is installed here.
 
 `meet-agents` is built from the closed `src/agents` context with
 `src/agents/Dockerfile`, the `production` target and an unprivileged
