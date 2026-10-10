@@ -25,7 +25,7 @@ export const RecordingPreparation = ({
   canStart?: boolean
   isHost?: boolean
   video: VideoRecordingPolicy
-  onRecordingChanged?: () => Promise<unknown>
+  onRecordingChanged?: () => Promise<VideoRecordingPolicy | undefined>
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'recordingConsent' })
   const { isEnding } = useMeetingLifecycle()
@@ -79,14 +79,21 @@ export const RecordingPreparation = ({
         await activateRecording(roomId, startRequestId.current)
         setActivationAccepted(true)
         startRequestId.current = `activation_${crypto.randomUUID().replaceAll('-', '')}`
+        const refreshedVideo = await onRecordingChanged?.()
+        if (
+          refreshedVideo?.decision_lock === 'open' &&
+          refreshedVideo.start_status === 'pending'
+        ) {
+          setActivationAccepted(false)
+        }
       } else {
         await decideRecording(
           roomId,
           action,
           `decision_${crypto.randomUUID().replaceAll('-', '')}`
         )
+        await onRecordingChanged?.()
       }
-      await onRecordingChanged?.()
     } catch {
       setFailed(true)
       await onRecordingChanged?.().catch(() => undefined)

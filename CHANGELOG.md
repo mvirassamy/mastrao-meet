@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Keep one anonymous guest identity per browser session and show
+  pending participant agreements after a recording start request is checked.
+
 - 2026-10-10: Keep the recording startup status visible until the
   authoritative provider transition reaches the room.
 

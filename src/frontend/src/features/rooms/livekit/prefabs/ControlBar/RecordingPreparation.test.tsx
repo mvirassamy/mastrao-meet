@@ -318,6 +318,29 @@ it('keeps recording startup visible until authoritative state catches up', async
   expect(screen.getByRole('status').textContent).toBe('starting')
 })
 
+it('shows missing agreements when the authoritative refresh remains pending', async () => {
+  const refresh = vi.fn().mockResolvedValue({
+    ...video,
+    start_requested: true,
+  })
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{ ...video, start_requested: true }}
+      onRecordingChanged={refresh}
+    />
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'startVideo' }))
+
+  await waitFor(() =>
+    expect(screen.getByRole('status').textContent).toBe('videoPending')
+  )
+  expect(screen.queryByText('starting')).toBeNull()
+})
+
 it('retries an unconfirmed activation using the same identifier', async () => {
   activateRecording.mockRejectedValueOnce(new Error('Unavailable'))
   const refresh = vi.fn().mockResolvedValue(undefined)

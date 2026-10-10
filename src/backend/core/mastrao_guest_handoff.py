@@ -193,6 +193,17 @@ def _commit_grant(request, grant, compact_grant):
         request.session.set_expiry(remaining)
         _cache_compact_grant(existing, compact_grant)
         return existing, binding
+    browser_guest_exists = (
+        models.MastraoGuestGrant.objects.select_for_update()
+        .filter(
+            room_binding=binding,
+            session_nonce_digest=current_nonce_digest,
+            expires_at__gt=timezone.now(),
+        )
+        .exists()
+    )
+    if browser_guest_exists:
+        raise GuestHandoffRefused()
     try:
         created = models.MastraoGuestGrant.objects.create(
             grant_ref=grant["grant_ref"],
