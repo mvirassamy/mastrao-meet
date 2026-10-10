@@ -10,6 +10,9 @@
   limited, including after redirects, preserving one-time state, nonce and
   PKCE validation. Keep JWKS throttling unchanged for signed UserInfo.
 
+- 2026-10-10: Reconcile timed-out video recording starts without losing a
+  confirmed provider egress or overwriting a concurrent terminal state.
+
 - 2026-10-10: Show sparse darker watercolor patches in the public home
   ribbon, with a seamless mirrored texture.
 

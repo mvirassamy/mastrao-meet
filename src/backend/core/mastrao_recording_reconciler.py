@@ -5,6 +5,8 @@
 
 import logging
 
+from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from livekit import api as livekit_api
@@ -17,6 +19,7 @@ from core.mastrao_native_source_transfer import schedule_native_source_transfer
 from core.mastrao_recording_adapter import (
     _exact_provider_egress,
     fail_stale_starting_provider_egress,
+    publish_recording_start,
 )
 from core.mastrao_recording_artifact import finalize_mastrao_artifact
 from core.mastrao_recording_failure import (
@@ -33,6 +36,12 @@ COMPLETION_STATES = {
 logger = logging.getLogger(__name__)
 
 
+def _reconcile_unregistered_egress(binding):
+    if binding.provider_recording_ref is not None:
+        return False
+    return fail_stale_starting_provider_egress(binding, binding.recording)
+
+
 def reconcile_mastrao_recording(binding):
     """Observe and converge one exact provider recording."""
 
@@ -40,20 +49,49 @@ def reconcile_mastrao_recording(binding):
         return False
     egress = _exact_provider_egress(binding.recording)
     if egress is None:
-        return False
+        return _reconcile_unregistered_egress(binding)
     if egress.status in FAILURE_STATES:
-        return report_mastrao_recording_failure(binding.recording, egress.status)
-    if (
-        egress.status == livekit_api.EgressStatus.EGRESS_STARTING
-        and fail_stale_starting_provider_egress(binding, binding.recording)
-    ):
-        return True
+        provider_status = egress.status if binding.provider_recording_ref else None
+        return report_mastrao_recording_failure(binding.recording, provider_status)
+    if egress.status == livekit_api.EgressStatus.EGRESS_STARTING:
+        return False
+    adopted = False
+    if binding.provider_recording_ref is None and egress.status in {
+        livekit_api.EgressStatus.EGRESS_ACTIVE,
+        *COMPLETION_STATES,
+    }:
+        publish_recording_start(binding.pk, egress.egress_id, "already_active")
+        binding.provider_recording_ref = egress.egress_id
+        binding.state = models.MastraoRecordingBinding.State.ACTIVE
+        adopted = True
     if egress.status in COMPLETION_STATES:
-        binding.state = binding.State.PROCESSING
-        binding.save(update_fields=["state", "updated_at"])
-        finalize_mastrao_artifact(binding.recording)
-        return True
-    return False
+        with transaction.atomic():
+            updated = models.MastraoRecordingBinding.objects.filter(
+                pk=binding.pk,
+                state__in=[
+                    models.MastraoRecordingBinding.State.ACTIVE,
+                    models.MastraoRecordingBinding.State.STOPPING,
+                    models.MastraoRecordingBinding.State.PROCESSING,
+                ],
+            ).update(
+                state=models.MastraoRecordingBinding.State.PROCESSING,
+                updated_at=timezone.now(),
+            )
+            if updated:
+                models.Recording.objects.filter(
+                    pk=binding.recording_id,
+                    status__in=[
+                        models.RecordingStatusChoices.INITIATED,
+                        models.RecordingStatusChoices.ACTIVE,
+                    ],
+                ).update(
+                    status=models.RecordingStatusChoices.STOPPED,
+                    updated_at=timezone.now(),
+                )
+        if updated:
+            finalize_mastrao_artifact(binding.recording)
+        return bool(updated)
+    return adopted
 
 
 def reconcile_native_recordings(limit=20):
@@ -69,11 +107,14 @@ def reconcile_native_recordings(limit=20):
 def reconcile_mastrao_recordings(limit=20):
     """Process a bounded batch for an external scheduler or operator."""
 
+    applying_starts = models.MastraoRecordingEffect.objects.filter(
+        operation=models.MastraoRecordingEffect.Operation.START,
+        state=models.MastraoRecordingEffect.State.APPLYING,
+    ).values("recording_binding_id")
     bindings = (
         models.MastraoRecordingBinding.objects.select_related("recording")
         .filter(
             recording__isnull=False,
-            provider_recording_ref__isnull=False,
             state__in=[
                 models.MastraoRecordingBinding.State.STARTING,
                 models.MastraoRecordingBinding.State.ACTIVE,
@@ -81,6 +122,7 @@ def reconcile_mastrao_recordings(limit=20):
                 models.MastraoRecordingBinding.State.PROCESSING,
             ],
         )
+        .filter(Q(provider_recording_ref__isnull=False) | Q(pk__in=applying_starts))
         .order_by("updated_at")[:limit]
     )
     reconciled = 0

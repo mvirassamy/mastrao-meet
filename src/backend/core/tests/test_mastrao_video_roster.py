@@ -10,7 +10,7 @@
 import json
 import time
 from contextlib import nullcontext
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest import mock
 from uuid import uuid4
@@ -30,7 +30,6 @@ from core.mastrao_recording_adapter import (
     _apply_start,
     _persist_video_refusal,
     _prepare_start,
-    _provider_registration_started_at,
 )
 from core.mastrao_recording_contract import (
     START_EFFECT_JOSE_TYPE,
@@ -46,7 +45,7 @@ from core.mastrao_room_contract import (
     _canonical_json,
     _sha256_canonical,
 )
-from core.recording.worker.exceptions import RecordingStartError
+from core.recording.worker.exceptions import WorkerConnectionError
 
 
 @pytest.fixture
@@ -56,6 +55,8 @@ def provider_boundary(authority):
         room_id="room-local",
         worker_id="EG_0123456789abcdef",
         status=models.RecordingStatusChoices.INITIATED,
+        options={},
+        mode=models.RecordingModeChoices.SCREEN_RECORDING,
     )
     local_effect = SimpleNamespace(
         pk="effect-local",
@@ -88,18 +89,20 @@ def provider_boundary(authority):
             "core.mastrao_recording_adapter.sign_start_receipt",
             return_value="signed.receipt.test",
         ),
-        mock.patch("core.mastrao_recording_adapter.get_worker_service"),
-        mock.patch("core.mastrao_recording_adapter.WorkerServiceMediator") as worker,
+        mock.patch("core.mastrao_recording_adapter.get_worker_service") as worker,
+        mock.patch("core.mastrao_recording_adapter.publish_recording_start"),
+        mock.patch("core.mastrao_recording_adapter.RoomManagement"),
     ):
         records.return_value.get.return_value = recording
         effects.return_value.get.return_value = local_effect
+        worker.return_value.start.return_value = recording.worker_id
         yield recording, local_effect, worker.return_value, prepare
 
 
 def test_core_callback_precedes_the_first_provider_start(provider_boundary):
     recording, _, worker, _ = provider_boundary
     calls = []
-    worker.start.side_effect = lambda _: calls.append("sfu")
+    worker.start.side_effect = lambda *_: calls.append("sfu") or recording.worker_id
     with mock.patch(
         "core.mastrao_recording_adapter.authorize_video_start",
         create=True,
@@ -115,7 +118,7 @@ def test_core_callback_precedes_the_first_provider_start(provider_boundary):
     ):
         _apply_start({"resolve_only": False, "claim_id": "claim_0123456789abcdef"})
     assert calls == ["core", "sfu"]
-    worker.start.assert_called_once_with(recording)
+    worker.start.assert_called_once_with(recording.room_id, recording.pk)
 
 
 def test_core_refusal_never_invokes_the_provider(provider_boundary):
@@ -410,10 +413,10 @@ def test_actual_callback_boundary_uses_signed_roster_before_sfu_start(
     session.post.side_effect = lambda *_args, **_kwargs: (
         calls.append("core") or session.post.return_value
     )
-    worker.start.side_effect = lambda _: calls.append("sfu")
+    worker.start.side_effect = lambda *_: calls.append("sfu") or recording.worker_id
     _apply_start(effect)
     assert calls == ["core", "sfu"]
-    worker.start.assert_called_once_with(recording)
+    worker.start.assert_called_once_with(recording.room_id, recording.pk)
 
 
 def test_humans_are_included_but_recorder_and_agent_are_excluded(
@@ -680,7 +683,10 @@ def test_replay_and_recovery_do_not_call_authorization(provider_boundary, state)
     recording, local_effect, worker, prepare = provider_boundary
     local_effect.state = state
     prepare.return_value = prepare.return_value[0], local_effect, False
-    provider_egress = SimpleNamespace(egress_id=recording.worker_id)
+    provider_egress = SimpleNamespace(
+        egress_id=recording.worker_id,
+        status=api.EgressStatus.EGRESS_ACTIVE,
+    )
     with (
         mock.patch("core.mastrao_recording_adapter.authorize_video_start") as authorize,
         mock.patch(
@@ -745,20 +751,6 @@ def test_start_claim_id_is_an_exact_opaque_reference(effect, signer, claim_id):
     effect["claim_id"] = claim_id
     with pytest.raises(RecordingContractRefused):
         verify_recording_start_effect(_core_signed(effect, signer))
-
-
-def test_new_manual_attempt_restarts_provider_registration_grace(authority):
-    attempted_at = int(time.time())
-    effect = SimpleNamespace(
-        created_at=timezone.now() - timedelta(hours=3),
-        applied_at=None,
-        receipt_claims={"start_attempted_at": attempted_at},
-    )
-    with mock.patch.object(models.MastraoRecordingEffect.objects, "filter") as query:
-        query.return_value.order_by.return_value.first.return_value = effect
-        assert _provider_registration_started_at(authority) == datetime.fromtimestamp(
-            attempted_at, tz=UTC
-        )
 
 
 def test_roster_count_is_bounded_without_truncating_humans():
@@ -842,7 +834,7 @@ def test_uncertain_provider_start_is_not_sent_again(
 ):
     recording, local_effect, worker, prepare = provider_boundary
     recording.room_id = authority.room_binding.room_id
-    worker.start.side_effect = RecordingStartError
+    worker.start.side_effect = WorkerConnectionError
     with mock.patch(
         "core.mastrao_recording_adapter._exact_provider_egress", return_value=None
     ):
@@ -854,6 +846,7 @@ def test_uncertain_provider_start_is_not_sent_again(
             _apply_start(effect)
     core_reply[0].post.assert_called_once()
     worker.start.assert_called_once()
+    assert "start_attempt_finished_at" in local_effect.receipt_claims
 
 
 def test_preissued_token_arriving_after_snapshot_is_not_revoked_or_reconsulted(
@@ -894,7 +887,7 @@ def test_preissued_token_arriving_after_snapshot_is_not_revoked_or_reconsulted(
     sfu[0].room.remove_participant.assert_not_called()
     sfu[0].room.update_participant.assert_not_called()
     session.post.assert_called_once()
-    worker.start.assert_called_once_with(recording)
+    worker.start.assert_called_once_with(recording.room_id, recording.pk)
 
 
 def _persist_connected_roster(authority, client, connection):
@@ -946,11 +939,6 @@ def test_durable_refusal_then_new_manual_claim_and_receipt_replay(
     }
     core_reply[1].iter_content.return_value = [json.dumps(refusal).encode()]
 
-    def started(recording):
-        recording.worker_id = "EG_0123456789abcdef"
-        recording.status = models.RecordingStatusChoices.ACTIVE
-        recording.save(update_fields=["worker_id", "status", "updated_at"])
-
     # Remove only the fixture's ledger mock: use persisted connection provenance.
     with (
         mock.patch.object(
@@ -958,10 +946,10 @@ def test_durable_refusal_then_new_manual_claim_and_receipt_replay(
             "filter",
             wraps=models.MastraoRtcConnection.objects.get_queryset().filter,
         ),
-        mock.patch("core.mastrao_recording_adapter.get_worker_service"),
-        mock.patch("core.mastrao_recording_adapter.WorkerServiceMediator") as worker,
+        mock.patch("core.mastrao_recording_adapter.get_worker_service") as worker,
+        mock.patch("core.mastrao_recording_adapter.RoomManagement"),
     ):
-        worker.return_value.start.side_effect = started
+        worker.return_value.start.return_value = "EG_0123456789abcdef"
         with pytest.raises(RecordingContractRefused):
             _apply_start(effect)
         stored = models.MastraoRecordingEffect.objects.get(

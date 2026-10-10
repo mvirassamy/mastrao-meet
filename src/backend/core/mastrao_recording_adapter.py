@@ -4,6 +4,7 @@
 # pylint: disable=no-member,too-many-boolean-expressions,too-many-branches,missing-function-docstring
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 
 from django.conf import settings
@@ -30,12 +31,27 @@ from core.mastrao_recording_contract import (
 )
 from core.mastrao_recording_failure import report_mastrao_recording_failure
 from core.mastrao_video_roster import authorize_video_start
-from core.recording.worker.exceptions import RecordingStartError, RecordingStopError
+from core.recording.worker.exceptions import (
+    RecordingStopError,
+    WorkerConnectionError,
+    WorkerRequestError,
+    WorkerResponseError,
+)
 from core.recording.worker.factories import get_worker_service
 from core.recording.worker.mediator import WorkerServiceMediator
+from core.services.room_management import (
+    RoomManagement,
+    RoomManagementException,
+    RoomNotFoundException,
+)
+
+logger = logging.getLogger(__name__)
 
 MAX_BODY_BYTES = 32_768
 PROVIDER_REGISTRATION_GRACE_SECONDS = 30
+# A process lost during StartEgress cannot persist its completion time. Allow
+# the provider request this much time before starting the registration grace.
+PROVIDER_START_RECOVERY_SECONDS = 60
 VIDEO_START_REFUSED = "video_start_refused"
 
 ACTIVE_EGRESS_STATES = {
@@ -143,11 +159,18 @@ def _exact_provider_egress(recording):
     return matches[0] if matches else None
 
 
-def _start_attempted_at(start_effect):
+def _registration_grace_started_at(start_effect):
+    finished_at = start_effect.receipt_claims.get("start_attempt_finished_at")
+    if isinstance(finished_at, (int, float)) and not isinstance(finished_at, bool):
+        return datetime.fromtimestamp(finished_at, tz=UTC)
+    if start_effect.applied_at is not None:
+        return start_effect.applied_at
     attempted_at = start_effect.receipt_claims.get("start_attempted_at")
-    if isinstance(attempted_at, int) and not isinstance(attempted_at, bool):
-        return datetime.fromtimestamp(attempted_at, tz=UTC)
-    return start_effect.applied_at or start_effect.created_at
+    if isinstance(attempted_at, (int, float)) and not isinstance(attempted_at, bool):
+        return datetime.fromtimestamp(attempted_at, tz=UTC) + timedelta(
+            seconds=PROVIDER_START_RECOVERY_SECONDS
+        )
+    return start_effect.created_at + timedelta(seconds=PROVIDER_START_RECOVERY_SECONDS)
 
 
 def _provider_registration_started_at(recording_binding):
@@ -161,7 +184,7 @@ def _provider_registration_started_at(recording_binding):
     )
     if start_effect is None:
         return recording_binding.created_at
-    return _start_attempted_at(start_effect)
+    return _registration_grace_started_at(start_effect)
 
 
 def _provider_registration_timed_out(recording_binding):
@@ -175,6 +198,105 @@ def fail_stale_starting_provider_egress(recording_binding, recording):
     if not _provider_registration_timed_out(recording_binding):
         return False
     return report_mastrao_recording_failure(recording, None)
+
+
+def _record_start_attempt_finished(local_effect):
+    with transaction.atomic():
+        locked = models.MastraoRecordingEffect.objects.select_for_update().get(
+            pk=local_effect.pk
+        )
+        if (
+            locked.state != models.MastraoRecordingEffect.State.APPLYING
+            or locked.receipt_claims.get("claim_id")
+            != local_effect.receipt_claims.get("claim_id")
+        ):
+            return
+        locked.receipt_claims = {
+            **locked.receipt_claims,
+            "start_attempt_finished_at": timezone.now().timestamp(),
+        }
+        locked.save(update_fields=["receipt_claims", "updated_at"])
+
+
+def _confirm_discovered_start(recording, provider_egress):
+    if provider_egress.status in {
+        livekit_api.EgressStatus.EGRESS_FAILED,
+        livekit_api.EgressStatus.EGRESS_ABORTED,
+    }:
+        report_mastrao_recording_failure(recording, None)
+        raise RecordingContractRefused(status=503)
+    if provider_egress.status not in ACTIVE_EGRESS_STATES:
+        raise RecordingContractRefused(status=503)
+    return provider_egress.egress_id
+
+
+def _start_provider(recording, recording_binding, local_effect, effect):
+    authorization = authorize_video_start(effect, recording_binding, recording)
+    if not authorization["authorized"]:
+        _persist_video_refusal(local_effect, recording_binding, effect, authorization)
+        raise RecordingContractRefused(status=409)
+    try:
+        return get_worker_service(
+            mode=models.RecordingModeChoices.SCREEN_RECORDING
+        ).start(str(recording.room_id), recording.pk)
+    except (WorkerRequestError, WorkerConnectionError, WorkerResponseError) as error:
+        provider_egress = _exact_provider_egress(recording)
+        if provider_egress is None:
+            raise RecordingContractRefused(status=503) from error
+        return _confirm_discovered_start(recording, provider_egress)
+    finally:
+        _record_start_attempt_finished(local_effect)
+
+
+def publish_recording_start(binding_id, provider_ref, observation):
+    """Commit the provider registration and its signed receipt together."""
+    with transaction.atomic():
+        binding = models.MastraoRecordingBinding.objects.select_for_update().get(
+            pk=binding_id
+        )
+        if binding.state == models.MastraoRecordingBinding.State.FAILED:
+            raise RecordingContractRefused(status=409)
+        start_effect = models.MastraoRecordingEffect.objects.select_for_update().get(
+            recording_binding=binding,
+            operation=models.MastraoRecordingEffect.Operation.START,
+        )
+        if start_effect.state == models.MastraoRecordingEffect.State.APPLIED:
+            return sign_start_receipt(start_effect.receipt_claims)
+        if start_effect.state != models.MastraoRecordingEffect.State.APPLYING:
+            raise RecordingContractRefused(status=409)
+        recording = models.Recording.objects.select_for_update().get(
+            pk=binding.recording_id
+        )
+        if recording.worker_id and recording.worker_id != provider_ref:
+            raise RecordingContractRefused(status=409)
+        claims = build_start_receipt_claims(
+            {
+                "organization_external_id": binding.organization_external_id,
+                "meeting_ref": binding.meeting_ref,
+                "room_ref": binding.room_ref,
+                "recording_ref": binding.recording_ref,
+                "provider_binding_digest": binding.provider_binding_digest,
+                "effect_key": start_effect.effect_key,
+                "arguments_digest": start_effect.arguments_digest,
+                "jti": start_effect.effect_jti,
+            },
+            provider_ref,
+            observation,
+        )
+        receipt = sign_start_receipt(claims)
+        recording.worker_id = provider_ref
+        recording.status = models.RecordingStatusChoices.ACTIVE
+        recording.save(update_fields=["worker_id", "status", "updated_at"])
+        binding.provider_recording_ref = provider_ref
+        binding.state = models.MastraoRecordingBinding.State.ACTIVE
+        binding.save(update_fields=["provider_recording_ref", "state", "updated_at"])
+        start_effect.state = models.MastraoRecordingEffect.State.APPLIED
+        start_effect.provider_observation = observation
+        start_effect.receipt_claims = claims
+        start_effect.receipt_digest = compact_digest(receipt)
+        start_effect.applied_at = timezone.now()
+        start_effect.save()
+        return receipt
 
 
 @transaction.atomic
@@ -323,7 +445,10 @@ def _apply_start(effect):
     recording_binding, local_effect, first_delivery = _prepare_start(effect)
     if local_effect.state == models.MastraoRecordingEffect.State.APPLIED:
         return sign_start_receipt(local_effect.receipt_claims)
-    if local_effect.state == models.MastraoRecordingEffect.State.PENDING:
+    if (
+        local_effect.state == models.MastraoRecordingEffect.State.PENDING
+        or recording_binding.state == models.MastraoRecordingBinding.State.FAILED
+    ):
         raise RecordingContractRefused(status=409)
 
     recording = models.Recording.objects.select_related("room").get(
@@ -332,11 +457,11 @@ def _apply_start(effect):
     observation = "already_active"
     provider_egress = None if first_delivery else _exact_provider_egress(recording)
     if provider_egress is not None:
-        recording.worker_id = provider_egress.egress_id
-        recording.status = models.RecordingStatusChoices.ACTIVE
-        recording.save(update_fields=["worker_id", "status", "updated_at"])
+        provider_ref = _confirm_discovered_start(recording, provider_egress)
     elif effect["resolve_only"]:
-        if timezone.now() - _start_attempted_at(local_effect) >= timedelta(seconds=30):
+        if timezone.now() - _registration_grace_started_at(local_effect) >= timedelta(
+            seconds=PROVIDER_REGISTRATION_GRACE_SECONDS
+        ):
             # A previously accepted start with no matching provider Egress is
             # terminal after the provider registration grace period.
             report_mastrao_recording_failure(recording, None)
@@ -344,46 +469,28 @@ def _apply_start(effect):
     elif not first_delivery:
         raise RecordingContractRefused(status=503)
     elif recording.status == models.RecordingStatusChoices.INITIATED:
-        worker = WorkerServiceMediator(
-            get_worker_service(mode=models.RecordingModeChoices.SCREEN_RECORDING)
+        provider_ref = _start_provider(
+            recording, recording_binding, local_effect, effect
         )
-        authorization = authorize_video_start(effect, recording_binding, recording)
-        if not authorization["authorized"]:
-            _persist_video_refusal(
-                local_effect, recording_binding, effect, authorization
-            )
-            raise RecordingContractRefused(status=409)
-        try:
-            worker.start(recording)
-        except RecordingStartError as error:
-            provider_egress = _exact_provider_egress(recording)
-            if provider_egress is None:
-                raise RecordingContractRefused(status=503) from error
-            recording.worker_id = provider_egress.egress_id
-            recording.status = models.RecordingStatusChoices.ACTIVE
-            recording.save(update_fields=["worker_id", "status", "updated_at"])
         observation = "started"
     elif recording.status != models.RecordingStatusChoices.ACTIVE:
         raise RecordingContractRefused(status=409)
+    else:
+        provider_ref = recording.worker_id
 
-    claims = build_start_receipt_claims(effect, recording.worker_id, observation)
-    with transaction.atomic():
-        locked_effect = models.MastraoRecordingEffect.objects.select_for_update().get(
-            pk=local_effect.pk
-        )
-        if locked_effect.state == models.MastraoRecordingEffect.State.APPLIED:
-            return sign_start_receipt(locked_effect.receipt_claims)
-        locked_effect.state = models.MastraoRecordingEffect.State.APPLIED
-        locked_effect.provider_observation = observation
-        locked_effect.receipt_claims = claims
-        locked_effect.receipt_digest = compact_digest(sign_start_receipt(claims))
-        locked_effect.applied_at = timezone.now()
-        locked_effect.save()
-        models.MastraoRecordingBinding.objects.filter(pk=recording_binding.pk).update(
-            provider_recording_ref=recording.worker_id,
-            state=models.MastraoRecordingBinding.State.ACTIVE,
-        )
-    return sign_start_receipt(claims)
+    receipt = publish_recording_start(recording_binding.pk, provider_ref, observation)
+    if observation == "started":
+        mode = recording.options.get("original_mode") or recording.mode
+        try:
+            RoomManagement().update_metadata(
+                str(recording.room_id),
+                {"recording_mode": mode, "recording_status": "starting"},
+            )
+        except RoomNotFoundException:
+            logger.info("LiveKit room %s no longer exists", recording.room_id)
+        except RoomManagementException:
+            logger.exception("Failed to update recording room metadata")
+    return receipt
 
 
 @transaction.atomic
