@@ -24,17 +24,20 @@ export const WatercolorTrail = ({ children }: { children: ReactNode }) => {
         return {
           x: rect.left - box.left + rect.width / 2,
           y: rect.top - box.top + rect.height / 2,
+          height: rect.height,
         }
       })
-      if (anchors.length === 0) return setTrail(undefined)
+      if (anchors.length < 2) return setTrail(undefined)
       const first = anchors[0]
       const last = anchors[anchors.length - 1]
+      // Starts from the lower edge of the first illustration and ends
+      // behind the last one, so it never reaches the next section.
       setTrail({
         height: box.height,
         path: smoothPath([
-          { x: first.x - 120, y: 0 },
-          ...anchors,
-          { x: last.x + 160, y: box.height },
+          { x: first.x, y: first.y + first.height * 0.3 },
+          ...anchors.slice(1, -1),
+          { x: last.x, y: last.y + last.height * 0.1 },
         ]),
       })
     }
