@@ -34,6 +34,7 @@ from core.mastrao_recording_adapter import (
     _apply_stop,
     _handle,
     _prepare_start,
+    publish_recording_start,
 )
 from core.mastrao_recording_artifact import (
     _prepare_artifact_receipt,
@@ -615,7 +616,7 @@ def _provider_egress(recording, status):
     )
 
 
-def test_start_retry_discovers_exact_egress_without_starting_again(db, settings):
+def _prepare_recording_start(settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     owner = UserFactory()
     room = RoomFactory(access_level=RoomAccessLevel.RESTRICTED)
@@ -648,6 +649,12 @@ def test_start_retry_discovers_exact_egress_without_starting_again(db, settings)
         "jti": "request_start_retry_012345",
     }
     binding, _, _ = _prepare_start(effect)
+    return binding, effect
+
+
+def test_start_retry_discovers_exact_egress_without_starting_again(db, settings):
+    binding, effect = _prepare_recording_start(settings)
+    room = binding.room_binding.room
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = False
     provider = _provider_egress(
         binding.recording, livekit_api.EgressStatus.EGRESS_ACTIVE
@@ -672,14 +679,98 @@ def test_start_retry_discovers_exact_egress_without_starting_again(db, settings)
     assert models.Recording.objects.filter(room=room).count() == 1
 
 
-def test_resolve_only_start_without_provider_converges_after_grace_period():
+@pytest.mark.parametrize(
+    "provider_status",
+    [livekit_api.EgressStatus.EGRESS_ACTIVE, livekit_api.EgressStatus.EGRESS_COMPLETE],
+)
+def test_reconciler_completes_unregistered_start_before_artifact(
+    db, settings, provider_status
+):
+    binding, _effect = _prepare_recording_start(settings)
+    provider = _provider_egress(binding.recording, provider_status)
+    with (
+        mock.patch(
+            "core.mastrao_recording_reconciler._exact_provider_egress",
+            return_value=provider,
+        ),
+        mock.patch(
+            "core.mastrao_recording_adapter.sign_start_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_recording_reconciler.finalize_mastrao_artifact"
+        ) as finalize,
+    ):
+        assert reconcile_mastrao_recording(binding)
+    binding.refresh_from_db()
+    binding.recording.refresh_from_db()
+    start_effect = binding.effects.get(operation="start")
+    assert start_effect.state == models.MastraoRecordingEffect.State.APPLIED
+    assert start_effect.receipt_claims["provider_recording_ref"] == provider.egress_id
+    assert binding.provider_recording_ref == provider.egress_id
+    assert binding.recording.worker_id == provider.egress_id
+    if provider_status == livekit_api.EgressStatus.EGRESS_COMPLETE:
+        assert binding.state == models.MastraoRecordingBinding.State.PROCESSING
+        assert binding.recording.status == models.RecordingStatusChoices.STOPPED
+        finalize.assert_called_once()
+    else:
+        assert binding.state == models.MastraoRecordingBinding.State.ACTIVE
+        assert binding.recording.status == models.RecordingStatusChoices.ACTIVE
+        finalize.assert_not_called()
+
+
+def test_failed_binding_cannot_publish_provider_start(db, settings):
+    binding, _effect = _prepare_recording_start(settings)
+    binding.state = models.MastraoRecordingBinding.State.FAILED
+    binding.save(update_fields=["state", "updated_at"])
+    with pytest.raises(RecordingContractRefused) as refused:
+        publish_recording_start(binding.pk, "EG_oju7PDAhx8k7", "started")
+    assert refused.value.status == 409
+    binding.refresh_from_db()
+    binding.recording.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.FAILED
+    assert binding.recording.status == models.RecordingStatusChoices.INITIATED
+    assert binding.effects.get(operation="start").state == (
+        models.MastraoRecordingEffect.State.APPLYING
+    )
+
+
+def test_confirmed_missing_start_releases_room_recording_constraint(db, settings):
+    binding, _effect = _prepare_recording_start(settings)
+    recording = binding.recording
+    with (
+        mock.patch(
+            "core.mastrao_recording_failure.sign_failure_receipt",
+            return_value="failure.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_recording_failure.post_core_json",
+            return_value={"recordingRef": binding.recording_ref, "state": "failed"},
+        ),
+    ):
+        assert report_mastrao_recording_failure(recording, None)
+    recording.refresh_from_db()
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.FAILED
+    assert recording.status == models.RecordingStatusChoices.FAILED_TO_START
+    assert models.Recording.objects.create(room=recording.room).pk is not None
+
+
+@pytest.mark.parametrize("seconds_since_attempt", [29, 31])
+def test_resolve_only_start_waits_from_attempt_end(seconds_since_attempt):
     recording = SimpleNamespace(status=models.RecordingStatusChoices.INITIATED)
-    recording_binding = SimpleNamespace(recording_id="recording-id")
+    recording_binding = SimpleNamespace(
+        recording_id="recording-id", state=models.MastraoRecordingBinding.State.STARTING
+    )
     local_effect = SimpleNamespace(
         state=models.MastraoRecordingEffect.State.APPLYING,
-        created_at=timezone.now() - timedelta(seconds=31),
+        created_at=timezone.now() - timedelta(hours=1),
         applied_at=None,
-        receipt_claims={},
+        receipt_claims={
+            "start_attempt_finished_at": (
+                timezone.now() - timedelta(seconds=seconds_since_attempt)
+            ).timestamp()
+        },
     )
     effect = {"resolve_only": True}
     with (
@@ -702,7 +793,54 @@ def test_resolve_only_start_without_provider_converges_after_grace_period():
         with pytest.raises(RecordingContractRefused) as refusal:
             _apply_start(effect)
     assert refusal.value.status == 503
-    report_failure.assert_called_once_with(recording, None)
+    if seconds_since_attempt >= 30:
+        report_failure.assert_called_once_with(recording, None)
+    else:
+        report_failure.assert_not_called()
+
+
+@pytest.mark.parametrize("seconds_since_attempt", [29, 31])
+def test_reconciler_rechecks_applying_start_without_provider_ref(
+    db, settings, seconds_since_attempt
+):
+    binding, _effect = _prepare_recording_start(settings)
+    start_effect = binding.effects.get(operation="start")
+    start_effect.receipt_claims = {
+        **start_effect.receipt_claims,
+        "start_attempt_finished_at": (
+            timezone.now() - timedelta(seconds=seconds_since_attempt)
+        ).timestamp(),
+    }
+    start_effect.save(update_fields=["receipt_claims", "updated_at"])
+    assert binding.provider_recording_ref is None
+
+    with (
+        mock.patch(
+            "core.mastrao_recording_reconciler._exact_provider_egress",
+            return_value=None,
+        ) as find_egress,
+        mock.patch(
+            "core.mastrao_recording_adapter.report_mastrao_recording_failure",
+            return_value=True,
+        ) as report_failure,
+        mock.patch(
+            "core.mastrao_recording_reconciler.reconcile_transcription_dispatches",
+            return_value=0,
+        ),
+        mock.patch(
+            "core.mastrao_recording_reconciler.reconcile_native_recordings",
+            return_value=0,
+        ),
+    ):
+        count = reconcile_mastrao_recordings(limit=1)
+
+    find_egress.assert_called_once_with(binding.recording)
+    if seconds_since_attempt >= 30:
+        assert count == 1
+        report_failure.assert_called_once_with(binding.recording, None)
+    else:
+        assert count == 0
+        report_failure.assert_not_called()
 
 
 def test_stop_response_loss_reconciles_terminal_exact_egress(db):
@@ -940,7 +1078,7 @@ def test_missing_provider_failure_webhook_converges_via_reconciler(settings):
     )
 
 
-def test_stale_starting_provider_egress_converges_via_reconciler(db):
+def test_present_starting_provider_egress_waits_without_failure(db):
     access, _ = _artifact_access()
     binding = access.recording_binding
     recording = binding.recording
@@ -973,8 +1111,10 @@ def test_stale_starting_provider_egress_converges_via_reconciler(db):
             return_value=True,
         ) as fail_stale,
     ):
-        assert reconcile_mastrao_recording(binding)
-    fail_stale.assert_called_once_with(binding, recording)
+        assert not reconcile_mastrao_recording(binding)
+    fail_stale.assert_not_called()
+    binding.refresh_from_db()
+    assert binding.state == models.MastraoRecordingBinding.State.STOPPING
 
 
 @pytest.mark.usefixtures("db")
