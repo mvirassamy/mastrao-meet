@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Stop subtitle reconciliation when a canonical room closes,
+  including pending close retries without a LiveKit room-finished webhook.
+
 - 2026-10-10: Show a recoverable sign-in page when OIDC UserInfo is rate
   limited, including after redirects, preserving one-time state, nonce and
   PKCE validation. Keep JWKS throttling unchanged for signed UserInfo.

@@ -608,7 +608,7 @@ def _failure_state(control, error, *, stopping):
     return models.RoomSubtitleControl.PublicState.STARTING
 
 
-def _mark_failure(room_sid, *, stopping=False, error=None):
+def _mark_failure(room_sid, *, expected_generation, stopping=False, error=None):
     now = timezone.now()
     with transaction.atomic():
         room_id = (
@@ -622,13 +622,20 @@ def _mark_failure(room_sid, *, stopping=False, error=None):
             models.Room(pk=room_id),
             room_sid=room_sid,
         )
-        if control is None:
+        if control is None or control.control_generation != expected_generation:
             return None
         attempts = min(control.attempts + 1, MAX_RECONCILIATION_ATTEMPTS)
         delay = RETRY_DELAYS_SECONDS[min(attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)]
+        reason_code = models.RoomSubtitleControl.ReasonCode.PROVIDER_UNAVAILABLE
+        if (
+            stopping
+            and control.reason_code
+            == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+        ):
+            reason_code = control.reason_code
         changes = {
             "public_state": _failure_state(control, error, stopping=stopping),
-            "reason_code": models.RoomSubtitleControl.ReasonCode.PROVIDER_UNAVAILABLE,
+            "reason_code": reason_code,
             "attempts": attempts,
             "next_retry_at": (
                 now + timedelta(seconds=delay)
@@ -794,16 +801,30 @@ def reconcile_subtitle_control(  # noqa: PLR0912, PLR0915  # pylint: disable=too
                 continue
             if desired_state == models.RoomSubtitleControl.DesiredState.ON:
                 continue
-            _mark_failure(room_sid, error=SubtitleProviderActive("active"))
+            if (
+                _mark_failure(
+                    room_sid,
+                    expected_generation=generation,
+                    error=SubtitleProviderActive("active"),
+                )
+                is None
+            ):
+                continue
             raise
         except Exception as error:  # pylint: disable=broad-exception-caught
             if _intent_changed(room_sid, generation, desired_state):
                 continue
-            _mark_failure(
-                room_sid,
-                stopping=desired_state == models.RoomSubtitleControl.DesiredState.OFF,
-                error=error,
-            )
+            if (
+                _mark_failure(
+                    room_sid,
+                    expected_generation=generation,
+                    stopping=desired_state
+                    == models.RoomSubtitleControl.DesiredState.OFF,
+                    error=error,
+                )
+                is None
+            ):
+                continue
             if isinstance(error, SubtitleReconciliationAmbiguous):
                 raise
             raise SubtitleReconciliationAmbiguous(
@@ -814,19 +835,26 @@ def reconcile_subtitle_control(  # noqa: PLR0912, PLR0915  # pylint: disable=too
             _record_stale_provider_dispatches(room_sid, provider_result)
             continue
 
-        latest = _current_control(room_sid)
-        if latest is None:
-            return None
-        try:
-            return compare_and_set_subtitle_control(
-                latest.room_sid,
-                expected_control_generation=latest.control_generation,
-                expected_state_version=latest.state_version,
-                current_only=True,
-                **_project_provider_result(latest, provider_result),
-            )
-        except SubtitleControlConflict:
-            continue
+        with transaction.atomic():
+            locked_room, latest = lock_room_and_control(control.room, room_sid=room_sid)
+            if latest is None:
+                return None
+            if (
+                latest.control_generation == generation
+                and latest.desired_state == desired_state
+            ):
+                try:
+                    return compare_and_set_subtitle_control_locked(
+                        locked_room,
+                        latest,
+                        expected_control_generation=generation,
+                        expected_state_version=latest.state_version,
+                        **_project_provider_result(latest, provider_result),
+                    )
+                except SubtitleControlConflict:
+                    continue
+        _record_stale_provider_dispatches(room_sid, provider_result)
+        continue
 
     latest = _current_control(room_sid)
     if latest is not None and settings.CELERY_ENABLED:

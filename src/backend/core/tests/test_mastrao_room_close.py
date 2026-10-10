@@ -11,6 +11,7 @@ from django.test import Client, RequestFactory, override_settings
 from django.utils import timezone
 
 import pytest
+from livekit import api as livekit_api
 
 from core import models
 from core.api.permissions import HasMeetingLifecycleAccess
@@ -25,6 +26,8 @@ from core.services.room_management import (
     RoomNotFoundException,
     ensure_livekit_room,
 )
+from core.services.subtitle_control import ensure_subtitle_control
+from core.services.subtitle_reconciliation import reconcile_subtitle_control
 
 
 def _binding(suffix="one"):
@@ -76,6 +79,14 @@ def _request():
         data=json.dumps({"room_close_effect": "header.payload.signature"}),
         content_type="application/json",
     )
+
+
+def _active_subtitle_control(room, room_sid):
+    control = ensure_subtitle_control(room, room_sid=room_sid)
+    control.desired_state = models.RoomSubtitleControl.DesiredState.ON
+    control.public_state = models.RoomSubtitleControl.PublicState.STARTING
+    control.save(update_fields=["desired_state", "public_state", "updated_at"])
+    return control
 
 
 @pytest.mark.django_db
@@ -296,6 +307,126 @@ def test_close_tombstones_deletes_and_replays_without_second_provider_call():
     assert closure.provider_observation == "deleted"
     with pytest.raises(MastraoRoomClosed):
         ensure_livekit_room(str(binding.room_id))
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
+    ROOM_SUBTITLE_ENABLED=True,
+    CELERY_ENABLED=True,
+    ROOM_TELEPHONY_ENABLED=False,
+    ROOMKIT_ENABLED=False,
+)
+def test_close_stops_subtitles_without_room_finished_webhook():
+    """The close effect commits OFF before deleting the provider room."""
+
+    binding = _binding("subtitles")
+    effect = _effect(binding, "subtitles")
+    control = _active_subtitle_control(binding.room, "RM_close_subtitles")
+
+    def delete_room(_room_id):
+        control.refresh_from_db()
+        assert control.desired_state == models.RoomSubtitleControl.DesiredState.OFF
+        assert (
+            control.reason_code == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+        )
+        assert control.room_finished_at is not None
+
+    with (
+        mock.patch(
+            "core.mastrao_room_close_adapter.verify_room_close_effect",
+            return_value=effect,
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.sign_room_close_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.RoomManagement.delete_room",
+            side_effect=delete_room,
+        ) as provider_delete,
+        mock.patch("core.mastrao_room_close_adapter.LobbyService.clear_room_cache"),
+        mock.patch("core.services.subtitle_reconciliation.publish_subtitle_snapshot"),
+        mock.patch(
+            "core.tasks.subtitle.process_subtitle_reconciliation.apply_async"
+        ) as schedule,
+    ):
+        first = close_mastrao_room(_request())
+        control.refresh_from_db()
+        generation = control.control_generation
+        second = close_mastrao_room(_request())
+
+    assert first.status_code == second.status_code == 200
+    control.refresh_from_db()
+    assert control.control_generation == generation
+    provider_delete.assert_called_once_with(str(binding.room_id))
+    schedule.assert_called_once()
+    assert schedule.call_args.kwargs["args"] == [control.room_sid]
+
+    client = mock.AsyncMock()
+    client.agent_dispatch.list_dispatch.side_effect = livekit_api.TwirpError(
+        msg="room not found", code="not_found", status=404
+    )
+    with mock.patch("core.utils.create_livekit_client", return_value=client):
+        settled = reconcile_subtitle_control(control.room_sid)
+
+    assert settled.desired_state == models.RoomSubtitleControl.DesiredState.OFF
+    assert settled.public_state == models.RoomSubtitleControl.PublicState.STOPPED
+    client.agent_dispatch.create_dispatch.assert_not_awaited()
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
+    ROOM_SUBTITLE_ENABLED=True,
+    CELERY_ENABLED=True,
+    ROOM_TELEPHONY_ENABLED=False,
+    ROOMKIT_ENABLED=False,
+)
+def test_pending_close_retries_without_restarting_subtitles():
+    """A failed provider delete retains one terminal subtitle intent."""
+
+    binding = _binding("subtitle_retry")
+    effect = _effect(binding, "subtitle_retry")
+    control = _active_subtitle_control(binding.room, "RM_close_retry")
+    with (
+        mock.patch(
+            "core.mastrao_room_close_adapter.verify_room_close_effect",
+            return_value=effect,
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.sign_room_close_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.RoomManagement.delete_room",
+            side_effect=[
+                RoomManagementException("unavailable"),
+                RoomNotFoundException("already absent"),
+            ],
+        ) as provider_delete,
+        mock.patch("core.mastrao_room_close_adapter.LobbyService.clear_room_cache"),
+        mock.patch("core.services.subtitle_reconciliation.publish_subtitle_snapshot"),
+        mock.patch(
+            "core.tasks.subtitle.process_subtitle_reconciliation.apply_async"
+        ) as schedule,
+    ):
+        first = close_mastrao_room(_request())
+        control.refresh_from_db()
+        generation = control.control_generation
+        second = close_mastrao_room(_request())
+
+    assert first.status_code == 503
+    assert second.status_code == 200
+    control.refresh_from_db()
+    assert control.desired_state == models.RoomSubtitleControl.DesiredState.OFF
+    assert control.reason_code == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+    assert control.control_generation == generation
+    assert (
+        models.MastraoRoomClosure.objects.get(room_binding=binding).state == "applied"
+    )
+    assert provider_delete.call_count == 2
+    assert schedule.call_count == 2
 
 
 @pytest.mark.django_db(transaction=True)
