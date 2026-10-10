@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useConnectionState } from '@livekit/components-react'
 import { ConnectionState } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +31,7 @@ export const RecordingPreparation = ({
   const { isEnding } = useMeetingLifecycle()
   const connectionState = useConnectionState()
   const [pending, setPending] = useState<Action | null>(null)
+  const [activationAccepted, setActivationAccepted] = useState(false)
   const [failed, setFailed] = useState(false)
   const inFlight = useRef(false)
   const startRequestId = useRef(
@@ -40,6 +41,7 @@ export const RecordingPreparation = ({
   const startUnavailable =
     locked ||
     !canStart ||
+    activationAccepted ||
     !video.start_available ||
     connectionState !== ConnectionState.Connected
   const showParticipantChoice =
@@ -51,11 +53,20 @@ export const RecordingPreparation = ({
   const showHostPending =
     canStart &&
     pending !== 'start' &&
+    !activationAccepted &&
     video.start_requested &&
     video.start_status === 'pending' &&
     video.decision_lock === 'open'
   const showStarting =
-    pending === 'start' || video.decision_lock === 'start_in_progress'
+    pending === 'start' ||
+    activationAccepted ||
+    video.decision_lock === 'start_in_progress'
+
+  useEffect(() => {
+    if (video.decision_lock !== 'open') {
+      setActivationAccepted(false)
+    }
+  }, [video.decision_lock])
 
   const act = async (action: Action) => {
     if (locked || inFlight.current) return
@@ -66,6 +77,7 @@ export const RecordingPreparation = ({
     try {
       if (action === 'start') {
         await activateRecording(roomId, startRequestId.current)
+        setActivationAccepted(true)
         startRequestId.current = `activation_${crypto.randomUUID().replaceAll('-', '')}`
       } else {
         await decideRecording(

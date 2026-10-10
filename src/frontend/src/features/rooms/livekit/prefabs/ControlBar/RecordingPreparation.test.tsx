@@ -279,6 +279,45 @@ it('shows recording startup instead of missing agreements while activation is in
   expect(screen.queryByText('videoPending')).toBeNull()
 })
 
+it('keeps recording startup visible until authoritative state catches up', async () => {
+  const refresh = vi.fn().mockResolvedValue(undefined)
+  const { rerender } = render(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{ ...video, start_requested: true }}
+      onRecordingChanged={refresh}
+    />
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'startVideo' }))
+
+  await waitFor(() => expect(refresh).toHaveBeenCalledOnce())
+  expect(screen.getByRole('status').textContent).toBe('starting')
+  expect(screen.queryByText('videoPending')).toBeNull()
+  const start = screen.getByRole('button', { name: 'startVideo' })
+  expect(start.hasAttribute('disabled')).toBe(true)
+  fireEvent.click(start)
+  expect(activateRecording).toHaveBeenCalledOnce()
+
+  rerender(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{
+        ...video,
+        start_requested: true,
+        decision_lock: 'start_in_progress',
+      }}
+      onRecordingChanged={refresh}
+    />
+  )
+
+  expect(screen.getByRole('status').textContent).toBe('starting')
+})
+
 it('retries an unconfirmed activation using the same identifier', async () => {
   activateRecording.mockRejectedValueOnce(new Error('Unavailable'))
   const refresh = vi.fn().mockResolvedValue(undefined)
@@ -302,7 +341,7 @@ it('retries an unconfirmed activation using the same identifier', async () => {
 
 it('creates a new request when a completed attempt returns to pending decisions', async () => {
   const refresh = vi.fn().mockResolvedValue(undefined)
-  render(
+  const { rerender } = render(
     <RecordingPreparation
       roomId="room-1"
       canStart
@@ -313,6 +352,33 @@ it('creates a new request when a completed attempt returns to pending decisions'
   )
   fireEvent.click(screen.getByRole('button', { name: 'startVideo' }))
   await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+
+  rerender(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{ ...video, decision_lock: 'start_in_progress' }}
+      onRecordingChanged={refresh}
+    />
+  )
+  rerender(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={video}
+      onRecordingChanged={refresh}
+    />
+  )
+  await waitFor(() =>
+    expect(
+      screen
+        .getByRole('button', { name: 'startVideo' })
+        .hasAttribute('disabled')
+    ).toBe(false)
+  )
+
   fireEvent.click(screen.getByRole('button', { name: 'startVideo' }))
   await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2))
   expect(activateRecording.mock.calls[1][1]).not.toBe(
