@@ -118,13 +118,17 @@ def resolve_mastrao_meeting_integration(configuration):
 
 
 def validate_mastrao_meeting_close_configuration(
-    room_adapter_enabled, explicit_creation
+    room_adapter_enabled, explicit_creation, celery_enabled
 ):
-    """Refuse a governed room adapter that lets stale JWTs recreate rooms."""
+    """Refuse a governed room lifecycle that cannot close rooms safely."""
 
     if room_adapter_enabled and not explicit_creation:
         raise ImproperlyConfigured(
             "MASTRAO_MEETING_INTEGRATION_CONFIGURED requires LIVEKIT_EXPLICIT_ROOM_CREATION=true"
+        )
+    if room_adapter_enabled and not celery_enabled:
+        raise ImproperlyConfigured(
+            "MASTRAO_MEETING_INTEGRATION_CONFIGURED requires CELERY_ENABLED=true"
         )
 
 
@@ -1762,6 +1766,7 @@ class Base(Configuration):
         validate_mastrao_meeting_close_configuration(
             resolve_mastrao_meeting_integration(cls),
             cls.LIVEKIT_EXPLICIT_ROOM_CREATION,
+            cls.CELERY_ENABLED,
         )
 
         validate_mastrao_transcription_configuration(
