@@ -30,6 +30,10 @@ from core.services.room_management import (
     RoomNotFoundException,
 )
 from core.services.sip_management import SIPException, SIPManagement
+from core.services.subtitle_reconciliation import (
+    request_subtitle_stop,
+    schedule_subtitle_reconciliation,
+)
 
 MAX_BODY_BYTES = 32_768
 
@@ -74,18 +78,31 @@ def _persist_tombstone(effect):
         .first()
     )
     if closure:
-        return _validate_existing(closure, effect)
-    return models.MastraoRoomClosure.objects.create(
-        room_binding=binding,
-        organization_external_id=effect["organization_external_id"],
-        meeting_ref=effect["meeting_ref"],
-        room_ref=effect["room_ref"],
-        provider_binding_digest=effect["provider_binding_digest"],
-        close_ref=effect["close_ref"],
-        effect_key=effect["effect_key"],
-        arguments_digest=effect["arguments_digest"],
-        requested_at=datetime.fromtimestamp(effect["issued_at"], tz=UTC),
-    )
+        _validate_existing(closure, effect)
+    else:
+        closure = models.MastraoRoomClosure.objects.create(
+            room_binding=binding,
+            organization_external_id=effect["organization_external_id"],
+            meeting_ref=effect["meeting_ref"],
+            room_ref=effect["room_ref"],
+            provider_binding_digest=effect["provider_binding_digest"],
+            close_ref=effect["close_ref"],
+            effect_key=effect["effect_key"],
+            arguments_digest=effect["arguments_digest"],
+            requested_at=datetime.fromtimestamp(effect["issued_at"], tz=UTC),
+        )
+    if closure.state == models.MastraoRoomClosure.State.PENDING:
+        control = request_subtitle_stop(
+            binding.room,
+            reason_code=models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED,
+        )
+        if control is not None:
+            transaction.on_commit(
+                lambda room_sid=control.room_sid: schedule_subtitle_reconciliation(
+                    room_sid
+                )
+            )
+    return closure
 
 
 @transaction.atomic

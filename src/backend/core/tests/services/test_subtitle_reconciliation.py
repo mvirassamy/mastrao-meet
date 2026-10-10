@@ -21,6 +21,7 @@ from core.services.subtitle_reconciliation import (
     SUBTITLE_STATUS_TOPIC,
     SubtitleConvergenceBusy,
     SubtitleReconciliationAmbiguous,
+    _intent_changed,
     _ProviderResult,
     observe_subtitle_agent,
     publish_subtitle_snapshot,
@@ -451,6 +452,62 @@ def test_stop_during_start_reconciles_the_new_off_intent():
     assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
 
 
+@pytest.mark.parametrize("old_outcome", ["result", "failure"])
+def test_finished_room_rejects_old_on_projection_after_off_converges(
+    settings, old_outcome
+):
+    """An ON attempt cannot rewrite a settled terminal OFF after its precheck."""
+
+    settings.CELERY_ENABLED = False
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_closed_race"))
+    starting_generation = control.control_generation
+    interrupted = False
+
+    def provider_call(_room_name, _room_sid, desired_state, _generation, _provider):
+        if desired_state == RoomSubtitleControl.DesiredState.ON:
+            if old_outcome == "failure":
+                raise TimeoutError("old ON attempt failed")
+            return _ProviderResult(["AD_old_on"])
+        return _ProviderResult([], had_dispatches=True)
+
+    def interleave_after_precheck(room_sid, generation, desired_state):
+        nonlocal interrupted
+        changed = _intent_changed(room_sid, generation, desired_state)
+        if desired_state == RoomSubtitleControl.DesiredState.ON and not interrupted:
+            interrupted = True
+            request_subtitle_stop(
+                room,
+                room_sid=room_sid,
+                reason_code=RoomSubtitleControl.ReasonCode.ROOM_FINISHED,
+            )
+            settled = reconcile_subtitle_control(room_sid)
+            assert settled.public_state == RoomSubtitleControl.PublicState.STOPPED
+            assert settled.reason_code == RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+        return changed
+
+    with (
+        mock.patch(
+            "core.services.subtitle_reconciliation._provider_reconcile",
+            side_effect=provider_call,
+        ),
+        mock.patch(
+            "core.services.subtitle_reconciliation._intent_changed",
+            side_effect=interleave_after_precheck,
+        ),
+    ):
+        result = reconcile_subtitle_control(control.room_sid)
+
+    assert interrupted
+    assert result.desired_state == RoomSubtitleControl.DesiredState.OFF
+    assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
+    assert result.reason_code == RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+    control.refresh_from_db()
+    assert control.control_generation == starting_generation + 1
+    assert control.public_state == RoomSubtitleControl.PublicState.STOPPED
+    assert control.reason_code == RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+
+
 @pytest.mark.django_db(transaction=True)
 def test_stop_during_start_across_two_connections(mock_livekit_client, settings):
     """A public stop on another PostgreSQL connection fences a blocked start."""
@@ -588,6 +645,39 @@ def test_room_finished_not_found_is_confirmed_stopped(mock_livekit_client):
     assert result.public_state == RoomSubtitleControl.PublicState.STOPPED
     assert result.desired_state == RoomSubtitleControl.DesiredState.OFF
     mock_livekit_client.agent_dispatch.delete_dispatch.assert_not_awaited()
+
+
+def test_room_finished_reason_survives_provider_retry(mock_livekit_client, settings):
+    """A transient cleanup failure cannot replace the terminal close reason."""
+
+    room = RoomFactory()
+    control = _turn_on(ensure_subtitle_control(room, room_sid="RM_finished_retry"))
+    request_subtitle_stop(
+        room,
+        room_sid=control.room_sid,
+        reason_code=RoomSubtitleControl.ReasonCode.ROOM_FINISHED,
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
+        TimeoutError("provider unavailable"),
+        api.TwirpError(msg="room not found", code="not_found", status=404),
+    ]
+    settings.CELERY_ENABLED = False
+
+    with pytest.raises(SubtitleReconciliationAmbiguous):
+        reconcile_subtitle_control(control.room_sid)
+
+    control.refresh_from_db()
+    assert control.public_state == RoomSubtitleControl.PublicState.STOPPING
+    assert control.reason_code == RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+    assert control.next_retry_at is not None
+
+    settled = reconcile_subtitle_control(control.room_sid)
+
+    assert settled.public_state == RoomSubtitleControl.PublicState.STOPPED
+    assert settled.reason_code == RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+    assert settled.attempts == 0
+    assert settled.next_retry_at is None
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_awaited()
 
 
 def test_reconcile_retries_are_bounded_without_beat(mock_livekit_client, settings):
