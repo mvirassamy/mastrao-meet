@@ -63,6 +63,25 @@ class StagingNetworkPolicyTests(unittest.TestCase):
             [{"ports": [{"port": "443", "protocol": "TCP"}]}],
         )
 
+    def test_routes_core_egress_through_the_bounded_relay(self):
+        core_rules = [
+            rule
+            for rule in self.spec["egress"]
+            if any(
+                endpoint.get("matchLabels", {}).get(
+                    "k8s:io.cilium.k8s.policy.serviceaccount"
+                )
+                == "cabinet-core"
+                for endpoint in rule.get("toEndpoints", [])
+            )
+        ]
+
+        self.assertEqual(len(core_rules), 1)
+        self.assertEqual(
+            core_rules[0]["toPorts"],
+            [{"ports": [{"port": "18081", "protocol": "TCP"}]}],
+        )
+
     def test_has_no_wildcard_or_unexpected_cidr_egress(self):
         serialized = json.dumps(self.spec)
         self.assertNotIn("matchPattern", serialized)
@@ -177,7 +196,7 @@ class StagingWorkerNetworkPolicyTests(unittest.TestCase):
         self.assertEqual(len(core_rules), 1)
         self.assertEqual(
             core_rules[0]["toPorts"],
-            [{"ports": [{"port": "8080", "protocol": "TCP"}]}],
+            [{"ports": [{"port": "18081", "protocol": "TCP"}]}],
         )
 
 

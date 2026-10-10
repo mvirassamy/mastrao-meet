@@ -52,7 +52,7 @@
         ],
         "toPorts": [
           {
-            "ports": [{"port": "8080", "protocol": "TCP"}]
+            "ports": [{"port": "18081", "protocol": "TCP"}]
           }
         ]
       },
