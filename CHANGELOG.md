@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Authorize staging Meet and metadata collector traffic on the
+  bounded Core relay pod port while preserving the public Core service port.
+
 - 2026-10-09: Preserve native ASR retry deadlines and delivery recovery so a
   provider rate limit can resume without exhausting Meet's local retry budget.
 
