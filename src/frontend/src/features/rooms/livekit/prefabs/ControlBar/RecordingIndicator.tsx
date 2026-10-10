@@ -4,7 +4,10 @@ import { StopCircleIcon } from '@/icons'
 import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { stopRecording } from '@/features/rooms/api/recordingConsent'
-import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
+import type {
+  ApiRoom,
+  VideoRecordingPolicy,
+} from '@/features/rooms/api/ApiRoom'
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
 import { RecordingPreparation } from './RecordingPreparation'
 
@@ -14,7 +17,7 @@ interface RecordingIndicatorProps {
   roomId: string
   canEnd?: boolean
   recording?: Recording
-  onRecordingChanged?: () => Promise<unknown>
+  onRecordingChanged?: () => Promise<VideoRecordingPolicy | undefined>
 }
 
 export function RecordingIndicator({

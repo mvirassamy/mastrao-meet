@@ -69,7 +69,7 @@ def _room_binding(suffix="0123456789abcdef0123456789abcdef"):
     )
 
 
-def _guest_grant(binding, compact_invitation="aaa.bbb.ccc"):
+def _guest_grant(binding, compact_invitation="aaa.bbb.ccc", suffix="0123456789abcdef"):
     now = int(time.time())
     return {
         "version": 1,
@@ -77,10 +77,10 @@ def _guest_grant(binding, compact_invitation="aaa.bbb.ccc"):
         "issuer": "cabinet-core-local",
         "audience": "mastrao-meet-local",
         "purpose": "guest_lobby",
-        "grant_ref": "guestgrant_0123456789abcdef",
-        "invitation_ref": "invitation_0123456789abcdef",
-        "redemption_id": "redemption_0123456789abcdef0123456789abcdef",
-        "guest_ref": "guest_0123456789abcdef",
+        "grant_ref": f"guestgrant_{suffix}",
+        "invitation_ref": f"invitation_{suffix}",
+        "redemption_id": f"redemption_{suffix}{suffix}",
+        "guest_ref": f"guest_{suffix}",
         "organization_external_id": "organization_0123456789",
         "meeting_ref": binding.meeting_ref,
         "room_ref": binding.room_ref,
@@ -91,8 +91,8 @@ def _guest_grant(binding, compact_invitation="aaa.bbb.ccc"):
     }
 
 
-def _redeem_guest(client, binding, invitation="aaa.bbb.ccc"):
-    grant = _guest_grant(binding, invitation)
+def _redeem_guest(client, binding, invitation="aaa.bbb.ccc", suffix="0123456789abcdef"):
+    grant = _guest_grant(binding, invitation, suffix)
     established = client.post(
         reverse("establish_mastrao_guest_session"),
         data="{}",
@@ -227,6 +227,32 @@ def test_exact_redemption_retry_recovers_after_session_response_loss():
     refused, _ = _redeem_guest(other_browser, binding)
     assert refused.status_code == 404
     assert models.MastraoGuestGrant.objects.count() == 1
+
+
+@override_settings(
+    APPLICATION_BASE_URL="http://meet.test",
+)
+def test_one_browser_session_cannot_redeem_two_guests_for_the_same_room():
+    """One anonymous browser cannot impersonate two meeting participants."""
+
+    binding = _room_binding()
+    client = Client(HTTP_HOST="meet.test")
+    first, first_grant = _redeem_guest(client, binding)
+    assert first.status_code == 200
+
+    second, _ = _redeem_guest(
+        client,
+        binding,
+        invitation="second.invitation.token",
+        suffix="fedcba9876543210",
+    )
+
+    assert second.status_code == 404
+    assert client.session[SESSION_GRANT_REF_KEY] == first_grant["grant_ref"]
+    assert (
+        models.MastraoGuestGrant.objects.values_list("grant_ref", flat=True).get()
+        == first_grant["grant_ref"]
+    )
 
 
 @override_settings(

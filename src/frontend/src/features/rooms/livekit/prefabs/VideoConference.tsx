@@ -30,7 +30,10 @@ import { RoomSilentMicDetector } from '@/features/rooms/components/SilentMicDete
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
-import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
+import type {
+  ApiRoom,
+  VideoRecordingPolicy,
+} from '@/features/rooms/api/ApiRoom'
 import { LiveTranscriptionProvider } from '@/features/subtitle/store'
 import { isMastraoRoomId } from '@/features/rooms/utils/isRoomValid'
 
@@ -43,7 +46,7 @@ export interface VideoConferenceProps extends React.HTMLAttributes<HTMLDivElemen
   roomId: string
   canEnd?: boolean
   recording?: ApiRoom['recording']
-  onRecordingChanged?: () => Promise<unknown>
+  onRecordingChanged?: () => Promise<VideoRecordingPolicy | undefined>
   onMeetingEnded?: () => void
 }
 

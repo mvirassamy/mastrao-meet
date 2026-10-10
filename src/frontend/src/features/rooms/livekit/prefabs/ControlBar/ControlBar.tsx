@@ -7,7 +7,10 @@ import { useIsMobile } from '@/utils/useIsMobile'
 import { ReactionsToolbar } from '@/features/reactions/components/toolbar/ReactionsToolbar'
 import { css } from '@/styled-system/css'
 import { useSize } from '../../hooks/useResizeObserver'
-import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
+import type {
+  ApiRoom,
+  VideoRecordingPolicy,
+} from '@/features/rooms/api/ApiRoom'
 
 export interface ControlBarProps extends React.HTMLAttributes<HTMLDivElement> {
   onDeviceError?: (error: { source: Track.Source; error: Error }) => void
@@ -15,7 +18,7 @@ export interface ControlBarProps extends React.HTMLAttributes<HTMLDivElement> {
   canEnd?: boolean
   onMeetingEnded?: () => void
   recording?: ApiRoom['recording']
-  onRecordingChanged?: () => Promise<unknown>
+  onRecordingChanged?: () => Promise<VideoRecordingPolicy | undefined>
 }
 
 /**

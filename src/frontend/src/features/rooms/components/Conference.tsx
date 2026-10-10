@@ -135,6 +135,11 @@ export const Conference = ({
     refetchIntervalInBackground: true,
   })
 
+  const refetchRecording = useCallback(async () => {
+    const result = await refetchRoom()
+    return result.data?.recording?.video
+  }, [refetchRoom])
+
   useEffect(() => {
     const refetchAfterReconnect = () => {
       if (!isEnding) void refetchRoom()
@@ -414,7 +419,7 @@ export const Conference = ({
             roomId={roomId}
             canEnd={data?.can_end}
             recording={data?.recording}
-            onRecordingChanged={refetchRoom}
+            onRecordingChanged={refetchRecording}
           />
           {!isMobile && <ActiveInviteDialog mode={mode} />}
           <PictureInPictureConference
