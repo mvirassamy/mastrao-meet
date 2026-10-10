@@ -51,7 +51,11 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         try:
             return super().get_userinfo(access_token, id_token, payload)
         except HTTPError as error:
-            if error.response is None or error.response.status_code != 429:
+            if (
+                error.response is None
+                or error.response.status_code != 429
+                or error.response.url != self.OIDC_OP_USER_ENDPOINT
+            ):
                 raise
             raise OIDCUserInfoRateLimited(
                 error.response.headers.get("Retry-After")

@@ -1,7 +1,8 @@
 # Changelog
 
 - 2026-10-10: Show a recoverable sign-in page when OIDC UserInfo is rate
-  limited, preserving one-time state, nonce and PKCE validation.
+  limited, preserving one-time state, nonce and PKCE validation. Keep JWKS
+  throttling unchanged when validating signed UserInfo.
 
 - 2026-10-10: Show sparse darker watercolor patches in the public home
   ribbon, with a seamless mirrored texture.

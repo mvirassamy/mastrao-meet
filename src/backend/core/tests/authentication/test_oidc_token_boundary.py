@@ -541,6 +541,38 @@ def test_userinfo_errors_other_than_rate_limits_remain_unchanged(
     assert caught.value.response is upstream
 
 
+def test_signed_userinfo_jwks_rate_limit_remains_unchanged(
+    settings, signing_key, monkeypatch
+):
+    """A successful signed UserInfo fetch must not relabel a JWKS throttle."""
+    backend = build_backend(settings)
+    userinfo = requests.Response()
+    userinfo.status_code = 200
+    userinfo.url = backend.OIDC_OP_USER_ENDPOINT
+    userinfo.headers["Content-Type"] = "application/jwt"
+    userinfo._content = jwt.encode(
+        {"sub": "account-123", "email": "person@example.test"},
+        signing_key,
+        algorithm="RS256",
+        headers={"kid": "s0"},
+    ).encode()
+    jwks = requests.Response()
+    jwks.status_code = 429
+    jwks.url = backend.OIDC_OP_JWKS_ENDPOINT
+    jwks.headers["Retry-After"] = "42"
+    provider_get = mock.Mock(side_effect=[userinfo, jwks])
+    monkeypatch.setattr("lasuite.oidc_login.backends.requests.get", provider_get)
+
+    with pytest.raises(requests.HTTPError) as caught:
+        backend.get_userinfo("access-token", "id-token", {})
+
+    assert caught.value.response is jwks
+    assert [call.args[0] for call in provider_get.call_args_list] == [
+        backend.OIDC_OP_USER_ENDPOINT,
+        backend.OIDC_OP_JWKS_ENDPOINT,
+    ]
+
+
 def test_userinfo_success_retains_inherited_response_parsing(backend, monkeypatch):
     """A successful UserInfo response still goes through the provider parser."""
     upstream = requests.Response()
