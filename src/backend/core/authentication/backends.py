@@ -4,12 +4,14 @@ import contextlib
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
+from django.utils.http import parse_http_date_safe
 from django.utils.translation import gettext_lazy as _
 
 import jwt
 from lasuite.oidc_login.backends import (
     OIDCAuthenticationBackend as LaSuiteOIDCAuthenticationBackend,
 )
+from requests import HTTPError
 from rest_framework.authentication import SessionAuthentication
 
 from core.mastrao_identity import is_mastrao_reserved_subject
@@ -21,12 +23,43 @@ from core.services.marketing import (
 )
 
 
+class OIDCUserInfoRateLimited(Exception):
+    """UserInfo throttling is temporary and cannot establish an identity."""
+
+    def __init__(self, retry_after):
+        super().__init__("OIDC UserInfo is temporarily rate limited.")
+        self.retry_after = "60"
+        if (
+            retry_after
+            and retry_after.isascii()
+            and (
+                retry_after.isdecimal() or parse_http_date_safe(retry_after) is not None
+            )
+        ):
+            self.retry_after = retry_after
+
+
 class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
     """Custom OpenID Connect (OIDC) Authentication Backend.
 
     This class overrides the default OIDC Authentication Backend to accommodate differences
     in the User and Identity models, and handles signed and/or encrypted UserInfo response.
     """
+
+    def get_userinfo(self, access_token, id_token, payload):
+        """Preserve provider validation and distinguish a temporary UserInfo throttle."""
+        try:
+            return super().get_userinfo(access_token, id_token, payload)
+        except HTTPError as error:
+            response = error.response
+            if response is None or response.status_code != 429:
+                raise
+            initial_response = response.history[0] if response.history else response
+            if initial_response.url != self.OIDC_OP_USER_ENDPOINT:
+                raise
+            raise OIDCUserInfoRateLimited(
+                response.headers.get("Retry-After")
+            ) from error
 
     def _uses_jwks_signing_key(self):
         """Return whether the ID token key comes from the provider JWKS."""

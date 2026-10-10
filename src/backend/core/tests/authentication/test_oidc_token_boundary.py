@@ -14,14 +14,20 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
 from django.http import HttpResponseRedirect
 from django.test import RequestFactory
+from django.urls import resolve, reverse
 
 import jwt
 import pytest
+import requests
+import responses
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
-from lasuite.oidc_login.views import OIDCAuthenticationCallbackView
 
-from core.authentication.backends import OIDCAuthenticationBackend
+from core.authentication.backends import (
+    OIDCAuthenticationBackend,
+    OIDCUserInfoRateLimited,
+)
+from core.authentication.views import OIDCAuthenticationCallbackView
 
 ISSUER = "https://accounts.mastrao.test/api/auth"
 CLIENT_ID = "meet"
@@ -465,6 +471,151 @@ def test_callback_rejects_unknown_or_replayed_state():
     request.session.save()
     with pytest.raises(SuspiciousOperation, match="state not found"):
         OIDCAuthenticationCallbackView.as_view()(request)
+
+
+@pytest.mark.parametrize(
+    ("retry_after", "expected_retry_after"),
+    [
+        ("42", "42"),
+        ("Wed, 21 Oct 2026 07:28:00 GMT", "Wed, 21 Oct 2026 07:28:00 GMT"),
+        (None, "60"),
+        ("invalid", "60"),
+        ("42\r\nX-Untrusted: yes", "60"),
+    ],
+)
+def test_callback_userinfo_rate_limit_is_recoverable_without_authentication(
+    backend, signing_key, monkeypatch, retry_after, expected_retry_after
+):
+    """A provider throttle preserves one-time state and never logs the user in."""
+    request = callback_request()
+    token_exchange = mock.Mock(
+        return_value={
+            "id_token": make_token(signing_key),
+            "access_token": "access-token",
+        }
+    )
+    monkeypatch.setattr(backend, "get_token", token_exchange)
+    monkeypatch.setattr(
+        "mozilla_django_oidc.views.auth.authenticate", backend.authenticate
+    )
+    login = mock.Mock()
+    monkeypatch.setattr("mozilla_django_oidc.views.auth.login", login)
+    upstream = requests.Response()
+    upstream.status_code = 429
+    upstream.url = f"{ISSUER}/userinfo"
+    if retry_after is not None:
+        upstream.headers["Retry-After"] = retry_after
+    userinfo = mock.Mock(return_value=upstream)
+    monkeypatch.setattr("lasuite.oidc_login.backends.requests.get", userinfo)
+    callback = resolve(reverse("oidc_authentication_callback")).func
+
+    response = callback(request)
+
+    assert response.status_code == 503
+    assert response["Retry-After"] == expected_retry_after
+    assert response["Cache-Control"] == "no-store"
+    content = response.content.decode()
+    assert "Connexion temporairement indisponible" in content
+    assert reverse("oidc_authentication_init") in content
+    assert "known-state" not in content
+    assert "access-token" not in content
+    assert "known-state" not in CallbackSession.persisted["oidc_states"]
+    assert "_auth_user_id" not in request.session
+    assert token_exchange.call_args.args[0]["code_verifier"] == "v" * 64
+    assert userinfo.call_count == 1
+    login.assert_not_called()
+    with pytest.raises(SuspiciousOperation, match="state not found"):
+        callback(request)
+
+
+@pytest.mark.parametrize("status", [401, 403, 500, 503])
+def test_userinfo_errors_other_than_rate_limits_remain_unchanged(
+    backend, monkeypatch, status
+):
+    """The temporary throttle response must not hide other provider failures."""
+    upstream = requests.Response()
+    upstream.status_code = status
+    monkeypatch.setattr(
+        "lasuite.oidc_login.backends.requests.get", mock.Mock(return_value=upstream)
+    )
+
+    with pytest.raises(requests.HTTPError) as caught:
+        backend.get_userinfo("access-token", "id-token", {})
+
+    assert caught.value.response is upstream
+
+
+def test_redirected_userinfo_rate_limit_is_recognized(backend):
+    """Requests follows the redirect, but the throttle still belongs to UserInfo."""
+    redirected_url = f"{ISSUER}/userinfo-redirected"
+    with responses.RequestsMock() as provider:
+        provider.get(
+            backend.OIDC_OP_USER_ENDPOINT,
+            status=302,
+            headers={"Location": redirected_url},
+        )
+        provider.get(redirected_url, status=429, headers={"Retry-After": "42"})
+
+        with pytest.raises(OIDCUserInfoRateLimited) as caught:
+            backend.get_userinfo("access-token", "id-token", {})
+
+        assert caught.value.retry_after == "42"
+        assert [call.request.url for call in provider.calls] == [
+            backend.OIDC_OP_USER_ENDPOINT,
+            redirected_url,
+        ]
+
+
+@pytest.mark.parametrize("redirected", [False, True])
+def test_signed_userinfo_jwks_rate_limit_remains_unchanged(
+    settings, signing_key, redirected
+):
+    """A successful signed UserInfo fetch must not relabel a JWKS throttle."""
+    backend = build_backend(settings)
+    signed_userinfo = jwt.encode(
+        {"sub": "account-123", "email": "person@example.test"},
+        signing_key,
+        algorithm="RS256",
+        headers={"kid": "s0"},
+    )
+    expected_urls = [backend.OIDC_OP_USER_ENDPOINT, backend.OIDC_OP_JWKS_ENDPOINT]
+    with responses.RequestsMock() as provider:
+        provider.get(
+            backend.OIDC_OP_USER_ENDPOINT,
+            body=signed_userinfo,
+            content_type="application/jwt",
+        )
+        if redirected:
+            provider.get(
+                backend.OIDC_OP_JWKS_ENDPOINT,
+                status=302,
+                headers={"Location": backend.OIDC_OP_USER_ENDPOINT},
+            )
+            expected_urls.append(backend.OIDC_OP_USER_ENDPOINT)
+        provider.get(expected_urls[-1], status=429, headers={"Retry-After": "42"})
+
+        with pytest.raises(requests.HTTPError) as caught:
+            backend.get_userinfo("access-token", "id-token", {})
+
+        assert caught.value.response is provider.calls[-1].response
+        assert caught.value.response.status_code == 429
+        assert [call.request.url for call in provider.calls] == expected_urls
+
+
+def test_userinfo_success_retains_inherited_response_parsing(backend, monkeypatch):
+    """A successful UserInfo response still goes through the provider parser."""
+    upstream = requests.Response()
+    upstream.status_code = 200
+    upstream.headers["Content-Type"] = "application/json"
+    upstream._content = b'{"sub":"account-123","email":"person@example.test"}'
+    monkeypatch.setattr(
+        "lasuite.oidc_login.backends.requests.get", mock.Mock(return_value=upstream)
+    )
+
+    assert backend.get_userinfo("access-token", "id-token", {}) == {
+        "sub": "account-123",
+        "email": "person@example.test",
+    }
 
 
 def test_accepts_single_element_audience_list_without_authorized_party(
