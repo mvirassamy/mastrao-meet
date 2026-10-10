@@ -1,5 +1,5 @@
 """Durable LiveKit subtitle-agent observation and reconciliation."""
-# pylint: disable=cyclic-import,no-member
+# pylint: disable=cyclic-import,no-member,too-many-lines
 
 import asyncio
 import json
@@ -487,6 +487,10 @@ def _provider_reconcile(  # noqa: PLR0913  # pylint: disable=too-many-arguments,
         with try_subtitle_convergence_lock(room_sid, timeout=timeout) as lock:
             if lock is None:
                 raise SubtitleConvergenceBusy(room_sid)
+            if _canonical_room_deleted(room_name):
+                return _ProviderResult(
+                    [], no_dispatch_confirmed=True, had_dispatches=True
+                )
             return async_to_sync(_reconcile_provider_unlocked)(
                 room_name,
                 room_sid,
@@ -635,6 +639,20 @@ def _mark_failure(room_sid, *, expected_generation, stopping=False, error=None):
             room_sid=room_sid,
         )
         if control is None or control.control_generation != expected_generation:
+            return None
+        if _canonical_room_deleted(control.room_id):
+            compare_and_set_subtitle_control_locked(
+                locked_room,
+                control,
+                expected_control_generation=control.control_generation,
+                expected_state_version=control.state_version,
+                **_project_provider_result(
+                    control,
+                    _ProviderResult(
+                        [], no_dispatch_confirmed=True, had_dispatches=True
+                    ),
+                ),
+            )
             return None
         attempts = min(control.attempts + 1, MAX_RECONCILIATION_ATTEMPTS)
         delay = RETRY_DELAYS_SECONDS[min(attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)]

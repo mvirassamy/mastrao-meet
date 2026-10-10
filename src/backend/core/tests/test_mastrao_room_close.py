@@ -483,6 +483,90 @@ def test_queued_subtitle_work_after_canonical_close_does_not_contact_livekit(
 @override_settings(
     MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     ROOM_SUBTITLE_ENABLED=True,
+    ROOM_SUBTITLE_CONVERGENCE_MAX_ATTEMPTS=1,
+    CELERY_ENABLED=True,
+    ROOM_TELEPHONY_ENABLED=False,
+    ROOMKIT_ENABLED=False,
+)
+@pytest.mark.parametrize(
+    ("provider_fails", "already_settled"), [(False, False), (True, False), (True, True)]
+)
+def test_subtitle_close_during_pending_reconciliation(provider_fails, already_settled):
+    """A close during lock acquisition or provider work stays terminal."""
+    binding = _binding("interleaved_subtitles")
+    effect = _effect(binding, "interleaved_subtitles")
+    control = _active_subtitle_control(binding.room, "RM_interleaved_close")
+    with (
+        mock.patch(
+            "core.mastrao_room_close_adapter.verify_room_close_effect",
+            return_value=effect,
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.sign_room_close_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.RoomManagement.delete_room",
+            side_effect=[RoomManagementException("unavailable"), None],
+        ),
+        mock.patch("core.mastrao_room_close_adapter.LobbyService.clear_room_cache"),
+        mock.patch("core.services.subtitle_reconciliation.publish_subtitle_snapshot"),
+        mock.patch(
+            "core.tasks.subtitle.process_subtitle_reconciliation.apply_async"
+        ) as schedule,
+        mock.patch("core.utils.create_livekit_client") as provider,
+    ):
+        assert close_mastrao_room(_request()).status_code == 503
+        control.refresh_from_db()
+        generation = control.control_generation
+        schedule.reset_mock()
+
+        def apply_close(*_args, **_kwargs):
+            assert close_mastrao_room(_request()).status_code == 200
+            schedule.assert_called_once()
+            schedule.reset_mock()
+            if already_settled:
+                settled = process_subtitle_reconciliation(control.room_sid)
+                assert (
+                    settled.public_state
+                    == models.RoomSubtitleControl.PublicState.STOPPED
+                )
+            return object()
+
+        def fail_after_close(*args, **kwargs):
+            apply_close(*args, **kwargs)
+            raise TimeoutError("pending cleanup failed after deletion")
+
+        if provider_fails:
+            with mock.patch(
+                "core.services.subtitle_reconciliation._provider_reconcile",
+                side_effect=fail_after_close,
+            ):
+                result = process_subtitle_reconciliation(control.room_sid)
+        else:
+            with mock.patch(
+                "core.services.subtitle_reconciliation.try_subtitle_convergence_lock"
+            ) as lock:
+                lock.return_value.__enter__.side_effect = apply_close
+                result = process_subtitle_reconciliation(control.room_sid)
+
+        provider.assert_not_called()
+        schedule.assert_not_called()
+
+    assert result.public_state == models.RoomSubtitleControl.PublicState.STOPPED
+    control.refresh_from_db()
+    assert control.desired_state == models.RoomSubtitleControl.DesiredState.OFF
+    assert control.public_state == models.RoomSubtitleControl.PublicState.STOPPED
+    assert control.reason_code == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+    assert control.control_generation == generation
+    assert control.attempts == 0
+    assert control.next_retry_at is None
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
+    ROOM_SUBTITLE_ENABLED=True,
     CELERY_ENABLED=True,
     ROOM_TELEPHONY_ENABLED=False,
     ROOMKIT_ENABLED=False,
