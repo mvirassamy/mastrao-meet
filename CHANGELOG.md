@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Settle subtitles after an applied canonical room close without
+  contacting LiveKit or scheduling reconciliation and snapshot retries.
+
 - 2026-10-10: Stop subtitle reconciliation when a canonical room closes,
   including pending close retries without a LiveKit room-finished webhook.
 

@@ -1,5 +1,5 @@
 """Durable LiveKit subtitle-agent observation and reconciliation."""
-# pylint: disable=cyclic-import,no-member
+# pylint: disable=cyclic-import,no-member,too-many-lines
 
 import asyncio
 import json
@@ -487,6 +487,10 @@ def _provider_reconcile(  # noqa: PLR0913  # pylint: disable=too-many-arguments,
         with try_subtitle_convergence_lock(room_sid, timeout=timeout) as lock:
             if lock is None:
                 raise SubtitleConvergenceBusy(room_sid)
+            if _canonical_room_deleted(room_name):
+                return _ProviderResult(
+                    [], no_dispatch_confirmed=True, had_dispatches=True
+                )
             return async_to_sync(_reconcile_provider_unlocked)(
                 room_name,
                 room_sid,
@@ -528,8 +532,20 @@ async def _publish_snapshot(room_name, payload):
         await client.aclose()
 
 
+def _canonical_room_deleted(room_id):
+    """An applied close durably confirms deletion of the canonical provider room."""
+    return models.MastraoRoomClosure.objects.filter(
+        room_binding__room_id=room_id,
+        state=models.MastraoRoomClosure.State.APPLIED,
+    ).exists()
+
+
 def _schedule_snapshot_retry(room_id, attempt):
-    if not settings.CELERY_ENABLED or attempt >= MAX_PACKET_RETRIES:
+    if (
+        not settings.CELERY_ENABLED
+        or attempt >= MAX_PACKET_RETRIES
+        or _canonical_room_deleted(room_id)
+    ):
         return
     delay = PACKET_RETRY_DELAYS_SECONDS[attempt - 1]
     from core.tasks.subtitle import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
@@ -550,7 +566,7 @@ def publish_subtitle_snapshot(room_id, attempt=1):
         .select_related("room")
         .first()
     )
-    if control is None:
+    if control is None or _canonical_room_deleted(control.room_id):
         return
     try:
         async_to_sync(_publish_snapshot)(
@@ -623,6 +639,20 @@ def _mark_failure(room_sid, *, expected_generation, stopping=False, error=None):
             room_sid=room_sid,
         )
         if control is None or control.control_generation != expected_generation:
+            return None
+        if _canonical_room_deleted(control.room_id):
+            compare_and_set_subtitle_control_locked(
+                locked_room,
+                control,
+                expected_control_generation=control.control_generation,
+                expected_state_version=control.state_version,
+                **_project_provider_result(
+                    control,
+                    _ProviderResult(
+                        [], no_dispatch_confirmed=True, had_dispatches=True
+                    ),
+                ),
+            )
             return None
         attempts = min(control.attempts + 1, MAX_RECONCILIATION_ATTEMPTS)
         delay = RETRY_DELAYS_SECONDS[min(attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)]
@@ -729,14 +759,13 @@ def reconcile_subtitle_control(  # noqa: PLR0912, PLR0915  # pylint: disable=too
 ):
     """Converge one current control row without losing a newer intent."""
     for _ in range(max(1, settings.ROOM_SUBTITLE_CONVERGENCE_MAX_ATTEMPTS)):
-        if deadline is not None and time.monotonic() >= deadline:
-            latest = _current_control(room_sid)
-            if latest is not None and settings.CELERY_ENABLED:
-                schedule_subtitle_reconciliation(room_sid)
-            return latest
         control = _current_control(room_sid)
         if control is None:
             return None
+        room_deleted = _canonical_room_deleted(control.room_id)
+        if deadline is not None and time.monotonic() >= deadline and not room_deleted:
+            schedule_subtitle_reconciliation(room_sid)
+            return control
 
         if (
             control.room_finished_at is not None
@@ -774,14 +803,19 @@ def reconcile_subtitle_control(  # noqa: PLR0912, PLR0915  # pylint: disable=too
                     0.0,
                     deadline - time.monotonic(),
                 )
-            provider_result = _provider_reconcile(
-                str(control.room_id),
-                control.room_sid,
-                desired_state,
-                generation,
-                control.provider or subtitle_provider(),
-                **provider_kwargs,
-            )
+            if room_deleted:
+                provider_result = _ProviderResult(
+                    [], no_dispatch_confirmed=True, had_dispatches=True
+                )
+            else:
+                provider_result = _provider_reconcile(
+                    str(control.room_id),
+                    control.room_sid,
+                    desired_state,
+                    generation,
+                    control.provider or subtitle_provider(),
+                    **provider_kwargs,
+                )
         except SubtitleConvergenceBusy:
             backoff = CONVERGENCE_BUSY_BACKOFF_SECONDS[
                 min(_, len(CONVERGENCE_BUSY_BACKOFF_SECONDS) - 1)
@@ -952,8 +986,38 @@ def request_subtitle_stop(room, *, room_sid=None, reason_code=None):
     )
 
 
+@transaction.atomic
+def _settle_deleted_room_control(room_sid):
+    room_id = (
+        models.RoomSubtitleControl.objects.filter(room_sid=room_sid)
+        .values_list("room_id", flat=True)
+        .first()
+    )
+    if room_id is None:
+        return False
+    locked_room, control = lock_room_and_control(
+        models.Room(pk=room_id),
+        room_sid=room_sid,
+    )
+    if control is None or not _canonical_room_deleted(control.room_id):
+        return False
+    compare_and_set_subtitle_control_locked(
+        locked_room,
+        control,
+        expected_control_generation=control.control_generation,
+        expected_state_version=control.state_version,
+        **_project_provider_result(
+            control,
+            _ProviderResult([], no_dispatch_confirmed=True, had_dispatches=True),
+        ),
+    )
+    return True
+
+
 def schedule_subtitle_reconciliation(room_sid, *, countdown=0):
     """Wake one bounded Celery reconciliation; no periodic beat is required."""
+    if _settle_deleted_room_control(room_sid):
+        return 0
     if not settings.CELERY_ENABLED:
         return 0
     from core.tasks.subtitle import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
