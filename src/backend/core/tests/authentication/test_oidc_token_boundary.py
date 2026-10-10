@@ -19,10 +19,14 @@ from django.urls import resolve, reverse
 import jwt
 import pytest
 import requests
+import responses
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
-from core.authentication.backends import OIDCAuthenticationBackend
+from core.authentication.backends import (
+    OIDCAuthenticationBackend,
+    OIDCUserInfoRateLimited,
+)
 from core.authentication.views import OIDCAuthenticationCallbackView
 
 ISSUER = "https://accounts.mastrao.test/api/auth"
@@ -541,36 +545,61 @@ def test_userinfo_errors_other_than_rate_limits_remain_unchanged(
     assert caught.value.response is upstream
 
 
+def test_redirected_userinfo_rate_limit_is_recognized(backend):
+    """Requests follows the redirect, but the throttle still belongs to UserInfo."""
+    redirected_url = f"{ISSUER}/userinfo-redirected"
+    with responses.RequestsMock() as provider:
+        provider.get(
+            backend.OIDC_OP_USER_ENDPOINT,
+            status=302,
+            headers={"Location": redirected_url},
+        )
+        provider.get(redirected_url, status=429, headers={"Retry-After": "42"})
+
+        with pytest.raises(OIDCUserInfoRateLimited) as caught:
+            backend.get_userinfo("access-token", "id-token", {})
+
+        assert caught.value.retry_after == "42"
+        assert [call.request.url for call in provider.calls] == [
+            backend.OIDC_OP_USER_ENDPOINT,
+            redirected_url,
+        ]
+
+
+@pytest.mark.parametrize("redirected", [False, True])
 def test_signed_userinfo_jwks_rate_limit_remains_unchanged(
-    settings, signing_key, monkeypatch
+    settings, signing_key, redirected
 ):
     """A successful signed UserInfo fetch must not relabel a JWKS throttle."""
     backend = build_backend(settings)
-    userinfo = requests.Response()
-    userinfo.status_code = 200
-    userinfo.url = backend.OIDC_OP_USER_ENDPOINT
-    userinfo.headers["Content-Type"] = "application/jwt"
-    userinfo._content = jwt.encode(
+    signed_userinfo = jwt.encode(
         {"sub": "account-123", "email": "person@example.test"},
         signing_key,
         algorithm="RS256",
         headers={"kid": "s0"},
-    ).encode()
-    jwks = requests.Response()
-    jwks.status_code = 429
-    jwks.url = backend.OIDC_OP_JWKS_ENDPOINT
-    jwks.headers["Retry-After"] = "42"
-    provider_get = mock.Mock(side_effect=[userinfo, jwks])
-    monkeypatch.setattr("lasuite.oidc_login.backends.requests.get", provider_get)
+    )
+    expected_urls = [backend.OIDC_OP_USER_ENDPOINT, backend.OIDC_OP_JWKS_ENDPOINT]
+    with responses.RequestsMock() as provider:
+        provider.get(
+            backend.OIDC_OP_USER_ENDPOINT,
+            body=signed_userinfo,
+            content_type="application/jwt",
+        )
+        if redirected:
+            provider.get(
+                backend.OIDC_OP_JWKS_ENDPOINT,
+                status=302,
+                headers={"Location": backend.OIDC_OP_USER_ENDPOINT},
+            )
+            expected_urls.append(backend.OIDC_OP_USER_ENDPOINT)
+        provider.get(expected_urls[-1], status=429, headers={"Retry-After": "42"})
 
-    with pytest.raises(requests.HTTPError) as caught:
-        backend.get_userinfo("access-token", "id-token", {})
+        with pytest.raises(requests.HTTPError) as caught:
+            backend.get_userinfo("access-token", "id-token", {})
 
-    assert caught.value.response is jwks
-    assert [call.args[0] for call in provider_get.call_args_list] == [
-        backend.OIDC_OP_USER_ENDPOINT,
-        backend.OIDC_OP_JWKS_ENDPOINT,
-    ]
+        assert caught.value.response is provider.calls[-1].response
+        assert caught.value.response.status_code == 429
+        assert [call.request.url for call in provider.calls] == expected_urls
 
 
 def test_userinfo_success_retains_inherited_response_parsing(backend, monkeypatch):

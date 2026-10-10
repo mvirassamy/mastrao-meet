@@ -51,14 +51,14 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         try:
             return super().get_userinfo(access_token, id_token, payload)
         except HTTPError as error:
-            if (
-                error.response is None
-                or error.response.status_code != 429
-                or error.response.url != self.OIDC_OP_USER_ENDPOINT
-            ):
+            response = error.response
+            if response is None or response.status_code != 429:
+                raise
+            initial_response = response.history[0] if response.history else response
+            if initial_response.url != self.OIDC_OP_USER_ENDPOINT:
                 raise
             raise OIDCUserInfoRateLimited(
-                error.response.headers.get("Retry-After")
+                response.headers.get("Retry-After")
             ) from error
 
     def _uses_jwks_signing_key(self):
