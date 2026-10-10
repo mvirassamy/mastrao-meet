@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Wind a watercolor ribbon behind the three public home
+  arguments on wide screens, as on the Mastrao landing page.
+
 - 2026-10-10: Authorize staging Meet and metadata collector traffic on the
   bounded Core relay pod port while preserving the public Core service port.
 

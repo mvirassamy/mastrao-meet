@@ -17,6 +17,7 @@ import {
 } from '@/icons'
 import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
 import { PublicHomeCta } from '../components/PublicHomeCta'
+import { WatercolorTrail } from '../components/WatercolorTrail'
 
 /*
  * Public home: Google Meet structure, Mastrao Platform look, three arguments.
@@ -82,6 +83,7 @@ const Feature = ({
     })}
   >
     <div
+      data-watercolor-anchor
       className={css({
         position: 'relative',
         display: 'grid',
@@ -340,17 +342,19 @@ export const PublicHome = () => {
               borderTop: '1px solid token(colors.border)',
             })}
           >
-            {features.map(({ key, icon, image }, index) => (
-              <Feature
-                key={key}
-                icon={icon}
-                image={image}
-                eyebrow={t(`homeV2.eyebrows.${key}`)}
-                title={t(`introSlider.${key}.title`)}
-                body={t(`introSlider.${key}.body`)}
-                reverse={index % 2 === 1}
-              />
-            ))}
+            <WatercolorTrail>
+              {features.map(({ key, icon, image }, index) => (
+                <Feature
+                  key={key}
+                  icon={icon}
+                  image={image}
+                  eyebrow={t(`homeV2.eyebrows.${key}`)}
+                  title={t(`introSlider.${key}.title`)}
+                  body={t(`introSlider.${key}.body`)}
+                  reverse={index % 2 === 1}
+                />
+              ))}
+            </WatercolorTrail>
           </div>
 
           <PublicHomeCta />
