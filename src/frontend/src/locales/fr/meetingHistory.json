@@ -49,6 +49,14 @@
       "audio_unavailable": "Audio indisponible",
       "partial": "Transcription partielle",
       "failed": "Transcription indisponible"
+    },
+    "recording": {
+      "absent": "Aucun enregistrement vidéo",
+      "processing": "Vidéo en préparation",
+      "available": "Vidéo disponible",
+      "expired": "Enregistrement vidéo expiré",
+      "failed": "Vidéo indisponible",
+      "unknown": "État de la vidéo en cours de vérification"
     }
   },
   "summary": {
@@ -143,5 +151,11 @@
     },
     "partial": "Cette transcription est incomplète. Des passages de la réunion peuvent manquer."
   },
-  "untitled": "Réunion sans titre"
+  "untitled": "Réunion sans titre",
+  "recording": {
+    "title": "Enregistrement",
+    "open": "Ouvrir la vidéo (nouvel onglet)",
+    "retainedUntil": "Conservé jusqu’au {{date}}",
+    "accessUnavailable": "L’accès à la vidéo est indisponible pour le moment."
+  }
 }

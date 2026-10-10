@@ -55,6 +55,11 @@ export const MeetingRowLink = ({
       <span className={css({ srOnly: true })}>
         {t(`status.transcript.${item.transcriptStatus}`)}
       </span>
+      {item.recordingProjected === true && (
+        <span className={css({ srOnly: true })}>
+          {t(`status.recording.${item.recordingStatus}`)}
+        </span>
+      )}
     </Link>
   )
 }

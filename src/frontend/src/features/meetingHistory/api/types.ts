@@ -16,6 +16,28 @@ export const meetingContentStatuses = [
 
 export type MeetingContentStatus = (typeof meetingContentStatuses)[number]
 
+export type MeetingRecordingStatus =
+  | 'absent'
+  | 'processing'
+  | 'available'
+  | 'expired'
+  | 'failed'
+  | 'unknown'
+
+export type MeetingRecordingAccess = {
+  actionPath: string
+  matterRef: string
+  meetingRef: string
+  recordingRef: string
+  artifactRef: string
+}
+
+export type MeetingRecording = {
+  status: MeetingRecordingStatus
+  retentionExpiresAt: Date | null
+  access: MeetingRecordingAccess | null
+}
+
 export type MeetingContentProjection = {
   version: 1
   state: MeetingContentStatus
@@ -42,6 +64,9 @@ export type MeetingHistoryItem = {
   participantNames: string[]
   summaryStatus: MeetingContentStatus
   transcriptStatus: MeetingContentStatus
+  recordingStatus: MeetingRecordingStatus
+  /** False while an older Platform response does not project video metadata. */
+  recordingProjected?: boolean
   summaryProjection: MeetingContentProjection
   transcriptProjection: MeetingContentProjection
 }
@@ -78,6 +103,7 @@ export type MeetingTranscript = {
 }
 
 export type MeetingHistoryDetail = MeetingHistoryItem & {
+  recording: MeetingRecording
   summary: MeetingSummary
   transcript: MeetingTranscript
 }

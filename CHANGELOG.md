@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-11: Show retained video status in meeting history and let authorized
+  users open it through a short-lived Platform access grant.
+
 - 2026-10-10: Keep one anonymous guest identity per browser session and show
   pending participant agreements after a recording start request is checked.
 

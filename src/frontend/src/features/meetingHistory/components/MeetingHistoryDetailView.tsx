@@ -46,6 +46,7 @@ import {
   MeetingSectionState,
 } from './MeetingHistoryStatePanel'
 import { MeetingHistoryDetailSkeleton } from './MeetingHistoryDetailSkeleton'
+import { MeetingRecordingSection } from './MeetingRecordingSection'
 import {
   detailHeader,
   detailSections,
@@ -349,6 +350,12 @@ const MeetingDetailContent = ({
         </p>
       </header>
 
+      {meeting.recordingProjected === true && (
+        <MeetingRecordingSection
+          recording={meeting.recording}
+          timeZone={timeZone}
+        />
+      )}
       <div className={detailSections}>
         <MeetingContentSection
           kind="summary"
