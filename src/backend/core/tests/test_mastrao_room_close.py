@@ -27,7 +27,16 @@ from core.services.room_management import (
     ensure_livekit_room,
 )
 from core.services.subtitle_control import ensure_subtitle_control
-from core.services.subtitle_reconciliation import reconcile_subtitle_control
+from core.services.subtitle_reconciliation import (
+    SubtitleReconciliationAmbiguous,
+    publish_subtitle_snapshot,
+    reconcile_subtitle_control,
+    schedule_subtitle_reconciliation,
+)
+from core.tasks.subtitle import (
+    process_subtitle_reconciliation,
+    process_subtitle_snapshot_publication,
+)
 
 
 def _binding(suffix="one"):
@@ -383,6 +392,101 @@ def test_close_stops_subtitles_without_room_finished_webhook():
     ROOM_TELEPHONY_ENABLED=False,
     ROOMKIT_ENABLED=False,
 )
+@pytest.mark.parametrize("attempts", [0, 3])
+@pytest.mark.parametrize("work", ["reconciliation", "snapshot"])
+def test_queued_subtitle_work_after_canonical_close_does_not_contact_livekit(
+    attempts, work
+):
+    """A committed canonical deletion settles queued work without provider retries."""
+    binding = _binding("queued_subtitles")
+    effect = _effect(binding, "queued_subtitles")
+    control = _active_subtitle_control(binding.room, "RM_queued_close")
+    with (
+        mock.patch(
+            "core.mastrao_room_close_adapter.verify_room_close_effect",
+            return_value=effect,
+        ),
+        mock.patch(
+            "core.mastrao_room_close_adapter.sign_room_close_receipt",
+            return_value="receipt.payload.signature",
+        ),
+        mock.patch("core.mastrao_room_close_adapter.RoomManagement.delete_room"),
+        mock.patch("core.mastrao_room_close_adapter.LobbyService.clear_room_cache"),
+        mock.patch("core.services.subtitle_reconciliation.publish_subtitle_snapshot"),
+        mock.patch("core.tasks.subtitle.process_subtitle_reconciliation.apply_async"),
+    ):
+        assert close_mastrao_room(_request()).status_code == 200
+
+    closure = models.MastraoRoomClosure.objects.get(room_binding=binding)
+    assert closure.state == models.MastraoRoomClosure.State.APPLIED
+    control.refresh_from_db()
+    closed_generation = control.control_generation
+    control.attempts = attempts
+    control.next_retry_at = timezone.now()
+    control.observed_dispatch_ids = ["AD_Bo6CVqcR7niT"]
+    control.agent_present = True
+    control.worker_ready = True
+    control.session_id = "subtitle-agent-session"
+    control.save()
+    client = mock.AsyncMock()
+    client.agent_dispatch.list_dispatch.side_effect = livekit_api.TwirpError(
+        msg="room deleted", code="unavailable", status=503
+    )
+    client.room.send_data.side_effect = livekit_api.TwirpError(
+        msg="room deleted", code="unavailable", status=503
+    )
+    with (
+        mock.patch("core.utils.create_livekit_client", return_value=client) as provider,
+        mock.patch(
+            "core.tasks.subtitle.process_subtitle_reconciliation.apply_async"
+        ) as reconcile_retry,
+        mock.patch(
+            "core.tasks.subtitle.process_subtitle_snapshot_publication.apply_async"
+        ) as snapshot_retry,
+    ):
+        if work == "reconciliation":
+            for _ in range(2):
+                result = process_subtitle_reconciliation(control.room_sid)
+                assert (
+                    result.public_state
+                    == models.RoomSubtitleControl.PublicState.STOPPED
+                )
+            reconcile_subtitle_control(control.room_sid, deadline=0)
+            assert schedule_subtitle_reconciliation(control.room_sid) == 0
+        else:
+            process_subtitle_snapshot_publication(str(binding.room_id), attempt=1)
+            publish_subtitle_snapshot(binding.room_id, attempt=2)
+
+        provider.assert_not_called()
+        reconcile_retry.assert_not_called()
+        snapshot_retry.assert_not_called()
+        process_subtitle_reconciliation(control.room_sid)
+
+    provider.assert_not_called()
+    reconcile_retry.assert_not_called()
+    snapshot_retry.assert_not_called()
+    control.refresh_from_db()
+    assert control.desired_state == models.RoomSubtitleControl.DesiredState.OFF
+    assert control.public_state == models.RoomSubtitleControl.PublicState.STOPPED
+    assert control.reason_code == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
+    assert control.room_finished_at is not None
+    assert control.control_generation == closed_generation
+    assert control.observed_dispatch_ids == []
+    assert not control.agent_present
+    assert not control.worker_ready
+    assert control.session_id is None
+    assert control.attempts == 0
+    assert control.next_retry_at is None
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
+    ROOM_SUBTITLE_ENABLED=True,
+    CELERY_ENABLED=True,
+    ROOM_TELEPHONY_ENABLED=False,
+    ROOMKIT_ENABLED=False,
+)
 def test_pending_close_retries_without_restarting_subtitles():
     """A failed provider delete retains one terminal subtitle intent."""
 
@@ -414,6 +518,22 @@ def test_pending_close_retries_without_restarting_subtitles():
         first = close_mastrao_room(_request())
         control.refresh_from_db()
         generation = control.control_generation
+        assert first.status_code == 503
+        assert (
+            models.MastraoRoomClosure.objects.get(room_binding=binding).state
+            == models.MastraoRoomClosure.State.PENDING
+        )
+        client = mock.AsyncMock()
+        client.agent_dispatch.list_dispatch.side_effect = TimeoutError(
+            "provider unavailable before deletion"
+        )
+        with mock.patch("core.utils.create_livekit_client", return_value=client):
+            with pytest.raises(SubtitleReconciliationAmbiguous):
+                reconcile_subtitle_control(control.room_sid)
+        client.agent_dispatch.list_dispatch.assert_awaited_once()
+        control.refresh_from_db()
+        assert control.public_state == models.RoomSubtitleControl.PublicState.STOPPING
+        assert control.next_retry_at is not None
         second = close_mastrao_room(_request())
 
     assert first.status_code == 503
@@ -426,7 +546,7 @@ def test_pending_close_retries_without_restarting_subtitles():
         models.MastraoRoomClosure.objects.get(room_binding=binding).state == "applied"
     )
     assert provider_delete.call_count == 2
-    assert schedule.call_count == 2
+    assert schedule.call_count == 3
 
 
 @pytest.mark.django_db(transaction=True)
