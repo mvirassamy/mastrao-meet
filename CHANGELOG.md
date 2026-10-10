@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Show a recoverable sign-in page when OIDC UserInfo is rate
+  limited, preserving one-time state, nonce and PKCE validation.
+
 - 2026-10-10: Show sparse darker watercolor patches in the public home
   ribbon, with a seamless mirrored texture.
 

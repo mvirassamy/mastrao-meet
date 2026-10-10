@@ -14,14 +14,16 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ImproperlyConfigured, SuspiciousOperation
 from django.http import HttpResponseRedirect
 from django.test import RequestFactory
+from django.urls import resolve, reverse
 
 import jwt
 import pytest
+import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
-from lasuite.oidc_login.views import OIDCAuthenticationCallbackView
 
 from core.authentication.backends import OIDCAuthenticationBackend
+from core.authentication.views import OIDCAuthenticationCallbackView
 
 ISSUER = "https://accounts.mastrao.test/api/auth"
 CLIENT_ID = "meet"
@@ -465,6 +467,94 @@ def test_callback_rejects_unknown_or_replayed_state():
     request.session.save()
     with pytest.raises(SuspiciousOperation, match="state not found"):
         OIDCAuthenticationCallbackView.as_view()(request)
+
+
+@pytest.mark.parametrize(
+    ("retry_after", "expected_retry_after"),
+    [
+        ("42", "42"),
+        ("Wed, 21 Oct 2026 07:28:00 GMT", "Wed, 21 Oct 2026 07:28:00 GMT"),
+        (None, "60"),
+        ("invalid", "60"),
+        ("42\r\nX-Untrusted: yes", "60"),
+    ],
+)
+def test_callback_userinfo_rate_limit_is_recoverable_without_authentication(
+    backend, signing_key, monkeypatch, retry_after, expected_retry_after
+):
+    """A provider throttle preserves one-time state and never logs the user in."""
+    request = callback_request()
+    token_exchange = mock.Mock(
+        return_value={
+            "id_token": make_token(signing_key),
+            "access_token": "access-token",
+        }
+    )
+    monkeypatch.setattr(backend, "get_token", token_exchange)
+    monkeypatch.setattr(
+        "mozilla_django_oidc.views.auth.authenticate", backend.authenticate
+    )
+    login = mock.Mock()
+    monkeypatch.setattr("mozilla_django_oidc.views.auth.login", login)
+    upstream = requests.Response()
+    upstream.status_code = 429
+    upstream.url = f"{ISSUER}/userinfo"
+    if retry_after is not None:
+        upstream.headers["Retry-After"] = retry_after
+    userinfo = mock.Mock(return_value=upstream)
+    monkeypatch.setattr("lasuite.oidc_login.backends.requests.get", userinfo)
+    callback = resolve(reverse("oidc_authentication_callback")).func
+
+    response = callback(request)
+
+    assert response.status_code == 503
+    assert response["Retry-After"] == expected_retry_after
+    assert response["Cache-Control"] == "no-store"
+    content = response.content.decode()
+    assert "Connexion temporairement indisponible" in content
+    assert reverse("oidc_authentication_init") in content
+    assert "known-state" not in content
+    assert "access-token" not in content
+    assert "known-state" not in CallbackSession.persisted["oidc_states"]
+    assert "_auth_user_id" not in request.session
+    assert token_exchange.call_args.args[0]["code_verifier"] == "v" * 64
+    assert userinfo.call_count == 1
+    login.assert_not_called()
+    with pytest.raises(SuspiciousOperation, match="state not found"):
+        callback(request)
+
+
+@pytest.mark.parametrize("status", [401, 403, 500, 503])
+def test_userinfo_errors_other_than_rate_limits_remain_unchanged(
+    backend, monkeypatch, status
+):
+    """The temporary throttle response must not hide other provider failures."""
+    upstream = requests.Response()
+    upstream.status_code = status
+    monkeypatch.setattr(
+        "lasuite.oidc_login.backends.requests.get", mock.Mock(return_value=upstream)
+    )
+
+    with pytest.raises(requests.HTTPError) as caught:
+        backend.get_userinfo("access-token", "id-token", {})
+
+    assert caught.value.response is upstream
+
+
+def test_userinfo_success_retains_inherited_response_parsing(backend, monkeypatch):
+    """A successful UserInfo response still goes through the provider parser."""
+    upstream = requests.Response()
+    upstream.status_code = 200
+    upstream.headers["Content-Type"] = "application/json"
+    upstream._content = b'{"sub":"account-123","email":"person@example.test"}'
+    monkeypatch.setattr(
+        "lasuite.oidc_login.backends.requests.get", mock.Mock(return_value=upstream)
+    )
+
+    assert backend.get_userinfo("access-token", "id-token", {}) == {
+        "sub": "account-123",
+        "email": "person@example.test",
+    }
 
 
 def test_accepts_single_element_audience_list_without_authorized_party(
