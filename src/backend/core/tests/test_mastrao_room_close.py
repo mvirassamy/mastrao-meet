@@ -445,14 +445,18 @@ def test_queued_subtitle_work_after_canonical_close_does_not_contact_livekit(
         ) as snapshot_retry,
     ):
         if work == "reconciliation":
+            with override_settings(CELERY_ENABLED=False):
+                assert schedule_subtitle_reconciliation(control.room_sid) == 0
+            control.refresh_from_db()
+            assert (
+                control.public_state == models.RoomSubtitleControl.PublicState.STOPPED
+            )
             for _ in range(2):
                 result = process_subtitle_reconciliation(control.room_sid)
                 assert (
                     result.public_state
                     == models.RoomSubtitleControl.PublicState.STOPPED
                 )
-            reconcile_subtitle_control(control.room_sid, deadline=0)
-            assert schedule_subtitle_reconciliation(control.room_sid) == 0
         else:
             process_subtitle_snapshot_publication(str(binding.room_id), attempt=1)
             publish_subtitle_snapshot(binding.room_id, attempt=2)
@@ -567,7 +571,7 @@ def test_subtitle_close_during_pending_reconciliation(provider_fails, already_se
 @override_settings(
     MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
     ROOM_SUBTITLE_ENABLED=True,
-    CELERY_ENABLED=True,
+    CELERY_ENABLED=False,
     ROOM_TELEPHONY_ENABLED=False,
     ROOMKIT_ENABLED=False,
 )
@@ -595,9 +599,6 @@ def test_pending_close_retries_without_restarting_subtitles():
         ) as provider_delete,
         mock.patch("core.mastrao_room_close_adapter.LobbyService.clear_room_cache"),
         mock.patch("core.services.subtitle_reconciliation.publish_subtitle_snapshot"),
-        mock.patch(
-            "core.tasks.subtitle.process_subtitle_reconciliation.apply_async"
-        ) as schedule,
     ):
         first = close_mastrao_room(_request())
         control.refresh_from_db()
@@ -626,11 +627,13 @@ def test_pending_close_retries_without_restarting_subtitles():
     assert control.desired_state == models.RoomSubtitleControl.DesiredState.OFF
     assert control.reason_code == models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED
     assert control.control_generation == generation
+    assert control.public_state == models.RoomSubtitleControl.PublicState.STOPPED
+    assert control.attempts == 0
+    assert control.next_retry_at is None
     assert (
         models.MastraoRoomClosure.objects.get(room_binding=binding).state == "applied"
     )
     assert provider_delete.call_count == 2
-    assert schedule.call_count == 3
 
 
 @pytest.mark.django_db(transaction=True)

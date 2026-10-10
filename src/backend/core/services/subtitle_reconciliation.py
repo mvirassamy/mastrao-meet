@@ -986,12 +986,39 @@ def request_subtitle_stop(room, *, room_sid=None, reason_code=None):
     )
 
 
+@transaction.atomic
+def _settle_deleted_room_control(room_sid):
+    room_id = (
+        models.RoomSubtitleControl.objects.filter(room_sid=room_sid)
+        .values_list("room_id", flat=True)
+        .first()
+    )
+    if room_id is None:
+        return False
+    locked_room, control = lock_room_and_control(
+        models.Room(pk=room_id),
+        room_sid=room_sid,
+    )
+    if control is None or not _canonical_room_deleted(control.room_id):
+        return False
+    compare_and_set_subtitle_control_locked(
+        locked_room,
+        control,
+        expected_control_generation=control.control_generation,
+        expected_state_version=control.state_version,
+        **_project_provider_result(
+            control,
+            _ProviderResult([], no_dispatch_confirmed=True, had_dispatches=True),
+        ),
+    )
+    return True
+
+
 def schedule_subtitle_reconciliation(room_sid, *, countdown=0):
     """Wake one bounded Celery reconciliation; no periodic beat is required."""
-    if not settings.CELERY_ENABLED:
+    if _settle_deleted_room_control(room_sid):
         return 0
-    control = _current_control(room_sid)
-    if control is not None and _canonical_room_deleted(control.room_id):
+    if not settings.CELERY_ENABLED:
         return 0
     from core.tasks.subtitle import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
         process_subtitle_reconciliation,

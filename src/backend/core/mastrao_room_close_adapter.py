@@ -171,6 +171,18 @@ def _apply_tombstone(closure_id, effect):
             "updated_at",
         ]
     )
+    room_sid = (
+        models.RoomSubtitleControl.objects.filter(
+            room_id=room_id,
+            is_current=True,
+        )
+        .values_list("room_sid", flat=True)
+        .first()
+    )
+    if room_sid is not None:
+        transaction.on_commit(
+            lambda room_sid=room_sid: schedule_subtitle_reconciliation(room_sid)
+        )
     return compact
 
 
