@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Keep the recording startup status visible until the
+  authoritative provider transition reaches the room.
+
 - 2026-10-10: Settle subtitles after an applied canonical room close without
   contacting LiveKit or scheduling reconciliation and snapshot retries.
 
