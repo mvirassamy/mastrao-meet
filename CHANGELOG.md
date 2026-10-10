@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-10: Show sparse darker watercolor patches in the public home
+  ribbon, with a seamless mirrored texture.
+
 - 2026-10-10: Wind a watercolor ribbon behind the three public home
   arguments on wide screens, as on the Mastrao landing page.
 
