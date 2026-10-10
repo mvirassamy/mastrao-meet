@@ -3,6 +3,17 @@ import { css } from '@/styled-system/css'
 
 type Point = { x: number; y: number }
 
+// Watercolor tile size: large enough that darker patches stay sparse.
+const TILE = { width: 1100, height: 619 }
+
+// Four mirrored copies, so the texture continues across every tile edge.
+const MIRRORS = [
+  { scale: '1 1', x: 0, y: 0 },
+  { scale: '-1 1', x: 2 * TILE.width, y: 0 },
+  { scale: '1 -1', x: 0, y: 2 * TILE.height },
+  { scale: '-1 -1', x: 2 * TILE.width, y: 2 * TILE.height },
+]
+
 /*
  * Watercolor ribbon of the Mastrao landing pages, winding behind every
  * child marked with data-watercolor-anchor. Decorative, wide screens only.
@@ -66,15 +77,19 @@ export const WatercolorTrail = ({ children }: { children: ReactNode }) => {
             <pattern
               id={`${id}-paint`}
               patternUnits="userSpaceOnUse"
-              width={1400}
-              height={900}
+              width={2 * TILE.width}
+              height={2 * TILE.height}
             >
-              <image
-                href="/assets/home/aquarelle.webp"
-                width={1400}
-                height={900}
-                preserveAspectRatio="xMidYMid slice"
-              />
+              {MIRRORS.map((mirror) => (
+                <image
+                  key={mirror.scale}
+                  href="/assets/home/aquarelle.webp"
+                  width={TILE.width}
+                  height={TILE.height}
+                  preserveAspectRatio="none"
+                  transform={`translate(${mirror.x} ${mirror.y}) scale(${mirror.scale})`}
+                />
+              ))}
             </pattern>
             {/* Irregular brush edges. */}
             <filter
@@ -107,7 +122,7 @@ export const WatercolorTrail = ({ children }: { children: ReactNode }) => {
             strokeWidth={170}
             strokeLinecap="round"
             filter={`url(#${id}-edges)`}
-            opacity={0.55}
+            opacity={0.6}
           />
         </svg>
       )}
