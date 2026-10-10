@@ -59,10 +59,16 @@ def report_mastrao_recording_failure(recording, provider_status):
         locked = models.MastraoRecordingBinding.objects.select_for_update().get(
             pk=binding.pk
         )
-        if failure_code == PROVIDER_NOT_STARTED:
-            if locked.provider_recording_ref:
-                return False
-        elif not locked.provider_recording_ref:
+        core_state_is_terminal = locked.state in {
+            models.MastraoRecordingBinding.State.CANCELLED,
+            models.MastraoRecordingBinding.State.FINALIZED,
+        }
+        provider_registration_conflicts = (
+            failure_code == PROVIDER_NOT_STARTED and bool(locked.provider_recording_ref)
+        ) or (
+            failure_code != PROVIDER_NOT_STARTED and not locked.provider_recording_ref
+        )
+        if core_state_is_terminal or provider_registration_conflicts:
             return False
         local_recording = models.Recording.objects.select_for_update().get(
             pk=locked.recording_id

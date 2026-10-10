@@ -254,7 +254,11 @@ def publish_recording_start(binding_id, provider_ref, observation):
         binding = models.MastraoRecordingBinding.objects.select_for_update().get(
             pk=binding_id
         )
-        if binding.state == models.MastraoRecordingBinding.State.FAILED:
+        if binding.state in {
+            models.MastraoRecordingBinding.State.CANCELLED,
+            models.MastraoRecordingBinding.State.FAILED,
+            models.MastraoRecordingBinding.State.FINALIZED,
+        }:
             raise RecordingContractRefused(status=409)
         start_effect = models.MastraoRecordingEffect.objects.select_for_update().get(
             recording_binding=binding,

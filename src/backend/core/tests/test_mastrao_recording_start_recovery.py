@@ -216,8 +216,16 @@ def test_attempt_finish_cannot_replace_concurrently_applied_receipt():
     }
 
 
-def test_provider_success_cannot_publish_after_binding_failed():
-    binding = SimpleNamespace(state=models.MastraoRecordingBinding.State.FAILED)
+@pytest.mark.parametrize(
+    "terminal_state",
+    [
+        models.MastraoRecordingBinding.State.CANCELLED,
+        models.MastraoRecordingBinding.State.FAILED,
+        models.MastraoRecordingBinding.State.FINALIZED,
+    ],
+)
+def test_provider_success_cannot_publish_after_binding_terminal(terminal_state):
+    binding = SimpleNamespace(state=terminal_state)
     with (
         mock.patch(
             "core.mastrao_recording_adapter.transaction.atomic", side_effect=nullcontext
@@ -334,6 +342,33 @@ def test_late_no_provider_failure_does_not_override_published_start(failure_cont
         assert not report_mastrao_recording_failure(recording, None)
     post_core.assert_not_called()
     assert published.state == models.MastraoRecordingBinding.State.ACTIVE
+
+
+@pytest.mark.parametrize(
+    "terminal_state",
+    [
+        models.MastraoRecordingBinding.State.CANCELLED,
+        models.MastraoRecordingBinding.State.FINALIZED,
+    ],
+)
+def test_late_provider_failure_does_not_override_terminal_binding(
+    failure_context, terminal_state
+):
+    binding, recording = failure_context
+    binding.state = terminal_state
+    binding.provider_recording_ref = "EG_terminal"
+    original_recording_status = recording.status
+
+    with mock.patch("core.mastrao_recording_failure.post_core_json") as post_core:
+        assert not report_mastrao_recording_failure(
+            recording, api.EgressStatus.EGRESS_FAILED
+        )
+
+    assert binding.state == terminal_state
+    assert recording.status == original_recording_status
+    binding.save.assert_not_called()
+    recording.save.assert_not_called()
+    post_core.assert_not_called()
 
 
 @pytest.mark.parametrize(
