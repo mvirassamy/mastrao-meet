@@ -124,6 +124,17 @@ it('lets a participant who accepted close the card and reopen it', () => {
   expect(screen.getByRole('button', { name: 'videoNo' })).toBeDefined()
 })
 
+it('lets the host close an error left by a failed start', async () => {
+  activateRecording.mockRejectedValueOnce(new Error('unavailable'))
+  render(<RecordingPreparation roomId="room-1" canStart isHost video={video} />)
+  fireEvent.click(screen.getByRole('button', { name: 'startVideo' }))
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    'videoActionError'
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
 it('lets the host close the waiting card', () => {
   render(
     <RecordingPreparation

@@ -123,6 +123,12 @@ export const RecordingPreparation = ({
   }
   const isDismissed = noticeKey !== null && noticeKey === dismissedNotice
   const showCard = (content || failed) && !isDismissed
+  // An error alone can be closed too; a closable notice stays closed.
+  const canCloseCard = content === null || content.dismissible
+  const closeCard = () => {
+    setFailed(false)
+    setDismissedNotice(noticeKey)
+  }
 
   return (
     <>
@@ -162,9 +168,7 @@ export const RecordingPreparation = ({
           muted={content?.muted ?? false}
           busy={content?.busy ?? false}
           error={failed ? t('videoActionError') : null}
-          onDismiss={
-            content?.dismissible ? () => setDismissedNotice(noticeKey) : null
-          }
+          onDismiss={canCloseCard ? closeCard : null}
           dismissLabel={t('dismiss')}
           besideSidePanel={isSidePanelOpen}
         >
