@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-11: Route fresh and retrying native ASR work through separate
+  bounded worker lanes so neither new meetings nor due recovery work can
+  starve under sustained load.
+
 - 2026-10-11: Dispatch each retained native audio source to ASR immediately
   after its durable receipt, while keeping bounded reconciliation for recovery.
 

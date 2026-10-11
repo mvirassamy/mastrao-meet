@@ -542,6 +542,15 @@ class Base(Configuration):
     MASTRAO_NATIVE_ASR_ENABLED = values.BooleanValue(
         False, environ_name="MASTRAO_NATIVE_ASR_ENABLED", environ_prefix=None
     )
+    MASTRAO_NATIVE_ASR_GLOBAL_LIMIT = values.PositiveIntegerValue(
+        4, environ_name="MASTRAO_NATIVE_ASR_GLOBAL_LIMIT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_TENANT_LIMIT = values.PositiveIntegerValue(
+        4, environ_name="MASTRAO_NATIVE_ASR_TENANT_LIMIT", environ_prefix=None
+    )
+    MASTRAO_NATIVE_ASR_MEETING_LIMIT = values.PositiveIntegerValue(
+        4, environ_name="MASTRAO_NATIVE_ASR_MEETING_LIMIT", environ_prefix=None
+    )
     MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT", environ_prefix=None
     )

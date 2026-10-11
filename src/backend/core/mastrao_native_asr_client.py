@@ -42,18 +42,17 @@ class NativeAsrDeliveryRefused(RecordingContractRefused):
 
 def _retry_after_at(value):
     now = timezone.now()
-    minimum = now + timedelta(seconds=30)
     if not isinstance(value, str) or not 1 <= len(value) <= 128:
-        return minimum
+        return None
     try:
         if value.isdecimal():
-            return max(minimum, now + timedelta(seconds=int(value)))
+            return now + timedelta(seconds=int(value))
         deadline = parsedate_to_datetime(value)
         if deadline.tzinfo is None:
-            return minimum
-        return max(minimum, deadline.astimezone(UTC))
+            return None
+        return max(now, deadline.astimezone(UTC))
     except (ValueError, TypeError, OverflowError):
-        return minimum
+        return None
 
 
 def _read_native_gateway_response(response):

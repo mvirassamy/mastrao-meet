@@ -105,6 +105,23 @@ def test_native_retry_deadline_is_absolute(native_gateway, header_kind):
     assert refused.value.retry_at == deadline
 
 
+def test_short_retry_after_is_kept_as_sent(native_gateway):
+    now = timezone.now()
+    response = gateway_response(
+        429,
+        {"outcome": "retry", "error": "PROVIDER_RATE_LIMITED"},
+        {"Retry-After": "5"},
+    )
+    prepared = {"metadata": {}, "native_source_egress_grant": "fixture-grant"}
+    with (
+        patch("requests.Session.post", return_value=response),
+        patch("core.mastrao_native_asr_client.timezone.now", return_value=now),
+        pytest.raises(RecordingContractRefused) as refused,
+    ):
+        transcribe_native_asr(prepared, b"audio")
+    assert refused.value.retry_at == now + timedelta(seconds=5)
+
+
 @pytest.mark.parametrize(
     "body", [[], {"outcome": "unrecognized"}, {"outcome": "x" * 21000}]
 )
