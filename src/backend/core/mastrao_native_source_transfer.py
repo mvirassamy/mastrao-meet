@@ -121,7 +121,7 @@ def _send(intent):
 @transaction.atomic
 def _finish(intent, receipt, error):
     now = timezone.now()
-    return (
+    persisted = (
         models.MastraoNativeCaptureStart.objects.filter(
             pk=intent.pk,
             source_claim=intent.source_claim,
@@ -137,6 +137,13 @@ def _finish(intent, receipt, error):
         )
         == 1
     )
+    if persisted and receipt is not None:
+        from core.mastrao_native_asr_worker import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+            dispatch_native_asr,
+        )
+
+        transaction.on_commit(lambda: dispatch_native_asr(intent.pk))
+    return persisted
 
 
 def transfer_next_native_source():

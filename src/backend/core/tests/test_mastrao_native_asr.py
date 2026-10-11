@@ -6,10 +6,12 @@
 import base64
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
+from django.db import close_old_connections, transaction
 from django.utils import timezone
 
 import pytest
@@ -24,9 +26,13 @@ from core.mastrao_native_asr_client import (
 from core.mastrao_native_asr_worker import (
     _claim,
     _finish,
-    process_next_native_asr,
+    _reserve_dispatch,
+    dispatch_native_asr,
+    process_native_asr_source,
     schedule_native_asr,
 )
+from core.mastrao_native_source_transfer import _claim as claim_source
+from core.mastrao_native_source_transfer import _finish as finish_source
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.tests.test_mastrao_native_capture import (
     _post,
@@ -38,6 +44,7 @@ from core.tests.test_mastrao_native_capture import (
     receipt,
     signer,
 )
+from core.tests.test_mastrao_native_source_transfer import ended_source
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -84,6 +91,13 @@ def peers(asr_intent):
         yield prepare, transcribe, upload, ack
 
 
+def process_intent(intent):
+    reservation = _reserve_dispatch(intent.pk)
+    if reservation is None:
+        return False
+    return process_native_asr_source(*reservation)
+
+
 def test_worker_persists_core_receipt_before_ack_without_video_gate(asr_intent, peers):
     prepare, transcribe, upload, ack = peers
 
@@ -94,7 +108,7 @@ def test_worker_persists_core_receipt_before_ack_without_video_gate(asr_intent, 
         assert not asr_intent.asr_acknowledged
 
     ack.side_effect = assert_durable
-    assert process_next_native_asr()
+    assert process_intent(asr_intent)
     assert (
         prepare.call_count
         == transcribe.call_count
@@ -105,14 +119,14 @@ def test_worker_persists_core_receipt_before_ack_without_video_gate(asr_intent, 
     asr_intent.refresh_from_db()
     assert asr_intent.asr_acknowledged
     assert asr_intent.asr_claim is None
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     assert transcribe.call_count == 1
 
 
 def test_ack_failure_retries_only_ack_and_never_transcribes_again(asr_intent, peers):
     prepare, transcribe, upload, ack = peers
     ack.side_effect = RecordingContractRefused(status=503)
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     asr_intent.refresh_from_db()
     assert asr_intent.asr_receipt == upload.return_value
     assert not asr_intent.asr_acknowledged
@@ -120,7 +134,7 @@ def test_ack_failure_retries_only_ack_and_never_transcribes_again(asr_intent, pe
         asr_next_at=timezone.now() - timedelta(seconds=1)
     )
     ack.side_effect = None
-    assert process_next_native_asr()
+    assert process_intent(asr_intent)
     assert prepare.call_count == transcribe.call_count == upload.call_count == 1
     assert ack.call_count == 2
 
@@ -130,7 +144,7 @@ def test_upstream_failure_keeps_gateway_cache_and_durable_retry(
     asr_intent, peers, stage
 ):
     peers[stage].side_effect = RecordingContractRefused(status=503)
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     peers[3].assert_not_called()
     asr_intent.refresh_from_db()
     assert asr_intent.asr_receipt is None
@@ -144,7 +158,7 @@ def test_rate_limit_waits_until_provider_deadline(asr_intent, peers):
     )
     peers[1].side_effect = refusal
 
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     asr_intent.refresh_from_db()
     assert asr_intent.asr_next_at >= now + timedelta(seconds=120)
 
@@ -152,7 +166,7 @@ def test_rate_limit_waits_until_provider_deadline(asr_intent, peers):
         "core.mastrao_native_asr_worker.timezone.now",
         return_value=now + timedelta(seconds=60),
     ):
-        assert not process_next_native_asr()
+        assert not process_intent(asr_intent)
 
     asr_intent.refresh_from_db()
     assert asr_intent.asr_attempts == 0
@@ -163,13 +177,13 @@ def test_rate_limit_waits_until_provider_deadline(asr_intent, peers):
 
 def test_rejected_terminal_is_not_replayed_to_exhaust_local_budget(asr_intent, peers):
     peers[1].side_effect = RecordingContractRefused(status=502, outcome="rejected")
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
 
     with patch(
         "core.mastrao_native_asr_worker.timezone.now",
         return_value=timezone.now() + timedelta(minutes=1),
     ):
-        assert not process_next_native_asr()
+        assert not process_intent(asr_intent)
 
     asr_intent.refresh_from_db()
     assert asr_intent.asr_attempts == 1
@@ -191,7 +205,7 @@ def test_recovery_preserves_budget_and_prepares_authorized_successor(asr_intent,
         models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
             asr_next_at=timezone.now() - timedelta(seconds=1)
         )
-        assert not process_next_native_asr()
+        assert not process_intent(asr_intent)
         asr_intent.refresh_from_db()
         assert asr_intent.asr_attempts == 0
         assert asr_intent.asr_error == "native_asr_outcome_unknown"
@@ -205,10 +219,10 @@ def test_recovery_preserves_budget_and_prepares_authorized_successor(asr_intent,
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
         asr_next_at=timezone.now() - timedelta(seconds=1)
     )
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     asr_intent.refresh_from_db()
     assert asr_intent.asr_next_at == deadline
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
 
     successor = {"metadata": {"attempt_ref": "successor_native_attempt"}}
     prepare.return_value = successor, b"audio"
@@ -218,7 +232,7 @@ def test_recovery_preserves_budget_and_prepares_authorized_successor(asr_intent,
         "core.mastrao_native_asr_worker.timezone.now",
         return_value=deadline + timedelta(seconds=1),
     ):
-        assert process_next_native_asr()
+        assert process_intent(asr_intent)
 
     transcribe.assert_called_with(successor, b"audio")
     upload.assert_called_once()
@@ -230,13 +244,13 @@ def test_recovery_preserves_budget_and_prepares_authorized_successor(asr_intent,
 
 
 def test_stale_lease_cannot_finish_or_ack_another_workers_result(asr_intent, peers):
-    first = _claim()
+    first = _claim(*_reserve_dispatch(asr_intent.pk))
     assert first is not None
-    assert _claim() is None
+    assert _claim(asr_intent.pk, uuid4()) is None
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
         asr_claim_until=timezone.now() - timedelta(seconds=1)
     )
-    second = _claim()
+    second = _claim(*_reserve_dispatch(asr_intent.pk))
     assert second.asr_claim != first.asr_claim
     assert not _finish(first, True)
     assert _finish(second, False)
@@ -253,7 +267,7 @@ def test_lease_loss_before_core_receipt_commit_preserves_gateway_copy(
         return peers[2].return_value
 
     peers[2].side_effect = lose_claim
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     peers[3].assert_not_called()
     asr_intent.refresh_from_db()
     assert asr_intent.asr_receipt is None
@@ -261,12 +275,12 @@ def test_lease_loss_before_core_receipt_commit_preserves_gateway_copy(
 
 def test_disabled_or_unverified_source_is_not_scheduled(asr_intent, peers, settings):
     settings.MASTRAO_NATIVE_ASR_ENABLED = False
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     settings.MASTRAO_NATIVE_ASR_ENABLED = True
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
         source_receipt=None
     )
-    assert not process_next_native_asr()
+    assert not process_intent(asr_intent)
     settings.CELERY_ENABLED = False
     assert schedule_native_asr() == 0
     peers[0].assert_not_called()

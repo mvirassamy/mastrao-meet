@@ -1135,6 +1135,8 @@ class MastraoNativeCaptureStart(BaseModel):
     asr_acknowledged = models.BooleanField(default=False)
     asr_claim = models.UUIDField(null=True, blank=True)
     asr_claim_until = models.DateTimeField(null=True, blank=True)
+    asr_dispatch_ref = models.UUIDField(null=True, blank=True)
+    asr_dispatch_until = models.DateTimeField(null=True, blank=True)
     asr_next_at = models.DateTimeField(default=timezone.now, db_index=True)
     asr_attempts = models.PositiveIntegerField(default=0)
     asr_error = models.CharField(max_length=64, blank=True, default="")

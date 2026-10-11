@@ -100,7 +100,7 @@ def reconcile_native_recordings(limit=20):
         reconcile_native_captures(limit=limit)
         + reconcile_native_admissions(limit=limit)
         + schedule_native_source_transfer()
-        + schedule_native_asr()
+        + schedule_native_asr(limit=limit)
     )
 
 
