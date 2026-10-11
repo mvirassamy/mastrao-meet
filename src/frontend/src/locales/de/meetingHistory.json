@@ -49,6 +49,14 @@
       "audio_unavailable": "Audio nicht verfügbar",
       "partial": "Teilweises Transkript",
       "failed": "Transkript nicht verfügbar"
+    },
+    "recording": {
+      "absent": "Keine Videoaufzeichnung",
+      "processing": "Video wird vorbereitet",
+      "available": "Video verfügbar",
+      "expired": "Videoaufzeichnung abgelaufen",
+      "failed": "Video nicht verfügbar",
+      "unknown": "Videostatus wird geprüft"
     }
   },
   "summary": {
@@ -143,5 +151,11 @@
     },
     "partial": "Dieses Transkript ist unvollständig. Teile der Besprechung können fehlen."
   },
-  "untitled": "Besprechung ohne Titel"
+  "untitled": "Besprechung ohne Titel",
+  "recording": {
+    "title": "Aufzeichnung",
+    "open": "Video öffnen (neuer Tab)",
+    "retainedUntil": "Aufbewahrt bis {{date}}",
+    "accessUnavailable": "Der Videozugriff ist derzeit nicht verfügbar."
+  }
 }

@@ -17,6 +17,7 @@ import {
 } from './meetingHistoryApi'
 import type {
   MeetingContentStatus,
+  MeetingRecordingStatus,
   MeetingHistoryDetail,
   MeetingHistoryPage,
 } from './types'
@@ -63,10 +64,13 @@ export const shouldPollForContent = (
   summaryStatus: MeetingContentStatus,
   transcriptStatus: MeetingContentStatus,
   summaryRefreshPending = false,
-  transcriptRefreshPending = false
+  transcriptRefreshPending = false,
+  recordingStatus: MeetingRecordingStatus = 'absent'
 ) =>
   summaryRefreshPending ||
   transcriptRefreshPending ||
+  recordingStatus === 'processing' ||
+  recordingStatus === 'unknown' ||
   hasProcessing(summaryStatus, transcriptStatus) ||
   (summaryStatus === 'not_started' && isReadable(transcriptStatus))
 
@@ -78,6 +82,7 @@ export const shouldPollItem = (item: {
   endedAt: Date | null
   summaryStatus: MeetingContentStatus
   transcriptStatus: MeetingContentStatus
+  recordingStatus?: MeetingRecordingStatus
   summaryProjection: { refreshPending?: boolean }
   transcriptProjection: { refreshPending?: boolean }
 }) =>
@@ -86,7 +91,8 @@ export const shouldPollItem = (item: {
     item.summaryStatus,
     item.transcriptStatus,
     item.summaryProjection.refreshPending === true,
-    item.transcriptProjection.refreshPending === true
+    item.transcriptProjection.refreshPending === true,
+    item.recordingStatus
   )
 
 export const useMeetingHistory = () =>
@@ -160,7 +166,8 @@ export const useMeetingHistoryDetail = (meetingId: string) => {
           data.summaryStatus,
           data.transcriptStatus,
           data.summaryProjection.refreshPending === true,
-          data.transcriptProjection.refreshPending === true
+          data.transcriptProjection.refreshPending === true,
+          data.recordingStatus
         )
         ? adaptiveProcessingRefreshMs(
             Math.max(updateCount - 1, 0),

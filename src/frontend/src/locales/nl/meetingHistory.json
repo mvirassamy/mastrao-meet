@@ -49,6 +49,14 @@
       "audio_unavailable": "Audio niet beschikbaar",
       "partial": "Gedeeltelijke transcriptie",
       "failed": "Transcriptie niet beschikbaar"
+    },
+    "recording": {
+      "absent": "Geen video-opname",
+      "processing": "Video wordt voorbereid",
+      "available": "Video beschikbaar",
+      "expired": "Video-opname verlopen",
+      "failed": "Video niet beschikbaar",
+      "unknown": "Videostatus wordt gecontroleerd"
     }
   },
   "summary": {
@@ -143,5 +151,11 @@
     },
     "partial": "Deze transcriptie is onvolledig. Delen van de vergadering kunnen ontbreken."
   },
-  "untitled": "Vergadering zonder titel"
+  "untitled": "Vergadering zonder titel",
+  "recording": {
+    "title": "Opname",
+    "open": "Video openen (nieuw tabblad)",
+    "retainedUntil": "Bewaard tot {{date}}",
+    "accessUnavailable": "Toegang tot de video is momenteel niet beschikbaar."
+  }
 }

@@ -11,6 +11,7 @@ import {
   type MeetingContentKind,
 } from './meetingContent'
 import { RowOverlayCell } from './RowOverlayCell'
+import { MeetingRecordingStatusIcon } from './MeetingRecordingStatusIcon'
 
 type StatusTone = keyof typeof STATUS_COLORS
 
@@ -108,5 +109,8 @@ export const MeetingContentStatusIcons = ({
       kind="transcript"
       status={item.transcriptStatus}
     />
+    {item.recordingProjected === true && (
+      <MeetingRecordingStatusIcon status={item.recordingStatus} />
+    )}
   </RowOverlayCell>
 )

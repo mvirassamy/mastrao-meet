@@ -49,6 +49,14 @@
       "audio_unavailable": "Audio unavailable",
       "partial": "Partial transcript",
       "failed": "Transcript unavailable"
+    },
+    "recording": {
+      "absent": "No video recording",
+      "processing": "Video is being prepared",
+      "available": "Video available",
+      "expired": "Video recording expired",
+      "failed": "Video unavailable",
+      "unknown": "Checking video status"
     }
   },
   "summary": {
@@ -143,5 +151,11 @@
     },
     "partial": "This transcript is incomplete. Parts of the meeting may be missing."
   },
-  "untitled": "Untitled meeting"
+  "untitled": "Untitled meeting",
+  "recording": {
+    "title": "Recording",
+    "open": "Open video (new tab)",
+    "retainedUntil": "Retained until {{date}}",
+    "accessUnavailable": "Video access is currently unavailable."
+  }
 }

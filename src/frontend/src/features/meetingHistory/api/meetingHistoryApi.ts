@@ -1,5 +1,9 @@
 import { fetchApi } from '@/api/fetchApi'
 import {
+  normalizeMeetingRecording,
+  normalizeRecordingStatus,
+} from './meetingRecording'
+import {
   meetingContentStatuses,
   type MeetingContentProjection,
   type MeetingContentStatus,
@@ -253,6 +257,8 @@ const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
     endedAt: asDate(raw.ended_at),
     participantCount,
     participantNames,
+    recordingStatus: normalizeRecordingStatus(raw.recording_status),
+    recordingProjected: Object.hasOwn(raw, 'recording_status'),
     summaryStatus: summaryProjection.state,
     transcriptStatus: transcriptProjection.state,
     summaryProjection,
@@ -319,6 +325,7 @@ export const normalizeHistoryDetail = (
   if (!item || !isRecord(raw)) return null
   const rawSummary = isRecord(raw.summary) ? raw.summary : {}
   const rawTranscript = isRecord(raw.transcript) ? raw.transcript : {}
+  const recording = normalizeMeetingRecording(raw.recording)
 
   let summaryProjection = normalizeProjection(
     raw.summary_projection ?? rawSummary.projection,
@@ -386,6 +393,10 @@ export const normalizeHistoryDetail = (
 
   return {
     ...item,
+    recording,
+    recordingStatus: recording.status,
+    recordingProjected:
+      item.recordingProjected === true || Object.hasOwn(raw, 'recording'),
     summaryStatus: summaryProjection.state,
     transcriptStatus: transcriptProjection.state,
     summaryProjection,
