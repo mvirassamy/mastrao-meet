@@ -105,6 +105,42 @@ it('lets a participant close their refusal and still change their mind', async (
   )
 })
 
+it('lets a participant who accepted close the card and reopen it', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      video={{
+        ...video,
+        start_requested: true,
+        decision: 'accepted',
+        decision_basis: 'explicit',
+      }}
+    />
+  )
+  expect(screen.getByRole('status').textContent).toBe('videoAccepted')
+  fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
+  expect(screen.queryByRole('button', { name: 'videoNo' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'changeAnswer' }))
+  expect(screen.getByRole('button', { name: 'videoNo' })).toBeDefined()
+})
+
+it('lets the host close the waiting card', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{ ...video, start_requested: true, start_available: false }}
+    />
+  )
+  expect(screen.getByText('videoPendingBody')).toBeDefined()
+  fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
+  expect(screen.queryByText('videoPendingBody')).toBeNull()
+  // Still announced and the record button stays in the controls.
+  expect(screen.getByRole('status').textContent).toBe('videoPending')
+  expect(screen.getByRole('button', { name: 'startVideo' })).toBeDefined()
+})
+
 it('shows a refusal again when it happens after being closed', () => {
   const refused = {
     ...video,

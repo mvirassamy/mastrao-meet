@@ -222,7 +222,7 @@ type NoticeContent = {
   dismissible: boolean
 }
 
-/** Translation keys and look of each notice; refusals can be closed. */
+/** Translation keys and look of each notice; lasting notices can be closed. */
 const noticeContent = (
   notice: Notice,
   decision: VideoRecordingPolicy['decision']
@@ -242,7 +242,7 @@ const noticeContent = (
         body: 'videoPendingBody',
         muted: false,
         busy: false,
-        dismissible: false,
+        dismissible: true,
       }
     case 'refused':
       return {
@@ -265,16 +265,16 @@ const choiceContent = (
     case 'absent':
       return { ...base, title: 'videoQuestion', dismissible: false }
     case 'accepted':
-      return { ...base, title: 'videoAccepted', dismissible: false }
+      return { ...base, title: 'videoAccepted', dismissible: true }
     case 'refused':
       return { ...base, title: 'videoDeclined', dismissible: true }
   }
 }
 
 /**
- * Floating card above the call controls, kept over the video area beside an
- * open side panel. A phone's panel is full width, so the card stays on top
- * of it there: refusals can be closed and the question ends with an answer.
+ * Floating card above the call controls, kept beside an open side panel. On
+ * narrow screens the panel covers the video and the card sits over it, so
+ * every lasting notice can be closed; the question itself ends with an answer.
  */
 const RecordingNoticeCard = ({
   title,
@@ -305,7 +305,7 @@ const RecordingNoticeCard = ({
       left: '1rem',
       right: '1rem',
       '&[data-beside-panel=true]': {
-        // Same breakpoint as the room layout: below it the panel is full width.
+        // Same breakpoint as the room layout: below it the panel covers the video.
         right: {
           base: '1rem',
           sm: 'calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin) + 1rem)',

@@ -304,7 +304,7 @@ const MeetingDetailContent = ({
         className={`${detailHeader} ${css({
           display: 'flex',
           flexDirection: { base: 'column', sm: 'row' },
-          alignItems: { base: 'flex-start', sm: 'flex-start' },
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
           gap: '1rem',
         })}`}
