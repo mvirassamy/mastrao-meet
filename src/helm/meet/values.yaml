@@ -231,6 +231,10 @@ backend:
   ## @skip backend.envVars
   envVars:
     <<: *commonEnvVars
+    # Shared by the scheduler and both native ASR worker lanes.
+    MASTRAO_NATIVE_ASR_GLOBAL_LIMIT: "4"
+    MASTRAO_NATIVE_ASR_TENANT_LIMIT: "4"
+    MASTRAO_NATIVE_ASR_MEETING_LIMIT: "4"
 
   ## @param backend.podAnnotations Annotations to add to the backend Pod
   podAnnotations: {}
@@ -852,6 +856,7 @@ celeryMastraoTranscription:
     - "--loglevel=info"
     - "-Q"
     - "mastrao-transcription"
+    - "--prefetch-multiplier=1"
 
   ## @param celeryMastraoTranscription.args Override the celeryMastraoTranscription container args
   args: []
@@ -898,6 +903,19 @@ celeryMastraoTranscription:
   extraVolumes: []
   pdb:
     enabled: false
+
+## Dedicated native ASR workers keep a ready slot independent of retries.
+celeryMastraoNativeAsrReady:
+  replicas: 2
+  resources: {}
+  envVars:
+    <<: *commonEnvVars
+
+celeryMastraoNativeAsrRetry:
+  replicas: 2
+  resources: {}
+  envVars:
+    <<: *commonEnvVars
 
 ## @section celeryTranscribe
 

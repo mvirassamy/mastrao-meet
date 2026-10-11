@@ -25,7 +25,7 @@ def process_native_sources():
     return transfer_next_native_source()
 
 
-@task(name="core.process_native_asr", queue="mastrao-transcription")
+@task(name="core.process_native_asr", queue="mastrao-native-asr-ready")
 def process_native_asr(capture_start_id=None, dispatch_ref=None):
     """Process the exact source named by its current dispatch reservation."""
 

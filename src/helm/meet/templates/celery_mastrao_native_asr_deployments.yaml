@@ -1,0 +1,56 @@
+{{- if .Values.celeryMastraoTranscription.enabled }}
+{{- $root := . }}
+{{- range $worker := list
+  (dict "lane" "ready" "values" .Values.celeryMastraoNativeAsrReady)
+  (dict "lane" "retry" "values" .Values.celeryMastraoNativeAsrRetry)
+}}
+{{ $component := printf "celery-mastrao-native-asr-%s" $worker.lane }}
+{{ $queue := printf "mastrao-native-asr-%s" $worker.lane }}
+{{ $envVars := include "meet.env.transformDict" (mergeOverwrite (default dict $root.Values.backend.envVars) (default dict $worker.values.envVars)) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "meet.fullname" $root }}-{{ $component }}
+  namespace: {{ $root.Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list $root $component) | nindent 4 }}
+spec:
+  replicas: {{ $worker.values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list $root $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "meet.common.selectorLabels" (list $root $component) | nindent 8 }}
+    spec:
+      {{- if $root.Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" $root) "imageCredentials" $root.Values.image.credentials) }}
+      {{- end }}
+      containers:
+        - name: {{ $root.Chart.Name }}
+          image: "{{ ($root.Values.backend.image | default dict).repository | default $root.Values.image.repository }}:{{ ($root.Values.backend.image | default dict).tag | default $root.Values.image.tag }}"
+          imagePullPolicy: {{ ($root.Values.backend.image | default dict).pullPolicy | default $root.Values.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - meet.celery_app
+            - worker
+            - --pool=solo
+            - --concurrency=1
+            - --loglevel=info
+            - -Q
+            - {{ $queue }}
+            - --prefetch-multiplier=1
+          env:
+            {{- if $envVars }}
+            {{- $envVars | indent 12 }}
+            {{- end }}
+          {{- with $worker.values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{ end }}
+{{- end }}

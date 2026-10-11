@@ -25,7 +25,7 @@ def test_native_admission_does_not_wait_behind_asr_work():
     process_native_asr = tasks.process_native_asr
     assert _task_queue(process_native_admissions) == NATIVE_ADMISSION_QUEUE
     assert _task_queue(process_native_sources) == "mastrao-transcription"
-    assert _task_queue(process_native_asr) == "mastrao-transcription"
+    assert _task_queue(process_native_asr) == "mastrao-native-asr-ready"
 
 
 @override_settings(CELERY_ENABLED=True)
