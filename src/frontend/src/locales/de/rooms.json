@@ -135,7 +135,8 @@
     "videoDeclined": "Sie haben die Aufzeichnung abgelehnt",
     "videoRefusedBody": "Das Meeting wird ohne Aufzeichnung fortgesetzt.",
     "videoPendingBody": "Die Aufzeichnung kann beginnen, sobald alle zugestimmt haben.",
-    "dismiss": "Schließen"
+    "dismiss": "Schließen",
+    "changeAnswer": "Meine Antwort zur Aufzeichnung ändern"
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
   "shareDialog": {

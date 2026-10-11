@@ -77,7 +77,7 @@ it('does not ask guests before the host requests recording', () => {
   expect(screen.getByRole('status').textContent).toBe('')
 })
 
-it('tells a participant who declined that they declined, and lets them close it', () => {
+it('lets a participant close their refusal and still change their mind', async () => {
   render(
     <RecordingPreparation
       roomId="room-1"
@@ -94,6 +94,41 @@ it('tells a participant who declined that they declined, and lets them close it'
   expect(screen.queryByText('videoRefused')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
   expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'changeAnswer' }))
+  fireEvent.click(screen.getByRole('button', { name: 'videoYes' }))
+  await waitFor(() =>
+    expect(decideRecording).toHaveBeenCalledWith(
+      'room-1',
+      'accepted',
+      expect.any(String)
+    )
+  )
+})
+
+it('shows a refusal again when it happens after being closed', () => {
+  const refused = {
+    ...video,
+    start_requested: true,
+    start_status: 'refused' as const,
+    start_available: false,
+  }
+  const { rerender } = render(
+    <RecordingPreparation roomId="room-1" canStart isHost video={refused} />
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
+  expect(screen.queryByText('videoRefusedBody')).toBeNull()
+  rerender(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{ ...refused, start_status: 'pending' }}
+    />
+  )
+  rerender(
+    <RecordingPreparation roomId="room-1" canStart isHost video={refused} />
+  )
+  expect(screen.getByText('videoRefusedBody')).toBeDefined()
 })
 
 it('tells the host that a participant refused, with its consequence', () => {

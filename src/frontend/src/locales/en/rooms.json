@@ -135,7 +135,8 @@
     "videoDeclined": "You declined the recording",
     "videoRefusedBody": "The meeting continues without recording.",
     "videoPendingBody": "The recording can start once everyone has agreed.",
-    "dismiss": "Close"
+    "dismiss": "Close",
+    "changeAnswer": "Change my recording answer"
   },
   "leaveRoomPrompt": "This will make you leave the meeting.",
   "shareDialog": {

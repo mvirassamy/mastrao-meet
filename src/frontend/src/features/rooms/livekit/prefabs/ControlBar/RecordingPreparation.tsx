@@ -115,6 +115,12 @@ export const RecordingPreparation = ({
   })
   const content = notice ? noticeContent(notice, video.decision) : null
   const noticeKey = notice ? `${notice}:${video.decision}` : null
+  // A closed notice comes back as soon as the situation changes.
+  const [shownKey, setShownKey] = useState(noticeKey)
+  if (noticeKey !== shownKey) {
+    setShownKey(noticeKey)
+    setDismissedNotice(null)
+  }
   const isDismissed = noticeKey !== null && noticeKey === dismissedNotice
   const showCard = (content || failed) && !isDismissed
 
@@ -133,6 +139,18 @@ export const RecordingPreparation = ({
           isDisabled={startUnavailable || pending !== null}
           loading={pending === 'start'}
           onPress={() => act('start')}
+        >
+          <RecordIcon />
+        </Button>
+      )}
+      {/* A participant who closed their refusal can still change their mind. */}
+      {notice === 'choice' && isDismissed && (
+        <Button
+          shape="circle"
+          variant="outline"
+          aria-label={t('changeAnswer')}
+          tooltip={t('changeAnswer')}
+          onPress={() => setDismissedNotice(null)}
         >
           <RecordIcon />
         </Button>
@@ -287,11 +305,12 @@ const RecordingNoticeCard = ({
       left: '1rem',
       right: '1rem',
       '&[data-beside-panel=true]': {
-        right:
-          'calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin) + 1rem)',
+        // Same breakpoint as the room layout: below it the panel is full width.
+        right: {
+          base: '1rem',
+          sm: 'calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin) + 1rem)',
+        },
       },
-      // A phone's side panel is full width: stay full width above it.
-      '@media (max-width: 767px)': { right: '1rem !important' },
       zIndex: 10,
       display: 'flex',
       flexWrap: 'wrap',
