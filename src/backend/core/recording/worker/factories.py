@@ -56,10 +56,9 @@ class WorkerServiceConfig:
                 "audio_frequency": _RECORDING_AUDIO_FREQUENCY_HZ,
             }
 
-        application_base_url = (settings.APPLICATION_BASE_URL or "").rstrip("/")
-        recording_template_base_url = None
-        if application_base_url:
-            recording_template_base_url = f"{application_base_url}/recording-template"
+        recording_template_base_url = (
+            settings.RECORDING_TEMPLATE_BASE_URL or ""
+        ).rstrip("/") or None
 
         return cls(
             output_folder=settings.RECORDING_OUTPUT_FOLDER,

@@ -40,7 +40,8 @@ def test_settings():
         "AWS_S3_SECRET_ACCESS_KEY": "test_secret",
         "AWS_S3_REGION_NAME": "test-region",
         "AWS_STORAGE_BUCKET_NAME": "test-bucket",
-        "APPLICATION_BASE_URL": "https://meet.test/",
+        "APPLICATION_BASE_URL": "https://public-meet.test",
+        "RECORDING_TEMPLATE_BASE_URL": "https://template.test/recording-template/",
     }
 
     # Use override_settings to properly patch Django settings
@@ -69,7 +70,7 @@ def test_config_initialization(default_config):
     }
     assert (
         default_config.recording_template_base_url
-        == "https://meet.test/recording-template"
+        == "https://template.test/recording-template"
     )
     # Encoding override is opt-in; disabled by default.
     assert default_config.encoding_options is None
@@ -81,9 +82,9 @@ def test_config_immutability(default_config):
         default_config.output_folder = "new/path"
 
 
-def test_config_allows_audio_workers_without_application_base_url(test_settings):
+def test_config_allows_audio_workers_without_recording_template_url(test_settings):
     """Audio-only workers do not need the browser template."""
-    with override_settings(APPLICATION_BASE_URL=None):
+    with override_settings(RECORDING_TEMPLATE_BASE_URL=None):
         config = WorkerServiceConfig.from_settings()
 
     assert config.recording_template_base_url is None
@@ -97,7 +98,7 @@ def test_config_allows_audio_workers_without_application_base_url(test_settings)
     AWS_S3_SECRET_ACCESS_KEY="test_secret",
     AWS_S3_REGION_NAME="test-region",
     AWS_STORAGE_BUCKET_NAME="test-bucket",
-    APPLICATION_BASE_URL="https://meet.test",
+    RECORDING_TEMPLATE_BASE_URL="https://meet.test/recording-template",
     RECORDING_ENCODING_ENABLED=True,
     RECORDING_ENCODING_WIDTH=1280,
     RECORDING_ENCODING_HEIGHT=720,
@@ -137,7 +138,7 @@ def test_config_encoding_options_enabled():
     AWS_S3_SECRET_ACCESS_KEY="test_secret",
     AWS_S3_REGION_NAME="test-region",
     AWS_STORAGE_BUCKET_NAME="test-bucket",
-    APPLICATION_BASE_URL="https://meet.test",
+    RECORDING_TEMPLATE_BASE_URL="https://meet.test/recording-template",
 )
 def test_config_caching():
     """Test that from_settings method caches its result"""

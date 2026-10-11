@@ -132,7 +132,7 @@ RECORDING_STORAGE_EVENT_TOKEN = <token>
 
 La Suite Meet uses LiveKit Egress to record room sessions. For reference, see the [LiveKit Egress repository](https://github.com/livekit/egress) and the [official documentation](https://docs.livekit.io/home/egress/overview/).
 
-Currently, only `RoomCompositeEgress` is supported. This mode combines all video and audio tracks from the room into a single recording. Video recordings use the Mastrao template served by the Meet frontend at `/recording-template`; the template keeps every participant visible when cameras are off and gives screen shares the main stage.
+Currently, only `RoomCompositeEgress` is supported. This mode combines all video and audio tracks from the room into a single recording. Video recordings use the Mastrao template at the exact URL configured by `RECORDING_TEMPLATE_BASE_URL`; the template keeps every participant visible when cameras are off and gives screen shares the main stage. The URL must be reachable from the Egress browser and should use a private loopback endpoint when Egress runs in an isolated pod.
 
 To monitor egress workers and inspect recording status, it is recommended to install `livekit-cli`. For example, you can list active egress sessions using the following command:
 
