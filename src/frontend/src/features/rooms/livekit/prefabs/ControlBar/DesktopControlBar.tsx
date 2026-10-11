@@ -67,14 +67,32 @@ export function DesktopControlBar({
         },
       })}
     >
-      {/* Balances the right-hand options so the call controls stay centred. */}
+      {/*
+        Left end of the bar: the running recording badge. Same width as the
+        right-hand options, so the call controls stay centred.
+      */}
       <div
-        aria-hidden="true"
         className={css({
+          display: 'flex',
           flex: '1 1 33%',
-          '@media (max-width: 1099px)': { display: 'none' },
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          marginLeft: '0.5rem',
+          '@media (max-width: 1099px)': {
+            flex: '1 0 100%',
+            justifyContent: 'center',
+            marginLeft: 0,
+            '&:empty': { display: 'none' },
+          },
         })}
-      />
+      >
+        <RecordingBadge
+          roomId={roomId}
+          canEnd={canEnd}
+          recording={recording}
+          onRecordingChanged={onRecordingChanged}
+        />
+      </div>
       <ControlBarRegion
         style={
           isNarrowScreen
@@ -113,12 +131,6 @@ export function DesktopControlBar({
             }
           />
         )}
-        <RecordingBadge
-          roomId={roomId}
-          canEnd={canEnd}
-          recording={recording}
-          onRecordingChanged={onRecordingChanged}
-        />
         <RecordingControl
           roomId={roomId}
           canEnd={canEnd}
