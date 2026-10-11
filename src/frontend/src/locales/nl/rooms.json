@@ -134,7 +134,8 @@
     "videoAccepted": "U hebt de opname geaccepteerd",
     "videoDeclined": "U hebt de opname geweigerd",
     "videoRefusedBody": "De vergadering gaat verder zonder opname.",
-    "videoPendingBody": "De opname kan beginnen zodra iedereen akkoord is."
+    "videoPendingBody": "De opname kan beginnen zodra iedereen akkoord is.",
+    "dismiss": "Sluiten"
   },
   "leaveRoomPrompt": "Dat zal u de vergadering doen verlaten.",
   "shareDialog": {

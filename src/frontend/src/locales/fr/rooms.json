@@ -134,7 +134,8 @@
     "videoAccepted": "Vous avez accepté l’enregistrement",
     "videoDeclined": "Vous avez refusé l’enregistrement",
     "videoRefusedBody": "La réunion continue sans enregistrement.",
-    "videoPendingBody": "L’enregistrement pourra démarrer quand chacun aura donné son accord."
+    "videoPendingBody": "L’enregistrement pourra démarrer quand chacun aura donné son accord.",
+    "dismiss": "Fermer"
   },
   "leaveRoomPrompt": "Revenir à l'accueil vous fera quitter la réunion.",
   "shareDialog": {

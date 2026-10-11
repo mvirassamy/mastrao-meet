@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useConnectionState } from '@livekit/components-react'
 import { ConnectionState } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
-import { RecordIcon } from '@/icons'
+import { CloseIcon, RecordIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { Spinner } from '@/primitives/Spinner'
 import { css } from '@/styled-system/css'
@@ -12,6 +12,7 @@ import {
   decideRecording,
 } from '@/features/rooms/api/recordingConsent'
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
+import { useSidePanel } from '../../hooks/useSidePanel'
 
 type Action = 'start' | 'accepted' | 'refused'
 
@@ -34,6 +35,8 @@ export const RecordingPreparation = ({
   const [pending, setPending] = useState<Action | null>(null)
   const [activationAccepted, setActivationAccepted] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [dismissedNotice, setDismissedNotice] = useState<string | null>(null)
+  const { isSidePanelOpen } = useSidePanel()
   const inFlight = useRef(false)
   const startRequestId = useRef(
     `activation_${crypto.randomUUID().replaceAll('-', '')}`
@@ -110,13 +113,17 @@ export const RecordingPreparation = ({
     showRefused,
     showHostPending,
   })
-
-  const copy = notice ? NOTICE_COPY[notice] : null
-
-  if (!notice && !canStart && !failed) return null
+  const content = notice ? noticeContent(notice, video.decision) : null
+  const noticeKey = notice ? `${notice}:${video.decision}` : null
+  const isDismissed = noticeKey !== null && noticeKey === dismissedNotice
+  const showCard = (content || failed) && !isDismissed
 
   return (
     <>
+      {/* Always mounted, so screen readers announce each new notice. */}
+      <p role="status" className={css({ srOnly: true })}>
+        {content ? t(content.title) : ''}
+      </p>
       {canStart && (
         <Button
           shape="circle"
@@ -130,33 +137,41 @@ export const RecordingPreparation = ({
           <RecordIcon />
         </Button>
       )}
-      {(notice || failed) && (
+      {showCard && (
         <RecordingNoticeCard
-          title={copy ? t(copy.title(video.decision)) : null}
-          body={copy?.body ? t(copy.body) : null}
-          muted={notice === 'refused'}
-          busy={notice === 'starting'}
+          title={content ? t(content.title) : null}
+          body={content?.body ? t(content.body) : null}
+          muted={content?.muted ?? false}
+          busy={content?.busy ?? false}
           error={failed ? t('videoActionError') : null}
+          onDismiss={
+            content?.dismissible ? () => setDismissedNotice(noticeKey) : null
+          }
+          dismissLabel={t('dismiss')}
+          besideSidePanel={isSidePanelOpen}
         >
           {notice === 'choice' && (
             <div className={css({ display: 'flex', gap: '0.5rem' })}>
-              {(['refused', 'accepted'] as const).map((choice) => (
-                <Button
-                  key={choice}
-                  size="sm"
-                  variant={
-                    choice === primaryChoice(video.decision)
-                      ? 'default'
-                      : 'outline'
-                  }
-                  aria-pressed={video.decision === choice}
-                  isDisabled={locked || pending !== null}
-                  loading={pending === choice}
-                  onPress={() => act(choice)}
-                >
-                  {t(choice === 'accepted' ? 'videoYes' : 'videoNo')}
-                </Button>
-              ))}
+              <Button
+                size="sm"
+                variant={video.decision === 'refused' ? 'default' : 'outline'}
+                aria-pressed={video.decision === 'refused'}
+                isDisabled={locked || pending !== null}
+                loading={pending === 'refused'}
+                onPress={() => act('refused')}
+              >
+                {t('videoNo')}
+              </Button>
+              <Button
+                size="sm"
+                variant={video.decision === 'refused' ? 'outline' : 'default'}
+                aria-pressed={video.decision === 'accepted'}
+                isDisabled={locked || pending !== null}
+                loading={pending === 'accepted'}
+                onPress={() => act('accepted')}
+              >
+                {t('videoYes')}
+              </Button>
             </div>
           )}
         </RecordingNoticeCard>
@@ -181,38 +196,77 @@ const recordingNotice = (state: {
   return null
 }
 
-type Decision = VideoRecordingPolicy['decision']
-
-const CHOICE_TITLES: Record<Decision, string> = {
-  absent: 'videoQuestion',
-  accepted: 'videoAccepted',
-  refused: 'videoDeclined',
+type NoticeContent = {
+  title: string
+  body: string | null
+  muted: boolean
+  busy: boolean
+  dismissible: boolean
 }
 
-const NOTICE_COPY: Record<
-  Notice,
-  { title: (decision: Decision) => string; body: string | null }
-> = {
-  starting: { title: () => 'starting', body: null },
-  choice: {
-    title: (decision) => CHOICE_TITLES[decision],
-    body: 'videoQuestionBody',
-  },
-  refused: { title: () => 'videoRefused', body: 'videoRefusedBody' },
-  pending: { title: () => 'videoPending', body: 'videoPendingBody' },
+/** Translation keys and look of each notice; refusals can be closed. */
+const noticeContent = (
+  notice: Notice,
+  decision: VideoRecordingPolicy['decision']
+): NoticeContent => {
+  switch (notice) {
+    case 'starting':
+      return {
+        title: 'starting',
+        body: null,
+        muted: false,
+        busy: true,
+        dismissible: false,
+      }
+    case 'pending':
+      return {
+        title: 'videoPending',
+        body: 'videoPendingBody',
+        muted: false,
+        busy: false,
+        dismissible: false,
+      }
+    case 'refused':
+      return {
+        title: 'videoRefused',
+        body: 'videoRefusedBody',
+        muted: true,
+        busy: false,
+        dismissible: true,
+      }
+    case 'choice':
+      return choiceContent(decision)
+  }
 }
 
-/** The participant's answer stands out; Accept leads before any answer. */
-const primaryChoice = (decision: Decision) =>
-  decision === 'refused' ? 'refused' : 'accepted'
+const choiceContent = (
+  decision: VideoRecordingPolicy['decision']
+): NoticeContent => {
+  const base = { body: 'videoQuestionBody', muted: false, busy: false }
+  switch (decision) {
+    case 'absent':
+      return { ...base, title: 'videoQuestion', dismissible: false }
+    case 'accepted':
+      return { ...base, title: 'videoAccepted', dismissible: false }
+    case 'refused':
+      return { ...base, title: 'videoDeclined', dismissible: true }
+  }
+}
 
-/** Floating card centred above the call controls. */
+/**
+ * Floating card above the call controls, kept over the video area beside an
+ * open side panel. A phone's panel is full width, so the card stays on top
+ * of it there: refusals can be closed and the question ends with an answer.
+ */
 const RecordingNoticeCard = ({
   title,
   body,
   muted,
   busy,
   error,
+  onDismiss,
+  dismissLabel,
+  besideSidePanel,
   children,
 }: {
   title: string | null
@@ -220,20 +274,31 @@ const RecordingNoticeCard = ({
   muted: boolean
   busy: boolean
   error: string | null
+  onDismiss: (() => void) | null
+  dismissLabel: string
+  besideSidePanel: boolean
   children?: ReactNode
 }) => (
   <section
+    data-beside-panel={besideSidePanel}
     className={css({
       position: 'absolute',
       bottom: 'calc(100% + 0.5rem)',
-      left: '50%',
-      transform: 'translateX(-50%)',
+      left: '1rem',
+      right: '1rem',
+      '&[data-beside-panel=true]': {
+        right:
+          'calc(var(--sizes-room-side-panel) + var(--sizes-room-side-panel-margin) + 1rem)',
+      },
+      // A phone's side panel is full width: stay full width above it.
+      '@media (max-width: 767px)': { right: '1rem !important' },
       zIndex: 10,
       display: 'flex',
       flexWrap: 'wrap',
       alignItems: 'center',
       gap: '0.75rem',
-      width: 'min(32rem, calc(100vw - 2rem))',
+      maxWidth: '32rem',
+      marginX: 'auto',
       padding: '0.75rem 0.875rem',
       border: '1px solid token(colors.border)',
       borderRadius: '14px',
@@ -262,7 +327,6 @@ const RecordingNoticeCard = ({
           })}
         >
           <p
-            role="status"
             className={css({
               margin: 0,
               fontSize: '0.875rem',
@@ -301,5 +365,16 @@ const RecordingNoticeCard = ({
       )}
     </div>
     {children}
+    {onDismiss && (
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        aria-label={dismissLabel}
+        tooltip={dismissLabel}
+        onPress={onDismiss}
+      >
+        <CloseIcon />
+      </Button>
+    )}
   </section>
 )

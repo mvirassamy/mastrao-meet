@@ -16,7 +16,7 @@ import { AudioDevicesControl } from '../../components/controls/Device/AudioDevic
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import { RecordingIndicator } from './RecordingIndicator'
+import { RecordingBadge, RecordingControl } from './RecordingIndicator'
 
 export function DesktopControlBar({
   onDeviceError,
@@ -113,7 +113,13 @@ export function DesktopControlBar({
             }
           />
         )}
-        <RecordingIndicator
+        <RecordingBadge
+          roomId={roomId}
+          canEnd={canEnd}
+          recording={recording}
+          onRecordingChanged={onRecordingChanged}
+        />
+        <RecordingControl
           roomId={roomId}
           canEnd={canEnd}
           recording={recording}

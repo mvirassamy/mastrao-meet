@@ -70,12 +70,66 @@ it('only requests capture after the host clicks and rereads authoritative status
 })
 
 it('does not ask guests before the host requests recording', () => {
-  const { container } = render(
-    <RecordingPreparation roomId="room-1" video={video} />
-  )
+  render(<RecordingPreparation roomId="room-1" video={video} />)
   expect(screen.queryByRole('button', { name: 'startVideo' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
-  expect(container.firstChild).toBeNull()
+  // Only the empty live region stays mounted, ready to announce a request.
+  expect(screen.getByRole('status').textContent).toBe('')
+})
+
+it('tells a participant who declined that they declined, and lets them close it', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      video={{
+        ...video,
+        start_requested: true,
+        decision: 'refused',
+        decision_basis: 'explicit',
+        start_status: 'refused',
+      }}
+    />
+  )
+  expect(screen.getByRole('status').textContent).toBe('videoDeclined')
+  expect(screen.queryByText('videoRefused')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
+  expect(screen.queryByRole('button', { name: 'videoYes' })).toBeNull()
+})
+
+it('tells the host that a participant refused, with its consequence', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{
+        ...video,
+        start_requested: true,
+        start_status: 'refused',
+        start_available: false,
+      }}
+    />
+  )
+  expect(screen.getByRole('status').textContent).toBe('videoRefused')
+  expect(screen.getByText('videoRefusedBody')).toBeDefined()
+  expect(screen.getByRole('button', { name: 'dismiss' })).toBeDefined()
+})
+
+it('shows recording startup rather than missing agreements when both apply', () => {
+  render(
+    <RecordingPreparation
+      roomId="room-1"
+      canStart
+      isHost
+      video={{
+        ...video,
+        start_requested: true,
+        decision_lock: 'start_in_progress',
+      }}
+    />
+  )
+  expect(screen.getByRole('status').textContent).toBe('starting')
+  expect(screen.queryByText('videoPendingBody')).toBeNull()
 })
 
 it('asks a present guest after the host requests recording', () => {

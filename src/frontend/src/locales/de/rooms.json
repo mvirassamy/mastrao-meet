@@ -134,7 +134,8 @@
     "videoAccepted": "Sie haben der Aufzeichnung zugestimmt",
     "videoDeclined": "Sie haben die Aufzeichnung abgelehnt",
     "videoRefusedBody": "Das Meeting wird ohne Aufzeichnung fortgesetzt.",
-    "videoPendingBody": "Die Aufzeichnung kann beginnen, sobald alle zugestimmt haben."
+    "videoPendingBody": "Die Aufzeichnung kann beginnen, sobald alle zugestimmt haben.",
+    "dismiss": "Schließen"
   },
   "leaveRoomPrompt": "Hiermit verlässt du das Meeting.",
   "shareDialog": {
