@@ -1343,6 +1343,8 @@ def test_artifact_access_bootstrap_consumes_only_from_its_own_origin(db, setting
         assert 'lang="fr"' in bootstrap.content.decode()
         assert 'role="status"' in bootstrap.content.decode()
         assert "Vérification de l’intégrité" in bootstrap.content.decode()
+        assert "style-src 'sha256-" in bootstrap["Content-Security-Policy"]
+        assert bootstrap.cookies["mastrao_recording_started"]["max-age"] == 0
         consumed = client.post(
             "/recordings/access/",
             urlencode({"stage": "consume", "recording_access_grant": compact}),
@@ -1378,7 +1380,9 @@ def test_artifact_access_shutdown_is_independent_from_capture_rollback(db, setti
 
     assert response.status_code == 404
     assert response["Content-Type"].startswith("text/html")
-    assert "réessayez depuis votre dossier Mastrao" in response.content.decode()
+    assert "Relancez le téléchargement depuis l’historique" in (
+        response.content.decode()
+    )
 
 
 def test_capture_rollback_preserves_artifact_download(db, settings):
@@ -1399,6 +1403,9 @@ def test_capture_rollback_preserves_artifact_download(db, settings):
         streamed = client.get("/recordings/download/current")
         assert streamed.status_code == 200
         assert b"".join(streamed.streaming_content) == b"mp4"
+        started = streamed.cookies["mastrao_recording_started"]
+        assert started.value == "1"
+        assert not started["httponly"]
     access.refresh_from_db()
     assert access.consumed_at is not None
     assert client.get("/recordings/download/current").status_code == 404
@@ -1457,7 +1464,9 @@ def test_artifact_download_storage_failure_is_opaque_and_retryable(db):
         response = client.get("/recordings/download/current")
     assert response.status_code == 404
     assert response["Content-Type"].startswith("text/html")
-    assert "réessayez depuis votre dossier Mastrao" in response.content.decode()
+    assert "Relancez le téléchargement depuis l’historique" in (
+        response.content.decode()
+    )
     access.refresh_from_db()
     assert access.consumed_at is None
 

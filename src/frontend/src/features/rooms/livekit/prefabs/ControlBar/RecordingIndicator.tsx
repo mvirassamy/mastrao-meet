@@ -20,7 +20,40 @@ interface RecordingIndicatorProps {
   onRecordingChanged?: () => Promise<VideoRecordingPolicy | undefined>
 }
 
-export function RecordingIndicator({
+/** Record button and agreement card, placed among the call controls. */
+export function RecordingControl({
+  roomId,
+  canEnd,
+  recording,
+  onRecordingChanged,
+}: RecordingIndicatorProps) {
+  if (recording?.mode !== 'recorded' || !recording.video) return null
+  const state = recording.recording_state ?? ''
+  if (['collecting', 'authorized'].includes(state))
+    return (
+      <RecordingPreparation
+        roomId={roomId}
+        canStart={canEnd}
+        isHost={canEnd}
+        video={recording.video}
+        onRecordingChanged={onRecordingChanged}
+      />
+    )
+  // Participants can still answer while the start is queued.
+  if (state === 'starting' && recording.video.decision_lock === 'open')
+    return (
+      <RecordingPreparation
+        roomId={roomId}
+        isHost={canEnd}
+        video={recording.video}
+        onRecordingChanged={onRecordingChanged}
+      />
+    )
+  return null
+}
+
+/** Red badge while the recording starts, runs or stops. */
+export function RecordingBadge({
   roomId,
   canEnd,
   recording,
@@ -49,20 +82,6 @@ export function RecordingIndicator({
 
   if (recording?.mode !== 'recorded') return null
   if (
-    recording.video &&
-    ['collecting', 'authorized'].includes(recording.recording_state ?? '')
-  )
-    return (
-      <RecordingPreparation
-        roomId={roomId}
-        canStart={canEnd}
-        isHost={canEnd}
-        video={recording.video}
-        onRecordingChanged={onRecordingChanged}
-      />
-    )
-
-  if (
     !['starting', 'active', 'stopping'].includes(
       recording.recording_state ?? ''
     )
@@ -71,9 +90,6 @@ export function RecordingIndicator({
   }
 
   const canStop = canEnd && recording.recording_state !== 'stopping'
-  const choicesRemainOpen =
-    recording.recording_state === 'starting' &&
-    recording.video?.decision_lock === 'open'
 
   let status = t('active')
   if (recording.recording_state === 'stopping') {
@@ -88,90 +104,80 @@ export function RecordingIndicator({
   const isRecording = recording.recording_state === 'active' && !withdrawFailed
 
   return (
-    <>
-      {choicesRemainOpen && recording.video && (
-        <RecordingPreparation
-          roomId={roomId}
-          isHost={canEnd}
-          video={recording.video}
-          onRecordingChanged={onRecordingChanged}
-        />
-      )}
-      <div
-        role="status"
-        aria-live="polite"
-        data-attr="recording-indicator"
+    <div
+      role="status"
+      aria-live="polite"
+      data-attr="recording-indicator"
+      className={css({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        maxWidth: '100%',
+        minHeight: '36px',
+        paddingLeft: '0.875rem',
+        paddingRight: canStop ? '0.25rem' : '0.875rem',
+        paddingY: '0.25rem',
+        borderRadius: '999px',
+        // Full recording red: impossible to miss, white text above 4.5:1.
+        backgroundColor: '#c4323d',
+        color: 'white',
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        lineHeight: '1.25rem',
+        whiteSpace: 'nowrap',
+      })}
+    >
+      <span
+        aria-hidden="true"
         className={css({
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          maxWidth: '100%',
-          minHeight: '36px',
-          paddingLeft: '0.875rem',
-          paddingRight: canStop ? '0.25rem' : '0.875rem',
-          paddingY: '0.25rem',
-          borderRadius: '999px',
-          // Full recording red: impossible to miss, white text above 4.5:1.
-          backgroundColor: '#c4323d',
-          color: 'white',
-          fontSize: '0.8125rem',
-          fontWeight: 500,
-          lineHeight: '1.25rem',
-          whiteSpace: 'nowrap',
-        })}
-      >
-        <span
-          aria-hidden="true"
-          className={css({
-            position: 'relative',
-            width: '8px',
-            height: '8px',
-            flexShrink: 0,
+          position: 'relative',
+          width: '8px',
+          height: '8px',
+          flexShrink: 0,
+          borderRadius: 'full',
+          backgroundColor: 'white',
+          '&[data-live=true]::after': {
+            content: '""',
+            position: 'absolute',
+            inset: 0,
             borderRadius: 'full',
             backgroundColor: 'white',
-            '&[data-live=true]::after': {
-              content: '""',
-              position: 'absolute',
-              inset: 0,
-              borderRadius: 'full',
-              backgroundColor: 'white',
-              animation: 'unread_pulse 1.6s ease-out infinite',
-              _motionReduce: { animation: 'none' },
-            },
+            animation: 'unread_pulse 1.6s ease-out infinite',
+            _motionReduce: { animation: 'none' },
+          },
+        })}
+        data-live={isRecording}
+      />
+      {isRecording ? (
+        <>
+          <span aria-hidden="true">{t('badge')}</span>
+          <span className={css({ srOnly: true })}>{status}</span>
+        </>
+      ) : (
+        <span>{status}</span>
+      )}
+      {canStop && (
+        <Button
+          size="sm"
+          variant="invert"
+          aria-label={t('stop')}
+          tooltip={t('stop')}
+          isDisabled={isEnding || isWithdrawing}
+          onPress={withdraw}
+          // Layout only: a small pill inside the badge.
+          className={css({
+            height: '28px',
+            minHeight: '28px',
+            gap: '0.375rem',
+            paddingX: '0.75rem',
+            borderRadius: '999px',
+            fontSize: '0.8125rem',
           })}
-          data-live={isRecording}
-        />
-        {isRecording ? (
-          <>
-            <span aria-hidden="true">{t('badge')}</span>
-            <span className={css({ srOnly: true })}>{status}</span>
-          </>
-        ) : (
-          <span>{status}</span>
-        )}
-        {canStop && (
-          <Button
-            size="sm"
-            variant="invert"
-            aria-label={t('stop')}
-            tooltip={t('stop')}
-            isDisabled={isEnding || isWithdrawing}
-            onPress={withdraw}
-            // Layout only: a small pill inside the badge.
-            className={css({
-              height: '28px',
-              minHeight: '28px',
-              gap: '0.375rem',
-              paddingX: '0.75rem',
-              borderRadius: '999px',
-              fontSize: '0.8125rem',
-            })}
-          >
-            <StopCircleIcon size={16} aria-hidden="true" />
-            {t('stopShort')}
-          </Button>
-        )}
-      </div>
-    </>
+        >
+          <StopCircleIcon size={16} aria-hidden="true" />
+          {t('stopShort')}
+        </Button>
+      )}
+    </div>
   )
 }

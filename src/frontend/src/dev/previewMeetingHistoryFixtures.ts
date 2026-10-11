@@ -24,6 +24,8 @@ type PreviewMeeting = {
   participant_count?: number
   summary_status: string
   transcript_status: string
+  // Video recording status; omitted for meetings recorded before video existed.
+  recording_status?: string
 }
 
 const previewMeetings: PreviewMeeting[] = [
@@ -35,6 +37,7 @@ const previewMeetings: PreviewMeeting[] = [
     participant_count: 3,
     summary_status: 'available',
     transcript_status: 'available',
+    recording_status: 'available',
   },
   // Opening it sends the summary request, which the preview refuses (503).
   {
@@ -45,6 +48,7 @@ const previewMeetings: PreviewMeeting[] = [
     participant_count: 2,
     summary_status: 'absent',
     transcript_status: 'available',
+    recording_status: 'absent',
   },
   // Deliberately out of order: the interface sorts most recent first.
   {
@@ -64,6 +68,7 @@ const previewMeetings: PreviewMeeting[] = [
     participant_count: 2,
     summary_status: 'processing',
     transcript_status: 'processing',
+    recording_status: 'processing',
   },
   {
     id: 'preview-meeting-summary-failed',
@@ -73,6 +78,7 @@ const previewMeetings: PreviewMeeting[] = [
     participant_count: 4,
     summary_status: 'failed',
     transcript_status: 'available',
+    recording_status: 'failed',
   },
   {
     id: 'preview-meeting-error',
@@ -93,6 +99,7 @@ const previewOlderMeetings: PreviewMeeting[] = [
     participant_count: 5,
     summary_status: 'available',
     transcript_status: 'available',
+    recording_status: 'expired',
   },
   {
     id: 'preview-meeting-workshop',
@@ -115,6 +122,9 @@ const toApiItem = (meeting: PreviewMeeting) => {
     participant_names: PREVIEW_PEOPLE.slice(0, meeting.participant_count ?? 0),
     summary_status: meeting.summary_status,
     transcript_status: meeting.transcript_status,
+    ...(meeting.recording_status && {
+      recording_status: meeting.recording_status,
+    }),
   }
 }
 
@@ -188,12 +198,38 @@ const previewTranscript = {
   truncated: false,
 }
 
+const RETENTION_DAYS = 30
+
+/** Fictional video metadata; opening the video stays refused by the preview. */
+const previewRecording = (meeting: PreviewMeeting) => {
+  const retentionMs =
+    meeting.recording_status === 'expired'
+      ? -DAY
+      : RETENTION_DAYS * DAY - meeting.startedAgoMs
+  return {
+    status: meeting.recording_status,
+    retention_expires_at: Math.floor((Date.now() + retentionMs) / 1000),
+    access:
+      meeting.recording_status === 'available'
+        ? {
+            action_path:
+              '/api/orgs/organisation-test/meetings/recording/access',
+            matter_ref: 'matter_preview_0001',
+            meeting_ref: 'meeting_preview_0001',
+            recording_ref: 'recording_preview_0001',
+            artifact_ref: 'artifact_preview_0001',
+          }
+        : null,
+  }
+}
+
 // Same shape as the Platform facade: null when the content is not available.
 const detailFor = (meeting: PreviewMeeting) => ({
   ...toApiItem(meeting),
   summary: meeting.summary_status === 'available' ? previewSummary : null,
   transcript:
     meeting.transcript_status === 'available' ? previewTranscript : null,
+  ...(meeting.recording_status && { recording: previewRecording(meeting) }),
 })
 
 const json = (data: unknown, status = 200) =>

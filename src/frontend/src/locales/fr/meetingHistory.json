@@ -153,9 +153,9 @@
   },
   "untitled": "Réunion sans titre",
   "recording": {
-    "title": "Enregistrement",
-    "open": "Ouvrir la vidéo (nouvel onglet)",
-    "retainedUntil": "Conservé jusqu’au {{date}}",
+    "title": "Vidéo",
+    "open": "Télécharger",
+    "retainedUntil": "Conservée jusqu’au {{date}}",
     "accessUnavailable": "L’accès à la vidéo est indisponible pour le moment."
   }
 }

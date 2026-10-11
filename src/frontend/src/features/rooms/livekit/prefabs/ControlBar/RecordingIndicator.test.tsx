@@ -8,7 +8,17 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ConnectionState } from 'livekit-client'
 import type { VideoRecordingPolicy } from '@/features/rooms/api/ApiRoom'
-import { RecordingIndicator } from './RecordingIndicator'
+import { RecordingBadge, RecordingControl } from './RecordingIndicator'
+
+type Props = Parameters<typeof RecordingBadge>[0]
+
+/** Both parts, as the desktop control bar renders them. */
+const RecordingIndicator = (props: Props) => (
+  <>
+    <RecordingBadge {...props} />
+    <RecordingControl {...props} />
+  </>
+)
 
 const activateRecording = vi.fn()
 const decideRecording = vi.fn()

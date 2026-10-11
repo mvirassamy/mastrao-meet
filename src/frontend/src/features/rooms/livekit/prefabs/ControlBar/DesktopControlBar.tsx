@@ -16,7 +16,7 @@ import { AudioDevicesControl } from '../../components/controls/Device/AudioDevic
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
-import { RecordingIndicator } from './RecordingIndicator'
+import { RecordingBadge, RecordingControl } from './RecordingIndicator'
 
 export function DesktopControlBar({
   onDeviceError,
@@ -54,6 +54,8 @@ export function DesktopControlBar({
     <div
       ref={desktopControlBarEl}
       className={css({
+        // Anchors the recording notice above the call controls.
+        position: 'relative',
         width: '100vw',
         display: 'flex',
         padding: '1.125rem',
@@ -65,29 +67,14 @@ export function DesktopControlBar({
         },
       })}
     >
+      {/* Balances the right-hand options so the call controls stay centred. */}
       <div
+        aria-hidden="true"
         className={css({
-          display: 'flex',
-          justifyContent: 'flex-start',
           flex: '1 1 33%',
-          alignItems: 'center',
-          gap: '0.5rem',
-          marginLeft: '0.5rem',
-          '@media (max-width: 1099px)': {
-            flex: '1 0 100%',
-            justifyContent: 'center',
-            marginLeft: 0,
-            '&:empty': { display: 'none' },
-          },
+          '@media (max-width: 1099px)': { display: 'none' },
         })}
-      >
-        <RecordingIndicator
-          roomId={roomId}
-          canEnd={canEnd}
-          recording={recording}
-          onRecordingChanged={onRecordingChanged}
-        />
-      </div>
+      />
       <ControlBarRegion
         style={
           isNarrowScreen
@@ -126,6 +113,18 @@ export function DesktopControlBar({
             }
           />
         )}
+        <RecordingBadge
+          roomId={roomId}
+          canEnd={canEnd}
+          recording={recording}
+          onRecordingChanged={onRecordingChanged}
+        />
+        <RecordingControl
+          roomId={roomId}
+          canEnd={canEnd}
+          recording={recording}
+          onRecordingChanged={onRecordingChanged}
+        />
         <OptionsButton />
         <LeaveButton roomId={roomId} canEnd={canEnd} onEnded={onMeetingEnded} />
         <StartMediaButton />

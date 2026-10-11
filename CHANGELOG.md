@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-10-11: Show meeting videos like summaries and transcripts in the
+  history (3D camera, Télécharger button beside the title), style the
+  download pages on the Mastrao watercolor card, show recording agreement
+  requests and states in a floating card above the call controls, and show
+  the video states in the local preview.
+
 - 2026-10-11: Configure the video recording template independently from the
   public Meet URL so isolated Egress workers can load it locally.
 

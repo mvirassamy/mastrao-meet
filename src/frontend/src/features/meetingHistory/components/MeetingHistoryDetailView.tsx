@@ -300,62 +300,71 @@ const MeetingDetailContent = ({
 
   return (
     <>
-      <header className={detailHeader}>
-        <h1
-          ref={headingRef}
-          tabIndex={-1}
-          className={css({
-            margin: 0,
-            fontSize: { base: '1.375rem', md: '1.625rem' },
-            lineHeight: 1.25,
-            fontWeight: 600,
-            letterSpacing: '-0.025em',
-            overflowWrap: 'anywhere',
-          })}
-        >
-          {meeting.title ?? t('untitled')}
-        </h1>
-        <p
-          className={css({
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            columnGap: '1rem',
-            rowGap: '0.25rem',
-            marginTop: '0.5rem',
-            marginBottom: 0,
-            color: 'muted-foreground',
-            fontSize: '0.8125rem',
-            lineHeight: '1.25rem',
-          })}
-        >
-          <span className={metaItemClass}>
-            <CalendarIcon size={15} aria-hidden="true" />
-            {formatMeetingDay(meeting.startedAt, locale, timeZone)}
-          </span>
-          <span className={metaItemClass}>
-            <TimeIcon size={15} aria-hidden="true" />
-            {formatMeetingTime(
-              meeting.startedAt,
-              meeting.endedAt,
-              locale,
-              timeZone
-            )}
-          </span>
-          {meeting.participantCount !== null && (
+      <header
+        className={`${detailHeader} ${css({
+          display: 'flex',
+          flexDirection: { base: 'column', sm: 'row' },
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '1rem',
+        })}`}
+      >
+        <div className={css({ minWidth: 0 })}>
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            className={css({
+              margin: 0,
+              fontSize: { base: '1.375rem', md: '1.625rem' },
+              lineHeight: 1.25,
+              fontWeight: 600,
+              letterSpacing: '-0.025em',
+              overflowWrap: 'anywhere',
+            })}
+          >
+            {meeting.title ?? t('untitled')}
+          </h1>
+          <p
+            className={css({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              columnGap: '1rem',
+              rowGap: '0.25rem',
+              marginTop: '0.5rem',
+              marginBottom: 0,
+              color: 'muted-foreground',
+              fontSize: '0.8125rem',
+              lineHeight: '1.25rem',
+            })}
+          >
             <span className={metaItemClass}>
-              {t('participants', { count: meeting.participantCount })}
+              <CalendarIcon size={15} aria-hidden="true" />
+              {formatMeetingDay(meeting.startedAt, locale, timeZone)}
             </span>
-          )}
-        </p>
+            <span className={metaItemClass}>
+              <TimeIcon size={15} aria-hidden="true" />
+              {formatMeetingTime(
+                meeting.startedAt,
+                meeting.endedAt,
+                locale,
+                timeZone
+              )}
+            </span>
+            {meeting.participantCount !== null && (
+              <span className={metaItemClass}>
+                {t('participants', { count: meeting.participantCount })}
+              </span>
+            )}
+          </p>
+        </div>
+        {meeting.recordingProjected === true && (
+          <MeetingRecordingSection
+            recording={meeting.recording}
+            timeZone={timeZone}
+          />
+        )}
       </header>
-
-      {meeting.recordingProjected === true && (
-        <MeetingRecordingSection
-          recording={meeting.recording}
-          timeZone={timeZone}
-        />
-      )}
       <div className={detailSections}>
         <MeetingContentSection
           kind="summary"

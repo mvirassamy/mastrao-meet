@@ -1,7 +1,11 @@
 import { LANGUAGE_COOKIE, isSupportedLanguage } from '@/i18n/languageDetection'
 import type { ApiConfig } from '@/api/useConfig'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
-import { ApiAccessLevel, type ApiRoom } from '@/features/rooms/api/ApiRoom'
+import {
+  ApiAccessLevel,
+  type ApiRoom,
+  type VideoRecordingPolicy,
+} from '@/features/rooms/api/ApiRoom'
 import {
   isPreviewMeetingHistoryRequest,
   previewMeetingHistoryResponse,
@@ -27,6 +31,82 @@ export const previewRoom: ApiRoom = {
   is_administrable: false,
   recording: { mode: 'disabled' },
 }
+
+const previewVideo = (
+  policy: Partial<VideoRecordingPolicy> = {}
+): VideoRecordingPolicy => ({
+  consultation_source: 'present',
+  decision: 'absent',
+  decision_basis: 'pending',
+  start_status: 'pending',
+  decision_lock: 'open',
+  started_at: null,
+  start_requested: false,
+  start_available: true,
+  ...policy,
+})
+
+/** The host sees the recording controls; the guest only answers the question. */
+export const previewIsRecordingHost =
+  previewScenario.startsWith('recording-') &&
+  previewScenario !== 'recording-guest-question'
+
+/** Fictional video recording state of the room for each recording screen. */
+export const previewRoomRecording = (
+  scenario: string
+): ApiRoom['recording'] => {
+  switch (scenario) {
+    case 'recording-host-ready':
+      return {
+        mode: 'recorded',
+        recording_state: 'collecting',
+        video: previewVideo(),
+      }
+    case 'recording-host-pending':
+      return {
+        mode: 'recorded',
+        recording_state: 'collecting',
+        video: previewVideo({ start_requested: true, start_available: false }),
+      }
+    case 'recording-guest-question':
+      return {
+        mode: 'recorded',
+        recording_state: 'collecting',
+        participant_kind: 'guest',
+        video: previewVideo({ start_requested: true }),
+      }
+    case 'recording-refused':
+      return {
+        mode: 'recorded',
+        recording_state: 'collecting',
+        video: previewVideo({
+          start_requested: true,
+          start_available: false,
+          start_status: 'refused',
+        }),
+      }
+    case 'recording-starting':
+      return {
+        mode: 'recorded',
+        decision: 'accepted',
+        recording_state: 'starting',
+      }
+    case 'recording-active':
+      return {
+        mode: 'recorded',
+        decision: 'accepted',
+        recording_state: 'active',
+      }
+    case 'recording-stopping':
+      return {
+        mode: 'recorded',
+        decision: 'accepted',
+        recording_state: 'stopping',
+      }
+    default:
+      return { mode: 'disabled' }
+  }
+}
 export const previewConfig: ApiConfig = {
   feedback: { url: '' },
   background_image: {
@@ -40,6 +120,7 @@ export const previewConfig: ApiConfig = {
   diagnostics: { connection_test_enabled: false },
   telephony: { enabled: false },
   recording: { is_enabled: false, available_modes: [] },
+  mastrao_platform_origin: 'http://localhost:3077/',
   livekit: {
     url: '',
     force_wss_protocol: false,

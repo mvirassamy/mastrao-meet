@@ -153,8 +153,8 @@
   },
   "untitled": "Untitled meeting",
   "recording": {
-    "title": "Recording",
-    "open": "Open video (new tab)",
+    "title": "Video",
+    "open": "Download",
     "retainedUntil": "Retained until {{date}}",
     "accessUnavailable": "Video access is currently unavailable."
   }

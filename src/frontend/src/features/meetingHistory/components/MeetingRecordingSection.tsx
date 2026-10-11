@@ -1,12 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/api/useConfig'
-import { ExternalLinkIcon, VideoIcon } from '@/icons'
+import { DownloadIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import type { MeetingRecording } from '../api/types'
 import { recordingAccessAction } from '../utils/recordingAccess'
-import { sectionCard, sectionTitle } from './meetingDetailLayout'
 
 export const MeetingRecordingSection = ({
   recording,
@@ -77,75 +76,18 @@ export const MeetingRecordingSection = ({
     <section
       aria-labelledby="meeting-recording-heading"
       data-section="recording"
-      className={`${sectionCard} ${css({
+      className={css({
         display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '0.75rem',
-        padding: '1rem 1.125rem',
-        marginBottom: { base: '1rem', md: '1.25rem' },
-      })}`}
+        flexDirection: 'column',
+        alignItems: { base: 'flex-start', sm: 'flex-end' },
+        gap: '0.25rem',
+        flexShrink: 0,
+        textAlign: { base: 'left', sm: 'right' },
+      })}
     >
-      <div>
-        <h2
-          id="meeting-recording-heading"
-          className={`${sectionTitle} ${css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          })}`}
-        >
-          <VideoIcon size={20} aria-hidden="true" />
-          {t('recording.title')}
-        </h2>
-        <p
-          ref={statusMessageRef}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          tabIndex={-1}
-          className={css({
-            margin: 0,
-            fontSize: '0.875rem',
-            color: 'muted-foreground',
-          })}
-        >
-          {t(`status.recording.${recording.status}`)}
-        </p>
-        {recording.status === 'available' && retainedUntil && (
-          <p
-            className={css({
-              margin: 0,
-              fontSize: '0.8125rem',
-              color: 'muted-foreground',
-            })}
-          >
-            {t('recording.retainedUntil', {
-              date: new Intl.DateTimeFormat(locale, {
-                dateStyle: 'long',
-                timeStyle: 'short',
-                timeZone,
-              }).format(retainedUntil),
-            })}
-          </p>
-        )}
-        {recording.status === 'available' && !availableAction && (
-          <p
-            ref={accessUnavailableMessageRef}
-            role="status"
-            aria-live="polite"
-            tabIndex={-1}
-            className={css({
-              margin: 0,
-              fontSize: '0.8125rem',
-              color: 'muted-foreground',
-            })}
-          >
-            {t('recording.accessUnavailable')}
-          </p>
-        )}
-      </div>
+      <h2 id="meeting-recording-heading" className={css({ srOnly: true })}>
+        {t('recording.title')}
+      </h2>
       {availableAction && access && (
         <form
           method="post"
@@ -166,8 +108,7 @@ export const MeetingRecordingSection = ({
             ref={actionButtonRef}
             type="submit"
             variant="outline"
-            className={css({ minHeight: '44px' })}
-            icon={<ExternalLinkIcon aria-hidden="true" />}
+            icon={<DownloadIcon aria-hidden="true" />}
             onFocus={() => {
               actionHasFocus.current = true
             }}
@@ -178,6 +119,56 @@ export const MeetingRecordingSection = ({
             {t('recording.open')}
           </Button>
         </form>
+      )}
+      {/* The button already says the video is available. */}
+      <p
+        ref={statusMessageRef}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        tabIndex={-1}
+        className={
+          availableAction
+            ? css({ srOnly: true })
+            : css({
+                margin: 0,
+                fontSize: '0.8125rem',
+                color: 'muted-foreground',
+              })
+        }
+      >
+        {t(`status.recording.${recording.status}`)}
+      </p>
+      {recording.status === 'available' && retainedUntil && (
+        <p
+          className={css({
+            margin: 0,
+            fontSize: '0.75rem',
+            color: 'muted-foreground',
+          })}
+        >
+          {t('recording.retainedUntil', {
+            date: new Intl.DateTimeFormat(locale, {
+              dateStyle: 'long',
+              timeZone,
+            }).format(retainedUntil),
+          })}
+        </p>
+      )}
+      {recording.status === 'available' && !availableAction && (
+        <p
+          ref={accessUnavailableMessageRef}
+          role="status"
+          aria-live="polite"
+          tabIndex={-1}
+          className={css({
+            margin: 0,
+            fontSize: '0.75rem',
+            color: 'muted-foreground',
+          })}
+        >
+          {t('recording.accessUnavailable')}
+        </p>
       )}
     </section>
   )

@@ -153,8 +153,8 @@
   },
   "untitled": "Besprechung ohne Titel",
   "recording": {
-    "title": "Aufzeichnung",
-    "open": "Video öffnen (neuer Tab)",
+    "title": "Video",
+    "open": "Herunterladen",
     "retainedUntil": "Aufbewahrt bis {{date}}",
     "accessUnavailable": "Der Videozugriff ist derzeit nicht verfügbar."
   }

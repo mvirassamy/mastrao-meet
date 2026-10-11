@@ -27,7 +27,7 @@ import { VideoDeviceControl } from '../../components/controls/Device/VideoDevice
 import { openSettingsDialog } from '@/stores/settings'
 import { ControlBarRegion } from '@/features/layout/components/ControlBarRegion'
 import { ReactionsToggle } from '@/features/reactions/components/ReactionsToggle'
-import { RecordingIndicator } from './RecordingIndicator'
+import { RecordingBadge, RecordingControl } from './RecordingIndicator'
 
 export function MobileControlBar({
   onDeviceError,
@@ -48,6 +48,8 @@ export function MobileControlBar({
     <>
       <div
         className={css({
+          // Anchors the recording notice above the call controls.
+          position: 'relative',
           width: '100vw',
           display: 'flex',
           padding: '1.125rem',
@@ -57,7 +59,8 @@ export function MobileControlBar({
           gap: '0.5rem',
         })}
       >
-        <RecordingIndicator
+        {/* The badge is wide: its own row keeps every control on screen. */}
+        <RecordingBadge
           roomId={roomId}
           canEnd={canEnd}
           recording={recording}
@@ -78,6 +81,12 @@ export function MobileControlBar({
           />
           <HandToggle />
           <ReactionsToggle />
+          <RecordingControl
+            roomId={roomId}
+            canEnd={canEnd}
+            recording={recording}
+            onRecordingChanged={onRecordingChanged}
+          />
           <Button
             shape="circle"
             id="room-options-trigger"
