@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-11: Configure the video recording template independently from the
+  public Meet URL so isolated Egress workers can load it locally.
+
 - 2026-10-11: Keep participants visible in video recordings with their names
   and initials when cameras are off, while preserving active speakers, room
   audio and screen sharing.

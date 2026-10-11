@@ -106,6 +106,7 @@ EXTERNAL_API_ENABLED=True
 APPLICATION_JWT_AUDIENCE=http://localhost:8071/external-api/v1.0/
 APPLICATION_JWT_SECRET_KEY=devKey
 APPLICATION_BASE_URL=http://localhost:3000
+RECORDING_TEMPLATE_BASE_URL=http://frontend:8080/recording-template
 
 # Diagnostics
 CONNECTION_TEST_ENABLED = True

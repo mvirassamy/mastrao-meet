@@ -1580,6 +1580,11 @@ class Base(Configuration):
         environ_name="APPLICATION_BASE_URL",
         environ_prefix=None,
     )
+    RECORDING_TEMPLATE_BASE_URL = values.Value(
+        None,
+        environ_name="RECORDING_TEMPLATE_BASE_URL",
+        environ_prefix=None,
+    )
     # Warning: EXTERNAL_API_ALLOW_PUBLIC_ACCESS is ignored when
     # EXTERNAL_API_DEFAULT_ACCESS_LEVEL=public.
     EXTERNAL_API_ALLOW_PUBLIC_ACCESS = values.BooleanValue(
