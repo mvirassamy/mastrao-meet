@@ -59,12 +59,6 @@ export function MobileControlBar({
           gap: '0.5rem',
         })}
       >
-        <RecordingIndicator
-          roomId={roomId}
-          canEnd={canEnd}
-          recording={recording}
-          onRecordingChanged={onRecordingChanged}
-        />
         <ControlBarRegion mobile>
           <AudioDevicesControl
             onDeviceError={(error) =>
@@ -80,6 +74,12 @@ export function MobileControlBar({
           />
           <HandToggle />
           <ReactionsToggle />
+          <RecordingIndicator
+            roomId={roomId}
+            canEnd={canEnd}
+            recording={recording}
+            onRecordingChanged={onRecordingChanged}
+          />
           <Button
             shape="circle"
             id="room-options-trigger"

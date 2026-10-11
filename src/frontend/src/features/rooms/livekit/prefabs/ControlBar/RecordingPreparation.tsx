@@ -119,14 +119,15 @@ export const RecordingPreparation = ({
     <>
       {canStart && (
         <Button
+          shape="circle"
           variant="outline"
-          size="sm"
-          icon={<RecordIcon aria-hidden="true" />}
+          aria-label={t('startVideo')}
+          tooltip={t('startVideo')}
           isDisabled={startUnavailable || pending !== null}
           loading={pending === 'start'}
           onPress={() => act('start')}
         >
-          {t('startVideo')}
+          <RecordIcon />
         </Button>
       )}
       {(notice || failed) && (

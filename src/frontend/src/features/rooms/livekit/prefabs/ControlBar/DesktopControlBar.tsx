@@ -67,29 +67,14 @@ export function DesktopControlBar({
         },
       })}
     >
+      {/* Balances the right-hand options so the call controls stay centred. */}
       <div
+        aria-hidden="true"
         className={css({
-          display: 'flex',
-          justifyContent: 'flex-start',
           flex: '1 1 33%',
-          alignItems: 'center',
-          gap: '0.5rem',
-          marginLeft: '0.5rem',
-          '@media (max-width: 1099px)': {
-            flex: '1 0 100%',
-            justifyContent: 'center',
-            marginLeft: 0,
-            '&:empty': { display: 'none' },
-          },
+          '@media (max-width: 1099px)': { display: 'none' },
         })}
-      >
-        <RecordingIndicator
-          roomId={roomId}
-          canEnd={canEnd}
-          recording={recording}
-          onRecordingChanged={onRecordingChanged}
-        />
-      </div>
+      />
       <ControlBarRegion
         style={
           isNarrowScreen
@@ -128,6 +113,12 @@ export function DesktopControlBar({
             }
           />
         )}
+        <RecordingIndicator
+          roomId={roomId}
+          canEnd={canEnd}
+          recording={recording}
+          onRecordingChanged={onRecordingChanged}
+        />
         <OptionsButton />
         <LeaveButton roomId={roomId} canEnd={canEnd} onEnded={onMeetingEnded} />
         <StartMediaButton />
