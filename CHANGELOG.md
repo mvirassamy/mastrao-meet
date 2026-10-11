@@ -4,6 +4,9 @@
   until Core records a result, authorizes a retry, or returns a terminal
   outcome.
 
+- 2026-10-12: Refill native ASR worker capacity immediately after a durable
+  completion so pending sources do not wait for the reconciliation CronJob.
+
 - 2026-10-11: Add bounded KEDA PostgreSQL scaling contracts for the separate
   ready and retry native ASR worker lanes using aggregate depth and oldest due
   age, with active lease counts exposed for observation. Scaling is disabled

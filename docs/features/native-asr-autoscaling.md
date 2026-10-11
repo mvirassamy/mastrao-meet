@@ -12,7 +12,9 @@ does not install KEDA, its CRDs, an HPA adapter, a metrics provider, or a
 database Secret.
 
 Migration `0055_native_asr_queue_metrics` creates
-`meet_mastrao_native_asr_queue_metrics` with exactly one row per lane and four
+`meet_mastrao_native_asr_queue_metrics`; migration
+`0056_native_asr_delivery_recovery` updates it so repeated local delivery
+attempts remain recoverable. The view has exactly one row per lane and four
 columns: `lane`, `pending_count`, `oldest_due_age_seconds`, and `active_count`.
 `pending_count` includes eligible due work, including live dispatch reservations
 and claims. `oldest_due_age_seconds` is the whole number of seconds since the
@@ -45,8 +47,8 @@ existing Secret containing a PostgreSQL connection string. Use a dedicated
 metrics account with only `CONNECT`, schema `USAGE`, and `SELECT` on
 `meet_mastrao_native_asr_queue_metrics`. The view exposes only the lane and its
 three aggregate metrics; the account does not need access to the source tables.
-Apply migration `0055` before enabling either lane. Do not reuse the Meet
-application database credentials and do not add this Secret to a Meet
+Apply migrations through `0056` before enabling either lane. Do not reuse the
+Meet application database credentials and do not add this Secret to a Meet
 Deployment.
 
 For example, the platform operator owns this resource and its referenced

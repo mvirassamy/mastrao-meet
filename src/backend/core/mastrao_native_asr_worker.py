@@ -148,7 +148,10 @@ def _finish(intent, acknowledged, error=None):
         elif error.outcome == "rejected":
             values["asr_next_at"] = intent.retention_expires_at
             values["asr_error"] = "native_asr_rejected"
-    return _owned(intent).update(**values) == 1
+    if _owned(intent).update(**values) != 1:
+        return False
+    transaction.on_commit(lambda: schedule_native_asr(limit=1))
+    return True
 
 
 def process_native_asr_source(capture_start_id, dispatch_ref):

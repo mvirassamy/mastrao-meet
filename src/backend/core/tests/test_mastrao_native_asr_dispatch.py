@@ -905,7 +905,7 @@ def test_sustained_ready_backlog_still_dispatches_retry(asr_intent, settings):
     assert retry.asr_dispatch_queue == "mastrao-native-asr-retry"
 
 
-def test_due_retry_not_starved_when_workers_finish_between_passes(asr_intent, settings):
+def test_due_retry_not_starved_during_continuous_drain(asr_intent, settings):
     settings.CELERY_ENABLED = True
     retry = add_asr_source(asr_intent, new_meeting=True, tenant="retry-tenant")
     models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
@@ -915,18 +915,17 @@ def test_due_retry_not_starved_when_workers_finish_between_passes(asr_intent, se
         add_asr_source(asr_intent, new_meeting=True)
     dispatched_ids = []
     with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
-        for _ in range(3):
-            metrics = native_asr_dispatch_metrics()
-            assert metrics["active_count"] == 0
-            assert metrics["ready_count"] >= 2
-            assert schedule_native_asr(limit=1) == 1
-            dispatch = publish.call_args.kwargs["args"]
+        assert schedule_native_asr(limit=1) == 1
+        for index in range(5):
+            dispatch = publish.call_args_list[index].kwargs["args"]
             dispatched_ids.append(dispatch[0])
             assert _finish(_claim(*dispatch), True)
 
     assert dispatched_ids[0] == str(retry.pk)
     assert [call.kwargs["queue"] for call in publish.call_args_list] == [
         "mastrao-native-asr-retry",
+        "mastrao-native-asr-ready",
+        "mastrao-native-asr-ready",
         "mastrao-native-asr-ready",
         "mastrao-native-asr-ready",
     ]
