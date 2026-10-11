@@ -29,6 +29,7 @@ class WorkerServiceConfig:
     output_folder: str
     server_configurations: Dict[str, Any]
     bucket_args: Optional[dict]
+    recording_template_base_url: Optional[str] = None
     encoding_options: Optional[Dict[str, Any]] = None
 
     @classmethod
@@ -55,6 +56,11 @@ class WorkerServiceConfig:
                 "audio_frequency": _RECORDING_AUDIO_FREQUENCY_HZ,
             }
 
+        application_base_url = (settings.APPLICATION_BASE_URL or "").rstrip("/")
+        recording_template_base_url = None
+        if application_base_url:
+            recording_template_base_url = f"{application_base_url}/recording-template"
+
         return cls(
             output_folder=settings.RECORDING_OUTPUT_FOLDER,
             server_configurations=settings.LIVEKIT_CONFIGURATION,
@@ -66,6 +72,7 @@ class WorkerServiceConfig:
                 "bucket": settings.AWS_STORAGE_BUCKET_NAME,
                 "force_path_style": True,
             },
+            recording_template_base_url=recording_template_base_url,
             encoding_options=encoding_options,
         )
 

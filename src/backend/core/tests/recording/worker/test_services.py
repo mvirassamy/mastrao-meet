@@ -4,7 +4,10 @@ Test worker service classes.
 
 # pylint: disable=protected-access,redefined-outer-name,unused-argument,no-member
 
+from dataclasses import replace
 from unittest.mock import AsyncMock, Mock, patch
+
+from django.core.exceptions import ImproperlyConfigured
 
 import pytest
 
@@ -36,6 +39,7 @@ def config():
             "bucket": "test-bucket",
             "force_path_style": True,
         },
+        recording_template_base_url="https://meet.test/recording-template",
     )
 
 
@@ -50,6 +54,7 @@ def config_with_encoding(config):
         output_folder=config.output_folder,
         server_configurations=config.server_configurations,
         bucket_args=config.bucket_args,
+        recording_template_base_url=config.recording_template_base_url,
         encoding_options={
             "width": 1280,
             "height": 720,
@@ -200,6 +205,16 @@ def test_video_composite_egress_hrid(video_service):
     assert video_service.hrid == "video-recording-composite-livekit-egress"
 
 
+def test_video_composite_egress_requires_template_url(config, mock_s3_upload):
+    """Only video recording requires a reachable browser template."""
+    service = VideoCompositeEgressService(
+        replace(config, recording_template_base_url=None)
+    )
+
+    with pytest.raises(ImproperlyConfigured):
+        service.start("test-room", "rec-123")
+
+
 def test_video_composite_egress_start_success(video_service):
     """Test successful start of video composite egress"""
     # Setup mock response
@@ -224,6 +239,8 @@ def test_video_composite_egress_start_success(video_service):
     # Verify request properties
     assert isinstance(request, livekit_api.RoomCompositeEgressRequest)
     assert request.room_name == room_name
+    assert request.layout == "mastrao"
+    assert request.custom_base_url == "https://meet.test/recording-template"
     assert len(request.file_outputs) == 1
 
     assert not request.audio_only  # Video service shouldn't set audio_only

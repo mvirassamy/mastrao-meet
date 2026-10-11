@@ -2,6 +2,8 @@
 
 # pylint: disable=no-member
 
+from django.core.exceptions import ImproperlyConfigured
+
 from asgiref.sync import async_to_sync
 from livekit import api as livekit_api
 
@@ -108,6 +110,11 @@ class VideoCompositeEgressService(BaseEgressService):
     def start(self, room_name, recording_id):
         """Start the video composite egress process for a recording."""
 
+        if not self._config.recording_template_base_url:
+            raise ImproperlyConfigured(
+                "APPLICATION_BASE_URL is required for video recordings."
+            )
+
         # Save room's recording as a mp4 video file.
         file_type = livekit_api.EncodedFileType.MP4
         filepath = self._get_filepath(
@@ -123,7 +130,8 @@ class VideoCompositeEgressService(BaseEgressService):
         request_kwargs = {
             "room_name": room_name,
             "file_outputs": [file_output],
-            "layout": "speaker-light",
+            "layout": "mastrao",
+            "custom_base_url": self._config.recording_template_base_url,
         }
 
         advanced = self._build_encoding_options()

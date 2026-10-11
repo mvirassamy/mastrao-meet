@@ -1,0 +1,217 @@
+@import '@fontsource-variable/inter';
+
+:root {
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  color: #f7f8fc;
+  background: #10152b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root,
+.recording-template-room {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.recording-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 42px;
+  background:
+    radial-gradient(circle at 18% 10%, rgb(71 92 218 / 22%), transparent 34%),
+    linear-gradient(145deg, #11172f 0%, #0b1023 100%);
+}
+
+.recording-participant-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 24px;
+  place-content: center;
+}
+
+.recording-participant-grid:has(> .recording-participant-tile:only-of-type) {
+  grid-template-columns: minmax(420px, 880px);
+  grid-template-rows: minmax(320px, 560px);
+}
+
+.recording-participant-tile {
+  --participant-hue: 220deg;
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 3px solid transparent;
+  border-radius: 26px;
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      hsl(var(--participant-hue) 58% 48% / 50%),
+      transparent 42%
+    ),
+    #202844;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 28%);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.recording-participant-tile[data-speaking='true'] {
+  border-color: #8ea7ff;
+  box-shadow:
+    0 0 0 7px rgb(77 106 255 / 20%),
+    0 24px 70px rgb(0 0 0 / 34%);
+  animation: recording-speaker-pulse 1.4s ease-in-out infinite;
+}
+
+.recording-participant-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.recording-participant-avatar {
+  display: grid;
+  width: clamp(112px, 18vmin, 210px);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 50%;
+  background: hsl(var(--participant-hue) 58% 48% / 38%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%);
+  color: #fff;
+  font-size: clamp(46px, 8vmin, 94px);
+  font-weight: 620;
+  letter-spacing: -0.06em;
+}
+
+.recording-participant-name {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  max-width: calc(100% - 36px);
+  overflow: hidden;
+  padding: 8px 13px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 11px;
+  background: rgb(8 12 28 / 82%);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 22%);
+  color: #fff;
+  font-size: 19px;
+  font-weight: 580;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-share-stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 150px;
+  gap: 20px;
+}
+
+.recording-share-grid {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 16px;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #070a14;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 35%);
+}
+
+.recording-screen-share {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.recording-participant-strip {
+  display: flex;
+  min-width: 0;
+  gap: 14px;
+  justify-content: center;
+}
+
+.recording-participant-strip .recording-participant-tile {
+  width: min(230px, 22vw);
+  flex: 0 1 230px;
+  border-radius: 18px;
+}
+
+.recording-participant-strip .recording-participant-avatar {
+  width: 74px;
+  font-size: 30px;
+}
+
+.recording-participant-strip .recording-participant-name {
+  bottom: 9px;
+  left: 9px;
+  max-width: calc(100% - 18px);
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.recording-brand {
+  position: absolute;
+  top: 18px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 12px;
+  background: rgb(8 12 28 / 74%);
+  color: #f7f8fc;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.recording-brand-mark {
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+}
+
+.recording-template-error {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 48px;
+  place-content: center;
+  text-align: center;
+}
+
+.recording-template-error h1 {
+  margin: 0 0 10px;
+  font-size: 32px;
+}
+
+.recording-template-error p {
+  margin: 0;
+  color: #aeb8d6;
+  font-size: 17px;
+}
+
+@keyframes recording-speaker-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.008);
+  }
+}
