@@ -11,7 +11,9 @@ It uses LiveKit Egress to record room sessions. For reference, see the [LiveKit 
 
 * Users cannot record and transcribe simultaneously. ([Issue #527](https://github.com/suitenumerique/meet/issues/527)
  is on our backlog)
-* Recording layout cannot be configured from the frontend. By default, the egress captures the active speaker and any shared screens. (not yet planned)
+* Recording layout cannot be configured from the frontend. The Mastrao layout
+  displays camera feeds, participant initials when cameras are off, the active
+  speaker, and any shared screens.
 * Shareable links with an embedded video player are not yet supported. (not yet planned)
 
 > [!NOTE]
@@ -130,7 +132,7 @@ RECORDING_STORAGE_EVENT_TOKEN = <token>
 
 La Suite Meet uses LiveKit Egress to record room sessions. For reference, see the [LiveKit Egress repository](https://github.com/livekit/egress) and the [official documentation](https://docs.livekit.io/home/egress/overview/).
 
-Currently, only `RoomCompositeEgress` is supported. This mode combines all video and audio tracks from the room into a single recording.
+Currently, only `RoomCompositeEgress` is supported. This mode combines all video and audio tracks from the room into a single recording. Video recordings use the Mastrao template served by the Meet frontend at `/recording-template`; the template keeps every participant visible when cameras are off and gives screen shares the main stage.
 
 To monitor egress workers and inspect recording status, it is recommended to install `livekit-cli`. For example, you can list active egress sessions using the following command:
 
