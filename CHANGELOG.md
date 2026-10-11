@@ -1,9 +1,10 @@
 # Changelog
 
 - 2026-10-11: Show meeting videos like summaries and transcripts in the
-  history (3D camera, Vidéo card, Télécharger button), style the download
-  pages on the Mastrao watercolor card, and show the video states in the
-  local preview.
+  history (3D camera, Télécharger button beside the title), style the
+  download pages on the Mastrao watercolor card, show recording agreement
+  requests and states in a floating card above the call controls, and show
+  the video states in the local preview.
 
 - 2026-10-11: Keep participants visible in video recordings with their names
   and initials when cameras are off, while preserving active speakers, room

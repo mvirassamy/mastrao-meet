@@ -48,6 +48,8 @@ export function MobileControlBar({
     <>
       <div
         className={css({
+          // Anchors the recording notice above the call controls.
+          position: 'relative',
           width: '100vw',
           display: 'flex',
           padding: '1.125rem',

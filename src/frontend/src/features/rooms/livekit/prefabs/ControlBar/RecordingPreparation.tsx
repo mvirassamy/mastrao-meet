@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useConnectionState } from '@livekit/components-react'
 import { ConnectionState } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
 import { RecordIcon } from '@/icons'
 import { Button } from '@/primitives'
+import { Spinner } from '@/primitives/Spinner'
 import { css } from '@/styled-system/css'
 import type { VideoRecordingPolicy } from '@/features/rooms/api/ApiRoom'
 import {
@@ -51,7 +52,7 @@ export const RecordingPreparation = ({
     video.decision_lock === 'open'
   const showRefused = video.start_status === 'refused'
   const showHostPending =
-    canStart &&
+    canStart === true &&
     pending !== 'start' &&
     !activationAccepted &&
     video.start_requested &&
@@ -103,59 +104,19 @@ export const RecordingPreparation = ({
     }
   }
 
-  if (
-    !showParticipantChoice &&
-    !canStart &&
-    !showRefused &&
-    !showHostPending &&
-    !showStarting &&
-    !failed
-  ) {
-    return null
-  }
+  const notice = recordingNotice({
+    showStarting,
+    showParticipantChoice,
+    showRefused,
+    showHostPending,
+  })
+
+  const copy = notice ? NOTICE_COPY[notice] : null
+
+  if (!notice && !canStart && !failed) return null
 
   return (
-    <div
-      className={css({
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '0.5rem',
-        alignItems: 'center',
-      })}
-    >
-      {showParticipantChoice && (
-        <div
-          className={css({
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.375rem',
-            alignItems: 'center',
-            fontSize: '0.8125rem',
-          })}
-        >
-          <span>{t('videoQuestion')}</span>
-          <Button
-            variant="outline"
-            size="xs"
-            aria-pressed={video.decision === 'accepted'}
-            isDisabled={locked || pending !== null}
-            loading={pending === 'accepted'}
-            onPress={() => act('accepted')}
-          >
-            {t('videoYes')}
-          </Button>
-          <Button
-            variant="outline"
-            size="xs"
-            aria-pressed={video.decision === 'refused'}
-            isDisabled={locked || pending !== null}
-            loading={pending === 'refused'}
-            onPress={() => act('refused')}
-          >
-            {t('videoNo')}
-          </Button>
-        </div>
-      )}
+    <>
       {canStart && (
         <Button
           variant="outline"
@@ -168,10 +129,176 @@ export const RecordingPreparation = ({
           {t('startVideo')}
         </Button>
       )}
-      {showRefused && <span role="status">{t('videoRefused')}</span>}
-      {showHostPending && <span role="status">{t('videoPending')}</span>}
-      {showStarting && <span role="status">{t('starting')}</span>}
-      {failed && <span role="alert">{t('videoActionError')}</span>}
-    </div>
+      {(notice || failed) && (
+        <RecordingNoticeCard
+          title={copy ? t(copy.title(video.decision)) : null}
+          body={copy?.body ? t(copy.body) : null}
+          muted={notice === 'refused'}
+          busy={notice === 'starting'}
+          error={failed ? t('videoActionError') : null}
+        >
+          {notice === 'choice' && (
+            <div className={css({ display: 'flex', gap: '0.5rem' })}>
+              {(['refused', 'accepted'] as const).map((choice) => (
+                <Button
+                  key={choice}
+                  size="sm"
+                  variant={
+                    choice === primaryChoice(video.decision)
+                      ? 'default'
+                      : 'outline'
+                  }
+                  aria-pressed={video.decision === choice}
+                  isDisabled={locked || pending !== null}
+                  loading={pending === choice}
+                  onPress={() => act(choice)}
+                >
+                  {t(choice === 'accepted' ? 'videoYes' : 'videoNo')}
+                </Button>
+              ))}
+            </div>
+          )}
+        </RecordingNoticeCard>
+      )}
+    </>
   )
 }
+
+type Notice = 'starting' | 'choice' | 'refused' | 'pending'
+
+/** One notice at a time, the most urgent first. */
+const recordingNotice = (state: {
+  showStarting: boolean
+  showParticipantChoice: boolean
+  showRefused: boolean
+  showHostPending: boolean
+}): Notice | null => {
+  if (state.showStarting) return 'starting'
+  if (state.showParticipantChoice) return 'choice'
+  if (state.showRefused) return 'refused'
+  if (state.showHostPending) return 'pending'
+  return null
+}
+
+type Decision = VideoRecordingPolicy['decision']
+
+const CHOICE_TITLES: Record<Decision, string> = {
+  absent: 'videoQuestion',
+  accepted: 'videoAccepted',
+  refused: 'videoDeclined',
+}
+
+const NOTICE_COPY: Record<
+  Notice,
+  { title: (decision: Decision) => string; body: string | null }
+> = {
+  starting: { title: () => 'starting', body: null },
+  choice: {
+    title: (decision) => CHOICE_TITLES[decision],
+    body: 'videoQuestionBody',
+  },
+  refused: { title: () => 'videoRefused', body: 'videoRefusedBody' },
+  pending: { title: () => 'videoPending', body: 'videoPendingBody' },
+}
+
+/** The participant's answer stands out; Accept leads before any answer. */
+const primaryChoice = (decision: Decision) =>
+  decision === 'refused' ? 'refused' : 'accepted'
+
+/** Floating card centred above the call controls. */
+const RecordingNoticeCard = ({
+  title,
+  body,
+  muted,
+  busy,
+  error,
+  children,
+}: {
+  title: string | null
+  body: string | null
+  muted: boolean
+  busy: boolean
+  error: string | null
+  children?: ReactNode
+}) => (
+  <section
+    className={css({
+      position: 'absolute',
+      bottom: 'calc(100% + 0.5rem)',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      zIndex: 10,
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: '0.75rem',
+      width: 'min(32rem, calc(100vw - 2rem))',
+      padding: '0.75rem 0.875rem',
+      border: '1px solid token(colors.border)',
+      borderRadius: '14px',
+      backgroundColor: 'card',
+      boxShadow: '0 18px 40px -20px rgb(8 20 46 / 0.45)',
+      textAlign: 'left',
+    })}
+  >
+    <img
+      src="/assets/illustrations/section-video.webp"
+      alt=""
+      width={40}
+      height={40}
+      className={css({
+        flexShrink: 0,
+        ...(muted && { filter: 'grayscale(1)', opacity: 0.5 }),
+      })}
+    />
+    <div className={css({ flex: '1 1 14rem', minWidth: 0 })}>
+      {title && (
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          })}
+        >
+          <p
+            role="status"
+            className={css({
+              margin: 0,
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: 'foreground',
+            })}
+          >
+            {title}
+          </p>
+          {busy && <Spinner size={14} />}
+        </div>
+      )}
+      {body && (
+        <p
+          className={css({
+            margin: '0.125rem 0 0',
+            fontSize: '0.75rem',
+            lineHeight: 1.45,
+            color: 'muted-foreground',
+          })}
+        >
+          {body}
+        </p>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className={css({
+            margin: '0.25rem 0 0',
+            fontSize: '0.75rem',
+            color: 'danger',
+          })}
+        >
+          {error}
+        </p>
+      )}
+    </div>
+    {children}
+  </section>
+)
