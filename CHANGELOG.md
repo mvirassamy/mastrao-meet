@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-11: Dispatch each retained native audio source to ASR immediately
+  after its durable receipt, while keeping bounded reconciliation for recovery.
+
 - 2026-10-11: Show the running recording badge at the left end of the call
   controls on wide screens, keeping the record button among the controls.
 

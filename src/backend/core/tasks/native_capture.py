@@ -26,11 +26,11 @@ def process_native_sources():
 
 
 @task(name="core.process_native_asr", queue="mastrao-transcription")
-def process_native_asr():
-    """Process the next durable native source awaiting ASR delivery."""
+def process_native_asr(capture_start_id=None, dispatch_ref=None):
+    """Process the exact source named by its current dispatch reservation."""
 
     from core.mastrao_native_asr_worker import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-        process_next_native_asr,
+        process_native_asr_source,
     )
 
-    return process_next_native_asr()
+    return process_native_asr_source(capture_start_id, dispatch_ref)
