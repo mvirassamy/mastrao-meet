@@ -1,5 +1,11 @@
 # Changelog
 
+- 2026-10-11: Add bounded KEDA PostgreSQL scaling contracts for the separate
+  ready and retry native ASR worker lanes using aggregate depth and oldest due
+  age, with active lease counts exposed for observation. Scaling is disabled
+  until the cluster operator and read-only database authentication are
+  installed.
+
 - 2026-10-11: Route fresh and retrying native ASR work through separate
   bounded worker lanes so neither new meetings nor due recovery work can
   starve under sustained load.

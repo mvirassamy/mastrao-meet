@@ -8,7 +8,7 @@ from threading import Barrier, Lock
 from unittest.mock import patch
 from uuid import uuid4
 
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections, connection, transaction
 from django.utils import timezone
 
 import pytest
@@ -563,6 +563,160 @@ def test_scheduler_preserves_meeting_slot_for_due_retry(asr_intent, settings):
     assert reservation[0] == waiting_retry.pk
     asr_intent.refresh_from_db()
     assert asr_intent.asr_dispatch_ref is None
+
+
+def queue_metrics():
+    assert connection.vendor == "postgresql"
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM meet_mastrao_native_asr_queue_metrics")
+        assert [column.name for column in cursor.description] == [
+            "lane",
+            "pending_count",
+            "oldest_due_age_seconds",
+            "active_count",
+        ]
+        return {lane: (pending, age, active) for lane, pending, age, active in cursor}
+
+
+def test_queue_metrics_view_counts_queued_and_active_demand(asr_intent):
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT NOW()")
+            now = cursor.fetchone()[0]
+        models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+            asr_next_at=now - timedelta(seconds=90)
+        )
+        assert queue_metrics() == {"ready": (1, 90, 0), "retry": (0, 0, 0)}
+
+        dispatch = _reserve_dispatch(asr_intent.pk)
+        assert queue_metrics() == {"ready": (1, 90, 1), "retry": (0, 0, 0)}
+
+        claimed = _claim(*dispatch)
+        assert claimed is not None
+        assert queue_metrics() == {"ready": (1, 90, 1), "retry": (0, 0, 0)}
+
+        models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+            asr_claim_until=now - timedelta(seconds=1)
+        )
+        assert queue_metrics() == {"ready": (0, 0, 0), "retry": (1, 90, 0)}
+
+        retry_dispatch = _reserve_dispatch(asr_intent.pk)
+        assert retry_dispatch is not None
+        assert queue_metrics() == {"ready": (0, 0, 0), "retry": (1, 90, 1)}
+        retried = _claim(*retry_dispatch)
+        assert retried is not None
+        assert _finish(retried, False)
+        assert queue_metrics() == {"ready": (0, 0, 0), "retry": (0, 0, 0)}
+        models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+            asr_next_at=now - timedelta(seconds=30)
+        )
+        assert queue_metrics() == {"ready": (0, 0, 0), "retry": (1, 30, 0)}
+
+
+def test_queue_metrics_view_aggregates_oldest_due_age_per_lane(asr_intent):
+    younger = add_asr_source(asr_intent)
+    retry = add_asr_source(asr_intent)
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT NOW()")
+            now = cursor.fetchone()[0]
+        models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+            asr_next_at=now - timedelta(seconds=120)
+        )
+        models.MastraoNativeCaptureStart.objects.filter(pk=younger.pk).update(
+            asr_next_at=now - timedelta(seconds=15)
+        )
+        models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+            asr_next_at=now - timedelta(seconds=180),
+            asr_error="native_asr_delivery_failed",
+        )
+        assert queue_metrics() == {"ready": (2, 120, 0), "retry": (1, 180, 0)}
+
+        assert _reserve_dispatch(asr_intent.pk)
+        assert _reserve_dispatch(retry.pk)
+        assert queue_metrics() == {"ready": (2, 120, 1), "retry": (1, 180, 1)}
+        models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+            asr_claim_until=now + timedelta(seconds=180)
+        )
+        assert queue_metrics() == {"ready": (2, 120, 1), "retry": (1, 180, 1)}
+        models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+            asr_dispatch_until=now - timedelta(seconds=1)
+        )
+        assert queue_metrics() == {"ready": (2, 120, 0), "retry": (1, 180, 1)}
+        models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+            asr_dispatch_until=now - timedelta(seconds=1),
+            asr_claim_until=now - timedelta(seconds=1),
+        )
+        assert queue_metrics() == {"ready": (2, 120, 0), "retry": (1, 180, 0)}
+
+
+@pytest.mark.parametrize(
+    "retry_state",
+    [
+        {"asr_attempts": 1},
+        {"asr_error": "native_asr_delivery_failed"},
+        {"asr_receipt": {}},
+    ],
+)
+def test_queue_metrics_view_classifies_unleased_retries(asr_intent, retry_state):
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        **retry_state
+    )
+    metrics = queue_metrics()
+    assert metrics["ready"] == (0, 0, 0)
+    pending, age, active = metrics["retry"]
+    assert pending == 1
+    assert age >= 0
+    assert active == 0
+
+
+def test_queue_metrics_view_keeps_final_active_attempt_visible(asr_intent):
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_attempts=8,
+        asr_claim_until=timezone.now() + timedelta(seconds=180),
+        asr_dispatch_queue="mastrao-native-asr-retry",
+    )
+
+    pending, _, active = queue_metrics()["retry"]
+    assert pending == 1
+    assert active == 1
+
+
+@pytest.mark.parametrize(
+    "excluded_state",
+    [
+        {"source_receipt": None},
+        {"asr_acknowledged": True},
+        {"asr_attempts": 8},
+        {"asr_next_at": timezone.now() + timedelta(hours=1)},
+        {"retention_expires_at": timezone.now() - timedelta(seconds=1)},
+    ],
+)
+@pytest.mark.parametrize("retry", [False, True])
+def test_queue_metrics_view_excludes_ineligible_demand(
+    asr_intent, excluded_state, retry
+):
+    if retry:
+        models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+            asr_error="native_asr_delivery_failed"
+        )
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        **excluded_state
+    )
+    assert queue_metrics() == {"ready": (0, 0, 0), "retry": (0, 0, 0)}
+
+
+@pytest.mark.parametrize("boundary", ["conflict", "uncorrelated"])
+def test_queue_metrics_view_excludes_unverified_epochs(asr_intent, boundary):
+    if boundary == "conflict":
+        models.MastraoRtcTrackEpoch.objects.filter(pk=asr_intent.epoch_id).update(
+            conflict=True
+        )
+    else:
+        models.MastraoRtcConnection.objects.filter(
+            pk=asr_intent.epoch.connection_id
+        ).update(correlation="pending")
+    assert queue_metrics() == {"ready": (0, 0, 0), "retry": (0, 0, 0)}
 
 
 def test_sustained_ready_backlog_still_dispatches_retry(asr_intent, settings):

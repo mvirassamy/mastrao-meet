@@ -1,0 +1,62 @@
+{{- if .Values.celeryMastraoTranscription.enabled }}
+{{- $root := . }}
+{{- range $worker := list
+  (dict "lane" "ready" "values" .Values.celeryMastraoNativeAsrReady)
+  (dict "lane" "retry" "values" .Values.celeryMastraoNativeAsrRetry)
+}}
+{{- $autoscaling := $worker.values.autoscaling }}
+{{- if $autoscaling.enabled }}
+{{- if or (lt (int $autoscaling.minReplicas) 1) (lt (int $autoscaling.maxReplicas) (int $autoscaling.minReplicas)) }}
+{{- fail "native ASR KEDA autoscaling requires minReplicas >= 1 and maxReplicas >= minReplicas" }}
+{{- end }}
+{{- if or (lt (int $autoscaling.pollingInterval) 1) (lt (int $autoscaling.scaleDownStabilizationWindowSeconds) 1) }}
+{{- fail "native ASR KEDA autoscaling requires positive polling and scale-down stabilization values" }}
+{{- end }}
+{{- if not $autoscaling.triggerAuthenticationName }}
+{{- fail "native ASR KEDA autoscaling requires an existing TriggerAuthentication with a read-only PostgreSQL connection" }}
+{{- end }}
+{{- $component := printf "celery-mastrao-native-asr-%s" $worker.lane }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "meet.fullname" $root }}-{{ $component }}
+  namespace: {{ $root.Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list $root $component) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "meet.fullname" $root }}-{{ $component }}
+  minReplicaCount: {{ $autoscaling.minReplicas }}
+  maxReplicaCount: {{ $autoscaling.maxReplicas }}
+  pollingInterval: {{ $autoscaling.pollingInterval }}
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: {{ $autoscaling.scaleDownStabilizationWindowSeconds }}
+  triggers:
+    - type: postgresql
+      authenticationRef:
+        name: {{ $autoscaling.triggerAuthenticationName }}
+      metadata:
+        query: >-
+          SELECT pending_count
+          FROM meet_mastrao_native_asr_queue_metrics
+          WHERE lane = {{ printf "'%s'" .lane }}
+        targetQueryValue: "1"
+        activationTargetQueryValue: "0"
+    - type: postgresql
+      authenticationRef:
+        name: {{ $autoscaling.triggerAuthenticationName }}
+      metadata:
+        query: >-
+          SELECT oldest_due_age_seconds
+          FROM meet_mastrao_native_asr_queue_metrics
+          WHERE lane = {{ printf "'%s'" .lane }}
+        targetQueryValue: "30"
+        activationTargetQueryValue: "0"
+{{- end }}
+{{- end }}
+{{- end }}
