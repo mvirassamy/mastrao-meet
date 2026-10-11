@@ -39,8 +39,10 @@ import { VideoConference } from '@/features/rooms/livekit/prefabs/VideoConferenc
 import { userChoicesStore } from '@/stores/userChoices'
 import { useWatchDeviceAvailability } from '@/features/rooms/hooks/useWatchDeviceAvailability'
 import {
+  previewIsRecordingHost,
   previewRoom,
   previewRoomId,
+  previewRoomRecording,
   previewScenario,
   previewUser,
 } from './previewFixtures'
@@ -139,21 +141,8 @@ const PreviewRoom = () => {
           >
             <VideoConference
               roomId={previewRoomId}
-              canEnd={previewScenario.startsWith('recording-')}
-              recording={
-                previewScenario.startsWith('recording-')
-                  ? {
-                      mode: 'recorded',
-                      decision: 'accepted',
-                      recording_state:
-                        previewScenario === 'recording-starting'
-                          ? 'starting'
-                          : previewScenario === 'recording-stopping'
-                            ? 'stopping'
-                            : 'active',
-                    }
-                  : { mode: 'disabled' }
-              }
+              canEnd={previewIsRecordingHost}
+              recording={previewRoomRecording(previewScenario)}
             />
           </LiveKitRoom>
         </Route>

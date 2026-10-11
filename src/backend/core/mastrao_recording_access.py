@@ -1,5 +1,6 @@
 """No-URL-secret browser bootstrap for one finalized recording artifact."""
 
+import base64
 import hashlib
 import html
 import logging
@@ -29,21 +30,87 @@ from core.mastrao_recording_contract import (
 MAX_BODY_BYTES = 20_000
 RETRY_COOKIE = "mastrao_recording_retry"
 RETRY_COOKIE_PATH = "/recordings/"
+# Readable by the waiting page: tells it that the file download has started.
+STARTED_COOKIE = "mastrao_recording_started"
+MEETING_HISTORY_PATH = "/reunions/historique"
 SESSION_KEY = "mastrao_recording_download"
 logger = logging.getLogger(__name__)
 
+# Watercolor card shared by every page of the download, allowed by its hash.
+PAGE_STYLE = """*{box-sizing:border-box}
+body{margin:0;background:#edf2ff url(/assets/home/aquarelle.webp) center/cover;color:#3d485e;
+font-family:"Inter Variable",Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+main{min-height:100vh;display:grid;place-items:center;padding:24px}
+[hidden]{display:none!important}
+.card{width:min(440px,100%);padding:30px;border-radius:16px;text-align:center;
+background:rgba(255,255,255,.96);box-shadow:0 24px 60px -30px rgba(8,20,46,.45)}
+.brand{display:flex;justify-content:center;align-items:center;gap:8px;
+margin-bottom:14px;color:#08142e;font-size:17px;font-weight:600}
+.brand img{width:26px;height:auto}
+.camera{width:76px;height:76px;margin-bottom:8px}
+[data-muted] .camera{filter:grayscale(1);opacity:.45}
+h1{margin:0;color:#08142e;font-size:21px;font-weight:600}
+p{margin:8px 0 0;font-size:14.5px;line-height:1.55}
+.note{display:flex;justify-content:center;align-items:center;gap:10px;
+margin-top:18px;padding:10px 12px;border-radius:10px;background:#f5f7fb;font-size:13.5px}
+.badge{display:grid;place-items:center;width:18px;height:18px;flex:none;
+border-radius:50%;color:#fff;font-size:11px;font-weight:700}
+.ok{background:#1d7a4f}.refused{background:#a3262f}
+.spinner{width:18px;height:18px;flex:none;border-radius:50%;
+border:2.5px solid rgba(45,91,227,.22);border-top-color:#2d5be3;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+.button{display:inline-flex;align-items:center;height:38px;margin-top:18px;padding:0 16px;
+border:1px solid #d7dfe9;border-radius:10px;background:#fff;color:#2d5be3;
+font-weight:500;text-decoration:none}"""
+PAGE_STYLE_SOURCE = (
+    "'sha256-"
+    + base64.b64encode(hashlib.sha256(PAGE_STYLE.encode()).digest()).decode()
+    + "'"
+)
 
-def _html_page(title, message, *, status=200):
-    markup = f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
-<meta name="referrer" content="no-referrer"><title>{html.escape(title)}</title></head>
-<body><main><h1>{html.escape(title)}</h1>
-<p role="status" aria-live="polite">{html.escape(message)}</p></main></body></html>"""
+
+def _card(*, title, message, note, action="", attributes=""):
+    """One watercolor card; its content is fixed French copy, never user data."""
+    return f"""<section class="card"{attributes}>
+<div class="brand"><img src="/assets/mastrao-logo.png" alt="">Mastrao</div>
+<img class="camera" src="/assets/illustrations/section-video.webp" alt="">
+<h1>{title}</h1><p>{message}</p><p class="note">{note}</p>{action}</section>"""
+
+
+def _page(title, body):
+    return f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title><style>{PAGE_STYLE}</style></head>
+<body>{body}</body></html>"""
+
+
+def _unavailable_page(status):
+    markup = _page(
+        "Vidéo indisponible",
+        '<main role="status" aria-live="polite">'
+        + _card(
+            title="Vidéo indisponible",
+            message="Cette vidéo ne peut pas être téléchargée pour le moment. "
+            "Relancez le téléchargement depuis l’historique de la réunion.",
+            note='<span class="badge refused">!</span>'
+            "Aucun fichier n’a été téléchargé.",
+            action=f'<a class="button" href="{MEETING_HISTORY_PATH}">'
+            "Retour à l’historique</a>",
+            attributes=" data-muted",
+        )
+        + "</main>",
+    )
     response = HttpResponse(
         markup, status=status, content_type="text/html; charset=utf-8"
     )
     for name, value in _headers().items():
         response[name] = value
-    response["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    response["Content-Security-Policy"] = (
+        f"default-src 'none'; style-src {PAGE_STYLE_SOURCE}; img-src 'self'; "
+        "frame-ancestors 'none'"
+    )
     return response
 
 
@@ -116,22 +183,50 @@ def _bootstrap(request):
         timeout=remaining,
     )
     nonce = secrets.token_urlsafe(18)
-    markup = f"""<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\">
-<meta name=\"referrer\" content=\"no-referrer\"><title>Vérification de l’enregistrement</title></head>
-<body><main><h1>Préparation du téléchargement</h1>
-<p role=\"status\" aria-live=\"polite\">Vérification de l’intégrité de l’enregistrement…</p></main>
-<form id=\"continue\" method=\"post\" action=\"/recordings/access/\">
-<input type=\"hidden\" name=\"stage\" value=\"consume\">
-<input type=\"hidden\" name=\"recording_access_grant\" value=\"{html.escape(compact, quote=True)}\">
-<noscript><button type=\"submit\">Continue</button></noscript></form>
-<script nonce=\"{nonce}\">document.getElementById('continue').submit()</script></body></html>"""
+    # The page stays displayed once the file starts downloading, so its script
+    # switches to the started card when the download response sets its cookie.
+    markup = _page(
+        "Préparation de votre vidéo",
+        '<main role="status" aria-live="polite">'
+        + _card(
+            attributes=' id="preparing"',
+            title="Préparation de votre vidéo",
+            message="Nous vérifions votre accès et l’intégrité du fichier. "
+            "Le téléchargement démarre tout seul.",
+            note='<span class="spinner"></span>'
+            "Vérification de l’intégrité de la vidéo…",
+        )
+        + _card(
+            attributes=' id="started" hidden',
+            title="Le téléchargement a démarré",
+            message="Retrouvez la vidéo dans les téléchargements de votre "
+            "navigateur. Vous pouvez fermer cet onglet.",
+            note='<span class="badge ok">✓</span>Fichier MP4',
+        )
+        + f"""</main>
+<form id="continue" method="post" action="/recordings/access/">
+<input type="hidden" name="stage" value="consume">
+<input type="hidden" name="recording_access_grant" value="{html.escape(compact, quote=True)}">
+<noscript><button type="submit">Continuer</button></noscript></form>
+<script nonce="{nonce}">
+document.getElementById('continue').submit()
+const watch = setInterval(() => {{
+  if (!document.cookie.split('; ').includes('{STARTED_COOKIE}=1')) return
+  clearInterval(watch)
+  document.getElementById('preparing').hidden = true
+  document.getElementById('started').hidden = false
+}}, 500)
+</script>""",
+    )
     response = HttpResponse(markup, content_type="text/html; charset=utf-8")
     for name, value in _headers().items():
         response[name] = value
     response["Content-Security-Policy"] = (
         "default-src 'none'; form-action 'self'; "
-        f"script-src 'nonce-{nonce}'; base-uri 'none'; frame-ancestors 'none'"
+        f"script-src 'nonce-{nonce}'; style-src {PAGE_STYLE_SOURCE}; "
+        "img-src 'self'; base-uri 'none'; frame-ancestors 'none'"
     )
+    response.delete_cookie(STARTED_COOKIE, path=RETRY_COOKIE_PATH)
     response.set_cookie(
         RETRY_COOKIE,
         retry,
@@ -240,11 +335,7 @@ def recording_access(request):
         settings.MASTRAO_MEETING_RECORDING_ENABLED
         and settings.MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED
     ):
-        return _html_page(
-            "Enregistrement indisponible",
-            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
-            status=404,
-        )
+        return _unavailable_page(404)
     try:
         fields = _bounded_post(request)
         if set(fields) == {"recording_access_grant"}:
@@ -253,11 +344,7 @@ def recording_access(request):
             return _consume(request)
         raise RecordingContractRefused()
     except RecordingContractRefused as error:
-        return _html_page(
-            "Enregistrement indisponible",
-            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
-            status=error.status,
-        )
+        return _unavailable_page(error.status)
 
 
 def _download_session(request):
@@ -358,6 +445,14 @@ def _stream_once(request, session, retry_digest):
         response["Content-Security-Policy"] = (
             "default-src 'none'; frame-ancestors 'none'"
         )
+        response.set_cookie(
+            STARTED_COOKIE,
+            "1",
+            max_age=60,
+            secure=request.is_secure(),
+            samesite="Lax",
+            path=RETRY_COOKIE_PATH,
+        )
         return response
 
 
@@ -382,10 +477,6 @@ def recording_download(request):
         return _stream_once(request, session, retry_digest)
     except RecordingContractRefused:
         request.session.pop(SESSION_KEY, None)
-        response = _html_page(
-            "Enregistrement indisponible",
-            "Fermez cet onglet puis réessayez depuis votre dossier Mastrao.",
-            status=404,
-        )
+        response = _unavailable_page(404)
         response.delete_cookie(RETRY_COOKIE, path=RETRY_COOKIE_PATH)
         return response

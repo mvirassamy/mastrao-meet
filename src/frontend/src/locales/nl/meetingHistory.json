@@ -153,8 +153,8 @@
   },
   "untitled": "Vergadering zonder titel",
   "recording": {
-    "title": "Opname",
-    "open": "Video openen (nieuw tabblad)",
+    "title": "Video",
+    "open": "Downloaden",
     "retainedUntil": "Bewaard tot {{date}}",
     "accessUnavailable": "Toegang tot de video is momenteel niet beschikbaar."
   }

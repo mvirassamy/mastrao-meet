@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-11: Show meeting videos like summaries and transcripts in the
+  history (3D camera, Vidéo card, Télécharger button), style the download
+  pages on the Mastrao watercolor card, and show the video states in the
+  local preview.
+
 - 2026-10-11: Show retained video status in meeting history and let authorized
   users open it through a short-lived Platform access grant.
 

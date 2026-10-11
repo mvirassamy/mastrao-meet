@@ -1,11 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import {
-  CheckCircleIcon,
-  ErrorIcon,
-  MinusCircleIcon,
-  TimeIcon,
-  VideoIcon,
-} from '@/icons'
+import { CheckCircleIcon, ErrorIcon, MinusCircleIcon, TimeIcon } from '@/icons'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
 import type { MeetingRecordingStatus } from '../api/types'
@@ -22,7 +16,7 @@ const recordingTone = (status: MeetingRecordingStatus) => {
       return { Icon: ErrorIcon, color: STATUS_COLORS.failed }
     case 'expired':
     case 'absent':
-      return { Icon: MinusCircleIcon, color: STATUS_COLORS.absent }
+      return { Icon: MinusCircleIcon, color: STATUS_COLORS.absent, muted: true }
   }
 }
 
@@ -33,7 +27,7 @@ export const MeetingRecordingStatusIcon = ({
   status: MeetingRecordingStatus
 }) => {
   const { t } = useTranslation('meetingHistory')
-  const { Icon, color } = recordingTone(status)
+  const { Icon, color, muted } = recordingTone(status)
   return (
     <VisualOnlyTooltip tooltip={t(`status.recording.${status}`)}>
       <span
@@ -41,15 +35,23 @@ export const MeetingRecordingStatusIcon = ({
         data-recording-status={status}
         className={css({
           position: 'relative',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: 'block',
           width: '34px',
           height: '34px',
-          color: 'muted-foreground',
         })}
       >
-        <VideoIcon size={26} />
+        <img
+          src="/assets/illustrations/section-video.webp"
+          alt=""
+          width={34}
+          height={34}
+          decoding="async"
+          className={css({
+            display: 'block',
+            userSelect: 'none',
+            ...(muted && { filter: 'grayscale(1)', opacity: 0.4 }),
+          })}
+        />
         <Icon
           size={14}
           style={{ color }}
