@@ -398,7 +398,9 @@ def test_retry_capacity_reserves_one_ready_slot_and_routes_lanes(asr_intent, set
 
 
 def test_retry_capacity_preserves_fresh_slot_in_same_tenant(asr_intent, settings):
+    settings.MASTRAO_NATIVE_ASR_GLOBAL_LIMIT = 4
     settings.MASTRAO_NATIVE_ASR_TENANT_LIMIT = 3
+    settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT = 3
     retries = [add_asr_source(asr_intent, new_meeting=True) for _ in range(3)]
     models.MastraoNativeCaptureStart.objects.filter(
         pk__in=[source.pk for source in retries]
@@ -411,7 +413,9 @@ def test_retry_capacity_preserves_fresh_slot_in_same_tenant(asr_intent, settings
 
 
 def test_late_retry_cannot_claim_tenant_fresh_slot(asr_intent, settings):
+    settings.MASTRAO_NATIVE_ASR_GLOBAL_LIMIT = 4
     settings.MASTRAO_NATIVE_ASR_TENANT_LIMIT = 3
+    settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT = 3
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
         asr_error="native_asr_delivery_failed"
     )
@@ -429,7 +433,7 @@ def test_late_retry_cannot_claim_tenant_fresh_slot(asr_intent, settings):
     assert _reserve_dispatch(fresh.pk)
 
 
-def test_scheduler_prefers_ready_and_reports_only_aggregate_backlog(
+def test_scheduler_prefers_due_retry_and_reports_only_aggregate_backlog(
     asr_intent, settings
 ):
     settings.CELERY_ENABLED = True
@@ -455,7 +459,110 @@ def test_scheduler_prefers_ready_and_reports_only_aggregate_backlog(
     }
     with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
         assert schedule_native_asr(limit=1) == 1
+    assert publish.call_args.kwargs["args"][0] == str(retry.pk)
+
+
+def test_exact_fresh_dispatch_does_not_select_due_retry(asr_intent, settings):
+    settings.CELERY_ENABLED = True
+    retry = add_asr_source(asr_intent, new_meeting=True, tenant="retry-tenant")
+    models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+        asr_error="native_asr_delivery_failed"
+    )
+    with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
+        assert dispatch_native_asr(asr_intent.pk)
+    publish.assert_called_once()
     assert publish.call_args.kwargs["args"][0] == str(asr_intent.pk)
+    assert publish.call_args.kwargs["queue"] == "mastrao-native-asr-ready"
+    retry.refresh_from_db()
+    assert retry.asr_dispatch_ref is None
+
+
+def test_exact_fresh_dispatch_preserves_global_retry_slot(asr_intent, settings):
+    retry = add_asr_source(asr_intent, new_meeting=True, tenant="retry-tenant")
+    models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+        asr_error="native_asr_delivery_failed"
+    )
+    fresh = [
+        add_asr_source(asr_intent, new_meeting=True, tenant=f"fresh-{index}")
+        for index in range(settings.MASTRAO_NATIVE_ASR_GLOBAL_LIMIT)
+    ]
+
+    for source in fresh[:-1]:
+        assert _reserve_dispatch(source.pk)
+    assert _reserve_dispatch(fresh[-1].pk) is None
+    reservation = _reserve_dispatch()
+    assert reservation is not None
+    assert reservation[0] == retry.pk
+
+
+def test_exact_fresh_dispatch_preserves_tenant_retry_slot(asr_intent, settings):
+    settings.MASTRAO_NATIVE_ASR_GLOBAL_LIMIT = 4
+    settings.MASTRAO_NATIVE_ASR_TENANT_LIMIT = 3
+    settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT = 3
+    retry = add_asr_source(asr_intent, new_meeting=True)
+    models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+        asr_error="native_asr_delivery_failed"
+    )
+    fresh = [add_asr_source(asr_intent, new_meeting=True) for _ in range(3)]
+
+    for source in fresh[:-1]:
+        assert _reserve_dispatch(source.pk)
+    assert _reserve_dispatch(fresh[-1].pk) is None
+    reservation = _reserve_dispatch()
+    assert reservation is not None
+    assert reservation[0] == retry.pk
+
+
+def test_exact_fresh_dispatch_preserves_meeting_retry_slot(asr_intent, settings):
+    settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT = 2
+    retry = add_asr_source(asr_intent)
+    models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+        asr_error="native_asr_delivery_failed"
+    )
+    fresh = [asr_intent, add_asr_source(asr_intent)]
+
+    assert _reserve_dispatch(fresh[0].pk)
+    assert _reserve_dispatch(fresh[1].pk) is None
+    reservation = _reserve_dispatch()
+    assert reservation is not None
+    assert reservation[0] == retry.pk
+
+
+def test_meeting_retry_does_not_block_fresh_when_tenant_retry_lane_is_full(
+    asr_intent, settings
+):
+    settings.MASTRAO_NATIVE_ASR_GLOBAL_LIMIT = 4
+    settings.MASTRAO_NATIVE_ASR_TENANT_LIMIT = 2
+    settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT = 1
+    active_retry = add_asr_source(asr_intent, new_meeting=True)
+    waiting_retry = add_asr_source(asr_intent)
+    eligible_retry = add_asr_source(asr_intent, new_meeting=True, tenant="other-tenant")
+    models.MastraoNativeCaptureStart.objects.filter(
+        pk__in=[active_retry.pk, waiting_retry.pk, eligible_retry.pk]
+    ).update(asr_error="native_asr_delivery_failed")
+
+    assert _reserve_dispatch(active_retry.pk)
+    assert _reserve_dispatch(asr_intent.pk)
+    waiting_retry.refresh_from_db()
+    assert waiting_retry.asr_dispatch_ref is None
+
+
+def test_scheduler_preserves_meeting_slot_for_due_retry(asr_intent, settings):
+    settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT = 2
+    occupied = add_asr_source(asr_intent)
+    active_retry = add_asr_source(asr_intent, new_meeting=True)
+    waiting_retry = add_asr_source(asr_intent)
+    models.MastraoNativeCaptureStart.objects.filter(
+        pk__in=[active_retry.pk, waiting_retry.pk]
+    ).update(asr_error="native_asr_delivery_failed")
+
+    assert _reserve_dispatch(occupied.pk)
+    assert _reserve_dispatch(active_retry.pk)
+    reservation = _reserve_dispatch()
+    assert reservation is not None
+    assert reservation[0] == waiting_retry.pk
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_dispatch_ref is None
 
 
 def test_sustained_ready_backlog_still_dispatches_retry(asr_intent, settings):
@@ -468,12 +575,39 @@ def test_sustained_ready_backlog_still_dispatches_retry(asr_intent, settings):
     with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
         assert schedule_native_asr(limit=3) == 3
     assert [call.kwargs["queue"] for call in publish.call_args_list] == [
-        "mastrao-native-asr-ready",
         "mastrao-native-asr-retry",
+        "mastrao-native-asr-ready",
         "mastrao-native-asr-ready",
     ]
     retry.refresh_from_db()
     assert retry.asr_dispatch_queue == "mastrao-native-asr-retry"
+
+
+def test_due_retry_not_starved_when_workers_finish_between_passes(asr_intent, settings):
+    settings.CELERY_ENABLED = True
+    retry = add_asr_source(asr_intent, new_meeting=True, tenant="retry-tenant")
+    models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
+        asr_error="native_asr_delivery_failed"
+    )
+    for _ in range(3):
+        add_asr_source(asr_intent, new_meeting=True)
+    dispatched_ids = []
+    with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
+        for _ in range(3):
+            metrics = native_asr_dispatch_metrics()
+            assert metrics["active_count"] == 0
+            assert metrics["ready_count"] >= 2
+            assert schedule_native_asr(limit=1) == 1
+            dispatch = publish.call_args.kwargs["args"]
+            dispatched_ids.append(dispatch[0])
+            assert _finish(_claim(*dispatch), True)
+
+    assert dispatched_ids[0] == str(retry.pk)
+    assert [call.kwargs["queue"] for call in publish.call_args_list] == [
+        "mastrao-native-asr-retry",
+        "mastrao-native-asr-ready",
+        "mastrao-native-asr-ready",
+    ]
 
 
 def test_provider_retry_after_precedes_local_backoff(asr_intent):

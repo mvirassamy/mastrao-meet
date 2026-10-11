@@ -310,6 +310,45 @@ def _first_with_capacity(candidates, tenants, meetings, retry_tenants=None):
     return None
 
 
+def _fresh_would_starve_retry(
+    ready, dispatchable, capacity_counts, retry_counts, global_limit
+):
+    active_count, tenants, meetings = capacity_counts
+    active_retries, retry_tenants = retry_counts
+    tenant = ready.organization_external_id
+    meeting = ready.epoch.connection.room_binding.meeting_ref
+    if active_retries == 0 and active_count >= global_limit - 1:
+        return True
+    if (
+        retry_tenants.get(tenant, 0) == 0
+        and tenants.get(tenant, 0) >= settings.MASTRAO_NATIVE_ASR_TENANT_LIMIT - 1
+    ):
+        tenant_retry = _first_with_capacity(
+            dispatchable.filter(_retrying(), organization_external_id=tenant),
+            tenants,
+            meetings,
+            retry_tenants,
+        )
+        if tenant_retry is not None:
+            return True
+    if (
+        meetings.get((tenant, meeting), 0)
+        >= settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT - 1
+    ):
+        meeting_retry = _first_with_capacity(
+            dispatchable.filter(
+                _retrying(),
+                organization_external_id=tenant,
+                epoch__connection__room_binding__meeting_ref=meeting,
+            ),
+            tenants,
+            meetings,
+            retry_tenants,
+        )
+        return meeting_retry is not None
+    return False
+
+
 @transaction.atomic
 def _reserve_dispatch(capture_start_id=None, exclude_ids=()):
     global_limit, _, _ = _capacity_limits()
@@ -320,20 +359,56 @@ def _reserve_dispatch(capture_start_id=None, exclude_ids=()):
     if active_count >= global_limit:
         return None
     active_retries, retry_tenants = _active_retry_counts(active)
-    candidates = _dispatchable(now).exclude(pk__in=exclude_ids)
+    dispatchable = _dispatchable(now).exclude(pk__in=exclude_ids)
+    backlog_retry = None
+    if active_retries < global_limit - 1:
+        backlog_retry = _first_with_capacity(
+            dispatchable.filter(_retrying()),
+            tenants,
+            meetings,
+            retry_tenants,
+        )
+    candidates = dispatchable
     if capture_start_id is not None:
         candidates = candidates.filter(pk=capture_start_id)
     candidates = candidates.order_by("asr_next_at", "pk")
     ready = _first_with_capacity(candidates.filter(~_retrying()), tenants, meetings)
-    retry = None
-    if active_retries < global_limit - 1:
+    retry = backlog_retry
+    if capture_start_id is not None and active_retries < global_limit - 1:
         retry = _first_with_capacity(
             candidates.filter(_retrying()),
             tenants,
             meetings,
             retry_tenants,
         )
-    if retry is not None and active_retries == 0 and active_count > 0:
+    if (
+        capture_start_id is not None
+        and ready is not None
+        and backlog_retry is not None
+        and _fresh_would_starve_retry(
+            ready,
+            dispatchable,
+            (active_count, tenants, meetings),
+            (active_retries, retry_tenants),
+            global_limit,
+        )
+    ):
+        return None
+    if (
+        capture_start_id is None
+        and ready is not None
+        and retry is not None
+        and backlog_retry is not None
+        and _fresh_would_starve_retry(
+            ready,
+            dispatchable,
+            (active_count, tenants, meetings),
+            (active_retries, retry_tenants),
+            global_limit,
+        )
+    ):
+        intent = retry
+    elif retry is not None and active_retries == 0:
         intent = retry
     else:
         intent = ready or retry

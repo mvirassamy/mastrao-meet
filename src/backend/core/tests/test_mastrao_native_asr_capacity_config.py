@@ -7,7 +7,8 @@ import pytest
 from core.mastrao_native_asr_worker import _capacity_limits
 
 
-def test_staging_capacity_defaults(settings):
+def test_staging_capacity_defaults():
+    """Use the bounded capacity configured for staging by default."""
     assert _capacity_limits() == (4, 4, 4)
 
 
@@ -18,6 +19,7 @@ def test_staging_capacity_defaults(settings):
 def test_incoherent_capacity_is_rejected(
     settings, global_limit, tenant_limit, meeting_limit
 ):
+    """Reject capacity limits that cannot preserve a fresh-work slot."""
     settings.MASTRAO_NATIVE_ASR_GLOBAL_LIMIT = global_limit
     settings.MASTRAO_NATIVE_ASR_TENANT_LIMIT = tenant_limit
     settings.MASTRAO_NATIVE_ASR_MEETING_LIMIT = meeting_limit
