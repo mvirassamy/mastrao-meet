@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-11: Show the running recording badge at the left end of the call
+  controls on wide screens, keeping the record button among the controls.
+
 - 2026-10-11: Show meeting videos like summaries and transcripts in the
   history (3D camera, Télécharger button beside the title), style the
   download pages on the Mastrao watercolor card, show recording agreement
