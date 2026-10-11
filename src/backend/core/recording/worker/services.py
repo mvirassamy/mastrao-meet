@@ -112,7 +112,7 @@ class VideoCompositeEgressService(BaseEgressService):
 
         if not self._config.recording_template_base_url:
             raise ImproperlyConfigured(
-                "APPLICATION_BASE_URL is required for video recordings."
+                "RECORDING_TEMPLATE_BASE_URL is required for video recordings."
             )
 
         # Save room's recording as a mp4 video file.
