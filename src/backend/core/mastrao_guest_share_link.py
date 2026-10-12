@@ -37,7 +37,6 @@ def consume_guest_share_link(request):
     try:
         if (
             not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
-            or request.user.is_authenticated
             or not _same_origin(request)
             or request.content_type != "application/json"
             or len(request.body) > 18_432

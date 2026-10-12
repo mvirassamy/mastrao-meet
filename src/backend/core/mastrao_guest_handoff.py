@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -167,6 +168,7 @@ def _commit_grant(request, grant, compact_grant):
     remaining = int(grant["expires_at"] - time.time())
     if remaining < 1:
         raise GuestHandoffRefused()
+    signed_in = request.user.is_authenticated
     binding = _binding_for(grant)
     existing = (
         models.MastraoGuestGrant.objects.select_for_update()
@@ -190,7 +192,8 @@ def _commit_grant(request, grant, compact_grant):
         request.session[SESSION_GRANT_REF_KEY] = existing.grant_ref
         request.session[SESSION_NONCE_KEY] = current_nonce
         request.session[SESSION_COMPACT_GRANT_KEY] = compact_grant
-        request.session.set_expiry(remaining)
+        if not signed_in:
+            request.session.set_expiry(remaining)
         _cache_compact_grant(existing, compact_grant)
         return existing, binding
     browser_guest_exists = (
@@ -227,7 +230,8 @@ def _commit_grant(request, grant, compact_grant):
     request.session[SESSION_GRANT_REF_KEY] = grant["grant_ref"]
     request.session[SESSION_NONCE_KEY] = current_nonce
     request.session[SESSION_COMPACT_GRANT_KEY] = compact_grant
-    request.session.set_expiry(remaining)
+    if not signed_in:
+        request.session.set_expiry(remaining)
     _cache_compact_grant(created, compact_grant)
     return created, binding
 
@@ -235,11 +239,11 @@ def _commit_grant(request, grant, compact_grant):
 @csrf_exempt
 @require_POST
 def establish_mastrao_guest_session(request):
-    """Establish a stable anonymous browser nonce before any Core mutation."""
+    """Establish a stable guest nonce without replacing a signed-in account."""
 
     headers = _safe_headers()
     try:
-        if request.user.is_authenticated or not _same_origin(request):
+        if not _same_origin(request):
             raise GuestHandoffRefused()
         if request.content_type != "application/json":
             raise GuestHandoffRefused()
@@ -286,8 +290,6 @@ def consume_mastrao_guest_invitation(request):
 
     headers = _safe_headers()
     try:
-        if request.user.is_authenticated:
-            raise GuestHandoffRefused()
         if not _same_origin(request) or request.content_type != "application/json":
             raise GuestHandoffRefused()
         declared = request.headers.get("content-length")
@@ -476,7 +478,7 @@ def guest_media_config(request, room, username, color, participant_id):
         guest,
         compact_digest(body["media_grant"]),
         room_id=str(room.id),
-        user=request.user,
+        user=AnonymousUser(),
         username=username,
         color=color,
         configuration=room.configuration,

@@ -20,6 +20,7 @@ import pytest
 from core import models
 from core.factories import RoomFactory, UserFactory
 from core.mastrao_guest_contract import GuestHandoffRefused
+from core.mastrao_guest_grant import active_guest_grant
 from core.mastrao_guest_handoff import guest_media_config
 from core.mastrao_host_grant import (
     SESSION_COMPACT_GRANTS_KEY,
@@ -326,9 +327,9 @@ def guest(binding):
     )
 
 
-def _guest_request(guest):
+def _guest_request(guest, *, authenticated=False):
     return SimpleNamespace(
-        user=AnonymousUser(),
+        user=UserFactory() if authenticated else AnonymousUser(),
         session={
             "mastrao_guest_session_nonce": "guest-fixture-nonce-" * 3,
             "mastrao_guest_grant_ref": guest.grant_ref,
@@ -337,8 +338,18 @@ def _guest_request(guest):
     )
 
 
+def test_exact_room_host_grant_takes_priority_over_guest_grant(host, guest):
+    request = _request(host)
+    request.session.update(_guest_request(guest).session)
+
+    assert active_guest_grant(request, guest.room_binding.room) is None
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
 @pytest.mark.parametrize("mismatch", ["none", "room", "rotated_session"])
-def test_guest_journal_requires_exact_verified_core_media_grant(guest, mismatch):
+def test_guest_journal_requires_exact_verified_core_media_grant(
+    guest, mismatch, authenticated
+):
     media = {
         name: getattr(guest, name)
         for name in (
@@ -386,7 +397,7 @@ def test_guest_journal_requires_exact_verified_core_media_grant(guest, mismatch)
         if mismatch != "none":
             with pytest.raises((GuestHandoffRefused, PermissionDenied)):
                 guest_media_config(
-                    _guest_request(guest),
+                    _guest_request(guest, authenticated=authenticated),
                     guest.room_binding.room,
                     "Martine",
                     "blue",
@@ -395,7 +406,7 @@ def test_guest_journal_requires_exact_verified_core_media_grant(guest, mismatch)
             assert not models.MastraoMediaTokenBinding.objects.exists()
             return
         result = guest_media_config(
-            _guest_request(guest),
+            _guest_request(guest, authenticated=authenticated),
             guest.room_binding.room,
             "Martine",
             "blue",
