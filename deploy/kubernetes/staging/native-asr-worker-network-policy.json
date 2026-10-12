@@ -1,0 +1,102 @@
+{
+  "apiVersion": "cilium.io/v2",
+  "kind": "CiliumNetworkPolicy",
+  "metadata": {
+    "name": "native-asr-workers-private-start",
+    "namespace": "mastrao-staging"
+  },
+  "spec": {
+    "endpointSelector": {
+      "matchExpressions": [
+        {
+          "key": "app.kubernetes.io/name",
+          "operator": "In",
+          "values": ["worker-native-asr-ready", "worker-native-asr-retry"]
+        }
+      ]
+    },
+    "ingress": [],
+    "egress": [
+      {
+        "toCIDR": ["172.16.8.8/32"],
+        "toPorts": [
+          {
+            "ports": [{"port": "5432", "protocol": "TCP"}]
+          }
+        ]
+      },
+      {
+        "toEndpoints": [
+          {
+            "matchLabels": {
+              "k8s:app.kubernetes.io/name": "redis-meet",
+              "k8s:io.kubernetes.pod.namespace": "mastrao-staging"
+            }
+          }
+        ],
+        "toPorts": [
+          {
+            "ports": [{"port": "6379", "protocol": "TCP"}]
+          }
+        ]
+      },
+      {
+        "toEndpoints": [
+          {
+            "matchLabels": {
+              "k8s:io.kubernetes.pod.namespace": "kube-system",
+              "k8s:k8s-app": "kube-dns"
+            }
+          }
+        ],
+        "toPorts": [
+          {
+            "ports": [{"port": "53", "protocol": "ANY"}],
+            "rules": {
+              "dns": [
+                {"matchName": "s3.fr-par.scw.cloud"},
+                {"matchName": "mastrao-staging-meet-egress-captures.s3.fr-par.scw.cloud"},
+                {"matchName": "asr-gateway.mastrao-staging.svc.cluster.local"},
+                {"matchName": "cabinet-core.mastrao-staging.svc.cluster.local"}
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "toFQDNs": [
+          {"matchName": "s3.fr-par.scw.cloud"},
+          {"matchName": "mastrao-staging-meet-egress-captures.s3.fr-par.scw.cloud"}
+        ],
+        "toPorts": [
+          {
+            "ports": [{"port": "443", "protocol": "TCP"}]
+          }
+        ]
+      },
+      {
+        "toEndpoints": [
+          {
+            "matchLabels": {
+              "k8s:app.kubernetes.io/name": "cabinet-core",
+              "k8s:io.kubernetes.pod.namespace": "mastrao-staging"
+            }
+          }
+        ],
+        "toPorts": [
+          {
+            "ports": [{"port": "18081", "protocol": "TCP"}]
+          }
+        ]
+      },
+      {
+        "toEntities": ["remote-node", "host"],
+        "toPorts": [
+          {
+            "ports": [{"port": "8787", "protocol": "TCP"}]
+          }
+        ]
+      }
+    ]
+  }
+}
