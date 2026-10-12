@@ -43,7 +43,10 @@
       "error": "Deze link is onvolledig. Kopieer hem volledig uit de e-mail.",
       "help": "Lukt het niet? Vraag de organisator om een nieuwe link."
     },
-    "error": "Deze link is niet meer beschikbaar. Vraag de organisator om een nieuwe link.",
+    "unavailable": {
+      "title": "Deze link is niet meer beschikbaar",
+      "body": "Hij is mogelijk verlopen of door de organisator uitgeschakeld. Vraag om een nieuwe uitnodigingslink."
+    },
     "temporaryError": "De dienst is tijdelijk niet beschikbaar. U kunt het opnieuw proberen.",
     "retry": "Opnieuw proberen"
   },
