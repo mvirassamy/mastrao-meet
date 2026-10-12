@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-12: Authorize the isolated native ASR ready and retry workers to
+  reach only PostgreSQL, Redis, object storage, the bounded Core relay and the
+  native ASR Gateway in staging.
+
 - 2026-10-12: Keep native ASR delivery recoverable after repeated local claims
   until Core records a result, authorizes a retry, or returns a terminal
   outcome.

@@ -12,6 +12,13 @@ AGENT_POLICY_PATH = (
 COLLECTOR_POLICY_PATH = (
     ROOT / "deploy/kubernetes/staging/metadata-collector-network-policy.json"
 )
+NATIVE_ASR_WORKER_POLICY_PATH = (
+    ROOT / "deploy/kubernetes/staging/native-asr-worker-network-policy.json"
+)
+NATIVE_ASR_DESTINATION_POLICY_PATH = (
+    ROOT
+    / "deploy/kubernetes/staging/native-asr-worker-destination-network-policy.json"
+)
 PLATFORM_HOST = "app.mastrao-staging.com"
 
 
@@ -197,6 +204,86 @@ class StagingWorkerNetworkPolicyTests(unittest.TestCase):
         self.assertEqual(
             core_rules[0]["toPorts"],
             [{"ports": [{"port": "18081", "protocol": "TCP"}]}],
+        )
+
+
+class NativeAsrWorkerNetworkPolicyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.worker = json.loads(NATIVE_ASR_WORKER_POLICY_PATH.read_text())
+        cls.destinations = json.loads(
+            NATIVE_ASR_DESTINATION_POLICY_PATH.read_text()
+        )
+
+    def test_selects_only_the_ready_and_retry_workers(self):
+        self.assertEqual(
+            self.worker["spec"]["endpointSelector"]["matchExpressions"],
+            [
+                {
+                    "key": "app.kubernetes.io/name",
+                    "operator": "In",
+                    "values": [
+                        "worker-native-asr-ready",
+                        "worker-native-asr-retry",
+                    ],
+                }
+            ],
+        )
+        self.assertEqual(self.worker["spec"]["ingress"], [])
+
+    def test_worker_egress_is_limited_to_required_dependencies(self):
+        spec = self.worker["spec"]
+        serialized = json.dumps(spec)
+        self.assertNotIn("matchPattern", serialized)
+        self.assertEqual(
+            [cidr for rule in spec["egress"] for cidr in rule.get("toCIDR", [])],
+            ["172.16.8.8/32"],
+        )
+        self.assertEqual(
+            {
+                endpoint["matchLabels"].get("k8s:app.kubernetes.io/name")
+                for rule in spec["egress"]
+                for endpoint in rule.get("toEndpoints", [])
+                if endpoint["matchLabels"].get("k8s:app.kubernetes.io/name")
+            },
+            {"cabinet-core", "redis-meet"},
+        )
+
+        entity_rules = [
+            rule for rule in spec["egress"] if "toEntities" in rule
+        ]
+        self.assertEqual(len(entity_rules), 1)
+        self.assertEqual(entity_rules[0]["toEntities"], ["remote-node", "host"])
+        self.assertEqual(
+            entity_rules[0]["toPorts"],
+            [{"ports": [{"port": "8787", "protocol": "TCP"}]}],
+        )
+
+    def test_destinations_allow_only_worker_lanes_on_bounded_ports(self):
+        self.assertEqual(len(self.destinations["specs"]), 1)
+        allowed = {}
+        for spec in self.destinations["specs"]:
+            destination = spec["endpointSelector"]["matchLabels"][
+                "app.kubernetes.io/name"
+            ]
+            ingress = spec["ingress"]
+            self.assertEqual(len(ingress), 1)
+            source = ingress[0]["fromEndpoints"][0]
+            self.assertEqual(
+                source["matchExpressions"][0]["values"],
+                ["worker-native-asr-ready", "worker-native-asr-retry"],
+            )
+            self.assertEqual(
+                source["matchLabels"],
+                {"k8s:io.kubernetes.pod.namespace": "mastrao-staging"},
+            )
+            allowed[destination] = ingress[0]["toPorts"][0]["ports"]
+
+        self.assertEqual(
+            allowed,
+            {
+                "cabinet-core": [{"port": "18081", "protocol": "TCP"}],
+            },
         )
 
 
