@@ -22,10 +22,11 @@ zero for all three metrics.
 
 Live leases retain their dispatch lane. After both leases expire, first attempts
 return to ready; work with a prior attempt, error, or durable receipt returns to
-retry. Future retries, acknowledged work, exhausted attempts, expired retention,
-missing source receipts, conflicted epochs, and uncorrelated connections are
-excluded. The view and KEDA queries expose no tenant, meeting, room, capture, or
-source identifiers.
+retry. Future retries, acknowledged work, expired retention, missing source
+receipts, conflicted epochs, and uncorrelated connections are excluded. A local
+delivery count never makes a source terminal: only Core can authorize another
+provider attempt or record a terminal outcome. The view and KEDA queries expose
+no tenant, meeting, room, capture, or source identifiers.
 
 Each ScaledObject has two PostgreSQL triggers over this view: `pending_count`
 with `targetQueryValue: "1"`, and `oldest_due_age_seconds` with
