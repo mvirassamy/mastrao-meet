@@ -907,12 +907,38 @@ celeryMastraoTranscription:
 ## Dedicated native ASR workers keep a ready slot independent of retries.
 celeryMastraoNativeAsrReady:
   replicas: 2
+  ## @param celeryMastraoNativeAsrReady.autoscaling.enabled Render the KEDA ScaledObject for the ready lane
+  ## @param celeryMastraoNativeAsrReady.autoscaling.minReplicas Minimum ready worker replicas while KEDA is active
+  ## @param celeryMastraoNativeAsrReady.autoscaling.maxReplicas Maximum ready worker replicas while KEDA is active
+  ## @param celeryMastraoNativeAsrReady.autoscaling.pollingInterval PostgreSQL polling interval in seconds
+  ## @param celeryMastraoNativeAsrReady.autoscaling.scaleDownStabilizationWindowSeconds HPA scale-down stabilization window in seconds
+  ## @param celeryMastraoNativeAsrReady.autoscaling.triggerAuthenticationName Existing namespaced KEDA TriggerAuthentication providing the read-only PostgreSQL connection
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 2
+    pollingInterval: 30
+    scaleDownStabilizationWindowSeconds: 300
+    triggerAuthenticationName: ""
   resources: {}
   envVars:
     <<: *commonEnvVars
 
 celeryMastraoNativeAsrRetry:
   replicas: 2
+  ## @param celeryMastraoNativeAsrRetry.autoscaling.enabled Render the KEDA ScaledObject for the retry lane
+  ## @param celeryMastraoNativeAsrRetry.autoscaling.minReplicas Minimum retry worker replicas while KEDA is active
+  ## @param celeryMastraoNativeAsrRetry.autoscaling.maxReplicas Maximum retry worker replicas while KEDA is active
+  ## @param celeryMastraoNativeAsrRetry.autoscaling.pollingInterval PostgreSQL polling interval in seconds
+  ## @param celeryMastraoNativeAsrRetry.autoscaling.scaleDownStabilizationWindowSeconds HPA scale-down stabilization window in seconds
+  ## @param celeryMastraoNativeAsrRetry.autoscaling.triggerAuthenticationName Existing namespaced KEDA TriggerAuthentication providing the read-only PostgreSQL connection
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 2
+    pollingInterval: 30
+    scaleDownStabilizationWindowSeconds: 300
+    triggerAuthenticationName: ""
   resources: {}
   envVars:
     <<: *commonEnvVars
