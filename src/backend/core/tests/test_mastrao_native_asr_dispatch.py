@@ -9,9 +9,11 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from django.db import close_old_connections, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
 from django.utils import timezone
 
 import pytest
+import requests
 
 from core import models
 from core.factories import RoomFactory
@@ -332,16 +334,159 @@ def test_expired_execution_lease_can_be_redispatched(asr_intent, settings):
     assert not _finish(first_claim, True)
 
 
-def test_existing_core_receipt_skips_provider_after_redispatch(asr_intent, peers):
+@pytest.mark.parametrize("attempts", [8, 12])
+def test_existing_core_receipt_skips_provider_after_redispatch(
+    asr_intent, peers, attempts
+):
     receipt = peers[2].return_value
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
-        asr_receipt=receipt
+        asr_receipt=receipt, asr_attempts=attempts
     )
     assert process_native_asr_source(*_reserve_dispatch(asr_intent.pk))
     peers[0].assert_not_called()
     peers[1].assert_not_called()
     peers[2].assert_not_called()
     peers[3].assert_called_once_with(receipt)
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_acknowledged
+    assert asr_intent.asr_attempts == attempts + 1
+
+
+def test_eighth_claim_timeout_redispatches_after_backoff(asr_intent, peers, settings):
+    settings.CELERY_ENABLED = True
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_attempts=7
+    )
+    now = timezone.now()
+    peers[0].side_effect = requests.Timeout("Core temporarily unavailable")
+    with patch("core.mastrao_native_asr_worker.timezone.now", return_value=now):
+        assert not process_native_asr_source(*_reserve_dispatch(asr_intent.pk))
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_attempts == 8
+    assert asr_intent.asr_claim is None
+    assert asr_intent.asr_error == "native_asr_delivery_failed"
+    assert asr_intent.asr_next_at == now + timedelta(seconds=30)
+    peers[1].assert_not_called()
+
+    peers[0].side_effect = None
+    with (
+        patch("core.tasks.native_capture.process_native_asr.apply_async") as publish,
+        patch("core.mastrao_native_asr_worker.timezone.now", return_value=now),
+    ):
+        assert schedule_native_asr() == 0
+        publish.assert_not_called()
+    with (
+        patch("core.tasks.native_capture.process_native_asr.apply_async") as publish,
+        patch(
+            "core.mastrao_native_asr_worker.timezone.now",
+            return_value=asr_intent.asr_next_at,
+        ),
+    ):
+        assert schedule_native_asr() == 1
+        assert publish.call_args.kwargs["queue"] == "mastrao-native-asr-retry"
+        assert process_native_asr_source(*publish.call_args.kwargs["args"])
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_attempts == 9
+    assert asr_intent.asr_acknowledged
+    peers[1].assert_called_once()
+
+
+def test_crash_after_eighth_claim_recovers_only_after_lease_expiry(
+    asr_intent, peers, settings
+):
+    settings.CELERY_ENABLED = True
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_attempts=7
+    )
+    first_dispatch = _reserve_dispatch(asr_intent.pk)
+    first_claim = _claim(*first_dispatch)
+    assert first_claim.asr_attempts == 8
+    with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
+        assert schedule_native_asr() == 0
+        publish.assert_not_called()
+    with (
+        patch("core.tasks.native_capture.process_native_asr.apply_async") as publish,
+        patch(
+            "core.mastrao_native_asr_worker.timezone.now",
+            return_value=first_claim.asr_claim_until,
+        ),
+    ):
+        assert schedule_native_asr() == 1
+        assert publish.call_args.kwargs["queue"] == "mastrao-native-asr-retry"
+        assert not process_native_asr_source(*first_dispatch)
+        assert process_native_asr_source(*publish.call_args.kwargs["args"])
+        assert not _finish(first_claim, True)
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_attempts == 9
+    assert asr_intent.asr_acknowledged
+    peers[1].assert_called_once()
+
+
+@pytest.mark.parametrize("status", [429, 503])
+def test_high_attempt_source_waits_for_core_retry_deadline(
+    asr_intent, peers, settings, status
+):
+    settings.CELERY_ENABLED = True
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_attempts=8
+    )
+    now = timezone.now()
+    deadline = now + timedelta(seconds=120)
+    peers[1].side_effect = NativeAsrDeliveryRefused(
+        status=status, outcome="retry", retry_at=deadline
+    )
+    assert not process_native_asr_source(*_reserve_dispatch(asr_intent.pk))
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_attempts == 8
+    assert asr_intent.asr_next_at == deadline
+    assert asr_intent.asr_receipt is None
+    peers[2].assert_not_called()
+    peers[3].assert_not_called()
+
+    with (
+        patch("core.tasks.native_capture.process_native_asr.apply_async") as publish,
+        patch("core.mastrao_native_asr_worker.timezone.now", return_value=now),
+    ):
+        assert schedule_native_asr() == 0
+        publish.assert_not_called()
+    peers[1].side_effect = None
+    with (
+        patch("core.tasks.native_capture.process_native_asr.apply_async") as publish,
+        patch("core.mastrao_native_asr_worker.timezone.now", return_value=deadline),
+    ):
+        assert schedule_native_asr() == 1
+        assert publish.call_args.kwargs["queue"] == "mastrao-native-asr-retry"
+        assert process_native_asr_source(*publish.call_args.kwargs["args"])
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_acknowledged
+
+
+@pytest.mark.parametrize("attempts", [8, 12])
+def test_existing_high_attempt_source_is_visible_to_keda_and_dispatcher(
+    asr_intent, attempts
+):
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_attempts=attempts
+    )
+    metrics = queue_metrics()
+    assert metrics["ready"] == (0, 0, 0)
+    pending, age, active = metrics["retry"]
+    assert pending == 1
+    assert age >= 0
+    assert active == 0
+    metrics = native_asr_dispatch_metrics()
+    assert metrics["ready_count"] == 0
+    assert metrics["retry_count"] == 1
+    dispatch = _reserve_dispatch(asr_intent.pk)
+    assert dispatch is not None
+    claim = _claim(*dispatch)
+    assert claim.asr_attempts == attempts + 1
+    metrics = queue_metrics()
+    assert metrics["ready"] == (0, 0, 0)
+    pending, age, active = metrics["retry"]
+    assert pending == 1
+    assert age >= 0
+    assert active == 1
 
 
 def test_reservation_enforces_meeting_and_tenant_limits(asr_intent, settings):
@@ -687,7 +832,6 @@ def test_queue_metrics_view_keeps_final_active_attempt_visible(asr_intent):
     [
         {"source_receipt": None},
         {"asr_acknowledged": True},
-        {"asr_attempts": 8},
         {"asr_next_at": timezone.now() + timedelta(hours=1)},
         {"retention_expires_at": timezone.now() - timedelta(seconds=1)},
     ],
@@ -719,6 +863,30 @@ def test_queue_metrics_view_excludes_unverified_epochs(asr_intent, boundary):
     assert queue_metrics() == {"ready": (0, 0, 0), "retry": (0, 0, 0)}
 
 
+def test_queue_metrics_migration_recovers_existing_high_attempt_source(asr_intent):
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_attempts=8
+    )
+    current = [("core", "0056_native_asr_delivery_recovery")]
+    previous = [("core", "0055_native_asr_queue_metrics")]
+    try:
+        MigrationExecutor(connection).migrate(previous)
+        assert queue_metrics() == {"ready": (0, 0, 0), "retry": (0, 0, 0)}
+        MigrationExecutor(connection).migrate(current)
+        metrics = queue_metrics()
+        assert metrics["ready"] == (0, 0, 0)
+        pending, age, active = metrics["retry"]
+        assert pending == 1
+        assert age >= 0
+        assert active == 0
+        asr_intent.refresh_from_db()
+        assert asr_intent.asr_attempts == 8
+        MigrationExecutor(connection).migrate(previous)
+        assert queue_metrics() == {"ready": (0, 0, 0), "retry": (0, 0, 0)}
+    finally:
+        MigrationExecutor(connection).migrate(current)
+
+
 def test_sustained_ready_backlog_still_dispatches_retry(asr_intent, settings):
     settings.CELERY_ENABLED = True
     add_asr_source(asr_intent, new_meeting=True)
@@ -737,7 +905,7 @@ def test_sustained_ready_backlog_still_dispatches_retry(asr_intent, settings):
     assert retry.asr_dispatch_queue == "mastrao-native-asr-retry"
 
 
-def test_due_retry_not_starved_when_workers_finish_between_passes(asr_intent, settings):
+def test_due_retry_not_starved_during_continuous_drain(asr_intent, settings):
     settings.CELERY_ENABLED = True
     retry = add_asr_source(asr_intent, new_meeting=True, tenant="retry-tenant")
     models.MastraoNativeCaptureStart.objects.filter(pk=retry.pk).update(
@@ -747,18 +915,17 @@ def test_due_retry_not_starved_when_workers_finish_between_passes(asr_intent, se
         add_asr_source(asr_intent, new_meeting=True)
     dispatched_ids = []
     with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
-        for _ in range(3):
-            metrics = native_asr_dispatch_metrics()
-            assert metrics["active_count"] == 0
-            assert metrics["ready_count"] >= 2
-            assert schedule_native_asr(limit=1) == 1
-            dispatch = publish.call_args.kwargs["args"]
+        assert schedule_native_asr(limit=1) == 1
+        for index in range(5):
+            dispatch = publish.call_args_list[index].kwargs["args"]
             dispatched_ids.append(dispatch[0])
             assert _finish(_claim(*dispatch), True)
 
     assert dispatched_ids[0] == str(retry.pk)
     assert [call.kwargs["queue"] for call in publish.call_args_list] == [
         "mastrao-native-asr-retry",
+        "mastrao-native-asr-ready",
+        "mastrao-native-asr-ready",
         "mastrao-native-asr-ready",
         "mastrao-native-asr-ready",
     ]
