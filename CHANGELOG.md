@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-12: Let a signed-in browser redeem a valid guest invitation without
+  replacing or shortening its account session, while preserving exact-room
+  host priority and guest-scoped media identity.
+
 - 2026-10-12: Authorize the isolated native ASR ready and retry workers to
   reach only PostgreSQL, Redis, object storage, the bounded Core relay and the
   native ASR Gateway in staging.

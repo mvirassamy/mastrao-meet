@@ -157,6 +157,34 @@ def test_signed_share_retry_survives_new_request_without_extending_grant(
     assert SHARE not in response.content.decode()
 
 
+def test_signed_in_browser_can_redeem_guest_share_without_losing_its_account(
+    signed_settings,
+):
+    binding = _room_binding()
+    client, user = _host_client()
+    session = client.session
+    session.set_expiry(7_200)
+    session.save()
+    _establish(client)
+    grant = {
+        **_guest_grant(binding, SHARE),
+        "redemption_id": REDEMPTION,
+    }
+    compact = _signed(signed_settings, grant, "mastrao-meeting-guest-grant+jws")
+
+    with patch(
+        "core.mastrao_guest_share_link._post_core",
+        return_value={"guest_grant": compact},
+    ):
+        response = _guest_post(client)
+
+    assert response.status_code == 200
+    assert response.json() == {"room_url": f"/{binding.room_ref}"}
+    assert client.session["_auth_user_id"] == str(user.pk)
+    assert client.session[SESSION_NONCE_KEY]
+    assert client.session.get_expiry_age() > 7_000
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

@@ -1,4 +1,4 @@
-"""Request-time projection of one anonymous Mastrao guest grant."""
+"""Request-time projection of one session-bound Mastrao guest grant."""
 
 import hashlib
 import re
@@ -25,7 +25,7 @@ def _session_bound_guest_grant(
 ):
     """Resolve the exact non-expired guest grant bound to this browser and room."""
 
-    if getattr(request, "user", None) and request.user.is_authenticated:
+    if active_host_grant(request, room) is not None:
         return None
     digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
     grant_ref = request.session.get(SESSION_GRANT_REF_KEY)
@@ -63,8 +63,6 @@ def active_guest_lifecycle_grant(request, room, *, observed_at=None):
 def active_guest_lifecycle_grant_for_room_ref(request, room_ref, *, observed_at=None):
     """Resolve a guest grant by canonical room ref before room disclosure."""
 
-    if getattr(request, "user", None) and request.user.is_authenticated:
-        return None
     digest = _nonce_digest(request.session.get(SESSION_NONCE_KEY))
     grant_ref = request.session.get(SESSION_GRANT_REF_KEY)
     if digest is None or not isinstance(grant_ref, str):
