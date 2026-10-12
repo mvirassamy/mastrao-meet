@@ -43,7 +43,10 @@
       "error": "Ce lien est incomplet. Copiez-le en entier depuis l’e-mail.",
       "help": "Toujours bloqué ? Demandez un nouveau lien à l’organisateur."
     },
-    "error": "Ce lien n’est plus disponible. Demandez un nouveau lien à l’organisateur.",
+    "unavailable": {
+      "title": "Ce lien n’est plus disponible",
+      "body": "Il a peut-être expiré ou été désactivé par l’organisateur. Demandez-lui un nouveau lien d’invitation."
+    },
     "temporaryError": "Le service est momentanément indisponible. Vous pouvez réessayer.",
     "retry": "Réessayer"
   },

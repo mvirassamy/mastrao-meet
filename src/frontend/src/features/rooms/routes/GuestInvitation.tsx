@@ -11,6 +11,7 @@ import {
 } from '../api/redeemGuestInvitation'
 import { clearPlatformReturnForRoomUrl } from '../platformReturn'
 import { MissingGuestLink } from '../components/MissingGuestLink'
+import { UnavailableGuestLink } from '../components/UnavailableGuestLink'
 import {
   type GuestLink,
   consumeGuestInvitationFragment,
@@ -58,6 +59,39 @@ const GuestInvitation = () => {
     void redeem(link)
   }
 
+  const unavailable = status === 'terminal-error'
+
+  const renderContent = () => {
+    if (!invitation) return <MissingGuestLink onLink={joinWithPastedLink} />
+    if (unavailable) return <UnavailableGuestLink />
+    return (
+      <>
+        <H lvl={1} margin={false} centered>
+          {t('guestInvitation.title')}
+        </H>
+        <Text as="p" variant="note">
+          {t('guestInvitation.body')}
+        </Text>
+        <Button
+          onPress={() => void redeem(invitation)}
+          loading={status === 'loading'}
+          isDisabled={status === 'loading'}
+        >
+          {t(
+            status === 'temporary-error'
+              ? 'guestInvitation.retry'
+              : 'guestInvitation.submit'
+          )}
+        </Button>
+        {status === 'temporary-error' && (
+          <Text as="p" role="alert">
+            {t('guestInvitation.temporaryError')}
+          </Text>
+        )}
+      </>
+    )
+  }
+
   return (
     <Screen layout="centered" header={false} footer={false}>
       <VStack
@@ -67,10 +101,14 @@ const GuestInvitation = () => {
         className={css({ maxWidth: '32rem', paddingX: '1.5rem' })}
       >
         <img
-          src="/assets/illustrations/invitation.webp"
+          src={
+            unavailable
+              ? '/assets/illustrations/lien-expire.webp'
+              : '/assets/illustrations/invitation.webp'
+          }
           alt=""
           width={768}
-          height={328}
+          height={unavailable ? 323 : 328}
           decoding="async"
           className={css({
             display: 'block',
@@ -80,40 +118,7 @@ const GuestInvitation = () => {
             pointerEvents: 'none',
           })}
         />
-        {!invitation && <MissingGuestLink onLink={joinWithPastedLink} />}
-        {invitation && (
-          <>
-            <H lvl={1} margin={false} centered>
-              {t('guestInvitation.title')}
-            </H>
-            <Text as="p" variant="note">
-              {t('guestInvitation.body')}
-            </Text>
-          </>
-        )}
-        {invitation && status !== 'terminal-error' && (
-          <Button
-            onPress={() => void redeem(invitation)}
-            loading={status === 'loading'}
-            isDisabled={status === 'loading'}
-          >
-            {t(
-              status === 'temporary-error'
-                ? 'guestInvitation.retry'
-                : 'guestInvitation.submit'
-            )}
-          </Button>
-        )}
-        {status === 'terminal-error' && (
-          <Text as="p" role="alert">
-            {t('guestInvitation.error')}
-          </Text>
-        )}
-        {status === 'temporary-error' && (
-          <Text as="p" role="alert">
-            {t('guestInvitation.temporaryError')}
-          </Text>
-        )}
+        {renderContent()}
       </VStack>
     </Screen>
   )

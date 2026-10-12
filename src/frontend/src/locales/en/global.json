@@ -43,7 +43,10 @@
       "error": "This link is incomplete. Copy it in full from the e-mail.",
       "help": "Still stuck? Ask the organizer for a new link."
     },
-    "error": "This link is no longer available. Ask the organizer for a new link.",
+    "unavailable": {
+      "title": "This link is no longer available",
+      "body": "It may have expired or been disabled by the organizer. Ask them for a new invitation link."
+    },
     "temporaryError": "The service is temporarily unavailable. You can try again.",
     "retry": "Try again"
   },
