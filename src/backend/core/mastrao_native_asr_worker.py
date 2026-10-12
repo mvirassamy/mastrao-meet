@@ -63,7 +63,6 @@ def _eligible(now):
         source_receipt__isnull=False,
         asr_acknowledged=False,
         asr_next_at__lte=now,
-        asr_attempts__lt=8,
         retention_expires_at__gt=now,
         epoch__conflict=False,
         epoch__connection__correlation="correlated",
