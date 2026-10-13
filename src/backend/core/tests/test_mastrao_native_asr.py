@@ -34,6 +34,7 @@ from core.mastrao_native_asr_worker import (
 from core.mastrao_native_source_transfer import _claim as claim_source
 from core.mastrao_native_source_transfer import _finish as finish_source
 from core.mastrao_recording_contract import RecordingContractRefused
+from core.tests.test_mastrao_native_asr_retry import gateway_response
 from core.tests.test_mastrao_native_capture import (
     _post,
     binding,
@@ -193,6 +194,44 @@ def test_rejected_terminal_is_not_replayed_to_exhaust_local_budget(asr_intent, p
     peers[1].assert_called_once()
     peers[2].assert_not_called()
     peers[3].assert_not_called()
+
+
+def test_core_failed_survives_http_client_and_stops_worker_dispatch(
+    asr_intent, settings
+):
+    settings.MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = (
+        "http://cabinet-core/internal/v1/meetings/capture/native/asr/prepare"
+    )
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_attempts=13, asr_retry_streak=7
+    )
+    response = gateway_response(409, {"code": "runtime_busy", "outcome": "failed"})
+    with (
+        patch("requests.Session.post", return_value=response) as core_post,
+        patch("core.mastrao_native_asr_worker.transcribe_native_asr") as transcribe,
+        patch("core.mastrao_native_asr_worker.upload_native_asr_result") as upload,
+        patch("core.mastrao_native_asr_worker.ack_native_asr") as ack,
+    ):
+        assert not process_intent(asr_intent)
+        core_post.assert_called_once()
+        asr_intent.refresh_from_db()
+        assert asr_intent.asr_next_at == asr_intent.retention_expires_at
+        assert asr_intent.asr_error == "native_asr_rejected"
+        assert asr_intent.asr_attempts == 14
+        assert asr_intent.asr_claim is None
+        assert not asr_intent.asr_acknowledged
+        assert asr_intent.asr_receipt is None
+        for now in (
+            timezone.now() + timedelta(seconds=2),
+            asr_intent.retention_expires_at,
+        ):
+            with patch("core.mastrao_native_asr_worker.timezone.now", return_value=now):
+                assert not process_intent(asr_intent)
+                assert schedule_native_asr(limit=1) == 0
+        core_post.assert_called_once()
+        transcribe.assert_not_called()
+        upload.assert_not_called()
+        ack.assert_not_called()
 
 
 def test_recovery_preserves_budget_and_prepares_authorized_successor(asr_intent, peers):
