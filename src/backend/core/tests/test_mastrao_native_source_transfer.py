@@ -4,7 +4,10 @@
 # pylint: disable=missing-function-docstring,redefined-outer-name,too-many-arguments
 # pylint: disable=too-many-positional-arguments,unused-argument,unused-import
 
+import copy
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from threading import Event
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -19,11 +22,13 @@ from core.mastrao_native_source_transfer import (
     SOURCE_JOSE,
     _claim,
     _finish,
+    _reserve_sources,
     schedule_native_source_transfer,
-    transfer_next_native_source,
+    transfer_native_source,
 )
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_room_contract import _sha256_canonical
+from core.tasks.native_capture import process_native_sources
 from core.tests.test_mastrao_native_capture import (
     _post,
     binding,
@@ -60,6 +65,29 @@ def ended_source(client, signer, effect, provider, settings):
     }
     intent.save()
     return intent
+
+
+def _scheduled_source(settings):
+    settings.CELERY_ENABLED = True
+    with patch(
+        "core.tasks.native_capture.process_native_sources.apply_async"
+    ) as publish:
+        assert schedule_native_source_transfer(limit=1) == 1
+    return publish.call_args.kwargs["args"]
+
+
+def _another_source(source):
+    epoch = models.MastraoRtcTrackEpoch.objects.create(
+        connection=source.epoch.connection, track_sid=f"batch-{uuid4()}"
+    )
+    other = copy.copy(source)
+    other.pk = uuid4()
+    other.epoch = epoch
+    other.capture_ref = uuid4()
+    other.effect_key = f"batch-{uuid4()}"
+    other.provider_job_ref = f"batch-{uuid4()}"
+    other.save()
+    return other
 
 
 def test_real_audio_transfer_keeps_exact_binding_and_canonical_receipt(
@@ -99,27 +127,29 @@ def test_real_audio_transfer_keeps_exact_binding_and_canonical_receipt(
             "transcription_state": "not_requested",
         }
 
+    source_args = _scheduled_source(settings)
     with patch("core.mastrao_native_source_transfer.post_core_json", side_effect=core):
-        assert transfer_next_native_source()
-        assert not transfer_next_native_source()
+        assert transfer_native_source(*source_args)
+        assert not transfer_native_source(*source_args)
     ended_source.refresh_from_db()
     assert len(calls) == 1
     assert ended_source.source_receipt["state"] == "verified"
     assert ended_source.source_claim is None
 
 
-def test_lost_receipt_retries_same_object_manifest(ended_source):
+def test_lost_receipt_retries_same_object_manifest(ended_source, settings):
+    source_args = _scheduled_source(settings)
     with patch(
         "core.mastrao_native_source_transfer.post_core_json",
         side_effect=RecordingContractRefused(status=503),
     ):
-        assert not transfer_next_native_source()
+        assert not transfer_native_source(*source_args)
     ended_source.refresh_from_db()
     assert ended_source.source_attempts == 1
     assert ended_source.source_receipt is None
     assert ended_source.source_error == "native_source_transfer_failed"
     assert ended_source.source_claim is None
-    assert not transfer_next_native_source()  # backoff, not an immediate retry
+    assert not transfer_native_source(*source_args)  # stale task cannot retry
     assert ended_source.source_manifest["object_ref"] == (
         f"recordings/{ended_source.capture_ref}.ogg"
     )
@@ -138,6 +168,7 @@ def test_lost_receipt_retries_same_object_manifest(ended_source):
     ],
 )
 def test_no_transfer_when_ineligible(ended_source, settings, condition):
+    settings.CELERY_ENABLED = True
     if condition == "not_drained":
         ended_source.drained_at = None
     elif condition == "missing_manifest":
@@ -154,15 +185,18 @@ def test_no_transfer_when_ineligible(ended_source, settings, condition):
     else:
         settings.MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED = False
     ended_source.save()
-    with patch("core.mastrao_native_source_transfer.post_core_json") as send:
-        assert not transfer_next_native_source()
-        send.assert_not_called()
+    with patch(
+        "core.tasks.native_capture.process_native_sources.apply_async"
+    ) as publish:
+        assert schedule_native_source_transfer(limit=1) == 0
+        publish.assert_not_called()
 
 
 def test_claim_is_exclusive_and_stale_worker_cannot_commit(ended_source):
-    claimed = _claim()
+    source_id, queued_claim, attempts = _reserve_sources(1)[0]
+    claimed = _claim(source_id, queued_claim, attempts)
     assert claimed
-    assert _claim() is None
+    assert _claim(source_id, queued_claim, attempts) is None
     models.MastraoNativeCaptureStart.objects.filter(pk=claimed.pk).update(
         source_claim=uuid4()
     )
@@ -173,7 +207,7 @@ def test_claim_is_exclusive_and_stale_worker_cannot_commit(ended_source):
 
 def test_scheduler_does_not_publish_for_claimed_sources(ended_source, settings):
     settings.CELERY_ENABLED = True
-    assert _claim()
+    assert _reserve_sources(1)
     with patch(
         "core.tasks.native_capture.process_native_sources.apply_async"
     ) as publish:
@@ -192,3 +226,84 @@ def test_scheduler_broker_failure_preserves_retryable_intent(ended_source, setti
     assert ended_source.source_claim is None
     assert ended_source.source_receipt is None
     assert ended_source.source_attempts == 0
+
+
+def test_scheduler_dispatches_a_bounded_distinct_batch(ended_source, settings):
+    second = _another_source(ended_source)
+    third = _another_source(ended_source)
+    settings.CELERY_ENABLED = True
+    with patch(
+        "core.tasks.native_capture.process_native_sources.apply_async"
+    ) as publish:
+        assert schedule_native_source_transfer(limit=2) == 2
+        first_batch = [call.kwargs["args"] for call in publish.call_args_list]
+        assert {args[0] for args in first_batch} <= {
+            str(ended_source.pk),
+            str(second.pk),
+            str(third.pk),
+        }
+        assert len({args[0] for args in first_batch}) == 2
+        assert schedule_native_source_transfer(limit=2) == 1
+        assert schedule_native_source_transfer(limit=2) == 0
+        assert publish.call_count == 3
+    assert all(
+        call.kwargs["queue"] == "mastrao-transcription"
+        for call in publish.call_args_list
+    )
+    assert (
+        models.MastraoNativeCaptureStart.objects.filter(
+            source_claim__isnull=False, source_attempts=0
+        ).count()
+        == 3
+    )
+
+
+def test_delayed_task_cannot_use_a_renewed_reservation(ended_source, settings):
+    old_args = _scheduled_source(settings)
+    models.MastraoNativeCaptureStart.objects.filter(pk=ended_source.pk).update(
+        source_claim_until=timezone.now() - timedelta(seconds=1)
+    )
+    with patch(
+        "core.tasks.native_capture.process_native_sources.apply_async"
+    ) as publish:
+        assert schedule_native_source_transfer(limit=1) == 1
+    renewed_args = publish.call_args.kwargs["args"]
+    assert renewed_args != old_args
+    assert _claim(*old_args) is None
+    assert _claim(*renewed_args)
+
+
+def test_queued_legacy_wake_dispatches_one_current_source(ended_source, settings):
+    settings.CELERY_ENABLED = True
+    with patch(
+        "core.tasks.native_capture.process_native_sources.apply_async"
+    ) as publish:
+        assert process_native_sources() == 1
+    assert len(publish.call_args.kwargs["args"]) == 3
+
+
+def test_duplicate_tasks_cannot_transfer_one_source_concurrently(
+    ended_source, settings
+):
+    source_args = _scheduled_source(settings)
+    sending = Event()
+    release = Event()
+    calls = []
+
+    def send(_intent):
+        calls.append(1)
+        sending.set()
+        assert release.wait(timeout=5)
+        return {"state": "verified"}
+
+    with patch("core.mastrao_native_source_transfer._send", side_effect=send):
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            first = workers.submit(transfer_native_source, *source_args)
+            assert sending.wait(timeout=5)
+            second = workers.submit(transfer_native_source, *source_args)
+            assert not second.result(timeout=5)
+            release.set()
+            assert first.result(timeout=5)
+    assert len(calls) == 1
+    ended_source.refresh_from_db()
+    assert ended_source.source_attempts == 1

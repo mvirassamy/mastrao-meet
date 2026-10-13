@@ -30,6 +30,7 @@ from core.mastrao_native_asr_worker import (
 )
 from core.mastrao_native_source_transfer import _claim as claim_source
 from core.mastrao_native_source_transfer import _finish as finish_source
+from core.mastrao_native_source_transfer import _reserve_sources as reserve_sources
 from core.mastrao_recording_reconciler import reconcile_native_recordings
 from core.tasks.native_capture import process_native_asr
 
@@ -39,6 +40,11 @@ pytest_plugins = (
 )
 
 pytestmark = pytest.mark.django_db(transaction=True)
+
+
+def claim_reserved_source():
+    source_id, queued_claim, queued_attempts = reserve_sources(1)[0]
+    return claim_source(source_id, queued_claim, queued_attempts)
 
 
 def add_asr_source(original, *, new_meeting=False, tenant=None):
@@ -119,7 +125,7 @@ def test_source_receipt_publishes_only_after_commit(ended_source, settings):
     receipt = {"source_ref": str(uuid4())}
     with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
         with transaction.atomic():
-            claimed = claim_source()
+            claimed = claim_reserved_source()
             assert finish_source(claimed, receipt, "")
             publish.assert_not_called()
         publish.assert_called_once()
@@ -134,7 +140,9 @@ def test_rolled_back_source_receipt_publishes_nothing(ended_source, settings):
     with patch("core.tasks.native_capture.process_native_asr.apply_async") as publish:
         with pytest.raises(RuntimeError, match="rollback"):
             with transaction.atomic():
-                assert finish_source(claim_source(), {"source_ref": str(uuid4())}, "")
+                assert finish_source(
+                    claim_reserved_source(), {"source_ref": str(uuid4())}, ""
+                )
                 raise RuntimeError("rollback")
         publish.assert_not_called()
     ended_source.refresh_from_db()
