@@ -145,7 +145,7 @@ def _finish(intent, acknowledged, error=None):
                 values["asr_next_at"] = deadline
             if error.outcome == "unknown":
                 values["asr_error"] = "native_asr_outcome_unknown"
-        elif error.outcome == "rejected":
+        elif error.outcome in {"rejected", "failed"}:
             values["asr_next_at"] = intent.retention_expires_at
             values["asr_error"] = "native_asr_rejected"
     if _owned(intent).update(**values) != 1:

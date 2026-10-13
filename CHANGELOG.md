@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-13: Stop native ASR redispatch when Core reports exhausted provider
+  retries as a terminal failed outcome.
+
 - 2026-10-13: Dispatch each bounded native audio source with an exclusive
   reservation so multiple meeting tracks can transfer concurrently.
 

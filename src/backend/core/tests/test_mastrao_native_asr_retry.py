@@ -7,6 +7,7 @@ import io
 import json
 from datetime import timedelta
 from email.utils import format_datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.utils import timezone
@@ -14,7 +15,7 @@ from django.utils import timezone
 import pytest
 import requests
 
-from core.mastrao_native_asr_client import transcribe_native_asr
+from core.mastrao_native_asr_client import prepare_native_asr, transcribe_native_asr
 from core.mastrao_recording_contract import RecordingContractRefused
 
 
@@ -136,3 +137,23 @@ def test_invalid_gateway_error_is_bounded_and_closed(native_gateway, body):
         transcribe_native_asr(prepared, b"audio")
     close.assert_called_once()
     assert refused.value.outcome is None
+
+
+def test_native_prepare_preserves_core_failed_outcome(settings):
+    settings.MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = (
+        "http://cabinet-core/internal/v1/meetings/capture/native/asr/prepare"
+    )
+    intent = SimpleNamespace(
+        source_receipt={"source_ref": "source-fixture"},
+        organization_external_id="organization-fixture",
+    )
+    response = gateway_response(409, {"code": "runtime_busy", "outcome": "failed"})
+    with (
+        patch("core.mastrao_native_asr_client._sign", return_value="signed-fixture"),
+        patch("requests.Session.post", return_value=response) as core_post,
+        pytest.raises(RecordingContractRefused) as refused,
+    ):
+        prepare_native_asr(intent)
+    core_post.assert_called_once()
+    assert refused.value.outcome == "failed"
+    assert refused.value.status == 404
