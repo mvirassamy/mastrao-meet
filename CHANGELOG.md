@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-13: Dispatch each bounded native audio source with an exclusive
+  reservation so multiple meeting tracks can transfer concurrently.
+
 - 2026-10-12: Show a dedicated "link no longer available" screen with a
   broken-link illustration and a way back home when a guest link has expired
   or been disabled, instead of the join page with an error sentence.

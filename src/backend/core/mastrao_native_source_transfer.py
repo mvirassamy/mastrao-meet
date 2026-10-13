@@ -36,16 +36,38 @@ def _eligible_sources(now):
         observed_status__in=[3, 6],
         epoch__conflict=False,
         epoch__connection__correlation="correlated",
-    ).filter(Q(source_claim_until__isnull=True) | Q(source_claim_until__lte=now))
+    )
 
 
 @transaction.atomic
-def _claim():
+def _reserve_sources(limit):
+    now = timezone.now()
+    intents = list(
+        _eligible_sources(now)
+        .filter(Q(source_claim_until__isnull=True) | Q(source_claim_until__lte=now))
+        .select_for_update(skip_locked=True)
+        .order_by("source_next_at", "pk")[:limit]
+    )
+    for intent in intents:
+        intent.source_claim = uuid4()
+        intent.source_claim_until = now + timedelta(seconds=120)
+        intent.save(update_fields=["source_claim", "source_claim_until", "updated_at"])
+    return [
+        (intent.pk, intent.source_claim, intent.source_attempts) for intent in intents
+    ]
+
+
+@transaction.atomic
+def _claim(source_id, queued_claim, queued_attempts):
     now = timezone.now()
     intent = (
         _eligible_sources(now)
-        .select_for_update(skip_locked=True)
-        .order_by("source_next_at", "pk")
+        .select_for_update()
+        .filter(
+            pk=source_id,
+            source_claim=queued_claim,
+            source_attempts=queued_attempts,
+        )
         .first()
     )
     if intent is None:
@@ -146,11 +168,11 @@ def _finish(intent, receipt, error):
     return persisted
 
 
-def transfer_next_native_source():
-    """One bounded transfer per worker call; no Start, direct S3 or provider call."""
+def transfer_native_source(source_id, queued_claim, queued_attempts):
+    """Transfer a named source once for its current attempt, even after a queue delay."""
     if not settings.MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED:
         return False
-    intent = _claim()
+    intent = _claim(source_id, queued_claim, queued_attempts)
     if intent is None:
         return False
     try:
@@ -170,22 +192,28 @@ def transfer_next_native_source():
         return False
 
 
-def schedule_native_source_transfer():
+def schedule_native_source_transfer(limit=20):
     """No synchronous fallback inside a scheduler/API when Celery is disabled."""
     if (
         not settings.MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED
         or not settings.CELERY_ENABLED
     ):
         return 0
-    if not _eligible_sources(timezone.now()).exists():
-        return 0
     from core.tasks.native_capture import (  # noqa: PLC0415  # pylint: disable=cyclic-import
         process_native_sources,
     )
 
-    try:
-        process_native_sources.apply_async(args=[], queue="mastrao-transcription")
-        return 1
-    except Exception:  # noqa: BLE001 - broker exception may contain secrets.
-        logger.warning("Native source dispatch unavailable; pending rows retained")
-        return 0
+    dispatched = 0
+    for source_id, queued_claim, queued_attempts in _reserve_sources(limit):
+        try:
+            process_native_sources.apply_async(
+                args=[str(source_id), str(queued_claim), queued_attempts],
+                queue="mastrao-transcription",
+            )
+            dispatched += 1
+        except Exception:  # noqa: BLE001 - broker exception may contain secrets.
+            models.MastraoNativeCaptureStart.objects.filter(
+                pk=source_id, source_claim=queued_claim
+            ).update(source_claim=None, source_claim_until=None)
+            logger.warning("Native source dispatch unavailable; pending row retained")
+    return dispatched

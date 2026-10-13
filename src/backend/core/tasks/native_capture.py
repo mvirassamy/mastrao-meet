@@ -15,14 +15,23 @@ def process_native_admissions(connection_id):
 
 
 @task(name="core.process_native_sources", queue="mastrao-transcription")
-def process_native_sources():
-    """Transfer the next admitted native audio source to durable storage."""
+def process_native_sources(source_id=None, queued_claim=None, queued_attempts=None):
+    """Transfer the source reserved by the scheduler."""
+
+    if source_id is None and queued_claim is None and queued_attempts is None:
+        from core.mastrao_native_source_transfer import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+            schedule_native_source_transfer,
+        )
+
+        return schedule_native_source_transfer(limit=1)
+    if source_id is None or queued_claim is None or queued_attempts is None:
+        return False
 
     from core.mastrao_native_source_transfer import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-        transfer_next_native_source,
+        transfer_native_source,
     )
 
-    return transfer_next_native_source()
+    return transfer_native_source(source_id, queued_claim, queued_attempts)
 
 
 @task(name="core.process_native_asr", queue="mastrao-native-asr-ready")
