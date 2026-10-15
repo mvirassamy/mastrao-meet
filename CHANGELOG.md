@@ -686,6 +686,7 @@ and this project adheres to
 
 - 🐛(frontend) render the dedicated error and loading states in the local
   preview gallery
+- 🐛(backend) disable server-side cursors for transaction pooling #180
 
 - 🐛(docker) pin public MinIO server and client registry references
 

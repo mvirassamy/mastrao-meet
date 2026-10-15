@@ -219,6 +219,35 @@ DB_PASSWORD: pass
 DB_PORT: 5432
 ```
 
+### PostgreSQL connection budget
+
+The backend disables Django server-side cursors in both supported database
+configuration paths (`DATABASE_URL` and `DB_*`). This keeps maintenance commands
+that use `QuerySet.iterator()` compatible with a transaction-level connection
+pooler, without changing their transaction boundaries.
+
+Size PostgreSQL for the maximum number of application processes that can query
+it, including a rolling update and concurrent maintenance jobs. The Helmfile
+staging and production values keep one backend replica; the chart also renders
+the Mastrao admission, transcription, and native ASR workers. With the default
+Kubernetes rolling-update surge, the conservative bound is:
+
+| Source | Maximum connections |
+| --- | ---: |
+| Backend: 2 pods during rollout x 3 Gunicorn workers | 6 |
+| `celeryBackend`: 2 pods during rollout x 1 solo worker | 2 |
+| `celeryMastraoNativeAdmission`: 2 pods x 1 solo worker | 2 |
+| `celeryMastraoTranscription`: 2 pods x 1 solo worker | 2 |
+| Native ASR ready lane: 3 pods during rollout x 1 solo worker | 3 |
+| Native ASR retry lane: 3 pods during rollout x 1 solo worker | 3 |
+| Three independent CronJobs | 3 |
+| `migrate` and `createsuperuser` Jobs | 2 |
+| **Total** | **23** |
+
+The chart defaults alone use three backend replicas, raising this bound to 29.
+Reserve additional PostgreSQL connections for administrators, monitoring, and
+the platform before setting an application or pool limit.
+
 ## Deployment
 
 Now you are ready to deploy LaSuite Meet without AI. AI required more dependencies (Openai-compliant API, LiveKit Egress, Cold storage and a docs deployment to push resumes). To deploy meet you need to provide all previous information to the helm chart.
