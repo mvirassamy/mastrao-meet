@@ -15,6 +15,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) disable server-side cursors for transaction pooling #180
 - 🔧(ci) run existing frontend unit tests in the lint gate and build the
   SDK after lint and formatting with one dependency install
 - 🔧(ci) pull only the pinned AMD64 S3 emulator used by backend tests
