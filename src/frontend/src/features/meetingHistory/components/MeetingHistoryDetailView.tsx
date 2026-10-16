@@ -47,6 +47,7 @@ import {
 } from './MeetingHistoryStatePanel'
 import { MeetingHistoryDetailSkeleton } from './MeetingHistoryDetailSkeleton'
 import { MeetingRecordingSection } from './MeetingRecordingSection'
+import { MeetingPersonalNotesSection } from './MeetingPersonalNotesSection'
 import {
   detailHeader,
   detailSections,
@@ -365,6 +366,11 @@ const MeetingDetailContent = ({
           />
         )}
       </header>
+      <div className={css({ marginBottom: '1.25rem' })}>
+        <MeetingPersonalNotesSection
+          endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
+        />
+      </div>
       <div className={detailSections}>
         <MeetingContentSection
           kind="summary"

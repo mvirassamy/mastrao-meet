@@ -1,3 +1,4 @@
+import { MeetingNotesScope } from '@/features/rooms/components/MeetingNotes'
 import type { ApiUser } from '@/features/auth/api/ApiUser'
 import { MeetWorkspaceShell } from '@/features/home/components/authenticated/MeetWorkspaceShell'
 import { MeetWorkspaceToolbar } from '@/features/home/components/authenticated/MeetWorkspaceToolbar'
@@ -20,13 +21,18 @@ export const MeetingHistoryMeetingPage = ({
   user: ApiUser
   meetingId: string
 }) => (
-  <Screen header={false} footer={false}>
-    <MeetWorkspaceShell user={user} toolbar={<MeetWorkspaceToolbar />}>
-      <MeetingHistoryDetailView
-        key={meetingId}
-        meetingId={meetingId}
-        timeZone={user.timezone}
-      />
-    </MeetWorkspaceShell>
-  </Screen>
+  <MeetingNotesScope
+    endpoint={`/meetings/history/${encodeURIComponent(meetingId)}/personal-note/`}
+    identityKey={user.id}
+  >
+    <Screen header={false} footer={false}>
+      <MeetWorkspaceShell user={user} toolbar={<MeetWorkspaceToolbar />}>
+        <MeetingHistoryDetailView
+          key={meetingId}
+          meetingId={meetingId}
+          timeZone={user.timezone}
+        />
+      </MeetWorkspaceShell>
+    </Screen>
+  </MeetingNotesScope>
 )

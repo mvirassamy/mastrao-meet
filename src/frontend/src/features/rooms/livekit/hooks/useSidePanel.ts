@@ -13,6 +13,7 @@ export enum PanelId {
 export enum SubPanelId {
   TRANSCRIPT = 'transcript',
   LIVE_TRANSCRIPT = 'liveTranscript',
+  PERSONAL_NOTES = 'personalNotes',
   SCREEN_RECORDING = 'screenRecording',
 }
 
@@ -29,6 +30,7 @@ export const useSidePanel = () => {
   const isInfoOpen = activePanelId == PanelId.INFO
   const isTranscriptOpen = activeSubPanelId == SubPanelId.TRANSCRIPT
   const isLiveTranscriptOpen = activeSubPanelId == SubPanelId.LIVE_TRANSCRIPT
+  const isPersonalNotesOpen = activeSubPanelId == SubPanelId.PERSONAL_NOTES
   const isScreenRecordingOpen = activeSubPanelId == SubPanelId.SCREEN_RECORDING
   const isSidePanelOpen = !!activePanelId
   const isSubPanelOpen = !!activeSubPanelId
@@ -78,6 +80,11 @@ export const useSidePanel = () => {
     layoutStore.activePanelId = PanelId.TOOLS
   }
 
+  const openPersonalNotes = () => {
+    layoutStore.activeSubPanelId = SubPanelId.PERSONAL_NOTES
+    layoutStore.activePanelId = PanelId.TOOLS
+  }
+
   return {
     activePanelId,
     activeSubPanelId,
@@ -89,6 +96,7 @@ export const useSidePanel = () => {
     toggleInfo,
     openTranscript,
     openLiveTranscript,
+    openPersonalNotes,
     openScreenRecording,
     isSubPanelOpen,
     isChatOpen,
@@ -100,6 +108,7 @@ export const useSidePanel = () => {
     isInfoOpen,
     isTranscriptOpen,
     isLiveTranscriptOpen,
+    isPersonalNotesOpen,
     isScreenRecordingOpen,
   }
 }

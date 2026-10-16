@@ -1,0 +1,27 @@
+{
+  "title": "Meine Notizen",
+  "private": "Diese Notizen sind nur für Sie sichtbar.",
+  "placeholder": "Halten Sie Ihre Ideen während der Besprechung fest…",
+  "loading": "Notizen werden geladen…",
+  "saved": "Gespeichert",
+  "unsaved": "Ungespeicherte Änderungen",
+  "saving": "Wird gespeichert…",
+  "saveError": "Notizen nicht gespeichert. Ihr Entwurf bleibt hier erhalten.",
+  "sessionExpired": "Ihr Zugriff auf Notizen ist abgelaufen. Melden Sie sich erneut an, um Ihren Entwurf zu speichern.",
+  "conflict": "Eine andere Version wurde gespeichert. Ihr Entwurf bleibt hier erhalten.",
+  "retry": "Erneut versuchen",
+  "loadSaved": "Gespeicherte Version laden",
+  "keepDraft": "Stattdessen meinen Entwurf speichern",
+  "confirmOverwrite": "Die gespeicherte Version durch Ihren Entwurf ersetzen?",
+  "limit_one": "Maximal {{count}} Zeichen.",
+  "limit_other": "Maximal {{count}} Zeichen.",
+  "remaining_one": "Noch {{count}} Zeichen verfügbar.",
+  "remaining_other": "Noch {{count}} Zeichen verfügbar.",
+  "limitReached": "Änderung abgelehnt: Sie überschreitet das Limit von 100.000 Zeichen. Ihr bisheriger Text bleibt erhalten.",
+  "exit": {
+    "title": "Ihre Notizen wurden nicht gespeichert",
+    "body": "Ihre letzten Änderungen wurden nicht gespeichert. Versuchen Sie es erneut oder lösen Sie den Konflikt unter Meine Notizen, bevor Sie die Besprechung verlassen. Beim Verlassen ohne Speichern gehen diese Änderungen verloren.",
+    "discard": "Ohne Speichern verlassen",
+    "retry": "Speichern erneut versuchen"
+  }
+}

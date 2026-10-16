@@ -25,6 +25,7 @@ from core.mastrao_meeting_history import (
 )
 from core.mastrao_native_capture_adapter import start_native_capture
 from core.mastrao_native_capture_stop import stop_native_capture
+from core.mastrao_personal_notes import history_personal_note, room_personal_note
 from core.mastrao_recording_access import recording_access, recording_download
 from core.mastrao_recording_adapter import (
     start_mastrao_recording,
@@ -147,6 +148,16 @@ urlpatterns = [
             [
                 *router.urls,
                 *oidc_urls,
+                path(
+                    "rooms/<str:room_ref>/personal-note/",
+                    room_personal_note,
+                    name="mastrao_room_personal_note",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/personal-note/",
+                    history_personal_note,
+                    name="mastrao_history_personal_note",
+                ),
                 path("meetings/", meeting_collection, name="mastrao_create_meeting"),
                 path(
                     "rooms/<str:room_ref>/host-handoff/",

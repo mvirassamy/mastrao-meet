@@ -40,6 +40,7 @@ import {
   readCachedPlatformReturn,
 } from '../platformReturn'
 import { isMastraoRoomId } from '../utils/isRoomValid'
+import { useMeetingNotesExit } from '../contexts/MeetingNotesExitContext'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -58,6 +59,15 @@ export const Conference = ({
   const { phase, isEnding, canonicalLifecycle, markEndingUncertain } =
     useMeetingLifecycle()
   const { data: apiConfig } = useConfig()
+  const notesExit = useMeetingNotesExit()
+  const requestExit = notesExit?.requestExit
+  const leaveWithNotes = useCallback(
+    (action: () => void) => {
+      if (requestExit) requestExit(action)
+      else action()
+    },
+    [requestExit]
+  )
 
   const userConfig = useSnapshot(userChoicesStore)
 
@@ -158,26 +168,38 @@ export const Conference = ({
     }
   }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
 
-  const navigateToEndedMeeting = useCallback(() => {
-    queryClient.removeQueries({ queryKey: [keys.room, roomId], exact: true })
-    const platformOrigin = apiConfig?.mastrao_platform_origin
-    navigateTo(
-      'feedback',
-      { outcome: 'ended', roomId },
-      {
-        replace: true,
-        state: {
-          reason: DisconnectReason.ROOM_DELETED,
-          room_id: roomId,
-          platform_return:
-            data?.platform_return ??
-            (platformOrigin
-              ? readCachedPlatformReturn(roomId, platformOrigin)
-              : undefined),
-        },
-      }
-    )
-  }, [apiConfig?.mastrao_platform_origin, data?.platform_return, roomId])
+  const navigateToEndedMeeting = useCallback(
+    () =>
+      leaveWithNotes(() => {
+        queryClient.removeQueries({
+          queryKey: [keys.room, roomId],
+          exact: true,
+        })
+        const platformOrigin = apiConfig?.mastrao_platform_origin
+        navigateTo(
+          'feedback',
+          { outcome: 'ended', roomId },
+          {
+            replace: true,
+            state: {
+              reason: DisconnectReason.ROOM_DELETED,
+              room_id: roomId,
+              platform_return:
+                data?.platform_return ??
+                (platformOrigin
+                  ? readCachedPlatformReturn(roomId, platformOrigin)
+                  : undefined),
+            },
+          }
+        )
+      }),
+    [
+      apiConfig?.mastrao_platform_origin,
+      data?.platform_return,
+      roomId,
+      leaveWithNotes,
+    ]
+  )
 
   useEffect(() => {
     if (canonicalLifecycle?.state === 'ended' || phase === 'ended') {
@@ -354,61 +376,69 @@ export const Conference = ({
               case DisconnectReason.ROOM_DELETED:
                 if (!isMastraoRoomId(roomId)) {
                   queryClient.removeQueries({ queryKey: fetchKey, exact: true })
-                  navigateTo(
-                    'feedback',
-                    { outcome: 'ended', roomId },
-                    {
-                      state: {
-                        reason: e,
-                        ...metadata,
-                      },
-                    }
+                  leaveWithNotes(() =>
+                    navigateTo(
+                      'feedback',
+                      { outcome: 'ended', roomId },
+                      {
+                        state: {
+                          reason: e,
+                          ...metadata,
+                        },
+                      }
+                    )
                   )
                   return
                 }
                 markEndingUncertain()
                 return
               case DisconnectReason.CLIENT_INITIATED:
-                navigateTo(
-                  'feedback',
-                  { outcome: 'left', roomId },
-                  {
-                    state: {
-                      platform_return:
-                        data?.platform_return ??
-                        readCachedPlatformReturn(
-                          roomId,
-                          apiConfig?.mastrao_platform_origin
-                        ),
-                      ...metadata,
-                    },
-                  }
+                leaveWithNotes(() =>
+                  navigateTo(
+                    'feedback',
+                    { outcome: 'left', roomId },
+                    {
+                      state: {
+                        platform_return:
+                          data?.platform_return ??
+                          readCachedPlatformReturn(
+                            roomId,
+                            apiConfig?.mastrao_platform_origin
+                          ),
+                        ...metadata,
+                      },
+                    }
+                  )
                 )
                 return
               case DisconnectReason.DUPLICATE_IDENTITY:
-                navigateTo(
-                  'feedback',
-                  { outcome: 'duplicate', roomId },
-                  {
-                    replace: true,
-                    state: {
-                      reason: e,
-                      ...metadata,
-                    },
-                  }
+                leaveWithNotes(() =>
+                  navigateTo(
+                    'feedback',
+                    { outcome: 'duplicate', roomId },
+                    {
+                      replace: true,
+                      state: {
+                        reason: e,
+                        ...metadata,
+                      },
+                    }
+                  )
                 )
                 return
               case DisconnectReason.PARTICIPANT_REMOVED:
-                navigateTo(
-                  'feedback',
-                  { outcome: 'removed', roomId },
-                  {
-                    replace: true,
-                    state: {
-                      reason: e,
-                      ...metadata,
-                    },
-                  }
+                leaveWithNotes(() =>
+                  navigateTo(
+                    'feedback',
+                    { outcome: 'removed', roomId },
+                    {
+                      replace: true,
+                      state: {
+                        reason: e,
+                        ...metadata,
+                      },
+                    }
+                  )
                 )
                 return
             }

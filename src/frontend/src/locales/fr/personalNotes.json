@@ -1,0 +1,27 @@
+{
+  "title": "Mes notes",
+  "private": "Ces notes sont visibles uniquement par vous.",
+  "placeholder": "Notez vos idées pendant la réunion…",
+  "loading": "Chargement des notes…",
+  "saved": "Enregistré",
+  "unsaved": "Modifications non enregistrées",
+  "saving": "Enregistrement…",
+  "saveError": "Notes non enregistrées. Votre brouillon est conservé ici.",
+  "sessionExpired": "Accès aux notes expiré. Reconnectez-vous pour enregistrer votre brouillon.",
+  "conflict": "Une autre version a été enregistrée. Votre brouillon est conservé ici.",
+  "retry": "Réessayer",
+  "loadSaved": "Charger la version enregistrée",
+  "keepDraft": "Enregistrer mon brouillon à la place",
+  "confirmOverwrite": "Remplacer la version enregistrée par votre brouillon ?",
+  "limit_one": "{{count}} caractère maximum.",
+  "limit_other": "{{count}} caractères maximum.",
+  "remaining_one": "{{count}} caractère restant.",
+  "remaining_other": "{{count}} caractères restants.",
+  "limitReached": "Modification refusée : elle dépasse la limite de 100 000 caractères. Votre texte précédent est conservé.",
+  "exit": {
+    "title": "Vos notes ne sont pas enregistrées",
+    "body": "Vos dernières modifications ne sont pas enregistrées. Réessayez ou résolvez le conflit dans Mes notes avant de quitter. Si vous quittez sans enregistrer, ces modifications seront perdues.",
+    "discard": "Quitter sans enregistrer",
+    "retry": "Réessayer l’enregistrement"
+  }
+}

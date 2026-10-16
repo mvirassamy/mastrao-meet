@@ -19,6 +19,7 @@ import { useReactionsToolbar } from '@/features/reactions/hooks/useReactionsTool
 import { useRestoreFocus } from '@/hooks/useRestoreFocus'
 import { useSnapshot } from 'valtio'
 import { chatStore } from '@/stores/chat'
+import { PersonalNotesEditor, usePersonalNotes } from '@/features/meeting-notes'
 
 type StyledSidePanelProps = {
   title: string
@@ -214,16 +215,36 @@ const UnreadDot = () => (
 
 const MeetingConversationTabs = ({ isChatOpen }: { isChatOpen: boolean }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel.tabs' })
-  const { toggleChat, openLiveTranscript } = useSidePanel()
+  const { t: notesT } = useTranslation('personalNotes', { useSuspense: false })
+  const {
+    toggleChat,
+    openLiveTranscript,
+    openPersonalNotes,
+    isPersonalNotesOpen,
+  } = useSidePanel()
+  const notes = usePersonalNotes()
+  let selectedKey: string = SubPanelId.LIVE_TRANSCRIPT
+  if (isChatOpen) selectedKey = PanelId.CHAT
+  if (isPersonalNotesOpen) selectedKey = SubPanelId.PERSONAL_NOTES
   const { unreadMessages } = useSnapshot(chatStore)
   const hasUnread = !isChatOpen && unreadMessages > 0
 
   return (
     <Tabs
-      selectedKey={isChatOpen ? PanelId.CHAT : SubPanelId.LIVE_TRANSCRIPT}
+      selectedKey={selectedKey}
       onSelectionChange={(key) => {
-        if (key === PanelId.CHAT) toggleChat()
-        else openLiveTranscript()
+        if (isPersonalNotesOpen) void notes?.flush()
+        switch (key) {
+          case PanelId.CHAT:
+            toggleChat()
+            break
+          case SubPanelId.LIVE_TRANSCRIPT:
+            openLiveTranscript()
+            break
+          case SubPanelId.PERSONAL_NOTES:
+            openPersonalNotes()
+            break
+        }
       }}
       className={css({ flex: 1, minHeight: 0 })}
     >
@@ -249,6 +270,11 @@ const MeetingConversationTabs = ({ isChatOpen }: { isChatOpen: boolean }) => {
             </>
           )}
         </Tab>
+        {notes && (
+          <Tab id={SubPanelId.PERSONAL_NOTES} className={conversationTab}>
+            {notesT('title', { defaultValue: 'Mes notes' })}
+          </Tab>
+        )}
       </TabList>
       <TabPanel
         id={PanelId.CHAT}
@@ -264,6 +290,15 @@ const MeetingConversationTabs = ({ isChatOpen }: { isChatOpen: boolean }) => {
       >
         <LiveTranscriptSidePanel />
       </TabPanel>
+      {notes && (
+        <TabPanel
+          id={SubPanelId.PERSONAL_NOTES}
+          flex
+          className={css({ padding: 0, marginTop: 0, minHeight: 0 })}
+        >
+          <PersonalNotesEditor />
+        </TabPanel>
+      )}
     </Tabs>
   )
 }
@@ -279,15 +314,17 @@ export const SidePanel = () => {
     isAdminOpen,
     isInfoOpen,
     isLiveTranscriptOpen,
+    isPersonalNotesOpen,
     isSubPanelOpen,
     activeSubPanelId,
   } = useSidePanel()
+  const notes = usePersonalNotes()
   const { t } = useTranslation('rooms', { keyPrefix: 'sidePanel' })
-  // Transcription and Messages share one fixed title.
-  const panelKey =
-    isChatOpen || isLiveTranscriptOpen
-      ? 'conversation'
-      : activeSubPanelId || activePanelId
+  const isConversationOpen =
+    isChatOpen || isLiveTranscriptOpen || isPersonalNotesOpen
+  const panelKey = isConversationOpen
+    ? 'conversation'
+    : activeSubPanelId || activePanelId
   const title = t(`heading.${panelKey}`)
 
   useEffect(() => {
@@ -340,12 +377,15 @@ export const SidePanel = () => {
       ref={asideRef}
       title={title}
       ariaLabel={t('ariaLabel', { title })}
-      onClose={closeSidePanel}
+      onClose={() => {
+        void notes?.flush()
+        closeSidePanel()
+      }}
       closeButtonTooltip={t('closeButton', {
         content: t(`content.${panelKey}`),
       })}
       isClosed={!isSidePanelOpen}
-      isSubmenu={isSubPanelOpen && !isLiveTranscriptOpen}
+      isSubmenu={isSubPanelOpen && !isConversationOpen}
       isReactionToolbarOpen={isReactionToolbarOpen}
       backButtonLabel={t('backToTools')}
       onBack={() => (layoutStore.activeSubPanelId = null)}
@@ -356,10 +396,10 @@ export const SidePanel = () => {
       <Panel isOpen={isEffectsOpen}>
         <Effects />
       </Panel>
-      {(isChatOpen || isLiveTranscriptOpen) && (
+      {isConversationOpen && (
         <MeetingConversationTabs isChatOpen={isChatOpen} />
       )}
-      <Panel isOpen={isToolsOpen && !isLiveTranscriptOpen} keepAlive={true}>
+      <Panel isOpen={isToolsOpen && !isConversationOpen} keepAlive={true}>
         <Tools />
       </Panel>
       <Panel isOpen={isAdminOpen}>

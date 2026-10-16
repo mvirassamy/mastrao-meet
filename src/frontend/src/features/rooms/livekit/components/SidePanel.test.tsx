@@ -8,6 +8,8 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Button } from '@/primitives'
+import { fetchApi } from '@/api/fetchApi'
+import { PersonalNotesProvider } from '@/features/meeting-notes'
 import { layoutStore } from '@/stores/layout'
 import { chatStore } from '@/stores/chat'
 import { PanelId, SubPanelId } from '../hooks/useSidePanel'
@@ -20,10 +22,12 @@ vi.mock('react-i18next', () => ({
       if (key === 'messages') return 'Messages'
       if (key === 'transcription') return 'Transcription'
       if (key === 'unread') return 'New message'
+      if (key === 'title') return 'My notes'
       return key
     },
   }),
 }))
+vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
 vi.mock('@/api/useConfig', () => ({
   useConfig: () => ({
     data: {
@@ -72,6 +76,13 @@ const flushAnimationFrames = async () => {
 }
 
 beforeEach(() => {
+  vi.mocked(fetchApi).mockReset().mockResolvedValue({
+    id: null,
+    content: '',
+    revision: 0,
+    created_at: null,
+    updated_at: null,
+  })
   layoutStore.activePanelId = null
   layoutStore.activeSubPanelId = null
   chatStore.unreadMessages = 0
@@ -93,6 +104,117 @@ afterEach(() => {
 })
 
 describe('meeting conversation panel', () => {
+  const renderWithNotes = () =>
+    render(
+      <PersonalNotesProvider
+        endpoint="/rooms/room/personal-note/"
+        identityKey="host-a"
+      >
+        <ChatToggle />
+        <SidePanel />
+      </PersonalNotesProvider>
+    )
+
+  const openNotes = async () => {
+    fireEvent.click(await screen.findByRole('tab', { name: 'My notes' }))
+    const editor = await screen.findByRole('textbox', { name: 'My notes' })
+    await waitFor(() =>
+      expect((editor as HTMLTextAreaElement).disabled).toBe(false)
+    )
+    return editor as HTMLTextAreaElement
+  }
+
+  it('offers notes beside messages and transcription when the provider is mounted', async () => {
+    renderWithNotes()
+
+    expect(
+      (await screen.findAllByRole('tab')).map((tab) => tab.textContent)
+    ).toEqual(['Transcription', 'Messages', 'My notes'])
+    await openNotes()
+    expect(
+      screen
+        .getByRole('tab', { name: 'My notes' })
+        .getAttribute('aria-selected')
+    ).toBe('true')
+    expect(screen.getByText('private')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'heading.conversation'
+    )
+  })
+
+  it('retains an unsaved draft across all three tabs and closing the panel', async () => {
+    vi.mocked(fetchApi).mockImplementation(async (_endpoint, options) => {
+      if (options?.method === 'PUT') throw new Error('offline')
+      return {
+        id: null,
+        content: '',
+        revision: 0,
+        created_at: null,
+        updated_at: null,
+      }
+    })
+    renderWithNotes()
+    const editor = await openNotes()
+    fireEvent.change(editor, { target: { value: 'Draft survives the panel' } })
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Messages' }))
+    await screen.findByText('Messages panel')
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetchApi)
+          .mock.calls.some(([, options]) => options?.method === 'PUT')
+      ).toBe(true)
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Transcription' }))
+    await screen.findByText('Live transcription panel')
+    expect((await openNotes()).value).toBe('Draft survives the panel')
+    await screen.findByText('saveError')
+
+    fireEvent.click(screen.getByRole('button', { name: 'closeButton' }))
+    await waitFor(() => expect(screen.queryByRole('tab')).toBeNull())
+    await flushAnimationFrames()
+    fireEvent.click(screen.getByRole('button', { name: 'closed' }))
+    await screen.findByText('Messages panel')
+
+    expect((await openNotes()).value).toBe('Draft survives the panel')
+    expect(screen.getByText('saveError')).toBeTruthy()
+    expect(
+      vi
+        .mocked(fetchApi)
+        .mock.calls.filter(([, options]) => options?.method !== 'PUT')
+    ).toHaveLength(1)
+  })
+
+  it('preserves keyboard focus and wraps through the three conversation tabs', async () => {
+    renderWithNotes()
+    const transcript = await screen.findByRole('tab', { name: 'Transcription' })
+    await flushAnimationFrames()
+    act(() => transcript.focus())
+
+    fireEvent.keyDown(transcript, { key: 'ArrowRight' })
+    await screen.findByText('Messages panel')
+    await flushAnimationFrames()
+    const messages = screen.getByRole('tab', { name: 'Messages' })
+    expect(document.activeElement).toBe(messages)
+
+    fireEvent.keyDown(messages, { key: 'ArrowRight' })
+    await screen.findByRole('textbox', { name: 'My notes' })
+    await flushAnimationFrames()
+    const notes = screen.getByRole('tab', { name: 'My notes' })
+    expect(document.activeElement).toBe(notes)
+    expect(notes.getAttribute('aria-selected')).toBe('true')
+
+    fireEvent.keyDown(notes, { key: 'Home' })
+    await screen.findByText('Live transcription panel')
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(transcript)
+    fireEvent.keyDown(transcript, { key: 'ArrowLeft' })
+    await screen.findByRole('textbox', { name: 'My notes' })
+    await flushAnimationFrames()
+    expect(document.activeElement).toBe(notes)
+  })
+
   it('opens on the live transcription tab and switches to messages and back', async () => {
     render(<SidePanel />)
 

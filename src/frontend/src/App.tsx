@@ -14,6 +14,7 @@ import { queryClient } from '@/api/queryClient'
 import { AppInitialization } from '@/components/AppInitialization'
 import { useIsSdkContext } from '@/features/sdk/hooks/useIsSdkContext'
 import { useApplyA11yFonts } from '@/hooks/useApplyA11yFonts'
+import { GuardedRouter } from '@/navigation/GuardedRouter'
 
 function App() {
   const { i18n } = useTranslation()
@@ -28,14 +29,20 @@ function App() {
       {!isSDKContext && !isGuestLanding && <AppInitialization />}
       <Suspense fallback={null}>
         <I18nProvider locale={i18n.language}>
-          <Layout bare={isGuestLanding}>
-            <Switch>
-              {Object.entries(routes).map(([, route], i) => (
-                <Route key={i} path={route.path} component={route.Component} />
-              ))}
-              <Route component={NotFoundScreen} />
-            </Switch>
-          </Layout>
+          <GuardedRouter>
+            <Layout bare={isGuestLanding}>
+              <Switch>
+                {Object.entries(routes).map(([, route], i) => (
+                  <Route
+                    key={i}
+                    path={route.path}
+                    component={route.Component}
+                  />
+                ))}
+                <Route component={NotFoundScreen} />
+              </Switch>
+            </Layout>
+          </GuardedRouter>
           <ReactQueryDevtools
             initialIsOpen={false}
             buttonPosition="bottom-left"
