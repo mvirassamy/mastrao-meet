@@ -1,0 +1,88 @@
+{
+  "title": "Ask about this meeting",
+  "scope": "This meeting only. Your conversation is private; personal notes and other folders are not used.",
+  "loading": "Loading your private conversation…",
+  "pending": "Reading sources and preparing the result…",
+  "error": "The conversation or request could not be confirmed. Reload the conversation before retrying.",
+  "retry": "Reload conversation",
+  "empty": "Ask a question about what was discussed in this meeting.",
+  "history": "Your private conversation",
+  "question": "Your question about this meeting",
+  "ask": "Ask question",
+  "actions": {
+    "title": "Prepare a proposal",
+    "short-summary": "Short summary",
+    "actions": "Extract actions",
+    "follow-up-email": "Draft follow-up email"
+  },
+  "result": {
+    "unavailable": "This result is no longer readable under current permissions and source versions.",
+    "abstention": "The available sources do not support an answer with sufficient confidence.",
+    "coverage": "Source coverage limitations",
+    "edit": "Edit proposal",
+    "sources": "Source passages",
+    "proposal": "Proposal for review. No publication, task or communication is triggered. Edits remain in this view.",
+    "copy": "Copy proposal",
+    "copied": "Proposal copied.",
+    "failed": "Copy failed. You can select and copy the text.",
+    "failure": "Generation failed for a technical reason. This does not mean evidence is absent.",
+    "processing": "This request is still processing. Reload the conversation to check its current state.",
+    "unknown": "The outcome of this request is not yet confirmed. Reload the conversation before retrying.",
+    "refusal": "This request cannot be processed within the authorized scope.",
+    "subject": "Subject",
+    "owner": "Owner",
+    "due": "Due date",
+    "unspecified": "To be specified"
+  },
+  "source": {
+    "title": "Cited passage",
+    "loading": "Checking the passage and your access…",
+    "error": "This passage cannot be opened. Permissions or the source may have changed.",
+    "close": "Close",
+    "version": "Version {{version}}",
+    "kind": {
+      "provider_run": "Transcript",
+      "reviewed_revision": "Reviewed transcript",
+      "native_epoch": "Native transcript",
+      "published_brief": "Published brief"
+    },
+    "status": {
+      "transcript": "Transcribed speech",
+      "published_summary": "Published summary",
+      "confirmed_decision": "Confirmed decision",
+      "confirmed_action": "Confirmed action",
+      "confirmed_deadline": "Confirmed deadline"
+    },
+    "time": {
+      "meeting_relative_ms": "Time from the meeting start",
+      "source_relative_ms": "Time relative to the source"
+    }
+  },
+  "operation": {
+    "question": "Meeting question",
+    "summary": "Short summary",
+    "actions": "Proposed actions",
+    "email_draft": "Follow-up email draft"
+  },
+  "coverage": {
+    "state": {
+      "full": "Usable sources are available.",
+      "partial": "Sources are partial; information may be missing.",
+      "absent": "No usable source is available."
+    },
+    "source": {
+      "reference_transcript": "Reference transcript.",
+      "partial_sources": "Partially available sources.",
+      "published_only": "Published material only.",
+      "absent": "No accessible source."
+    },
+    "selection": {
+      "complete": "All available passages were provided.",
+      "relevant_passages": "Relevant passages selected; coverage is not exhaustive.",
+      "distributed_passages": "Passages sampled across the meeting; coverage is not exhaustive.",
+      "none": "No passage selected."
+    },
+    "omitted_one": "{{count}} passage omitted.",
+    "omitted_other": "{{count}} passages omitted."
+  }
+}

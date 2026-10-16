@@ -1,0 +1,88 @@
+{
+  "title": "Interroger cette réunion",
+  "scope": "Cette réunion uniquement. Votre fil est privé ; les notes personnelles et les autres dossiers ne sont pas utilisés.",
+  "loading": "Chargement de votre fil privé…",
+  "pending": "Lecture des sources et préparation du résultat…",
+  "error": "Le fil ou la demande n’a pas pu être confirmé. Rechargez le fil avant de reprendre.",
+  "retry": "Relire le fil",
+  "empty": "Posez une question sur ce qui a été évoqué dans cette réunion.",
+  "history": "Votre conversation privée",
+  "question": "Votre question sur cette réunion",
+  "ask": "Poser la question",
+  "actions": {
+    "title": "Préparer une proposition",
+    "short-summary": "Synthèse courte",
+    "actions": "Extraire les actions",
+    "follow-up-email": "Préparer le mail de suivi"
+  },
+  "result": {
+    "unavailable": "Ce résultat n’est plus consultable sous les droits et versions actuels.",
+    "abstention": "Les sources disponibles ne permettent pas de répondre avec suffisamment de certitude.",
+    "coverage": "Limites des sources utilisées",
+    "edit": "Modifier la proposition",
+    "sources": "Passages sources",
+    "proposal": "Proposition à relire. Aucune publication, tâche ou communication n’est déclenchée. Les modifications restent dans cette vue.",
+    "copy": "Copier la proposition",
+    "copied": "Proposition copiée.",
+    "failed": "La copie n’a pas abouti. Vous pouvez sélectionner et copier le texte.",
+    "failure": "La génération a échoué pour une raison technique. Ce n’est pas une absence de preuve.",
+    "processing": "Cette demande est encore en cours. Relisez le fil pour retrouver son état actuel.",
+    "unknown": "L’issue de cette demande n’est pas encore confirmée. Relisez le fil avant de la relancer.",
+    "refusal": "Cette demande ne peut pas être traitée dans le périmètre autorisé.",
+    "subject": "Objet",
+    "owner": "Responsable",
+    "due": "Échéance",
+    "unspecified": "À préciser"
+  },
+  "source": {
+    "title": "Passage cité",
+    "loading": "Vérification du passage et de vos droits…",
+    "error": "Ce passage ne peut pas être ouvert. Les droits ou la source ont peut-être changé.",
+    "close": "Fermer",
+    "version": "Version {{version}}",
+    "kind": {
+      "provider_run": "Transcription",
+      "reviewed_revision": "Transcription revue",
+      "native_epoch": "Transcription native",
+      "published_brief": "Compte rendu publié"
+    },
+    "status": {
+      "transcript": "Parole transcrite",
+      "published_summary": "Synthèse publiée",
+      "confirmed_decision": "Décision confirmée",
+      "confirmed_action": "Action confirmée",
+      "confirmed_deadline": "Échéance confirmée"
+    },
+    "time": {
+      "meeting_relative_ms": "Temps depuis le début de la réunion",
+      "source_relative_ms": "Temps relatif à la source"
+    }
+  },
+  "operation": {
+    "question": "Question sur la réunion",
+    "summary": "Synthèse courte",
+    "actions": "Actions proposées",
+    "email_draft": "Brouillon de mail de suivi"
+  },
+  "coverage": {
+    "state": {
+      "full": "Sources exploitables disponibles.",
+      "partial": "Les sources sont partielles ; des éléments peuvent manquer.",
+      "absent": "Aucune source exploitable disponible."
+    },
+    "source": {
+      "reference_transcript": "Transcription de référence.",
+      "partial_sources": "Sources partiellement disponibles.",
+      "published_only": "Éléments publiés uniquement.",
+      "absent": "Aucune source accessible."
+    },
+    "selection": {
+      "complete": "Tous les passages disponibles ont été fournis.",
+      "relevant_passages": "Sélection de passages pertinents ; couverture non exhaustive.",
+      "distributed_passages": "Sélection répartie dans la réunion ; couverture non exhaustive.",
+      "none": "Aucun passage sélectionné."
+    },
+    "omitted_one": "{{count}} passage non inclus.",
+    "omitted_other": "{{count}} passages non inclus."
+  }
+}

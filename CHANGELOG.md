@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-16: Prepare private meeting assistant presentation for sourced answers,
+  explicit coverage limits and editable, copyable proposals. Keep factual
+  abstention distinct from technical failures and clear unreadable citations.
+
 - 2026-10-16: Connect Meet detail and summary filing to authorized folder
   search and creation, with explicit sharing information, durable receipts,
   conflict refresh and attachment retries that reuse an already created folder.
