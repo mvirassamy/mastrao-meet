@@ -2,6 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { normalizeHistoryDetail } from '../api/meetingHistoryApi'
 import { MeetingResultOverview } from './MeetingResultOverview'
+import { SummaryBody } from './MeetingResultSections'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -51,5 +52,25 @@ describe('meeting result overview', () => {
     expect(screen.getAllByRole('status')[0].textContent).toContain(
       'result.ended'
     )
+  })
+  it('keeps an explicitly empty result section visible without inventing a decision', () => {
+    const meeting = normalizeHistoryDetail({
+      id: 'm1',
+      started_at: '2026-10-16T08:00:00Z',
+      summary: {
+        status: 'available',
+        text: 'Résumé de la discussion.',
+        sections: [{ title: 'Décisions', items: [] }],
+      },
+    })!
+    render(
+      <SummaryBody
+        summary={meeting.summary}
+        view="available"
+        onRetry={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('heading', { name: 'Décisions' })).toBeTruthy()
+    expect(screen.getByText('summary.emptySection')).toBeTruthy()
   })
 })

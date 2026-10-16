@@ -106,7 +106,8 @@
       "description": "Aucun audio exploitable n’est disponible pour cette réunion.",
       "title": "Audio indisponible"
     },
-    "partial": "Cette synthèse est incomplète. Certains éléments peuvent manquer."
+    "partial": "Cette synthèse est incomplète. Certains éléments peuvent manquer.",
+    "emptySection": "Aucun élément indiqué dans cette rubrique."
   },
   "title": "Historique",
   "transcript": {

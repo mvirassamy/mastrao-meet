@@ -106,7 +106,8 @@
       "description": "No usable audio is available for this meeting.",
       "title": "Audio unavailable"
     },
-    "partial": "This summary is incomplete. Some content may be missing."
+    "partial": "This summary is incomplete. Some content may be missing.",
+    "emptySection": "No items are listed in this section."
   },
   "title": "History",
   "transcript": {

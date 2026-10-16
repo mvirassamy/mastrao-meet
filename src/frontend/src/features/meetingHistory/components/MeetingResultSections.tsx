@@ -247,6 +247,9 @@ export const SummaryBody = ({
           >
             {section.title}
           </h3>
+          {section.items.length === 0 && (
+            <p className={bodyTextClass}>{t('summary.emptySection')}</p>
+          )}
           <ul
             className={css({
               margin: 0,
