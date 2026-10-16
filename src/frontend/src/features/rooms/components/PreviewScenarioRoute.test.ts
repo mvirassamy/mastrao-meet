@@ -24,6 +24,7 @@ describe('getPreviewContent', () => {
       'recording-refused': 'room',
       'recording-stopping': 'room',
       room: 'room',
+      'room-notes': 'room',
       notifications: 'room',
       invitation: 'invitation',
       feedback: 'feedback',

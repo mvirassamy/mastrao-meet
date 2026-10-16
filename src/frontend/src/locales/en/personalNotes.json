@@ -1,10 +1,10 @@
 {
   "title": "My notes",
-  "private": "These notes are visible only to you.",
+  "private": "Only visible to you",
   "placeholder": "Write down your ideas during the meeting…",
   "loading": "Loading notes…",
   "saved": "Saved",
-  "unsaved": "Unsaved changes",
+  "notSaved": "Not saved",
   "saving": "Saving…",
   "saveError": "Notes not saved. Your draft is kept here.",
   "sessionExpired": "Your access to notes has expired. Sign in again to save your draft.",

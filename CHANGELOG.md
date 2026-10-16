@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-16: Restyle personal notes as a blank page with a discreet privacy
+  and save status line, an inline problem banner and a muted placeholder, and
+  show the whole note at the bottom of the meeting page with its 3D icon.
+
 - 2026-10-16: Add author-only personal meeting notes alongside Messages and
   Transcript, with durable Core storage, autosave, conflict recovery and
   personal access after a meeting ends.

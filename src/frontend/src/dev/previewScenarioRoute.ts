@@ -17,6 +17,7 @@ export const previewScreens = [
   ['recording-active', 'Enregistrement actif (état visuel)'],
   ['recording-stopping', 'Enregistrement en arrêt (état visuel)'],
   ['room', 'Salle'],
+  ['room-notes', 'Salle · mes notes'],
   ['notifications', 'Notification de démonstration'],
   ['invitation', 'Invitation'],
   ['feedback', 'Après la réunion'],
@@ -74,6 +75,7 @@ export const getPreviewContent = (scenario: string): PreviewContent => {
   if (
     scenario === 'accessibility' ||
     scenario === 'room' ||
+    scenario === 'room-notes' ||
     scenario === 'notifications' ||
     scenario === 'reconnecting' ||
     scenario.startsWith('recording-')

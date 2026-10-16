@@ -1,12 +1,25 @@
 import { useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
+import { LockIcon } from '@/icons'
 import { TextArea } from '@/primitives/TextArea'
 import { css } from '@/styled-system/css'
 import { usePersonalNotes } from '../hooks/usePersonalNotes'
 import { PERSONAL_NOTE_LIMIT } from '../model/noteContent'
-import { NoteSaveStatus } from './NoteSaveStatus'
+import { NoteSaveAlert, NoteSaveStatus } from './NoteSaveStatus'
 
-export function PersonalNotesEditor() {
+/** The remaining count only shows once it matters. */
+const NEAR_LIMIT = PERSONAL_NOTE_LIMIT * 0.9
+
+/**
+ * A blank page: the text fills the space, status and privacy sit underneath.
+ * `panel` fills the room side panel; `content` grows with the note, as on the
+ * meeting page.
+ */
+export function PersonalNotesEditor({
+  fit = 'panel',
+}: {
+  fit?: 'panel' | 'content'
+}) {
   const notes = usePersonalNotes()
   const { t } = useTranslation('personalNotes', { useSuspense: false })
   const id = useId()
@@ -26,28 +39,39 @@ export function PersonalNotesEditor() {
   return (
     <section
       aria-label={t('title', { defaultValue: 'Mes notes' })}
+      data-fit={fit}
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
         height: '100%',
-        minHeight: 0,
-        maxHeight: 'min(40rem, 70dvh)',
-        overflowY: 'auto',
-        padding: '1rem',
+        minHeight: '12rem',
+        '&[data-fit=content]': { minHeight: 0 },
       })}
     >
-      <p id={`${id}-privacy`}>
-        {t('private', {
-          defaultValue: 'Ces notes sont visibles uniquement par vous.',
-        })}
-      </p>
+      <NoteSaveAlert notes={notes} />
+      {notes.wasRejected && (
+        <p
+          role="alert"
+          className={css({
+            marginX: '1rem',
+            marginTop: '0.75rem',
+            fontSize: '0.8125rem',
+            color: 'warning-foreground',
+          })}
+        >
+          {t('limitReached', {
+            defaultValue:
+              'Modification refusée : elle dépasse la limite de 100 000 caractères. Votre texte précédent est conservé.',
+          })}
+        </p>
+      )}
       <label htmlFor={id} className={css({ srOnly: true })}>
         {t('title', { defaultValue: 'Mes notes' })}
       </label>
       <TextArea
         id={id}
         aria-describedby={`${id}-privacy ${id}-limit`}
+        fieldSizing={fit === 'content' ? 'content' : undefined}
         value={notes.content}
         disabled={!notes.hasLoaded}
         placeholder={t('placeholder', {
@@ -63,46 +87,81 @@ export function PersonalNotesEditor() {
           notes.setComposing(false)
           void notes.flush()
         }}
-        className={css({
+        // Through the css prop so it overrides the TextArea recipe border.
+        css={{
           flex: '1',
           minHeight: '8rem',
-          maxHeight: '45dvh',
+          '[data-fit=content] &': { flex: 'none', minHeight: '5.5rem' },
           overflowY: 'auto',
-          resize: 'vertical',
-          padding: '0.75rem',
-          lineHeight: '1.6',
+          resize: 'none',
+          border: 'none',
+          borderRadius: 0,
+          backgroundColor: 'transparent',
+          paddingX: '1.25rem',
+          paddingY: '1rem',
+          fontSize: '0.875rem',
+          lineHeight: '1.75',
+          color: 'var(--heading-foreground)',
           whiteSpace: 'pre-wrap',
+          _placeholder: { color: 'muted-foreground' },
+          _disabled: { color: 'muted-foreground' },
+          // Important: the global focus ring is unlayered and would win, drawn
+          // outside and clipped by the side panel.
           _focusVisible: {
-            outline: '2px solid',
-            outlineColor: 'currentColor',
-            outlineOffset: '2px',
+            outline: '2px solid token(colors.primary)!',
+            outlineOffset: '-2px!',
           },
-        })}
+        }}
       />
-      <p id={`${id}-limit`}>
+      <p id={`${id}-limit`} className={css({ srOnly: true })}>
         {t('limit', {
           defaultValue: '{{count}} caractères maximum.',
           count: PERSONAL_NOTE_LIMIT,
         })}
-        {notes.length >= PERSONAL_NOTE_LIMIT * 0.9 && (
-          <span>
-            {' '}
-            {t('remaining', {
-              defaultValue: '{{count}} caractères restants.',
-              count: Math.max(0, PERSONAL_NOTE_LIMIT - notes.length),
-            })}
-          </span>
-        )}
       </p>
-      {notes.wasRejected && (
-        <p role="alert">
-          {t('limitReached', {
-            defaultValue:
-              'Modification refusée : elle dépasse la limite de 100 000 caractères. Votre texte précédent est conservé.',
+      <footer
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+          // Same inset hairline as the tab list above.
+          marginX: '1.25rem',
+          paddingY: '0.625rem',
+          borderTop: '1px solid token(colors.border)',
+          fontSize: '0.75rem',
+          color: 'muted-foreground',
+        })}
+      >
+        <span
+          id={`${id}-privacy`}
+          className={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.375rem',
           })}
-        </p>
-      )}
-      <NoteSaveStatus notes={notes} />
+        >
+          <LockIcon size={13} aria-hidden="true" />
+          {t('private', { defaultValue: 'Visibles par vous seul' })}
+        </span>
+        <span
+          className={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+          })}
+        >
+          {notes.length >= NEAR_LIMIT && (
+            <span>
+              {t('remaining', {
+                defaultValue: '{{count}} caractères restants.',
+                count: Math.max(0, PERSONAL_NOTE_LIMIT - notes.length),
+              })}
+            </span>
+          )}
+          <NoteSaveStatus notes={notes} />
+        </span>
+      </footer>
     </section>
   )
 }
