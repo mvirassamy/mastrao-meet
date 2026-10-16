@@ -93,6 +93,7 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
 
     token = _access_token(request)
     options = options or {}
+    error_statuses = options.get("error_statuses", {401, 404, 409, 422})
     idempotency_key = options.get("idempotency_key")
     timeout = options.get("timeout", DEFAULT_TIMEOUT_SECONDS)
     body_options = {}
@@ -123,7 +124,7 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
                         request.session.pop("oidc_access_token", None)
                     status = (
                         response.status_code
-                        if response.status_code in {401, 404, 409, 422}
+                        if response.status_code in error_statuses
                         else 503
                     )
                     raise PlatformFacadeError(status=status)
