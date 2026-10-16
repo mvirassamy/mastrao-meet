@@ -2,12 +2,24 @@
 
 import json
 import re
+from urllib.parse import urlencode
 
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_http_methods, require_POST
 
-from core.mastrao_platform_facade import MEETING_REF, PlatformFacadeError
+from core.mastrao_platform_facade import (
+    MEETING_REF,
+    PlatformFacadeError,
+    meeting_path,
+    request_platform,
+)
 
-MAX_COMMAND_BYTES = 8192
+MAX_COMMAND_BYTES = 12_000
+# Platform bounds its Core assistant calls to 30 s, after OIDC userinfo (5 s).
+ASSISTANT_TIMEOUT_SECONDS = (5, 40)
+MAX_ASSISTANT_RESPONSE_BYTES = 480_000
+PUBLIC_ERROR_STATUSES = {401, 403, 404, 409, 422, 429}
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 OPERATIONS = ("question", "summary", "actions", "email_draft")
 SOURCE_KINDS = ("provider_run", "reviewed_revision", "native_epoch", "published_brief")
@@ -22,6 +34,7 @@ TURN_STATES = (
 SEGMENT_STATUSES = (
     "transcript",
     "published_summary",
+    "published_proposal",
     "confirmed_decision",
     "confirmed_action",
     "confirmed_deadline",
@@ -64,13 +77,15 @@ def _version(value):
 
 
 def _text(value, maximum, minimum=1):
-    if not isinstance(value, str) or not minimum <= len(value) <= maximum:
+    if not isinstance(value, str):
         return False
     try:
         value.encode("utf-8")
+        # Zod string bounds count UTF-16 code units, including surrogate pairs.
+        length = len(value.encode("utf-16-le")) // 2
     except UnicodeEncodeError:
         return False
-    return True
+    return minimum <= length <= maximum
 
 
 def _reference(value):
@@ -404,3 +419,79 @@ def _response(operation):
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+def _history_query(request):
+    fields = {"before_command_id", "limit"}
+    if set(request.GET) - fields or any(
+        len(request.GET.getlist(field)) != 1 for field in request.GET
+    ):
+        raise PlatformFacadeError(status=422)
+    query = request.GET.dict()
+    if "before_command_id" in query and not _reference(query["before_command_id"]):
+        raise PlatformFacadeError(status=422)
+    limit = query.get("limit")
+    if limit is not None and (
+        not re.fullmatch(r"[0-9]{1,2}", limit) or not 1 <= int(limit) <= 20
+    ):
+        raise PlatformFacadeError(status=422)
+    return urlencode(query)
+
+
+def _request_assistant(request, path, command=None):
+    options = {
+        "timeout": ASSISTANT_TIMEOUT_SECONDS,
+        "max_response_bytes": MAX_ASSISTANT_RESPONSE_BYTES,
+        "error_statuses": PUBLIC_ERROR_STATUSES,
+    }
+    if command is not None:
+        options["json"] = command
+    return request_platform(
+        request, request.method, path, accepted_statuses={200}, options=options
+    )
+
+
+def _assistant(request, meeting_ref):
+    path = meeting_path(meeting_ref, "assistant")
+    match request.method:
+        case "GET":
+            query = _history_query(request)
+            if query:
+                path = f"{path}?{query}"
+            body, status = _request_assistant(request, path)
+            _validate_thread(body, meeting_ref)
+        case "POST":
+            command = _send_command(request, meeting_ref)
+            body, status = _request_assistant(request, path, command)
+            _validate_sent(body, meeting_ref, command)
+        case "DELETE":
+            command = _delete_command(request, meeting_ref)
+            body, status = _request_assistant(request, path, command)
+            _validate_deleted(body)
+        case _:
+            raise PlatformFacadeError(status=405)
+    return body, status
+
+
+@csrf_protect
+@require_http_methods(["GET", "POST", "DELETE"])
+def meeting_assistant(request, meeting_ref):
+    """Read, send or delete the current Core author's private meeting thread."""
+
+    return _response(lambda: _assistant(request, meeting_ref))
+
+
+def _open_citation(request, meeting_ref):
+    path = meeting_path(meeting_ref, "assistant/citation")
+    command = _citation_command(request, meeting_ref)
+    body, status = _request_assistant(request, path, command)
+    _validate_opened(body, meeting_ref, command["citation"])
+    return body, status
+
+
+@csrf_protect
+@require_POST
+def meeting_assistant_citation(request, meeting_ref):
+    """Resolve a cited passage through Core's current source authorization."""
+
+    return _response(lambda: _open_citation(request, meeting_ref))

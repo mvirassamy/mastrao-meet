@@ -2,12 +2,18 @@
 
 import copy
 import json
+from unittest.mock import MagicMock, patch
 
-from django.test import RequestFactory
+from django.conf import settings as django_settings
+from django.middleware.csrf import get_token
+from django.test import Client, RequestFactory
 
 import pytest
+import requests
 
 from core.mastrao_meeting_assistant import (
+    ASSISTANT_TIMEOUT_SECONDS,
+    MAX_ASSISTANT_RESPONSE_BYTES,
     MAX_COMMAND_BYTES,
     _citation_command,
     _delete_command,
@@ -19,6 +25,10 @@ from core.mastrao_meeting_assistant import (
 from core.mastrao_platform_facade import PlatformFacadeError
 
 MEETING = "meeting_0123456789abcdef"
+PLATFORM = "https://platform.example.com"
+TOKEN = "test-oidc-assistant-token-123456"
+ASSISTANT_URL = f"/api/v1.0/meetings/history/{MEETING}/assistant/"
+CITATION_URL = f"{ASSISTANT_URL}citation/"
 COMMAND = {
     "version": 1,
     "meeting_ref": MEETING,
@@ -76,6 +86,16 @@ THREAD = {
     "has_more": False,
     "next_cursor": None,
 }
+
+
+@pytest.fixture(autouse=True)
+def bridge_settings(settings):
+    """Keep Django HTTP checks independent of secret files, databases and Redis."""
+
+    settings.SECRET_KEY = "assistant-test-key"
+    settings.ALLOWED_HOSTS = ["testserver"]
+    settings.SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+    settings.MASTRAO_PLATFORM_API_BASE_URL = PLATFORM
 
 
 def _request(body):
@@ -260,3 +280,350 @@ def test_source_response_must_match_the_requested_version_and_passage():
     with pytest.raises(PlatformFacadeError) as refused:
         _validate_opened(value, MEETING, CITATION)
     assert refused.value.status == 503
+
+
+def _client(*, token=TOKEN, csrf=False):
+    client = Client(enforce_csrf_checks=csrf)
+    session = client.session
+    if token is not None:
+        session["oidc_access_token"] = token
+    session["mastrao_guest_grant_ref"] = "guest_0123456789abcdef"
+    session.save()
+    client.cookies[django_settings.SESSION_COOKIE_NAME] = session.session_key
+    return client
+
+
+def _upstream(body, status=200):
+    response = MagicMock()
+    payload = json.dumps(body).encode()
+    response.status_code = status
+    response.headers = {"content-length": str(len(payload))}
+    response.iter_content.return_value = [payload]
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.request.return_value = response
+    return session
+
+
+def _delete_payload():
+    return {
+        field: COMMAND[field]
+        for field in ("version", "meeting_ref", "command_id", "expected_thread_version")
+    }
+
+
+def _citation_payload():
+    return {
+        "version": 1,
+        "meeting_ref": MEETING,
+        "command_id": COMMAND["command_id"],
+        "citation": CITATION,
+    }
+
+
+def _send_receipt(operation="question", replay=False):
+    turn = {**TURN, "operation": operation}
+    return {
+        "version": 1,
+        "thread": {**THREAD, "turns": [turn]},
+        "turn": turn,
+        "idempotent_replay": replay,
+    }
+
+
+def _call(client, method, url=ASSISTANT_URL, payload=None, **headers):
+    if method == "GET":
+        return client.get(url, **headers)
+    return getattr(client, method.lower())(
+        url, json.dumps(payload), content_type="application/json", **headers
+    )
+
+
+def test_http_history_forwards_only_bounded_pagination_and_session_bearer():
+    """Read the durable private history through the real Django URL and facade."""
+
+    session = _upstream(THREAD)
+    query = f"before_command_id={COMMAND['command_id']}&limit=10"
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client().get(f"{ASSISTANT_URL}?{query}")
+    assert response.status_code == 200
+    assert response.json() == THREAD
+    session.request.assert_called_once_with(
+        "GET",
+        f"{PLATFORM}/api/meet/meetings/history/{MEETING}/assistant?{query}",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        timeout=ASSISTANT_TIMEOUT_SECONDS,
+        allow_redirects=False,
+        stream=True,
+    )
+    assert session.trust_env is False
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert TOKEN not in response.content.decode()
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "actor_ref=other",
+        "limit=21",
+        "limit=0",
+        "limit=1&limit=2",
+        "before_command_id=short",
+        "before_command_id=a&before_command_id=b",
+        "limit=" + "1" * 5000,
+    ],
+)
+def test_http_history_rejects_scope_selection_and_ambiguous_pagination(query):
+    """Invalid browser pagination cannot broaden the private read scope."""
+
+    with patch("core.mastrao_platform_facade.requests.Session") as upstream:
+        response = _client().get(f"{ASSISTANT_URL}?{query}")
+    assert response.status_code == 422
+    upstream.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "method,url,payload",
+    [
+        ("GET", ASSISTANT_URL, None),
+        ("POST", ASSISTANT_URL, COMMAND),
+        ("DELETE", ASSISTANT_URL, _delete_payload()),
+        ("POST", CITATION_URL, _citation_payload()),
+    ],
+)
+def test_http_guest_grants_and_browser_bearers_do_not_authorize_business_access(
+    method, url, payload
+):
+    """All assistant surfaces require the server session's OIDC credential."""
+
+    with patch("core.mastrao_platform_facade.requests.Session") as upstream:
+        response = _call(
+            _client(token=None),
+            method,
+            url,
+            payload,
+            HTTP_AUTHORIZATION=f"Bearer {TOKEN}",
+        )
+    assert response.status_code == 401
+    upstream.assert_not_called()
+
+
+@pytest.mark.parametrize("operation", ["question", "summary", "actions", "email_draft"])
+def test_http_f07_f08_forward_exact_command_and_keep_draft_output(operation):
+    """Questions and all three actions use the published Platform POST contract."""
+
+    command = {**COMMAND, "operation": operation}
+    receipt = copy.deepcopy(_send_receipt(operation))
+    if operation == "email_draft":
+        receipt["turn"]["result"]["email_draft"] = {
+            "subject": "Suite de notre réunion",
+            "body": "Voici le suivi proposé.",
+        }
+    if operation == "actions":
+        receipt["turn"]["result"]["actions"] = [
+            {
+                "statement": "Confirmer le suivi.",
+                "owner": None,
+                "due_date": None,
+                "citation_ids": [CITATION["citation_id"]],
+            }
+        ]
+    session = _upstream(receipt)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _call(_client(), "POST", payload=command)
+    assert response.status_code == 200
+    assert response.json() == receipt
+    session.request.assert_called_once_with(
+        "POST",
+        f"{PLATFORM}/api/meet/meetings/history/{MEETING}/assistant",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        timeout=ASSISTANT_TIMEOUT_SECONDS,
+        allow_redirects=False,
+        stream=True,
+        json=command,
+    )
+
+
+def test_http_replay_uses_the_same_durable_command_without_transport_retry():
+    """Explicit resubmission preserves the command identity owned by Core."""
+
+    session = _upstream(_send_receipt())
+    client = _client()
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        first = _call(client, "POST", payload=COMMAND)
+        session.request.return_value = _upstream(
+            _send_receipt(replay=True)
+        ).request.return_value
+        replay = _call(client, "POST", payload=COMMAND)
+    assert first.status_code == replay.status_code == 200
+    assert replay.json()["idempotent_replay"] is True
+    assert session.request.call_count == 2
+    assert all(
+        call.kwargs["json"] == COMMAND for call in session.request.call_args_list
+    )
+
+
+def test_http_delete_uses_the_current_private_thread_command():
+    """DELETE forwards the exact revision command and validates the tombstone response."""
+
+    result = {"version": 1, "deleted": True, "thread_version": 2}
+    session = _upstream(result)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _call(_client(), "DELETE", payload=_delete_payload())
+    assert response.status_code == 200
+    assert response.json() == result
+    assert session.request.call_args.args == (
+        "DELETE",
+        f"{PLATFORM}/api/meet/meetings/history/{MEETING}/assistant",
+    )
+    assert session.request.call_args.kwargs["json"] == _delete_payload()
+
+
+@pytest.mark.parametrize("source_status", ["transcript", "published_proposal"])
+def test_http_citation_opens_the_authorized_passage_without_a_file_url(source_status):
+    """The source resolver returns actual passage text with its editorial status."""
+
+    result = {
+        "version": 1,
+        "segment": {
+            "citation": CITATION,
+            "text": "Le délai est vendredi.",
+            "speaker": None,
+            "status": source_status,
+        },
+    }
+    session = _upstream(result)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _call(_client(), "POST", CITATION_URL, _citation_payload())
+    assert response.status_code == 200
+    assert response.json() == result
+    assert session.request.call_args.args == (
+        "POST",
+        f"{PLATFORM}/api/meet/meetings/history/{MEETING}/assistant/citation",
+    )
+    assert session.request.call_args.kwargs["json"] == _citation_payload()
+
+
+@pytest.mark.parametrize(
+    "method,url,payload,body",
+    [
+        ("POST", ASSISTANT_URL, COMMAND, _send_receipt()),
+        (
+            "DELETE",
+            ASSISTANT_URL,
+            _delete_payload(),
+            {"version": 1, "deleted": True, "thread_version": 2},
+        ),
+        (
+            "POST",
+            CITATION_URL,
+            _citation_payload(),
+            {
+                "version": 1,
+                "segment": {
+                    "citation": CITATION,
+                    "text": "Passage.",
+                    "speaker": None,
+                    "status": "transcript",
+                },
+            },
+        ),
+    ],
+)
+def test_http_mutations_require_real_csrf_and_accept_a_valid_token(
+    method, url, payload, body
+):
+    """CSRF protects send, private deletion and citation requests alike."""
+
+    client = _client(csrf=True)
+    with patch("core.mastrao_platform_facade.requests.Session") as upstream:
+        response = _call(client, method, url, payload)
+    assert response.status_code == 403
+    upstream.assert_not_called()
+    token_request = RequestFactory().get("/")
+    token = get_token(token_request)
+    client.cookies[django_settings.CSRF_COOKIE_NAME] = token_request.META["CSRF_COOKIE"]
+    with patch(
+        "core.mastrao_platform_facade.requests.Session", return_value=_upstream(body)
+    ):
+        response = _call(client, method, url, payload, HTTP_X_CSRFTOKEN=token)
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "upstream_status", [401, 403, 404, 409, 422, 429, 500, 503, 302]
+)
+def test_http_preserves_access_conflict_and_failure_status_without_private_details(
+    upstream_status,
+):
+    """A technical upstream failure is never transformed into a factual answer."""
+
+    client = _client()
+    session = _upstream(
+        {"private_url": "https://private.example", "token": TOKEN}, upstream_status
+    )
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _call(client, "POST", payload=COMMAND)
+    expected = 503 if upstream_status in {500, 302} else upstream_status
+    assert response.status_code == expected
+    assert response.json() == {"message": "Assistant de réunion indisponible."}
+    if upstream_status == 401:
+        assert "oidc_access_token" not in client.session
+    assert TOKEN not in response.content.decode()
+    assert "private.example" not in response.content.decode()
+    session.request.assert_called_once()
+
+
+@pytest.mark.parametrize("declared", [True, False])
+def test_http_respects_the_platform_assistant_response_budget(declared):
+    """Bound streamed and declared responses to the existing 480 kB assistant limit."""
+
+    session = _upstream(THREAD)
+    upstream = session.request.return_value
+    upstream.headers = {}
+    if declared:
+        upstream.headers["content-length"] = str(MAX_ASSISTANT_RESPONSE_BYTES + 1)
+    else:
+        upstream.iter_content.return_value = [b" " * MAX_ASSISTANT_RESPONSE_BYTES, b" "]
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client().get(ASSISTANT_URL)
+    assert response.status_code == 503
+    upstream.close.assert_called_once()
+
+
+def test_http_timeout_does_not_dispatch_a_second_command():
+    """The client can reread or explicitly replay a timed-out durable command."""
+
+    session = _upstream(THREAD)
+    session.request.side_effect = requests.Timeout()
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _call(_client(), "POST", payload=COMMAND)
+    assert response.status_code == 503
+    session.request.assert_called_once()
+
+
+@pytest.mark.parametrize("raw", [b"not-json", b"[" * 1500 + b"]" * 1500])
+def test_http_malformed_upstream_json_is_a_closed_technical_failure(raw):
+    """Invalid or excessively nested JSON cannot bypass response validation."""
+
+    session = _upstream(THREAD)
+    upstream = session.request.return_value
+    upstream.headers = {"content-length": str(len(raw))}
+    upstream.iter_content.return_value = [raw]
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client().get(ASSISTANT_URL)
+    assert response.status_code == 503
+    upstream.close.assert_called_once()
+
+
+@pytest.mark.parametrize("question,valid", [("😀" * 512, True), ("😀" * 513, False)])
+def test_question_limits_match_zod_utf16_units(question, valid):
+    """Astral characters consume two units in the actual TypeScript string bound."""
+
+    request = _request({**COMMAND, "question": question})
+    if valid:
+        assert _send_command(request, MEETING)["question"] == question
+        return
+    with pytest.raises(PlatformFacadeError) as refused:
+        _send_command(request, MEETING)
+    assert refused.value.status == 422
