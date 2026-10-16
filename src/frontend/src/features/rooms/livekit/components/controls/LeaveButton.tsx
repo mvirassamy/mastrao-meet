@@ -11,6 +11,7 @@ import {
   isRetryableEndMeetingError,
 } from '@/features/rooms/api/endMeeting'
 import { useMeetingLifecycle } from '@/features/rooms/contexts/MeetingLifecycleContext'
+import { useMeetingNotesExit } from '@/features/rooms/contexts/MeetingNotesExitContext'
 
 export const LeaveButton = ({
   roomId,
@@ -23,6 +24,7 @@ export const LeaveButton = ({
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'controls' })
   const room = useRoomContext()
+  const notesExit = useMeetingNotesExit()
   const connectionState = useConnectionState(room)
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -81,6 +83,15 @@ export const LeaveButton = ({
     }
   }
 
+  const requestLeave = () => {
+    if (notesExit) notesExit.requestExit(leave)
+    else leave()
+  }
+  const requestClose = () => {
+    if (notesExit) notesExit.requestExit(() => void close())
+    else void close()
+  }
+
   return (
     <>
       <Button
@@ -88,8 +99,14 @@ export const LeaveButton = ({
         variant="hangup"
         tooltip={t('leave')}
         aria-label={t('leave')}
-        isDisabled={phase === 'requesting' || phase === 'ended'}
-        onPress={() => (canEnd ? setIsOpen(true) : leave())}
+        loading={notesExit?.isSaving}
+        isDisabled={
+          phase === 'requesting' || phase === 'ended' || notesExit?.isSaving
+        }
+        onPress={() => {
+          if (canEnd) setIsOpen(true)
+          else requestLeave()
+        }}
         data-attr="controls-leave"
       >
         <PhoneIcon
@@ -114,13 +131,17 @@ export const LeaveButton = ({
           >
             {t('endMeeting.dialog.cancel')}
           </Button>
-          <Button variant="outline" isDisabled={isSubmitting} onPress={leave}>
+          <Button
+            variant="outline"
+            isDisabled={isSubmitting || notesExit?.isSaving}
+            onPress={requestLeave}
+          >
             {t('endMeeting.dialog.leave')}
           </Button>
           <Button
             variant="destructive"
-            isDisabled={isSubmitting}
-            onPress={close}
+            isDisabled={isSubmitting || notesExit?.isSaving}
+            onPress={requestClose}
           >
             {isSubmitting
               ? t('endMeeting.dialog.ending')

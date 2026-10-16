@@ -1,0 +1,27 @@
+{
+  "title": "My notes",
+  "private": "These notes are visible only to you.",
+  "placeholder": "Write down your ideas during the meeting…",
+  "loading": "Loading notes…",
+  "saved": "Saved",
+  "unsaved": "Unsaved changes",
+  "saving": "Saving…",
+  "saveError": "Notes not saved. Your draft is kept here.",
+  "sessionExpired": "Your access to notes has expired. Sign in again to save your draft.",
+  "conflict": "Another version was saved. Your draft is kept here.",
+  "retry": "Retry",
+  "loadSaved": "Load saved version",
+  "keepDraft": "Save my draft instead",
+  "confirmOverwrite": "Replace the saved version with your draft?",
+  "limit_one": "Maximum {{count}} character.",
+  "limit_other": "Maximum {{count}} characters.",
+  "remaining_one": "{{count}} character remaining.",
+  "remaining_other": "{{count}} characters remaining.",
+  "limitReached": "Edit rejected: it exceeds the 100,000-character limit. Your previous text is preserved.",
+  "exit": {
+    "title": "Your notes have not been saved",
+    "body": "Your latest changes have not been saved. Retry or resolve the conflict in My notes before leaving. Leaving without saving will lose these changes.",
+    "discard": "Leave without saving",
+    "retry": "Retry saving"
+  }
+}

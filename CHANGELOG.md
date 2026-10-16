@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-16: Add author-only personal meeting notes alongside Messages and
+  Transcript, with durable Core storage, autosave, conflict recovery and
+  personal access after a meeting ends.
+
 - 2026-10-16: Record the PgBouncer transaction-pooling contract and guard
   Django's safe connection defaults.
 

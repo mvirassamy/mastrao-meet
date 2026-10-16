@@ -19,6 +19,7 @@ import { LogLevel, setLogLevel } from 'livekit-client'
 import { useWatchDeviceAvailability } from '@/features/rooms/hooks/useWatchDeviceAvailability'
 import { useRoomPageTitle } from '@/features/rooms/livekit/hooks/useRoomPageTitle'
 import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
+import { MeetingNotes } from '../components/MeetingNotes'
 
 const BaseRoom = ({ children }: { children: ReactNode }) => {
   return (
@@ -31,7 +32,7 @@ const BaseRoom = ({ children }: { children: ReactNode }) => {
 }
 
 const Room = () => {
-  const { isLoggedIn } = useUser()
+  const { isLoggedIn, user } = useUser()
   const [hasSubmittedEntry, setHasSubmittedEntry] = useState(false)
 
   const { roomId } = useParams()
@@ -79,18 +80,30 @@ const Room = () => {
     return <ErrorScreen />
   }
 
+  let roomContent = (
+    <Conference initialRoomData={initialRoomData} roomId={roomId} mode={mode} />
+  )
+  if (isMastraoRoom) {
+    roomContent = (
+      <MeetingNotes
+        key={`${roomId}:${user?.id ?? 'guest'}`}
+        roomId={roomId}
+        identityKey={user?.id ?? 'guest'}
+      >
+        {roomContent}
+      </MeetingNotes>
+    )
+  }
+  if (!hasSubmittedEntry && !skipJoinScreen) {
+    roomContent = (
+      <Join enterRoom={() => setHasSubmittedEntry(true)} roomId={roomId} />
+    )
+  }
+
   return (
     <BaseRoom>
       <MeetingLifecycleProvider key={roomId} roomId={roomId}>
-        {!hasSubmittedEntry && !skipJoinScreen ? (
-          <Join enterRoom={() => setHasSubmittedEntry(true)} roomId={roomId} />
-        ) : (
-          <Conference
-            initialRoomData={initialRoomData}
-            roomId={roomId}
-            mode={mode}
-          />
-        )}
+        {roomContent}
       </MeetingLifecycleProvider>
     </BaseRoom>
   )

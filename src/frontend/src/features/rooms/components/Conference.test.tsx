@@ -7,6 +7,10 @@ import {
 import { useEffect, type ReactNode, type ReactElement } from 'react'
 import { MeetingLifecycleProvider } from '../contexts/MeetingLifecycleProvider'
 import { useMeetingLifecycle } from '../contexts/MeetingLifecycleContext'
+import {
+  MeetingNotesExitContext,
+  type MeetingNotesExit,
+} from '../contexts/MeetingNotesExitContext'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Conference } from './Conference'
@@ -215,7 +219,10 @@ const InitialPhase = () => {
   return null
 }
 
-const render = (ui: ReactElement<{ roomId: string }>) => {
+const render = (
+  ui: ReactElement<{ roomId: string }>,
+  notesExit: MeetingNotesExit | null = null
+) => {
   if (lifecycleCloseRequestId) {
     window.sessionStorage.setItem(
       `mastrao-meeting-close-v1:${ui.props.roomId}`,
@@ -228,7 +235,9 @@ const render = (ui: ReactElement<{ roomId: string }>) => {
       roomId={element.props.roomId}
     >
       <InitialPhase />
-      {element}
+      <MeetingNotesExitContext.Provider value={notesExit}>
+        {element}
+      </MeetingNotesExitContext.Provider>
     </MeetingLifecycleProvider>
   )
   const result = renderView(wrap(ui))
@@ -444,6 +453,104 @@ describe('Conference room lookup', () => {
         'mastrao-meeting-close-v1:room_0123456789abcdef0123456789abcdef'
       )
     ).toBe('close_existing')
+    expect(navigateTo).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [1, 'left'],
+    [2, 'duplicate'],
+    [3, 'removed'],
+  ] as const)(
+    'gates disconnection reason %s through the notes exit guard',
+    async (reason, outcome) => {
+      const pendingExits: (() => void)[] = []
+      const requestExit = vi.fn((action: () => void) => {
+        pendingExits.push(action)
+      })
+      const roomId = 'room_0123456789abcdef0123456789abcdef'
+      fetchRoom.mockResolvedValue({})
+      render(<Conference roomId={roomId} />, { requestExit, isSaving: true })
+
+      await act(async () => liveKitOnDisconnected?.(reason))
+
+      expect(requestExit).toHaveBeenCalledOnce()
+      expect(navigateTo).not.toHaveBeenCalled()
+      expect(fetchRoomLifecycle).not.toHaveBeenCalled()
+      act(() => pendingExits[0]())
+      expect(navigateTo).toHaveBeenCalledWith(
+        'feedback',
+        { outcome, roomId },
+        expect.any(Object)
+      )
+    }
+  )
+
+  it('retains the page until notes permit exit after canonical meeting closure', async () => {
+    const pendingExits: (() => void)[] = []
+    const requestExit = vi.fn((action: () => void) => {
+      pendingExits.push(action)
+    })
+    const roomId = 'room_0123456789abcdef0123456789abcdef'
+    fetchRoom.mockResolvedValue({})
+    fetchRoomLifecycle.mockResolvedValueOnce({ state: 'ended' })
+    render(<Conference roomId={roomId} />, { requestExit, isSaving: false })
+
+    await act(async () => liveKitOnDisconnected?.(4))
+
+    await waitFor(() => expect(requestExit).toHaveBeenCalledOnce())
+    expect(navigateTo).not.toHaveBeenCalled()
+    act(() => pendingExits[0]())
+    expect(navigateTo).toHaveBeenCalledWith(
+      'feedback',
+      { outcome: 'ended', roomId },
+      expect.any(Object)
+    )
+    expect(createRoom).not.toHaveBeenCalled()
+  })
+
+  it('also gates legacy room deletion through the notes exit guard', async () => {
+    const pendingExits: (() => void)[] = []
+    const requestExit = vi.fn((action: () => void) => {
+      pendingExits.push(action)
+    })
+    fetchRoom.mockResolvedValue({})
+    render(<Conference roomId="abc-defg-hij" />, {
+      requestExit,
+      isSaving: false,
+    })
+
+    await act(async () => liveKitOnDisconnected?.(4))
+
+    expect(requestExit).toHaveBeenCalledOnce()
+    expect(navigateTo).not.toHaveBeenCalled()
+    act(() => pendingExits[0]())
+    expect(navigateTo).toHaveBeenCalledWith(
+      'feedback',
+      { outcome: 'ended', roomId: 'abc-defg-hij' },
+      expect.any(Object)
+    )
+  })
+
+  it('ignores a terminal lifecycle response after the conference has unmounted', async () => {
+    let resolveLifecycle!: (value: { state: 'ended' }) => void
+    fetchRoom.mockResolvedValue({})
+    fetchRoomLifecycle.mockReturnValueOnce(
+      new Promise<{ state: 'ended' }>((resolve) => {
+        resolveLifecycle = resolve
+      })
+    )
+    const requestExit = vi.fn()
+    const view = render(
+      <Conference roomId="room_0123456789abcdef0123456789abcdef" />,
+      { requestExit, isSaving: false }
+    )
+    await act(async () => liveKitOnDisconnected?.(4))
+    await waitFor(() => expect(fetchRoomLifecycle).toHaveBeenCalledOnce())
+
+    view.unmount()
+    await act(async () => resolveLifecycle({ state: 'ended' }))
+
+    expect(requestExit).not.toHaveBeenCalled()
     expect(navigateTo).not.toHaveBeenCalled()
   })
 

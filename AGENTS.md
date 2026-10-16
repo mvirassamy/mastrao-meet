@@ -7,3 +7,8 @@
   The two background-blur glyphs (`BlurOn`, `BlurOnStrong`) are the only exception and keep their 24px source grid.
 - Buttons mirror the Mastrao platform `Button`: use `Button`, `LinkButton` or `ToggleButton` from `@/primitives` with the platform variants only (`default`, `outline`, `secondary`, `ghost`, `destructive`, `invert`, `link`) and sizes (`default`, `xs`, `sm`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`). Call controls alone may use `shape="circle"`, `round` and the media variants (`hangup`, `warning`, `whiteCircle`, `errorCircle`, `bigSquare`, `permission`). Do not hand-roll `<button>` styles.
 - Never use outline icons or simulate a solid variant with a `fill`/`filled` prop, CSS fill override, or stroke manipulation. Preserve accessible labels and distinct on/off states when replacing icons.
+
+## Development servers
+
+- Always use Portly (`portly ...`) to start, stop, restart, or inspect local development servers. Start with `portly status` and reuse a healthy managed server.
+- Use `portly temp '<command>' --path <folder> --timeout 30m` for a bounded preview, then `portly wait <job-id>` to inspect its result. Never launch persistent development servers directly or in the background.

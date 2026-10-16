@@ -77,6 +77,20 @@ vi.mock('@/styled-system/jsx', () => ({
 vi.mock('@/features/rooms/components/Rating.tsx', () => ({
   Rating: () => <div>rating</div>,
 }))
+vi.mock(
+  '@/features/meetingHistory/components/MeetingPersonalNotesSection',
+  () => ({
+    MeetingPersonalNotesSection: ({ endpoint }: { endpoint: string }) => (
+      <section aria-label="Personal notes" data-endpoint={endpoint}>
+        Private notes
+      </section>
+    ),
+  })
+)
+
+vi.mock('../components/MeetingNotes', () => ({
+  MeetingNotesScope: ({ children }: { children: ReactNode }) => <>{children}</>,
+}))
 
 describe('Feedback stays in Meet', () => {
   beforeEach(() => {

@@ -13,6 +13,8 @@ import { authUrl } from '@/features/auth/utils/authUrl'
 import type { CandidateInfo } from '@/stores/connectionObserver'
 import { useHostHandoff } from '../hooks/useHostHandoff'
 import { isMastraoRoomId } from '../utils/isRoomValid'
+import { MeetingPersonalNotesSection } from '@/features/meetingHistory/components/MeetingPersonalNotesSection'
+import { MeetingNotesScope } from '../components/MeetingNotes'
 import {
   readCachedPlatformReturn,
   validatePlatformReturn,
@@ -61,7 +63,7 @@ const outcomeReasonKey: Partial<
   duplicate: DisconnectReasonKey.DuplicateIdentity,
 }
 
-const FeedbackRoute = () => {
+const FeedbackContent = () => {
   const { t } = useTranslation('rooms')
   const { data: apiConfig } = useConfig()
   const [, setLocation] = useLocation()
@@ -185,9 +187,38 @@ const FeedbackRoute = () => {
             <Text role="alert">{t('hostRecovery.error')}</Text>
           )}
           {showRating && <Rating metadata={metadata} />}
+          {routeState.roomId && isMastraoRoomId(routeState.roomId) && (
+            <div
+              className={css({
+                width: 'min(42rem, calc(100vw - 2rem))',
+                marginTop: '1.5rem',
+              })}
+            >
+              <MeetingPersonalNotesSection
+                endpoint={`/rooms/${encodeURIComponent(routeState.roomId)}/personal-note/`}
+              />
+            </div>
+          )}
         </VStack>
       </Center>
     </Screen>
+  )
+}
+
+const FeedbackRoute = () => {
+  const { roomId } = useMemo(
+    () => readPostMeetingRoute(window.location.search),
+    []
+  )
+  const { user } = useUser()
+  if (!roomId || !isMastraoRoomId(roomId)) return <FeedbackContent />
+  return (
+    <MeetingNotesScope
+      endpoint={`/rooms/${encodeURIComponent(roomId)}/personal-note/`}
+      identityKey={user?.id ?? 'guest'}
+    >
+      <FeedbackContent />
+    </MeetingNotesScope>
   )
 }
 

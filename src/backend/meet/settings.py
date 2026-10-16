@@ -435,6 +435,21 @@ class Base(Configuration):
     MASTRAO_RECORDING_RECEIPT_KEY_ID = values.Value(
         "", environ_name="MASTRAO_RECORDING_RECEIPT_KEY_ID", environ_prefix=None
     )
+    MASTRAO_CORE_PERSONAL_NOTES_READ_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_PERSONAL_NOTES_READ_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_PERSONAL_NOTES_WRITE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_PERSONAL_NOTES_WRITE_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_PERSONAL_NOTES_TIMEOUT_SECONDS = values.FloatValue(
+        5,
+        environ_name="MASTRAO_CORE_PERSONAL_NOTES_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
     MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT",
