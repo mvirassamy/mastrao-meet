@@ -52,22 +52,22 @@ def _access_token(request):
     return token
 
 
-def _read_json(response):
+def _read_json(response, maximum_bytes=MAX_PLATFORM_RESPONSE_BYTES):
     declared = response.headers.get("content-length")
     if declared is not None and (
-        not declared.isdecimal() or int(declared) > MAX_PLATFORM_RESPONSE_BYTES
+        len(declared) > 20 or not declared.isdecimal() or int(declared) > maximum_bytes
     ):
         raise PlatformFacadeError()
     chunks = []
     size = 0
     for chunk in response.iter_content(chunk_size=16_384):
         size += len(chunk)
-        if size > MAX_PLATFORM_RESPONSE_BYTES:
+        if size > maximum_bytes:
             raise PlatformFacadeError()
         chunks.append(chunk)
     try:
         body = json.loads(b"".join(chunks))
-    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise PlatformFacadeError() from error
     if not isinstance(body, dict):
         raise PlatformFacadeError()
@@ -93,6 +93,7 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
 
     token = _access_token(request)
     options = options or {}
+    error_statuses = options.get("error_statuses", {401, 404, 409, 422})
     idempotency_key = options.get("idempotency_key")
     timeout = options.get("timeout", DEFAULT_TIMEOUT_SECONDS)
     body_options = {}
@@ -123,11 +124,17 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
                         request.session.pop("oidc_access_token", None)
                     status = (
                         response.status_code
-                        if response.status_code in {401, 404, 409, 422}
+                        if response.status_code in error_statuses
                         else 503
                     )
                     raise PlatformFacadeError(status=status)
-                return _read_json(response), response.status_code
+                return (
+                    _read_json(
+                        response,
+                        options.get("max_response_bytes", MAX_PLATFORM_RESPONSE_BYTES),
+                    ),
+                    response.status_code,
+                )
             finally:
                 response.close()
     except requests.RequestException as error:

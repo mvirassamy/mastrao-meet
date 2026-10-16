@@ -1,5 +1,40 @@
 # Changelog
 
+- 2026-10-16: Pull CI PostgreSQL 16 and Redis 5 from the public image cache
+  to avoid ECR download quotas blocking backend tests before startup.
+
+- 2026-10-16: Accept scoped Commitizen and existing Gitmoji commit titles
+  in CI while keeping the required message body and title checks.
+
+- 2026-10-16: Allow a new explicit assistant question or proposal after a
+  terminal unknown request, without replaying that request. Keep processing
+  turns and unconfirmed local commands blocking until their state is resolved.
+
+- 2026-10-16: Open the currently authorized folder from the meeting result
+  and summary using Platform's canonical path and configured origin. Restore
+  navigation after reload for readers without filing rights, and withdraw
+  stale links while rereading permissions or after access is lost.
+
+- 2026-10-16: Connect the meeting result to its private assistant thread,
+  sourced answers and three editable, copyable proposals. Show source coverage,
+  abstention and technical failures separately; reread current rights and
+  exact cited versions. Recover uncertain commands without duplicate requests
+  and confirm deletion of the private thread without changing personal notes.
+
+- 2026-10-16: Bridge authenticated classification, folder search/creation and
+  private assistant commands through bounded, CSRF-protected Django endpoints.
+  Core remains authoritative for storage, permissions and source access.
+
+- 2026-10-16: Connect Meet detail and summary filing to authorized folder
+  search and creation, with explicit sharing information, durable receipts,
+  conflict refresh and attachment retries that reuse an already created folder.
+  Restore the folder label from authorized canonical reads after reloading.
+
+- 2026-10-16: Keep meeting result navigation and independent call, summary and
+  transcript states visible, including unconfirmed endings and newer source
+  versions awaiting verification. Keep explicitly empty summary sections
+  visible and preserve the existing private notes editor.
+
 - 2026-10-16: Restyle personal notes as a blank page with a discreet privacy
   and save status line, an inline problem banner and a muted placeholder, and
   show the whole note at the bottom of the meeting page with its 3D icon.

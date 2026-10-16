@@ -293,7 +293,7 @@ const normalizeSections = (value: unknown): MeetingSummarySection[] =>
     const items = (Array.isArray(section.items) ? section.items : [])
       .map(asString)
       .filter((item): item is string => item !== null)
-    return title && items.length > 0 ? [{ title, items }] : []
+    return title ? [{ title, items }] : []
   })
 
 const normalizeSegments = (value: unknown): MeetingTranscriptSegment[] =>
@@ -341,7 +341,9 @@ export const normalizeHistoryDetail = (
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
   const sections = normalizeSections(rawSummary.sections)
-  const hasSummaryContent = paragraphs.length > 0 || sections.length > 0
+  const hasSummaryContent =
+    paragraphs.length > 0 ||
+    sections.some((section) => section.items.length > 0)
 
   let transcriptProjection = normalizeProjection(
     raw.transcript_projection ?? rawTranscript.projection,

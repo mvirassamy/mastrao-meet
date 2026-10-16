@@ -28,8 +28,9 @@ export const MeetingHistoryMeetingPage = ({
     <Screen header={false} footer={false}>
       <MeetWorkspaceShell user={user} toolbar={<MeetWorkspaceToolbar />}>
         <MeetingHistoryDetailView
-          key={meetingId}
+          key={`${user.id}:${meetingId}`}
           meetingId={meetingId}
+          identityKey={user.id}
           timeZone={user.timezone}
         />
       </MeetWorkspaceShell>

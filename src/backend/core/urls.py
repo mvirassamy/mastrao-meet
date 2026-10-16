@@ -17,6 +17,8 @@ from core.mastrao_guest_invitation_share import create_guest_invitation_share
 from core.mastrao_guest_share_link import consume_guest_share_link
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
 from core.mastrao_host_recovery import recover_meeting_host
+from core.mastrao_meeting_assistant import meeting_assistant, meeting_assistant_citation
+from core.mastrao_meeting_classification import meeting_classification, meeting_matters
 from core.mastrao_meeting_history import (
     meeting_collection,
     meeting_history,
@@ -159,6 +161,22 @@ urlpatterns = [
                     name="mastrao_history_personal_note",
                 ),
                 path("meetings/", meeting_collection, name="mastrao_create_meeting"),
+                path("matters/", meeting_matters, name="mastrao_meeting_matters"),
+                path(
+                    "meetings/history/<str:meeting_ref>/assistant/",
+                    meeting_assistant,
+                    name="mastrao_meeting_assistant",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/assistant/citation/",
+                    meeting_assistant_citation,
+                    name="mastrao_meeting_assistant_citation",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/classification/",
+                    meeting_classification,
+                    name="mastrao_meeting_classification",
+                ),
                 path(
                     "rooms/<str:room_ref>/host-handoff/",
                     recover_meeting_host,
