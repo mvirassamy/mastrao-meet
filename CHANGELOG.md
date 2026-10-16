@@ -9,8 +9,8 @@
   navigation after reload for readers without filing rights, and withdraw
   stale links while rereading permissions or after access is lost.
 
-- 2026-10-16: Connect the meeting result to its private assistant thread, sourced
-  answers and three editable, copyable proposals. Show source coverage,
+- 2026-10-16: Connect the meeting result to its private assistant thread,
+  sourced answers and three editable, copyable proposals. Show source coverage,
   abstention and technical failures separately; reread current rights and
   exact cited versions. Recover uncertain commands without duplicate requests
   and confirm deletion of the private thread without changing personal notes.
