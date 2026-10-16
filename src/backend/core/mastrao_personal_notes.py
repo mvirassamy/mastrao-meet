@@ -54,7 +54,11 @@ class PersonalNoteRefused(Exception):
 
 
 def _safe_revision(value):
-    return type(value) is int and 0 <= value <= MAX_SAFE_INTEGER
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MAX_SAFE_INTEGER
+    )
 
 
 def _valid_content(value):

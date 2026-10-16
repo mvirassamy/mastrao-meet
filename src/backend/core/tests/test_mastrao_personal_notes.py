@@ -78,8 +78,8 @@ def _b64(value):
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
 
-@pytest.fixture
-def signing_key(settings):
+@pytest.fixture(name="signing_key")
+def notes_signing_key(settings):
     """Use the existing production verification functions with a real key."""
 
     key = Ed25519PrivateKey.generate()
@@ -96,8 +96,8 @@ def signing_key(settings):
     return key
 
 
-@pytest.fixture
-def binding():
+@pytest.fixture(name="binding")
+def room_binding():
     """A technical binding has no recording policy or content storage."""
 
     return models.MastraoRoomBinding.objects.create(
@@ -230,8 +230,10 @@ def _upstream(body, status=200):
     return response
 
 
-@pytest.fixture
-def core_transport():
+@pytest.fixture(name="core_transport")
+def notes_core_transport():
+    """Capture Core requests without contacting an upstream service."""
+
     session = MagicMock()
     session.__enter__.return_value = session
     session.post.return_value = _upstream(EMPTY_NOTE)
@@ -337,6 +339,8 @@ def test_room_rejects_unbound_or_tampered_authority(
 def test_room_never_uses_other_participant_or_technical_owner(
     binding, signing_key, core_transport
 ):
+    """A technical room owner cannot read notes without participant authority."""
+
     client = Client()
     _participant(Client(), binding, signing_key)
     client.force_login(binding.owner)
@@ -433,6 +437,8 @@ def test_guest_history_never_shares_another_guests_document(
     ],
 )
 def test_invalid_write_is_rejected_before_core(binding, core_transport, body):
+    """Reject invalid note fields before forwarding to Core."""
+
     response = Client().put(
         _room_url(binding), data=json.dumps(body), content_type="application/json"
     )
@@ -457,12 +463,16 @@ def test_invalid_write_is_rejected_before_core(binding, core_transport, body):
 def test_malformed_or_oversized_envelope_is_rejected(
     binding, core_transport, body, content_type
 ):
+    """Reject ambiguous, malformed or oversized write envelopes."""
+
     response = Client().put(_room_url(binding), data=body, content_type=content_type)
     assert response.status_code == 422
     core_transport.post.assert_not_called()
 
 
 def test_explicit_csrf_protection_is_present_even_without_middleware(core_transport):
+    """Protect note writes even when CSRF middleware is absent."""
+
     request = RequestFactory().put(
         "/api/v1.0/rooms/room_0123456789abcdef/personal-note/",
         data='{"content":"private","expected_revision":0}',
@@ -477,6 +487,8 @@ def test_explicit_csrf_protection_is_present_even_without_middleware(core_transp
 @pytest.mark.parametrize("method", ["post", "delete", "patch", "head"])
 @pytest.mark.parametrize("route", ["room", "history"])
 def test_only_get_put_are_allowed(binding, core_transport, method, route):
+    """Expose only reads and revision-checked writes on both routes."""
+
     url = _room_url(binding) if route == "room" else _history_url(binding)
     assert getattr(Client(), method)(url).status_code == 405
     core_transport.post.assert_not_called()
@@ -486,6 +498,8 @@ def test_only_get_put_are_allowed(binding, core_transport, method, route):
 def test_utf8_full_size_note_uses_larger_bounded_response(
     binding, signing_key, core_transport, character
 ):
+    """Preserve full-size Unicode notes within the bounded response limit."""
+
     client = Client()
     _participant(client, binding, signing_key)
     note = {**SAVED_NOTE, "content": character * 100_000}
@@ -507,6 +521,8 @@ def test_utf8_full_size_note_uses_larger_bounded_response(
 def test_core_errors_never_expose_upstream_note_or_grant(
     binding, signing_key, core_transport, status, expected
 ):
+    """Return opaque errors without exposing note content or credentials."""
+
     client = Client()
     _grant, compact = _participant(client, binding, signing_key)
     upstream = _upstream({**SAVED_NOTE, "participant_grant": compact}, status)
@@ -528,6 +544,8 @@ def test_core_errors_never_expose_upstream_note_or_grant(
 def test_core_temporary_failures_are_retryable_and_bounded(
     binding, signing_key, core_transport, failure
 ):
+    """Keep transport failures retryable and enforce response limits."""
+
     client = Client()
     _participant(client, binding, signing_key)
     upstream = _upstream(EMPTY_NOTE)
@@ -555,6 +573,8 @@ def test_core_temporary_failures_are_retryable_and_bounded(
 def test_guest_history_is_exact_session_grant_after_close(
     binding, signing_key, core_transport
 ):
+    """Retain the exact guest author when accessing notes after closure."""
+
     client = Client(enforce_csrf_checks=True)
     grant, compact = _participant(client, binding, signing_key)
     binding.closing_at = timezone.now()
@@ -589,6 +609,8 @@ def test_guest_history_is_exact_session_grant_after_close(
 
 @pytest.mark.parametrize("method", ["get", "put"])
 def test_history_oidc_forwards_token_and_method(binding, method):
+    """Forward account history requests with server-side OIDC credentials."""
+
     client = Client(enforce_csrf_checks=True)
     _save_session(client, {"oidc_access_token": TOKEN})
     session = MagicMock()
@@ -612,7 +634,10 @@ def test_history_oidc_forwards_token_and_method(binding, method):
     expected_options = {"json": body} if method == "put" else {}
     session.request.assert_called_once_with(
         method.upper(),
-        f"https://platform.example.com/api/meet/meetings/history/{binding.meeting_ref}/personal-note",
+        (
+            "https://platform.example.com/api/meet/meetings/history/"
+            f"{binding.meeting_ref}/personal-note"
+        ),
         headers={"authorization": f"Bearer {TOKEN}"},
         timeout=5,
         allow_redirects=False,
@@ -689,6 +714,8 @@ def test_matching_signed_in_guest_fails_closed_instead_of_oidc_fallback(
 def test_history_host_authority_takes_priority_over_guest_and_oidc(
     binding, signing_key, core_transport
 ):
+    """Keep the live host author when other session identities are present."""
+
     client = Client()
     _host, host_compact = _participant(client, binding, signing_key, "host")
     _participant(client, binding, signing_key, suffix="fedcba9876543210")
@@ -708,6 +735,8 @@ def test_history_host_authority_takes_priority_over_guest_and_oidc(
 def test_unrelated_guest_association_does_not_block_account_history(
     binding, signing_key, core_transport
 ):
+    """Allow account history for meetings unrelated to the guest session."""
+
     client = Client()
     _participant(client, binding, signing_key)
     _save_session(client, {"oidc_access_token": TOKEN})
@@ -724,6 +753,8 @@ def test_unrelated_guest_association_does_not_block_account_history(
 
 
 def test_history_platform_conflict_discards_note_body(binding):
+    """Hide upstream note content when an account write conflicts."""
+
     client = Client()
     _save_session(client, {"oidc_access_token": TOKEN})
     session = MagicMock()
@@ -740,6 +771,8 @@ def test_history_platform_conflict_discards_note_body(binding):
 
 
 def test_history_put_rejects_csrf_and_invalid_payload_before_platform(binding):
+    """Reject unsafe history writes before contacting Platform."""
+
     client = Client(enforce_csrf_checks=True)
     _save_session(client, {"oidc_access_token": TOKEN})
     with patch("core.mastrao_personal_notes.request_platform") as platform:
@@ -768,6 +801,8 @@ def test_history_put_rejects_csrf_and_invalid_payload_before_platform(binding):
 def test_invalid_core_endpoint_fails_before_network(
     binding, signing_key, core_transport, settings, endpoint
 ):
+    """Refuse untrusted Core endpoints before making a network request."""
+
     client = Client()
     _participant(client, binding, signing_key)
     settings.MASTRAO_CORE_PERSONAL_NOTES_READ_ENDPOINT = endpoint
