@@ -20,7 +20,7 @@ import pytest
         },
     ],
 )
-def test_database_configuration_disables_server_side_cursors(database_environment):
+def test_database_configuration_is_safe_for_transaction_pooling(database_environment):
     """Both database configuration paths remain safe for transaction pooling."""
 
     environment = {
@@ -40,7 +40,10 @@ def test_database_configuration_disables_server_side_cursors(database_environmen
                 "from configurations import importer; "
                 "importer.install(); "
                 "from django.conf import settings; "
-                "assert settings.DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS']"
+                "from django.db import connections; "
+                "database = settings.DATABASES['default']; "
+                "assert database['DISABLE_SERVER_SIDE_CURSORS']; "
+                "assert connections['default'].get_connection_params()['prepare_threshold'] is None"
             ),
         ],
         check=True,
