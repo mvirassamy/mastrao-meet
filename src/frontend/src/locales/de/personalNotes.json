@@ -1,10 +1,10 @@
 {
   "title": "Meine Notizen",
-  "private": "Diese Notizen sind nur für Sie sichtbar.",
+  "private": "Nur für Sie sichtbar",
   "placeholder": "Halten Sie Ihre Ideen während der Besprechung fest…",
   "loading": "Notizen werden geladen…",
   "saved": "Gespeichert",
-  "unsaved": "Ungespeicherte Änderungen",
+  "notSaved": "Nicht gespeichert",
   "saving": "Wird gespeichert…",
   "saveError": "Notizen nicht gespeichert. Ihr Entwurf bleibt hier erhalten.",
   "sessionExpired": "Ihr Zugriff auf Notizen ist abgelaufen. Melden Sie sich erneut an, um Ihren Entwurf zu speichern.",

@@ -324,11 +324,6 @@ const MeetingDetailContent = ({
             )}
         </>
       )}
-      <div id="meeting-notes" className={css({ marginBottom: '1.25rem' })}>
-        <MeetingPersonalNotesSection
-          endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
-        />
-      </div>
       <div className={detailSections}>
         <MeetingContentSection
           kind="summary"
@@ -364,6 +359,11 @@ const MeetingDetailContent = ({
       {identityKey && (
         <MeetingAssistant meetingId={meeting.id} identityKey={identityKey} />
       )}
+      <div id="meeting-notes" className={css({ marginTop: '1.25rem' })}>
+        <MeetingPersonalNotesSection
+          endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
+        />
+      </div>
     </>
   )
 }

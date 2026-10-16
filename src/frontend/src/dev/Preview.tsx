@@ -36,6 +36,12 @@ import { Join } from '@/features/rooms/components/Join'
 import { Permissions } from '@/features/rooms/components/Permissions'
 import { MeetingLifecycleProvider } from '@/features/rooms/contexts/MeetingLifecycleProvider'
 import { VideoConference } from '@/features/rooms/livekit/prefabs/VideoConference'
+import { MeetingNotesScope } from '@/features/rooms/components/MeetingNotes'
+import {
+  PanelId,
+  SubPanelId,
+} from '@/features/rooms/livekit/hooks/useSidePanel'
+import { layoutStore } from '@/stores/layout'
 import { userChoicesStore } from '@/stores/userChoices'
 import { useWatchDeviceAvailability } from '@/features/rooms/hooks/useWatchDeviceAvailability'
 import {
@@ -100,6 +106,10 @@ const PreviewWorkspace = () => {
 const PreviewRoom = () => {
   useEffect(() => {
     if (previewScenario === 'notifications') notifyAutoMutedOnJoin()
+    if (previewScenario === 'room-notes') {
+      layoutStore.activeSubPanelId = SubPanelId.PERSONAL_NOTES
+      layoutStore.activePanelId = PanelId.TOOLS
+    }
     if (previewScenario === 'accessibility') {
       openSettingsDialog(SettingsDialogExtendedKey.ACCESSIBILITY)
       return closeSettingsDialog
@@ -130,21 +140,26 @@ const PreviewRoom = () => {
     <Screen header={false} footer={false}>
       <Router hook={roomLocation.hook}>
         <Route path="/:roomId">
-          <LiveKitRoom
-            data-lk-theme="visio-light"
-            room={room}
-            serverUrl=""
-            token=""
-            connect={false}
-            audio={false}
-            video={false}
+          <MeetingNotesScope
+            endpoint={`/rooms/${previewRoomId}/personal-note/`}
+            identityKey="preview-local"
           >
-            <VideoConference
-              roomId={previewRoomId}
-              canEnd={previewIsRecordingHost}
-              recording={previewRoomRecording(previewScenario)}
-            />
-          </LiveKitRoom>
+            <LiveKitRoom
+              data-lk-theme="visio-light"
+              room={room}
+              serverUrl=""
+              token=""
+              connect={false}
+              audio={false}
+              video={false}
+            >
+              <VideoConference
+                roomId={previewRoomId}
+                canEnd={previewIsRecordingHost}
+                recording={previewRoomRecording(previewScenario)}
+              />
+            </LiveKitRoom>
+          </MeetingNotesScope>
         </Route>
       </Router>
     </Screen>

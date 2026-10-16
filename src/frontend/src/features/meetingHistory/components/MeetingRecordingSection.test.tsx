@@ -203,7 +203,7 @@ describe('recording history UI', () => {
       [...document.querySelectorAll('[data-section]')].map((section) =>
         section.getAttribute('data-section')
       )
-    ).toEqual(['recording', 'personal-notes', 'summary', 'transcript'])
+    ).toEqual(['recording', 'summary', 'transcript', 'personal-notes'])
     expect(
       within(
         screen.getByRole('region', { name: 'recording.title' })

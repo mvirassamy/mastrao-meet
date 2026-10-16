@@ -1,22 +1,33 @@
 import { useTranslation } from 'react-i18next'
+import { WarningIcon } from '@/icons'
 import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
 import type { NoteStatus } from '../model/PersonalNotesController'
 import type { PersonalNotesContextValue } from '../hooks/usePersonalNotes'
 
-function statusMessage(
-  status: NoteStatus,
-  t: ReturnType<typeof useTranslation>['t']
-) {
+type Translate = ReturnType<typeof useTranslation>['t']
+type Tone = 'saved' | 'busy' | 'problem'
+
+/** Short label and tone shown in the editor footer. */
+function statusLine(status: NoteStatus, t: Translate): [string, Tone] {
   switch (status) {
     case 'loading':
-      return t('loading', { defaultValue: 'Chargement des notes…' })
+      return [t('loading', { defaultValue: 'Chargement des notes…' }), 'busy']
     case 'ready':
-      return t('saved', { defaultValue: 'Enregistré' })
+      return [t('saved', { defaultValue: 'Enregistré' }), 'saved']
     case 'pending':
-      return t('unsaved', { defaultValue: 'Modifications non enregistrées' })
     case 'saving':
-      return t('saving', { defaultValue: 'Enregistrement…' })
+      return [t('saving', { defaultValue: 'Enregistrement…' }), 'busy']
+    case 'error':
+    case 'unauthorized':
+    case 'conflict':
+      return [t('notSaved', { defaultValue: 'Non enregistré' }), 'problem']
+  }
+}
+
+/** Explanation of a problem that needs the user, shown above the text. */
+function problemMessage(status: NoteStatus, t: Translate) {
+  switch (status) {
     case 'error':
       return t('saveError', {
         defaultValue:
@@ -32,61 +43,150 @@ function statusMessage(
         defaultValue:
           'Une autre version a été enregistrée. Votre brouillon est conservé ici.',
       })
+    case 'loading':
+    case 'ready':
+    case 'pending':
+    case 'saving':
+      return undefined
   }
 }
 
+/** Actions read as links aligned with the message text. */
+const inlineAction = css({ paddingX: '0!', minHeight: 'auto!' })
+
+const dotColors: Record<Tone, string> = {
+  saved: 'var(--success-foreground)',
+  busy: 'var(--input)',
+  problem: 'var(--call-attention-badge)',
+}
+
+/** Live footer status; problems are explained by NoteSaveAlert. */
 export function NoteSaveStatus({
   notes,
 }: {
   notes: PersonalNotesContextValue
 }) {
   const { t } = useTranslation('personalNotes', { useSuspense: false })
-  const hasError = notes.status === 'error' || notes.status === 'unauthorized'
+  const [label, tone] = statusLine(notes.status, t)
   return (
-    <div
+    <span
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className={css({
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.375rem',
+        color:
+          tone === 'problem'
+            ? 'var(--call-attention-foreground)'
+            : 'muted-foreground',
       })}
     >
-      <p role="status" aria-live="polite" aria-atomic="true">
-        {statusMessage(notes.status, t)}
-      </p>
-      {hasError && (
-        <Button variant="outline" size="sm" onPress={() => void notes.retry()}>
-          {t('retry', { defaultValue: 'Réessayer' })}
-        </Button>
-      )}
-      {notes.conflict && (
-        <div
-          className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })}
-        >
-          <Button variant="outline" size="sm" onPress={notes.loadSavedVersion}>
-            {t('loadSaved', { defaultValue: 'Charger la version enregistrée' })}
-          </Button>
+      <span
+        aria-hidden="true"
+        className={css({ width: '7px', height: '7px', borderRadius: 'full' })}
+        style={{ backgroundColor: dotColors[tone] }}
+      />
+      {label}
+    </span>
+  )
+}
+
+/** Problems keep the draft editable; their actions sit right above it. */
+export function NoteSaveAlert({ notes }: { notes: PersonalNotesContextValue }) {
+  const { t } = useTranslation('personalNotes', { useSuspense: false })
+  const problem = problemMessage(notes.status, t)
+  const canRetry = notes.status === 'error' || notes.status === 'unauthorized'
+  if (!problem && !notes.conflict) return null
+  return (
+    <div
+      role="alert"
+      className={css({
+        display: 'flex',
+        gap: '0.625rem',
+        marginX: '1.25rem',
+        marginTop: '1rem',
+        padding: '0.75rem 0.875rem',
+        borderRadius: '12px',
+        fontSize: '0.8125rem',
+        lineHeight: '1.5',
+        color: 'foreground',
+        // The call's attention palette, as on the muted mic and camera.
+        backgroundColor:
+          'color-mix(in srgb, var(--call-attention) 55%, var(--card))',
+      })}
+    >
+      <WarningIcon
+        size={16}
+        aria-hidden="true"
+        className={css({
+          flexShrink: 0,
+          marginTop: '2px',
+          color: 'var(--call-attention-foreground)',
+        })}
+      />
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.25rem',
+          alignItems: 'flex-start',
+        })}
+      >
+        <p>{problem}</p>
+        {canRetry && (
           <Button
-            variant="outline"
-            size="sm"
-            onPress={() => {
-              if (
-                window.confirm(
-                  t('confirmOverwrite', {
-                    defaultValue:
-                      'Remplacer la version enregistrée par votre brouillon ?',
-                  })
-                )
-              ) {
-                void notes.keepDraft()
-              }
-            }}
+            variant="link"
+            className={inlineAction}
+            size="xs"
+            onPress={() => void notes.retry()}
           >
-            {t('keepDraft', {
-              defaultValue: 'Enregistrer mon brouillon à la place',
-            })}
+            {t('retry', { defaultValue: 'Réessayer' })}
           </Button>
-        </div>
-      )}
+        )}
+        {notes.conflict && (
+          <div
+            className={css({
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.5rem',
+            })}
+          >
+            <Button
+              variant="link"
+              className={inlineAction}
+              size="xs"
+              onPress={notes.loadSavedVersion}
+            >
+              {t('loadSaved', {
+                defaultValue: 'Charger la version enregistrée',
+              })}
+            </Button>
+            <Button
+              variant="link"
+              className={inlineAction}
+              size="xs"
+              onPress={() => {
+                if (
+                  window.confirm(
+                    t('confirmOverwrite', {
+                      defaultValue:
+                        'Remplacer la version enregistrée par votre brouillon ?',
+                    })
+                  )
+                ) {
+                  void notes.keepDraft()
+                }
+              }}
+            >
+              {t('keepDraft', {
+                defaultValue: 'Enregistrer mon brouillon à la place',
+              })}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
