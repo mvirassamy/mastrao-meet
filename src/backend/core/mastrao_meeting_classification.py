@@ -129,10 +129,13 @@ def _classification_result(body, meeting_ref, command):
     if command is not None:
         fields = fields | {"idempotent_replay"}
     if (
-        set(body) != fields
+        set(body) - {"matter_display_label"} != fields
         or not _version_one(body.get("version"))
         or body.get("meeting_ref") != meeting_ref
     ):
+        raise PlatformFacadeError()
+    label = body.get("matter_display_label")
+    if label is not None and not _label(label):
         raise PlatformFacadeError()
     if (
         not _safe_integer(body.get("classification_version"))

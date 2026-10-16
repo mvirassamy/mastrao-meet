@@ -368,3 +368,36 @@ def test_create_matter_refuses_invalid_or_identity_injected_command(changes):
         response = _post(_client(), MATTERS_URL, {**CREATE_MATTER, **changes})
     assert response.status_code == 422
     upstream.assert_not_called()
+
+
+@pytest.mark.parametrize("label", [None, "Dossier équipe"])
+def test_authorized_matter_label_is_retained_after_reload_for_a_reader(label):
+    """Keep Core's current label for readers who cannot search writable destinations."""
+
+    body = {
+        **CLASSIFICATION,
+        "matter_ref": MATTER,
+        "can_classify": False,
+        "matter_display_label": label,
+    }
+    session = _upstream(200, body)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client().get(CLASSIFICATION_URL)
+    assert response.status_code == 200
+    assert response.json() == body
+    session.request.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "label", ["", "x" * 201, {"private_url": "https://private.example"}]
+)
+def test_invalid_matter_label_projection_is_not_forwarded(label):
+    """Reject malformed label projections at the same strict response boundary."""
+
+    body = {**CLASSIFICATION, "matter_ref": MATTER, "matter_display_label": label}
+    with patch(
+        "core.mastrao_platform_facade.requests.Session",
+        return_value=_upstream(200, body),
+    ):
+        response = _client().get(CLASSIFICATION_URL)
+    assert response.status_code == 503
