@@ -22,10 +22,16 @@ UUID = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-"
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
 )
+# Platform's projectMeetingClassification uses the typed TanStack matter route.
+MATTER_PATH = re.compile(
+    r"/orgs/(?P<organization_slug>[a-z0-9]+(?:-[a-z0-9]+)*)/matters/"
+    r"(?P<matter_ref>[A-Za-z0-9_-]{16,160})"
+)
 CLASSIFICATION_FIELDS = {
     "version",
     "meeting_ref",
     "matter_ref",
+    "matter_path",
     "classification_version",
     "can_classify",
 }
@@ -134,6 +140,7 @@ def _classification_result(body, meeting_ref, command):
         or body.get("meeting_ref") != meeting_ref
     ):
         raise PlatformFacadeError()
+    _validate_matter_path(body)
     label = body.get("matter_display_label")
     if label is not None and not _label(label):
         raise PlatformFacadeError()
@@ -146,6 +153,26 @@ def _classification_result(body, meeting_ref, command):
     if command is not None and (
         body["matter_ref"] != command["matter_ref"]
         or not isinstance(body.get("idempotent_replay"), bool)
+    ):
+        raise PlatformFacadeError()
+
+
+def _validate_matter_path(body):
+    """Keep Platform's authorized relative path bound to its current dossier."""
+
+    path = body["matter_path"]
+    label = body.get("matter_display_label")
+    if path is None:
+        if label is not None:
+            raise PlatformFacadeError()
+        return
+    if not isinstance(path, str) or label is None or body["matter_ref"] is None:
+        raise PlatformFacadeError()
+    match = MATTER_PATH.fullmatch(path)
+    if (
+        match is None
+        or len(match["organization_slug"]) > 100
+        or match["matter_ref"] != body["matter_ref"]
     ):
         raise PlatformFacadeError()
 

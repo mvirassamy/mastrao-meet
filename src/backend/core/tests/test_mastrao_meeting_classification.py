@@ -20,6 +20,8 @@ PLATFORM = "https://platform.example.com"
 TOKEN = "test-oidc-session-token-123456"
 MEETING = "meeting_0123456789abcdef"
 MATTER = "matter_0123456789abcdef"
+# Actual typed Platform route, projected using the authenticated organization slug.
+MATTER_PATH = "/orgs/equipe-test/matters/matter_0123456789abcdef"
 CLASSIFICATION_URL = f"/api/v1.0/meetings/history/{MEETING}/classification/"
 MATTERS_URL = "/api/v1.0/matters/"
 COMMAND = {
@@ -33,6 +35,7 @@ CLASSIFICATION = {
     "version": 1,
     "meeting_ref": MEETING,
     "matter_ref": None,
+    "matter_path": None,
     "classification_version": 0,
     "can_classify": True,
 }
@@ -144,6 +147,11 @@ def test_classification_preserves_stable_command_and_platform_replay():
         {"organization_external_id": "other"},
         {"author_ref": "other"},
         {"participant_grant": "guest"},
+        {"matter_display_label": "Browser-selected label"},
+        {"matter_path": MATTER_PATH},
+        {"matter_url": "https://untrusted.example/dossier"},
+        {"matter_href": "https://untrusted.example/dossier"},
+        {"return_to": "https://untrusted.example/dossier"},
         {"version": True},
         {"meeting_ref": "meeting_other0123456789"},
         {"matter_ref": None},
@@ -379,6 +387,7 @@ def test_authorized_matter_label_is_retained_after_reload_for_a_reader(label):
         "matter_ref": MATTER,
         "can_classify": False,
         "matter_display_label": label,
+        "matter_path": MATTER_PATH if label is not None else None,
     }
     session = _upstream(200, body)
     with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
@@ -394,10 +403,201 @@ def test_authorized_matter_label_is_retained_after_reload_for_a_reader(label):
 def test_invalid_matter_label_projection_is_not_forwarded(label):
     """Reject malformed label projections at the same strict response boundary."""
 
-    body = {**CLASSIFICATION, "matter_ref": MATTER, "matter_display_label": label}
+    body = {
+        **CLASSIFICATION,
+        "matter_ref": MATTER,
+        "matter_display_label": label,
+        "matter_path": MATTER_PATH,
+    }
     with patch(
         "core.mastrao_platform_facade.requests.Session",
         return_value=_upstream(200, body),
     ):
         response = _client().get(CLASSIFICATION_URL)
     assert response.status_code == 503
+
+
+@pytest.mark.parametrize("status", [401, 403, 404])
+def test_access_refusal_discards_all_dossier_metadata(status):
+    """A refusal cannot disclose upstream labels or navigation through its error body."""
+
+    denied = {
+        "message": "Access refused",
+        "matter_display_label": "Confidential dossier",
+        "matter_path": MATTER_PATH,
+        "matter_url": "https://private.example/dossier",
+    }
+    with patch(
+        "core.mastrao_platform_facade.requests.Session",
+        return_value=_upstream(status, denied),
+    ):
+        response = _client().get(CLASSIFICATION_URL)
+    assert response.status_code == status
+    assert response.json() == {"message": "Classement ou dossiers indisponibles."}
+    assert "Confidential dossier" not in response.content.decode()
+    assert "private.example" not in response.content.decode()
+    assert MATTER_PATH not in response.content.decode()
+
+
+def test_dossier_metadata_is_taken_only_from_the_authenticated_platform_response():
+    """Browser origin and navigation headers cannot replace server dossier metadata."""
+
+    body = {
+        **CLASSIFICATION,
+        "matter_ref": MATTER,
+        "matter_display_label": "Authorized dossier",
+        "matter_path": MATTER_PATH,
+        "can_classify": False,
+    }
+    session = _upstream(200, body)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client().get(
+            CLASSIFICATION_URL,
+            HTTP_X_FORWARDED_HOST="untrusted.example",
+            HTTP_X_MATTER_DISPLAY_LABEL="Browser-selected label",
+            HTTP_X_MATTER_URL="https://untrusted.example/dossier",
+            HTTP_X_MATTER_PATH="/orgs/other/matters/matter_other0123456789",
+            HTTP_X_ORGANIZATION_SLUG="other",
+        )
+    assert response.status_code == 200
+    assert response.json() == body
+    session.request.assert_called_once_with(
+        "GET",
+        f"{PLATFORM}/api/meet/meetings/history/{MEETING}/classification",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        timeout=5,
+        allow_redirects=False,
+        stream=True,
+    )
+
+
+def test_dossier_read_access_loss_withholds_label_and_path_on_reload():
+    """Never reconstruct or cache dossier metadata after Core withholds it."""
+
+    body = {
+        **CLASSIFICATION,
+        "matter_ref": MATTER,
+        "matter_display_label": "Authorized dossier",
+        "matter_path": MATTER_PATH,
+        "can_classify": False,
+    }
+    restricted = {**body, "matter_display_label": None, "matter_path": None}
+    session = _upstream(body=body)
+    client = _client()
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        first = client.get(CLASSIFICATION_URL)
+        session.request.return_value = _upstream(body=restricted).request.return_value
+        reloaded = client.get(CLASSIFICATION_URL)
+    assert first.status_code == reloaded.status_code == 200
+    assert first.json() == body
+    assert reloaded.json() == restricted
+    assert "Authorized dossier" not in reloaded.content.decode()
+    assert MATTER_PATH not in reloaded.content.decode()
+    assert session.request.call_count == 2
+
+
+@pytest.mark.parametrize("replay", [False, True])
+def test_classification_command_retains_platform_dossier_path(replay):
+    """Creation and durable replay return the current authorized navigation."""
+
+    body = {
+        **CLASSIFICATION,
+        "matter_ref": MATTER,
+        "matter_display_label": "Authorized dossier",
+        "matter_path": MATTER_PATH,
+        "classification_version": 1,
+        "idempotent_replay": replay,
+    }
+    session = _upstream(body=body)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _post(_client(), CLASSIFICATION_URL, COMMAND)
+    assert response.status_code == 200
+    assert response.json() == body
+    session.request.assert_called_once()
+    assert session.request.call_args.kwargs["json"] == COMMAND
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        f"https://private.example{MATTER_PATH}",
+        f"//private.example{MATTER_PATH}",
+        "javascript:alert(1)",
+        f"{MATTER_PATH}?token=secret",
+        f"{MATTER_PATH}#private",
+        f"{MATTER_PATH}/",
+        f"/orgs/equipe-test/dossiers/{MATTER}",
+        "/orgs/equipe-test/matters/matter_other0123456789",
+        f"/orgs/equipe-test/../matters/{MATTER}",
+        f"/orgs/equipe%2Ftest/matters/{MATTER}",
+        f"/orgs/-equipe/matters/{MATTER}",
+        f"/orgs/equipe--test/matters/{MATTER}",
+        f"/orgs/{'a' * 101}/matters/{MATTER}",
+        True,
+        {"private_url": "https://private.example"},
+        None,
+    ],
+)
+def test_invalid_or_unbound_dossier_path_is_not_forwarded(path):
+    """Only the canonical relative route for the returned dossier may pass."""
+
+    body = {
+        **CLASSIFICATION,
+        "matter_ref": MATTER,
+        "matter_display_label": "Authorized dossier",
+        "matter_path": path,
+    }
+    with patch(
+        "core.mastrao_platform_facade.requests.Session",
+        return_value=_upstream(body=body),
+    ):
+        response = _client().get(CLASSIFICATION_URL)
+    assert response.status_code == 503
+    assert response.json() == {"message": "Classement ou dossiers indisponibles."}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"matter_display_label": None},
+        {"matter_ref": None},
+    ],
+)
+def test_dossier_path_requires_authorized_label_and_reference(changes):
+    """The opaque classification reference alone never grants dossier navigation."""
+
+    body = {
+        **CLASSIFICATION,
+        "matter_ref": MATTER,
+        "matter_display_label": "Authorized dossier",
+        "matter_path": MATTER_PATH,
+        **changes,
+    }
+    with patch(
+        "core.mastrao_platform_facade.requests.Session",
+        return_value=_upstream(body=body),
+    ):
+        response = _client().get(CLASSIFICATION_URL)
+    assert response.status_code == 503
+
+
+def test_missing_path_projection_is_not_reconstructed_by_the_bridge():
+    """Require the published Platform projection instead of inventing a URL."""
+
+    body = {**CLASSIFICATION, "matter_ref": MATTER}
+    del body["matter_path"]
+    with patch(
+        "core.mastrao_platform_facade.requests.Session",
+        return_value=_upstream(body=body),
+    ):
+        response = _client().get(CLASSIFICATION_URL)
+    assert response.status_code == 503
+
+
+def test_client_dossier_path_query_never_reaches_platform():
+    """Navigation metadata is not a browser-selectable classification input."""
+
+    with patch("core.mastrao_platform_facade.requests.Session") as upstream:
+        response = _client().get(CLASSIFICATION_URL, {"matter_path": MATTER_PATH})
+    assert response.status_code == 422
+    upstream.assert_not_called()
