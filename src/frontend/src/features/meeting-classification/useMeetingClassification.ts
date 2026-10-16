@@ -32,7 +32,6 @@ export function useMeetingClassification(
   const [createdMatter, setCreatedMatter] = useState<MatterDestination | null>(
     null
   )
-  const [knownMatter, setKnownMatter] = useState<MatterDestination | null>(null)
   const active = useRef(true)
   const controller = useRef<AbortController | null>(null)
   const busy = useRef(false)
@@ -110,7 +109,6 @@ export function useMeetingClassification(
       const result = await classifyMeeting(command, request.signal)
       if (!active.current) return
       client.setQueryData(queryKey, result)
-      setKnownMatter(target)
       setCreatedMatter(null)
       setOpen(false)
       classificationCommand.current = null
@@ -142,8 +140,12 @@ export function useMeetingClassification(
     items: destinations.data?.pages.flatMap((page) => page.items) ?? [],
     hasMore: destinations.hasNextPage,
   }
-  const currentMatter =
-    knownMatter?.matter_ref === current.data?.matter_ref ? knownMatter : null
+  let currentMatter: MatterDestination | null = null
+  if (current.data?.matter_ref && current.data.matter_display_label)
+    currentMatter = {
+      matter_ref: current.data.matter_ref,
+      display_label: current.data.matter_display_label,
+    }
   return {
     current,
     currentMatter,

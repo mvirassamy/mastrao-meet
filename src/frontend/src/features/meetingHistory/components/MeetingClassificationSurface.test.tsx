@@ -5,7 +5,11 @@ import { fetchApi } from '@/api/fetchApi'
 import { MeetingHistoryDetailView } from './MeetingHistoryDetailView'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'fr' } }),
+  useTranslation: () => ({
+    t: (key: string, options?: { name?: string }) =>
+      options?.name ? `${key}: ${options.name}` : key,
+    i18n: { language: 'fr' },
+  }),
 }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
 vi.mock('./MeetingPersonalNotesSection', () => ({
@@ -65,5 +69,41 @@ describe('meeting classification entry points', () => {
       api.mock.calls.some(([, options]) => options?.method === 'POST')
     ).toBe(false)
     expect(screen.getByText('private notes unchanged')).toBeTruthy()
+  })
+  it('restores the authorized folder label from the canonical classification after reload', async () => {
+    const meetingId = 'meeting_0123456789abcdef'
+    vi.mocked(fetchApi).mockImplementation(async (path) => {
+      if (path.includes('/classification/'))
+        return {
+          version: 1,
+          meeting_ref: meetingId,
+          matter_ref: 'matter_0123456789abcdef',
+          matter_display_label: 'Dossier restauré',
+          classification_version: 1,
+          can_classify: false,
+        }
+      return {
+        id: meetingId,
+        title: 'Réunion',
+        started_at: '2026-10-16T08:00:00Z',
+        summary: { status: 'failed' },
+        transcript: { status: 'failed' },
+      }
+    })
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <MeetingHistoryDetailView meetingId={meetingId} identityKey="user-a" />
+      </QueryClientProvider>
+    )
+    expect(
+      await screen.findByText('classification.current: Dossier restauré')
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: 'classification.title' })
+    ).toBeNull()
   })
 })

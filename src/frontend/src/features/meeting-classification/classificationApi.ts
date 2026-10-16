@@ -5,6 +5,7 @@ export type MeetingClassification = {
   version: 1
   meeting_ref: string
   matter_ref: string | null
+  matter_display_label?: string | null
   classification_version: number
   can_classify: boolean
 }
@@ -47,6 +48,12 @@ function parseClassification(
     typeof data.can_classify !== 'boolean'
   )
     throw new Error('Invalid classification response')
+  if (
+    data.matter_display_label != null &&
+    (typeof data.matter_display_label !== 'string' ||
+      !data.matter_display_label.trim())
+  )
+    throw new Error('Invalid classification destination label')
   return data as MeetingClassification
 }
 function parseMatter(value: unknown): MatterDestination {

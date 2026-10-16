@@ -7,6 +7,7 @@
 - 2026-10-16: Connect Meet detail and summary filing to authorized folder
   search and creation, with explicit sharing information, durable receipts,
   conflict refresh and attachment retries that reuse an already created folder.
+  Restore the folder label from authorized canonical reads after reloading.
 
 - 2026-10-16: Keep meeting result navigation and independent call, summary and
   transcript states visible, including unconfirmed endings and newer source

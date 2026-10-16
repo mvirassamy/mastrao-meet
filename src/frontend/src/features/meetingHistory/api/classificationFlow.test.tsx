@@ -50,7 +50,9 @@ function setup() {
     </QueryClientProvider>
   )
 }
-beforeEach(() => api.mockReset())
+beforeEach(() => {
+  api.mockReset()
+})
 afterEach(cleanup)
 
 describe('classification commands', () => {
