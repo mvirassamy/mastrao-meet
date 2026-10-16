@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-17: Document the passive staging database receipt for Gate 1, with
+  read-only capacity, session and refusal evidence; no pooler or deployment.
+
 - 2026-10-16: Pull CI PostgreSQL 16 and Redis 5 from the public image cache
   to avoid ECR download quotas blocking backend tests before startup.
 
