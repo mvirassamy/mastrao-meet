@@ -164,7 +164,8 @@
     "privateNotes": "My private notes",
     "ended": "Meeting ended",
     "endUnconfirmed": "Meeting end not confirmed: the result may still change.",
-    "refreshing": "A newer version is being checked. Displayed content may be out of date."
+    "refreshing": "A newer version is being checked. Displayed content may be out of date.",
+    "assistant": "Ask about this meeting"
   },
   "classification": {
     "title": "File in a folder",
@@ -182,7 +183,7 @@
     "destinations": "Available folders",
     "selected": "Selected folder: {{name}}",
     "created": "Folder “{{name}}” was created. Filing still needs confirmation; resume without creating another folder.",
-    "conflict": "Filing changed in another session. The current state was refreshed; check it before confirming again.",
+    "conflict": "Filing changed in another session. Check its state before confirming again.",
     "failed": "Filing could not be confirmed. You can retry the same request.",
     "unclassified": "Not filed",
     "loadingCurrent": "Checking filing…",

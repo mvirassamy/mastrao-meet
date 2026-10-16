@@ -51,7 +51,8 @@
       "published_summary": "Synthèse publiée",
       "confirmed_decision": "Décision confirmée",
       "confirmed_action": "Action confirmée",
-      "confirmed_deadline": "Échéance confirmée"
+      "confirmed_deadline": "Échéance confirmée",
+      "published_proposal": "Proposition publiée, à confirmer"
     },
     "time": {
       "meeting_relative_ms": "Temps depuis le début de la réunion",
@@ -83,6 +84,26 @@
       "none": "Aucun passage sélectionné."
     },
     "omitted_one": "{{count}} passage non inclus.",
-    "omitted_other": "{{count}} passages non inclus."
+    "omitted_other": "{{count}} passages non inclus.",
+    "unknown": "La couverture des sources n’a pas pu être établie."
+  },
+  "prompt": {
+    "summary": "Produis une synthèse courte de cette réunion, en citant les sources disponibles.",
+    "actions": "Extrais les actions proposées dans cette réunion. Indique le responsable et l’échéance uniquement lorsqu’ils sont établis.",
+    "email_draft": "Prépare un brouillon de mail de suivi de cette réunion avec les références aux éléments cités, sans inventer de destinataire."
+  },
+  "command": {
+    "unconfirmed": "L’issue de la demande n’est pas confirmée. Relisez le fil avant toute nouvelle tentative.",
+    "conflict": "Le fil a changé dans une autre session. Vérifiez l’état affiché avant de confirmer une nouvelle demande.",
+    "rejected": "La demande a été refusée. Vérifiez son contenu avant de réessayer.",
+    "retry": "Réessayer la même demande"
+  },
+  "older": "Lire les échanges précédents",
+  "delete": {
+    "open": "Supprimer mon fil privé",
+    "title": "Supprimer votre conversation ?",
+    "description": "Cette action supprime votre fil privé sur cette réunion. La synthèse, le dossier et vos notes personnelles sont conservés.",
+    "cancel": "Annuler",
+    "confirm": "Supprimer le fil"
   }
 }

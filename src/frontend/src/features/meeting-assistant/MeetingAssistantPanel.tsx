@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, TextArea } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -24,6 +24,8 @@ export function MeetingAssistantPanel({
   onAsk,
   onAction,
   onOpenCitation,
+  canSend,
+  children,
 }: {
   turns: AssistantTurnView[]
   loading: boolean
@@ -32,11 +34,13 @@ export function MeetingAssistantPanel({
   onRetry: () => void
   onAsk: (question: string) => void
   onAction: (action: MeetingAssistantAction) => void
-  onOpenCitation: (id: string) => void
+  onOpenCitation: (turnId: string, id: string) => void
+  canSend: boolean
+  children?: ReactNode
 }) {
   const { t } = useTranslation('meetingAssistant')
   const [question, setQuestion] = useState('')
-  const disabled = loading || pending || error
+  const disabled = loading || pending || error || !canSend
   return (
     <section
       id="meeting-assistant"
@@ -72,8 +76,8 @@ export function MeetingAssistantPanel({
           </Button>
         </div>
       )}
-      {!loading && !error && (
-        <>
+      {!error && (
+        <div hidden={loading}>
           {turns.length === 0 && <p>{t('empty')}</p>}
           <Button
             variant="ghost"
@@ -107,14 +111,15 @@ export function MeetingAssistantPanel({
                 <AssistantResult
                   key={turn.result.id}
                   result={turn.result}
-                  onOpenCitation={onOpenCitation}
+                  onOpenCitation={(id) => onOpenCitation(turn.id, id)}
                 />
               </li>
             ))}
           </ol>
-        </>
+        </div>
       )}
       {pending && <p role="status">{t('pending')}</p>}
+      {children}
       <form
         onSubmit={(event) => {
           event.preventDefault()

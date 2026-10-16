@@ -164,7 +164,8 @@
     "privateNotes": "Mes notes privées",
     "ended": "Réunion terminée",
     "endUnconfirmed": "Fin de réunion non confirmée : le résultat peut encore évoluer.",
-    "refreshing": "Une nouvelle version est en cours de vérification. Le contenu affiché peut ne pas être à jour."
+    "refreshing": "Une nouvelle version est en cours de vérification. Le contenu affiché peut ne pas être à jour.",
+    "assistant": "Interroger cette réunion"
   },
   "classification": {
     "title": "Classer dans un dossier",
@@ -182,7 +183,7 @@
     "destinations": "Dossiers disponibles",
     "selected": "Dossier choisi : {{name}}",
     "created": "Le dossier « {{name}} » a été créé. Le classement reste à confirmer ; reprenez sans créer un autre dossier.",
-    "conflict": "Le classement a changé dans une autre session. L’état courant a été relu ; vérifiez-le avant de confirmer à nouveau.",
+    "conflict": "Le classement a changé dans une autre session. Vérifiez son état avant de confirmer à nouveau.",
     "failed": "Le classement n’a pas pu être confirmé. Vous pouvez reprendre la même demande.",
     "unclassified": "Non classée",
     "loadingCurrent": "Vérification du classement…",

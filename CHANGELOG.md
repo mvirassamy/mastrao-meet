@@ -1,8 +1,14 @@
 # Changelog
 
-- 2026-10-16: Prepare private meeting assistant presentation for sourced answers,
-  explicit coverage limits and editable, copyable proposals. Keep factual
-  abstention distinct from technical failures and clear unreadable citations.
+- 2026-10-16: Connect the meeting result to its private assistant thread, sourced
+  answers and three editable, copyable proposals. Show source coverage,
+  abstention and technical failures separately; reread current rights and
+  exact cited versions. Recover uncertain commands without duplicate requests
+  and confirm deletion of the private thread without changing personal notes.
+
+- 2026-10-16: Bridge authenticated classification, folder search/creation and
+  private assistant commands through bounded, CSRF-protected Django endpoints.
+  Core remains authoritative for storage, permissions and source access.
 
 - 2026-10-16: Connect Meet detail and summary filing to authorized folder
   search and creation, with explicit sharing information, durable receipts,

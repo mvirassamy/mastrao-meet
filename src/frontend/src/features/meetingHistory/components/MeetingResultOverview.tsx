@@ -5,8 +5,10 @@ import type { MeetingHistoryDetail } from '../api/types'
 /** Navigation and processing remain available even when the summary fails. */
 export function MeetingResultOverview({
   meeting,
+  hasAssistant = false,
 }: {
   meeting: MeetingHistoryDetail
+  hasAssistant?: boolean
 }) {
   const { t } = useTranslation('meetingHistory')
   const refreshing =
@@ -33,6 +35,9 @@ export function MeetingResultOverview({
         <a href="#meeting-summary">{t('summary.title')}</a>
         <a href="#meeting-transcript">{t('transcript.title')}</a>
         <a href="#meeting-notes">{t('result.privateNotes')}</a>
+        {hasAssistant && (
+          <a href="#meeting-assistant">{t('result.assistant')}</a>
+        )}
       </nav>
       <p
         role="status"

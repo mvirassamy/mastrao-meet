@@ -94,7 +94,24 @@ export type MeetingAssistantSegment = {
   status:
     | 'transcript'
     | 'published_summary'
+    | 'published_proposal'
     | 'confirmed_decision'
     | 'confirmed_action'
     | 'confirmed_deadline'
+}
+
+export type MeetingAssistantDeleteRequest = {
+  version: 1
+  meeting_ref: string
+  command_id: string
+  expected_thread_version: number
+}
+export type MeetingAssistantDeleteResponse = {
+  version: 1
+  deleted: true
+  thread_version: number
+}
+export type MeetingAssistantOpenCitationResponse = {
+  version: 1
+  segment: MeetingAssistantSegment
 }

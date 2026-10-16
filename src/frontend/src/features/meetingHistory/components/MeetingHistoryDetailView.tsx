@@ -11,10 +11,11 @@ import {
   TimeIcon,
 } from '@/icons'
 import { ApiError } from '@/api/ApiError'
-import { Button } from '@/primitives'
+import { Button, LinkButton } from '@/primitives'
 import { ClassificationDialog } from '@/features/meeting-classification/ClassificationDialog'
 import { ClassificationStatus } from '@/features/meeting-classification/ClassificationStatus'
 import { useMeetingClassification } from '@/features/meeting-classification/useMeetingClassification'
+import { MeetingAssistant } from '@/features/meeting-assistant/MeetingAssistant'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryDetail } from '../api/types'
 import {
@@ -285,7 +286,10 @@ const MeetingDetailContent = ({
           />
         )}
       </header>
-      <MeetingResultOverview meeting={meeting} />
+      <MeetingResultOverview
+        meeting={meeting}
+        hasAssistant={Boolean(identityKey)}
+      />
       {identityKey && (
         <>
           <ClassificationStatus
@@ -329,6 +333,11 @@ const MeetingDetailContent = ({
             view={summaryState}
             onRetry={onRetrySummary}
           />
+          {identityKey && (
+            <LinkButton variant="outline" size="sm" href="#meeting-assistant">
+              {t('result.assistant')}
+            </LinkButton>
+          )}
         </MeetingContentSection>
         <MeetingContentSection
           kind="transcript"
@@ -338,6 +347,9 @@ const MeetingDetailContent = ({
           <TranscriptBody transcript={meeting.transcript} />
         </MeetingContentSection>
       </div>
+      {identityKey && (
+        <MeetingAssistant meetingId={meeting.id} identityKey={identityKey} />
+      )}
     </>
   )
 }

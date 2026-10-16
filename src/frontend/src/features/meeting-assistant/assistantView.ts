@@ -61,12 +61,17 @@ export function assistantTurnView(
       coverage.push(
         t('coverage.omitted', { count: turn.coverage.omitted_segments })
       )
+  } else {
+    coverage.push(t('coverage.unknown'))
   }
   const readable =
     state === 'answer' || state === 'abstention' || state === 'refusal'
+  let questionLabel = t(`operation.${turn.operation}`)
+  if (turn.operation === 'question' && turn.question)
+    questionLabel = turn.question
   return {
     id: turn.command_id,
-    question: turn.question ?? t(`operation.${turn.operation}`),
+    question: questionLabel,
     result: {
       id: turn.command_id,
       outcome: state,

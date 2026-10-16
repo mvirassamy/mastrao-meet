@@ -51,7 +51,8 @@
       "published_summary": "Published summary",
       "confirmed_decision": "Confirmed decision",
       "confirmed_action": "Confirmed action",
-      "confirmed_deadline": "Confirmed deadline"
+      "confirmed_deadline": "Confirmed deadline",
+      "published_proposal": "Published proposal, pending confirmation"
     },
     "time": {
       "meeting_relative_ms": "Time from the meeting start",
@@ -83,6 +84,26 @@
       "none": "No passage selected."
     },
     "omitted_one": "{{count}} passage omitted.",
-    "omitted_other": "{{count}} passages omitted."
+    "omitted_other": "{{count}} passages omitted.",
+    "unknown": "Source coverage could not be established."
+  },
+  "prompt": {
+    "summary": "Produce a short summary of this meeting, citing the available sources.",
+    "actions": "Extract the proposed actions from this meeting. Include owners and deadlines only when established.",
+    "email_draft": "Prepare a follow-up email draft for this meeting with references to cited evidence, without inventing recipients."
+  },
+  "command": {
+    "unconfirmed": "The outcome of this request is not confirmed. Read the thread again before retrying.",
+    "conflict": "The thread changed in another session. Check the displayed state before confirming a new request.",
+    "rejected": "The request was rejected. Check its content before trying again.",
+    "retry": "Retry the same request"
+  },
+  "older": "Read earlier exchanges",
+  "delete": {
+    "open": "Delete my private thread",
+    "title": "Delete your conversation?",
+    "description": "This deletes your private thread for this meeting. The summary, folder and personal notes are kept.",
+    "cancel": "Cancel",
+    "confirm": "Delete thread"
   }
 }

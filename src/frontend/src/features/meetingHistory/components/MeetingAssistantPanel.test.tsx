@@ -35,6 +35,7 @@ describe('private meeting assistant presentation', () => {
         loading={false}
         pending={false}
         error={false}
+        canSend={true}
         onRetry={vi.fn()}
         onAsk={onAsk}
         onAction={onAction}
@@ -104,5 +105,58 @@ describe('private meeting assistant presentation', () => {
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
       'Proposition originale'
     )
+  })
+  it('opens a citation from the selected turn when its id also occurs in an earlier turn', () => {
+    const open = vi.fn()
+    render(
+      <MeetingAssistantPanel
+        turns={['turn-a', 'turn-b'].map((id) => ({
+          id,
+          question: id,
+          result: { ...result, id },
+        }))}
+        loading={false}
+        pending={false}
+        error={false}
+        canSend={true}
+        onRetry={vi.fn()}
+        onAsk={vi.fn()}
+        onAction={vi.fn()}
+        onOpenCitation={open}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: '00:12' })[1])
+    expect(open).toHaveBeenCalledWith('turn-b', 'citation-a')
+  })
+  it('preserves an edited proposal during a rights reread and removes it if access fails', () => {
+    const props = {
+      turns: [{ id: result.id, question: 'Synthèse courte', result }],
+      loading: false,
+      pending: false,
+      error: false,
+      canSend: true,
+      onRetry: vi.fn(),
+      onAsk: vi.fn(),
+      onAction: vi.fn(),
+      onOpenCitation: vi.fn(),
+    }
+    const { rerender } = render(<MeetingAssistantPanel {...props} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'result.edit' }), {
+      target: { value: 'Mon texte relu' },
+    })
+    rerender(
+      <MeetingAssistantPanel {...props} loading={true} canSend={false} />
+    )
+    expect(screen.queryByRole('textbox', { name: 'result.edit' })).toBeNull()
+    rerender(<MeetingAssistantPanel {...props} />)
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'result.edit',
+        }) as HTMLTextAreaElement
+      ).value
+    ).toBe('Mon texte relu')
+    rerender(<MeetingAssistantPanel {...props} error={true} canSend={false} />)
+    expect(screen.queryByDisplayValue('Mon texte relu')).toBeNull()
   })
 })
