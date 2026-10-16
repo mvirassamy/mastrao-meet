@@ -10,8 +10,16 @@ import { NoteSaveAlert, NoteSaveStatus } from './NoteSaveStatus'
 /** The remaining count only shows once it matters. */
 const NEAR_LIMIT = PERSONAL_NOTE_LIMIT * 0.9
 
-/** A blank page: the text fills the space, status and privacy sit underneath. */
-export function PersonalNotesEditor() {
+/**
+ * A blank page: the text fills the space, status and privacy sit underneath.
+ * `panel` fills the room side panel; `content` grows with the note, as on the
+ * meeting page.
+ */
+export function PersonalNotesEditor({
+  fit = 'panel',
+}: {
+  fit?: 'panel' | 'content'
+}) {
   const notes = usePersonalNotes()
   const { t } = useTranslation('personalNotes', { useSuspense: false })
   const id = useId()
@@ -31,11 +39,13 @@ export function PersonalNotesEditor() {
   return (
     <section
       aria-label={t('title', { defaultValue: 'Mes notes' })}
+      data-fit={fit}
       className={css({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         minHeight: '12rem',
+        '&[data-fit=content]': { minHeight: 0 },
       })}
     >
       <NoteSaveAlert notes={notes} />
@@ -61,6 +71,7 @@ export function PersonalNotesEditor() {
       <TextArea
         id={id}
         aria-describedby={`${id}-privacy ${id}-limit`}
+        fieldSizing={fit === 'content' ? 'content' : undefined}
         value={notes.content}
         disabled={!notes.hasLoaded}
         placeholder={t('placeholder', {
@@ -80,6 +91,7 @@ export function PersonalNotesEditor() {
         css={{
           flex: '1',
           minHeight: '8rem',
+          '[data-fit=content] &': { flex: 'none', minHeight: '5.5rem' },
           overflowY: 'auto',
           resize: 'none',
           border: 'none',
@@ -89,14 +101,15 @@ export function PersonalNotesEditor() {
           paddingY: '1rem',
           fontSize: '0.875rem',
           lineHeight: '1.75',
-          color: 'heading-foreground',
+          color: 'var(--heading-foreground)',
           whiteSpace: 'pre-wrap',
           _placeholder: { color: 'muted-foreground' },
           _disabled: { color: 'muted-foreground' },
+          // Important: the global focus ring is unlayered and would win, drawn
+          // outside and clipped by the side panel.
           _focusVisible: {
-            outline: '2px solid',
-            outlineColor: 'primary',
-            outlineOffset: '-2px',
+            outline: '2px solid token(colors.primary)!',
+            outlineOffset: '-2px!',
           },
         }}
       />

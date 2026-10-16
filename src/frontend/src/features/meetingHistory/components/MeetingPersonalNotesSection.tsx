@@ -5,20 +5,9 @@ import {
   usePersonalNotes,
 } from '@/features/meeting-notes'
 import { useUser } from '@/features/auth/api/useUser'
-import { css } from '@/styled-system/css'
 import { sectionCard, sectionHeader, sectionTitle } from './meetingDetailLayout'
 
 const NOTES_ICON = '/assets/illustrations/section-notes.webp'
-
-/** The room editor grows with its text so the whole note shows at once. */
-const notesBody = css({
-  '& section': { minHeight: 0 },
-  '& textarea': {
-    flex: 'none',
-    fieldSizing: 'content',
-    minHeight: '5.5rem',
-  },
-})
 
 function NotesCard() {
   const { t } = useTranslation('personalNotes', { useSuspense: false })
@@ -41,9 +30,8 @@ function NotesCard() {
           {t('title', { defaultValue: 'Mes notes' })}
         </h2>
       </div>
-      <div className={notesBody}>
-        <PersonalNotesEditor />
-      </div>
+      {/* The whole note shows at once, growing with its text. */}
+      <PersonalNotesEditor fit="content" />
     </section>
   )
 }
