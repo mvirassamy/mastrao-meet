@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-16: Accept scoped Commitizen and existing Gitmoji commit titles
+  in CI while keeping the required message body and title checks.
+
 - 2026-10-16: Allow a new explicit assistant question or proposal after a
   terminal unknown request, without replaying that request. Keep processing
   turns and unconfirmed local commands blocking until their state is resolved.

@@ -44,6 +44,8 @@ jobs:
       - name: Install gitlint
         if: always()
         run: pip install --user requests gitlint
+      - name: Test the supported commit title conventions
+        run: python -m unittest discover -s gitlint -p 'test_*.py' -v
       - name: Lint commit messages added to the target branch
         if: always()
         run: ~/.local/bin/gitlint --commits origin/${{ github.event.pull_request.base.ref }}..HEAD
