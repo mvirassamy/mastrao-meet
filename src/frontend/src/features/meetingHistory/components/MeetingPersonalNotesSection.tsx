@@ -6,7 +6,47 @@ import {
 } from '@/features/meeting-notes'
 import { useUser } from '@/features/auth/api/useUser'
 import { css } from '@/styled-system/css'
-import { sectionCard, sectionTitle } from './meetingDetailLayout'
+import { sectionCard, sectionHeader, sectionTitle } from './meetingDetailLayout'
+
+const NOTES_ICON = '/assets/illustrations/section-notes.webp'
+
+/** The room editor grows with its text so the whole note shows at once. */
+const notesBody = css({
+  '& section': { minHeight: 0 },
+  '& textarea': {
+    flex: 'none',
+    fieldSizing: 'content',
+    minHeight: '5.5rem',
+  },
+})
+
+function NotesCard() {
+  const { t } = useTranslation('personalNotes', { useSuspense: false })
+  return (
+    <section
+      aria-labelledby="personal-notes-heading"
+      data-section="personal-notes"
+      className={sectionCard}
+    >
+      <div className={sectionHeader({ look: 'content' })}>
+        <img
+          src={NOTES_ICON}
+          alt=""
+          aria-hidden="true"
+          width={96}
+          height={96}
+          decoding="async"
+        />
+        <h2 id="personal-notes-heading" className={sectionTitle}>
+          {t('title', { defaultValue: 'Mes notes' })}
+        </h2>
+      </div>
+      <div className={notesBody}>
+        <PersonalNotesEditor />
+      </div>
+    </section>
+  )
+}
 
 /** Deliberately outside the shared meeting summary/transcript payload. */
 export function MeetingPersonalNotesSection({
@@ -14,33 +54,15 @@ export function MeetingPersonalNotesSection({
 }: {
   endpoint: string
 }) {
-  const { t } = useTranslation('personalNotes', { useSuspense: false })
   const { user } = useUser()
   const notes = usePersonalNotes()
-  let editor = <PersonalNotesEditor />
-  if (notes?.endpoint !== endpoint) {
-    editor = (
-      <PersonalNotesProvider
-        endpoint={endpoint}
-        identityKey={user?.id ?? 'guest'}
-      >
-        {editor}
-      </PersonalNotesProvider>
-    )
-  }
+  if (notes?.endpoint === endpoint) return <NotesCard />
   return (
-    <section
-      aria-labelledby="personal-notes-heading"
-      data-section="personal-notes"
-      className={sectionCard}
+    <PersonalNotesProvider
+      endpoint={endpoint}
+      identityKey={user?.id ?? 'guest'}
     >
-      <h2
-        id="personal-notes-heading"
-        className={`${sectionTitle} ${css({ padding: '1rem', paddingBottom: 0 })}`}
-      >
-        {t('title', { defaultValue: 'Mes notes' })}
-      </h2>
-      {editor}
-    </section>
+      <NotesCard />
+    </PersonalNotesProvider>
   )
 }

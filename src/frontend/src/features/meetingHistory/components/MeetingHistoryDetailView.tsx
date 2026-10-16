@@ -366,11 +366,6 @@ const MeetingDetailContent = ({
           />
         )}
       </header>
-      <div className={css({ marginBottom: '1.25rem' })}>
-        <MeetingPersonalNotesSection
-          endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
-        />
-      </div>
       <div className={detailSections}>
         <MeetingContentSection
           kind="summary"
@@ -390,6 +385,11 @@ const MeetingDetailContent = ({
         >
           <TranscriptBody transcript={meeting.transcript} />
         </MeetingContentSection>
+      </div>
+      <div className={css({ marginTop: '1.25rem' })}>
+        <MeetingPersonalNotesSection
+          endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
+        />
       </div>
     </>
   )

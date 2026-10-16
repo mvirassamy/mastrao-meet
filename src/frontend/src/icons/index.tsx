@@ -42,6 +42,7 @@ import {
   InformationCircleIcon as HeroInformationCircleIcon,
   LanguageIcon as HeroLanguageIcon,
   LinkIcon as HeroLinkIcon,
+  LockClosedIcon as HeroLockClosedIcon,
   MegaphoneIcon as HeroMegaphoneIcon,
   MicrophoneIcon as HeroMicrophoneIcon,
   MinusCircleIcon as HeroMinusCircleIcon,
@@ -147,6 +148,7 @@ export const InfinityIcon = sized(Custom.InfinityLoop) // RiInfinityFill
 export const InformationIcon = sized(HeroInformationCircleIcon) // RiInformationFill
 export const KeyboardIcon = sized(Custom.Keyboard) // RiKeyboardBoxFill
 export const LinkIcon = sized(HeroLinkIcon) // RiLinksFill
+export const LockIcon = sized(HeroLockClosedIcon)
 export const LoginIcon = sized(HeroArrowRightEndOnRectangleIcon) // RiLoginBoxFill
 export const LogoutIcon = sized(HeroArrowRightStartOnRectangleIcon) // RiLogoutBoxRFill
 export const MailIcon = sized(HeroEnvelopeIcon) // RiMailFill

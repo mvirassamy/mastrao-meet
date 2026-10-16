@@ -1,10 +1,10 @@
 {
   "title": "Mes notes",
-  "private": "Ces notes sont visibles uniquement par vous.",
+  "private": "Visibles par vous seul",
   "placeholder": "Notez vos idées pendant la réunion…",
   "loading": "Chargement des notes…",
   "saved": "Enregistré",
-  "unsaved": "Modifications non enregistrées",
+  "notSaved": "Non enregistré",
   "saving": "Enregistrement…",
   "saveError": "Notes non enregistrées. Votre brouillon est conservé ici.",
   "sessionExpired": "Accès aux notes expiré. Reconnectez-vous pour enregistrer votre brouillon.",

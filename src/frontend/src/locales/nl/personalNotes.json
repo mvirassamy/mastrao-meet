@@ -1,10 +1,10 @@
 {
   "title": "Mijn notities",
-  "private": "Deze notities zijn alleen zichtbaar voor u.",
+  "private": "Alleen zichtbaar voor u",
   "placeholder": "Schrijf uw ideeën op tijdens de vergadering…",
   "loading": "Notities laden…",
   "saved": "Opgeslagen",
-  "unsaved": "Niet-opgeslagen wijzigingen",
+  "notSaved": "Niet opgeslagen",
   "saving": "Opslaan…",
   "saveError": "Notities niet opgeslagen. Uw concept blijft hier bewaard.",
   "sessionExpired": "Uw toegang tot notities is verlopen. Meld u opnieuw aan om uw concept op te slaan.",
