@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-16: Connect Meet detail and summary filing to authorized folder
+  search and creation, with explicit sharing information, durable receipts,
+  conflict refresh and attachment retries that reuse an already created folder.
+
 - 2026-10-16: Keep meeting result navigation and independent call, summary and
   transcript states visible, including unconfirmed endings and newer source
   versions awaiting verification. Preserve the existing private notes editor.

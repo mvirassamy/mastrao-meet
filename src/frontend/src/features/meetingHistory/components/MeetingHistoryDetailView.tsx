@@ -12,6 +12,9 @@ import {
 } from '@/icons'
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
+import { ClassificationDialog } from '@/features/meeting-classification/ClassificationDialog'
+import { ClassificationStatus } from '@/features/meeting-classification/ClassificationStatus'
+import { useMeetingClassification } from '@/features/meeting-classification/useMeetingClassification'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryDetail } from '../api/types'
 import {
@@ -53,9 +56,11 @@ const isNotFoundError = (error: unknown) =>
 export const MeetingHistoryDetailView = ({
   meetingId,
   timeZone,
+  identityKey,
 }: {
   meetingId: string
   timeZone?: string
+  identityKey?: string
 }) => {
   const { t } = useTranslation('meetingHistory')
   const query = useMeetingHistoryDetail(meetingId)
@@ -133,8 +138,10 @@ export const MeetingHistoryDetailView = ({
   } else {
     content = (
       <MeetingDetailContent
+        key={`${identityKey ?? ''}:${query.data.id}`}
         meeting={query.data}
         timeZone={timeZone}
+        identityKey={identityKey}
         headingRef={headingRef}
         summaryRequestState={summaryRequestState}
         onRetrySummary={() => requestSummary()}
@@ -188,14 +195,17 @@ const MeetingDetailContent = ({
   headingRef,
   summaryRequestState,
   onRetrySummary,
+  identityKey,
 }: {
   meeting: MeetingHistoryDetail
   timeZone?: string
   headingRef: React.Ref<HTMLHeadingElement>
   summaryRequestState: SummaryRequestState
   onRetrySummary: () => void
+  identityKey?: string
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
+  const classification = useMeetingClassification(meeting.id, identityKey)
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const summaryState = summaryView(
     meeting.summary,
@@ -276,6 +286,26 @@ const MeetingDetailContent = ({
         )}
       </header>
       <MeetingResultOverview meeting={meeting} />
+      {identityKey && (
+        <>
+          <ClassificationStatus
+            classification={classification.current.data}
+            matter={classification.currentMatter}
+            loading={classification.current.isPending}
+            failed={classification.current.isError}
+            onRetry={() => void classification.current.refetch()}
+            onOpen={classification.open}
+          />
+          {classification.current.data?.can_classify &&
+            !classification.current.isError && (
+              <ClassificationDialog
+                key={classification.isOpen ? 'open' : 'closed'}
+                {...classification}
+                onClose={classification.close}
+              />
+            )}
+        </>
+      )}
       <div id="meeting-notes" className={css({ marginBottom: '1.25rem' })}>
         <MeetingPersonalNotesSection
           endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
@@ -287,6 +317,13 @@ const MeetingDetailContent = ({
           statusKey={summaryStatusKey(summaryState)}
           look={summarySectionLook(summaryState)}
         >
+          {identityKey &&
+            classification.current.data?.can_classify &&
+            !classification.current.isError && (
+              <Button size="sm" variant="outline" onPress={classification.open}>
+                {t('classification.title')}
+              </Button>
+            )}
           <SummaryBody
             summary={meeting.summary}
             view={summaryState}
