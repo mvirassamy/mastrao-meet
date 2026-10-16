@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-16: Allow a new explicit assistant question or proposal after a
+  terminal unknown request, without replaying that request. Keep processing
+  turns and unconfirmed local commands blocking until their state is resolved.
+
 - 2026-10-16: Open the currently authorized folder from the meeting result
   and summary using Platform's canonical path and configured origin. Restore
   navigation after reload for readers without filing rights, and withdraw

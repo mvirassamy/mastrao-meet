@@ -27,7 +27,7 @@
     "failed": "Copy failed. You can select and copy the text.",
     "failure": "Generation failed for a technical reason. This does not mean evidence is absent.",
     "processing": "This request is still processing. Reload the conversation to check its current state.",
-    "unknown": "The outcome of this request is not yet confirmed. Reload the conversation before retrying.",
+    "unknown": "The outcome of this request remains unknown. A new question or proposal will create a separate request without retrying this one.",
     "refusal": "This request cannot be processed within the authorized scope.",
     "subject": "Subject",
     "owner": "Owner",

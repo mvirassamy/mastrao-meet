@@ -51,9 +51,7 @@ export function useMeetingAssistant(meetingId: string, identityKey: string) {
   const turns = [...(query.data?.pages ?? [])]
     .reverse()
     .flatMap((page) => page.turns)
-  const unresolved = turns.some(
-    (turn) => turn.state === 'processing' || turn.state === 'unknown'
-  )
+  const hasProcessingTurn = turns.some((turn) => turn.state === 'processing')
   const canDelete =
     !pending &&
     !query.isFetching &&
@@ -61,7 +59,7 @@ export function useMeetingAssistant(meetingId: string, identityKey: string) {
     Boolean(thread) &&
     !sendCommand.current &&
     !deleteCommand.current
-  const canSend = canDelete && !unresolved
+  const canSend = canDelete && !hasProcessingTurn
 
   function replaceThread(value: MeetingAssistantThread) {
     client.setQueryData(queryKey, { pages: [value], pageParams: [null] })

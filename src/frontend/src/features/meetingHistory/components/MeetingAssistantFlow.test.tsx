@@ -455,3 +455,172 @@ describe('private assistant connected flow', () => {
     expect(writes()).toHaveLength(1)
   })
 })
+
+describe('terminal unknown assistant requests', () => {
+  it.each([
+    { button: 'ask', operation: 'question' },
+    { button: 'actions.short-summary', operation: 'summary' },
+    { button: 'actions.actions', operation: 'actions' },
+    { button: 'actions.follow-up-email', operation: 'email_draft' },
+  ])(
+    'allows a new explicit $operation after reading, refreshing and reopening unknown',
+    async ({ button, operation }) => {
+      const unknown: MeetingAssistantTurn = {
+        ...turn(),
+        state: 'unknown',
+        result: null,
+      }
+      let finish!: () => void
+      const response = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      api.mockImplementation(async (_path, options) => {
+        if (options?.method !== 'POST') return thread([unknown], 4)
+        await response
+        return receipt(JSON.parse(String(options.body)))
+      })
+      const firstPage = setup()
+      await screen.findByText('result.unknown')
+      await waitFor(() =>
+        expect(
+          (
+            screen.getByRole('button', {
+              name: 'actions.short-summary',
+            }) as HTMLButtonElement
+          ).disabled
+        ).toBe(false)
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+      await waitFor(() =>
+        expect(
+          (
+            screen.getByRole('button', {
+              name: 'actions.short-summary',
+            }) as HTMLButtonElement
+          ).disabled
+        ).toBe(false)
+      )
+      expect(writes()).toHaveLength(0)
+      firstPage.unmount()
+      setup()
+      await screen.findByText('result.unknown')
+      fireEvent.change(screen.getByRole('textbox', { name: 'question' }), {
+        target: { value: 'Nouvelle question explicite' },
+      })
+      await waitFor(() => expectSendingDisabled(false))
+      expect(writes()).toHaveLength(0)
+      fireEvent.click(screen.getByRole('button', { name: button }))
+      await waitFor(() => expectSendingDisabled(true))
+      expect(writes()).toHaveLength(1)
+      const command = JSON.parse(String(writes()[0][1]?.body))
+      expect(command.operation).toBe(operation)
+      expect(command.command_id).not.toBe(unknown.command_id)
+      expect(command.expected_thread_version).toBe(4)
+      finish()
+      await screen.findByText('Budget à confirmer.')
+      expect(writes()).toHaveLength(1)
+    }
+  )
+
+  it('keeps processing blocking through rereads, then permits a new command when Core expires it to unknown', async () => {
+    let state: MeetingAssistantTurn['state'] = 'processing'
+    const previous = turn()
+    api.mockImplementation(async (_path, options) => {
+      if (options?.method === 'POST')
+        return receipt(JSON.parse(String(options.body)))
+      return thread([{ ...previous, state, result: null }], 3)
+    })
+    setup()
+    await screen.findByText('result.processing')
+    expectSendingDisabled(true)
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    await waitFor(() => expect(screen.queryByText('loading')).toBeNull())
+    expectSendingDisabled(true)
+    expect(writes()).toHaveLength(0)
+    state = 'unknown'
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    await screen.findByText('result.unknown')
+    fireEvent.change(screen.getByRole('textbox', { name: 'question' }), {
+      target: { value: 'Une autre question' },
+    })
+    await waitFor(() => expectSendingDisabled(false))
+    expect(writes()).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'ask' }))
+    await screen.findByText('Budget à confirmer.')
+    expect(writes()).toHaveLength(1)
+    expect(JSON.parse(String(writes()[0][1]?.body)).command_id).not.toBe(
+      previous.command_id
+    )
+  })
+
+  it('reconciles an uncertain send found as terminal unknown without retrying that command', async () => {
+    let accepted: MeetingAssistantTurn | null = null
+    api.mockImplementation(async (_path, options) => {
+      if (options?.method !== 'POST')
+        return thread(accepted ? [accepted] : [], accepted ? 2 : 0)
+      const command = JSON.parse(String(options.body))
+      if (!accepted) {
+        accepted = {
+          ...turn(command.command_id),
+          state: 'unknown',
+          result: null,
+        }
+        throw new ApiError(503, {})
+      }
+      return receipt(command)
+    })
+    setup()
+    await ask()
+    await screen.findByText('command.unconfirmed')
+    expectSendingDisabled(true)
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    await screen.findByText('result.unknown')
+    await waitFor(() => expectSendingDisabled(false))
+    expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
+    expect(writes()).toHaveLength(1)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'actions.short-summary' })
+    )
+    await screen.findByText('Budget à confirmer.')
+    const commands = writes().map(([, options]) =>
+      JSON.parse(String(options?.body))
+    )
+    expect(commands).toHaveLength(2)
+    expect(commands[1].command_id).not.toBe(commands[0].command_id)
+    expect(commands[1].expected_thread_version).toBe(2)
+  })
+
+  it('keeps an uncertain local send blocking when reread finds only another terminal unknown command', async () => {
+    let sent = false
+    api.mockImplementation(async (_path, options) => {
+      if (options?.method === 'POST') {
+        sent = true
+        throw new ApiError(503, {})
+      }
+      if (sent)
+        return thread([{ ...turn(), state: 'unknown', result: null }], 2)
+      return thread()
+    })
+    setup()
+    await ask()
+    await screen.findByText('command.unconfirmed')
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    await screen.findByText('result.unknown')
+    await screen.findByRole('button', { name: 'command.retry' })
+    expectSendingDisabled(true)
+    fireEvent.click(screen.getByRole('button', { name: 'ask' }))
+    expect(writes()).toHaveLength(1)
+  })
+})
+
+function expectSendingDisabled(disabled: boolean) {
+  for (const name of [
+    'ask',
+    'actions.short-summary',
+    'actions.actions',
+    'actions.follow-up-email',
+  ])
+    expect(
+      (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
+    ).toBe(disabled)
+}

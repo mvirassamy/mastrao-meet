@@ -27,7 +27,7 @@
     "failed": "La copie n’a pas abouti. Vous pouvez sélectionner et copier le texte.",
     "failure": "La génération a échoué pour une raison technique. Ce n’est pas une absence de preuve.",
     "processing": "Cette demande est encore en cours. Relisez le fil pour retrouver son état actuel.",
-    "unknown": "L’issue de cette demande n’est pas encore confirmée. Relisez le fil avant de la relancer.",
+    "unknown": "L’issue de cette demande reste inconnue. Une nouvelle question ou proposition créera une demande distincte, sans relancer celle-ci.",
     "refusal": "Cette demande ne peut pas être traitée dans le périmètre autorisé.",
     "subject": "Objet",
     "owner": "Responsable",
