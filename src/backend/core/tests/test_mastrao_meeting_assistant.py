@@ -2,7 +2,10 @@
 
 import copy
 import json
+import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 from django.conf import settings as django_settings
 from django.middleware.csrf import get_token
@@ -96,6 +99,153 @@ def bridge_settings(settings):
     settings.ALLOWED_HOSTS = ["testserver"]
     settings.SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
     settings.MASTRAO_PLATFORM_API_BASE_URL = PLATFORM
+
+
+@pytest.fixture(name="real_platform_core_postgres")
+def _real_platform_core_postgres(settings):
+    """Connect only to the explicit disposable qualification, without secrets.
+
+    The external runner owns PostgreSQL and both HTTP listeners. Its userinfo,
+    live identity authority, source passage and inference are synthetic. Django
+    ingress uses Client; requests.Session and Platform/Core clients are unpatched.
+    """
+
+    path = os.environ.get("MASTRAO_MEETING_BRIDGE_QUALIFICATION_CONFIG")
+    if not path:
+        pytest.skip("Requires the disposable Platform/Core PostgreSQL qualification")
+    config = json.loads(Path(path).read_text(encoding="utf-8"))
+    origin = config["platform_base_url"]
+    assert origin.startswith("http://127.0.0.1:")
+    settings.MASTRAO_PLATFORM_API_BASE_URL = origin
+    return config
+
+
+def test_opt_in_real_platform_core_postgres_classification(real_platform_core_postgres):
+    """Classify through real HTTP, replay once and reload authorized navigation."""
+
+    config = real_platform_core_postgres
+    meeting_ref = config["meeting_ref"]
+    classification_url = f"/api/v1.0/meetings/history/{meeting_ref}/classification/"
+    client = _client(token="synthetic-owner-oidc-token", csrf=True)
+    initial = client.get(classification_url)
+    assert initial.status_code == 200
+    command = {
+        "version": 1,
+        "meeting_ref": meeting_ref,
+        "command_id": str(uuid4()),
+        "matter_ref": config["matter_ref"],
+        "expected_classification_version": initial.json()["classification_version"],
+    }
+    assert _call(client, "POST", classification_url, command).status_code == 403
+    token_request = RequestFactory().get("/")
+    csrf_token = get_token(token_request)
+    client.cookies[django_settings.CSRF_COOKIE_NAME] = token_request.META["CSRF_COOKIE"]
+    headers = {"HTTP_X_CSRFTOKEN": csrf_token}
+    classified = _call(client, "POST", classification_url, command, **headers)
+    assert classified.status_code == 200
+    assert classified.json()["idempotent_replay"] is False
+    assert (
+        classified.json()["matter_display_label"] == "Synthetic qualification dossier"
+    )
+    assert classified.json()["matter_path"] == config["matter_path"]
+    replay = _call(client, "POST", classification_url, command, **headers)
+    assert replay.status_code == 200
+    assert replay.json() == {**classified.json(), "idempotent_replay": True}
+    reloaded = client.get(classification_url)
+    assert reloaded.status_code == 200
+    assert reloaded.json() == {
+        key: value
+        for key, value in classified.json().items()
+        if key != "idempotent_replay"
+    }
+
+
+def test_opt_in_real_platform_core_postgres_assistant(real_platform_core_postgres):
+    """Persist a private question and reopen its bound synthetic passage over HTTP."""
+
+    meeting_ref = real_platform_core_postgres["meeting_ref"]
+    assistant_url = f"/api/v1.0/meetings/history/{meeting_ref}/assistant/"
+    client = _client(token="synthetic-owner-oidc-token", csrf=True)
+    token_request = RequestFactory().get("/")
+    csrf_token = get_token(token_request)
+    client.cookies[django_settings.CSRF_COOKIE_NAME] = token_request.META["CSRF_COOKIE"]
+    headers = {"HTTP_X_CSRFTOKEN": csrf_token}
+    question = {
+        "version": 1,
+        "meeting_ref": meeting_ref,
+        "command_id": str(uuid4()),
+        "operation": "question",
+        "question": "Qui prépare le devis ?",
+        "expected_thread_version": 0,
+    }
+    answered = _call(client, "POST", assistant_url, question, **headers)
+    assert answered.status_code == 200
+    body = answered.json()
+    assert body["idempotent_replay"] is False
+    assert body["turn"]["state"] == "completed"
+    assert body["turn"]["result"]["text"] == "Alice prépare le devis."
+    question_replay = _call(client, "POST", assistant_url, question, **headers)
+    assert question_replay.status_code == 200
+    assert question_replay.json() == {**body, "idempotent_replay": True}
+    page_query = {"before_command_id": question["command_id"], "limit": "1"}
+    page = client.get(assistant_url, page_query)
+    assert page.status_code == 200
+    assert page.json()["turns"] == []
+    other_page = _client(token="synthetic-reader-oidc-token").get(
+        assistant_url, page_query
+    )
+    assert other_page.status_code == 404
+    assert question["question"] not in other_page.content.decode()
+    citation = body["turn"]["result"]["citations"][0]
+    citation_command = {
+        "version": 1,
+        "meeting_ref": meeting_ref,
+        "command_id": str(uuid4()),
+        "citation": citation,
+    }
+    opened = _call(
+        client, "POST", f"{assistant_url}citation/", citation_command, **headers
+    )
+    assert opened.status_code == 200
+    assert opened.json()["segment"]["citation"] == citation
+    assert opened.json()["segment"]["text"] == "Alice prépare le devis."
+    altered = {
+        **citation_command,
+        "command_id": str(uuid4()),
+        "citation": {**citation, "source_digest": "b" * 64},
+    }
+    assert (
+        _call(
+            client, "POST", f"{assistant_url}citation/", altered, **headers
+        ).status_code
+        == 404
+    )
+    guest = _client(token=None)
+    assert (
+        guest.get(
+            assistant_url, HTTP_AUTHORIZATION="Bearer synthetic-owner-oidc-token"
+        ).status_code
+        == 401
+    )
+    invalid = _client(token="synthetic-invalid-oidc-token")
+    assert invalid.get(assistant_url).status_code == 401
+    assert "oidc_access_token" not in invalid.session
+
+
+def test_opt_in_real_platform_core_postgres_history(real_platform_core_postgres):
+    """The default first history page must reach Core without a cursor."""
+
+    meeting_ref = real_platform_core_postgres["meeting_ref"]
+    assistant_url = f"/api/v1.0/meetings/history/{meeting_ref}/assistant/"
+    history = _client(token="synthetic-owner-oidc-token").get(assistant_url)
+    assert history.status_code == 200
+    assert history.json()["visibility"] == "private"
+    assert all(
+        turn["question"] == "Qui prépare le devis ?" for turn in history.json()["turns"]
+    )
+    other_history = _client(token="synthetic-reader-oidc-token").get(assistant_url)
+    assert other_history.status_code == 200
+    assert other_history.json()["turns"] == []
 
 
 def _request(body):
