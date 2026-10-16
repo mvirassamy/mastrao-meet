@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-16: Pull CI PostgreSQL 16 and Redis 5 from the public image cache
+  to avoid ECR download quotas blocking backend tests before startup.
+
 - 2026-10-16: Accept scoped Commitizen and existing Gitmoji commit titles
   in CI while keeping the required message body and title checks.
 
