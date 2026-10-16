@@ -22,6 +22,7 @@ const classification = (version = 0, matter: string | null = null) => ({
   version: 1,
   meeting_ref: meetingId,
   matter_ref: matter,
+  matter_path: null,
   classification_version: version,
   can_classify: true,
 })

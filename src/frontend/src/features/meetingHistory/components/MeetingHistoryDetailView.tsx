@@ -11,7 +11,10 @@ import {
   TimeIcon,
 } from '@/icons'
 import { ApiError } from '@/api/ApiError'
+import { useConfig } from '@/api/useConfig'
 import { Button, LinkButton } from '@/primitives'
+import { ClassificationActions } from '@/features/meeting-classification/ClassificationActions'
+import { classificationMatterUrl } from '@/features/meeting-classification/classificationMatterUrl'
 import { ClassificationDialog } from '@/features/meeting-classification/ClassificationDialog'
 import { ClassificationStatus } from '@/features/meeting-classification/ClassificationStatus'
 import { useMeetingClassification } from '@/features/meeting-classification/useMeetingClassification'
@@ -207,6 +210,16 @@ const MeetingDetailContent = ({
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
   const classification = useMeetingClassification(meeting.id, identityKey)
+  const { data: config } = useConfig()
+  const checkingClassification =
+    classification.current.isPending || classification.current.isFetching
+  let currentClassification = classification.current.data
+  if (checkingClassification || classification.current.isError)
+    currentClassification = undefined
+  const matterUrl = classificationMatterUrl(
+    currentClassification,
+    config?.mastrao_platform_origin
+  )
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
   const summaryState = summaryView(
     meeting.summary,
@@ -293,9 +306,10 @@ const MeetingDetailContent = ({
       {identityKey && (
         <>
           <ClassificationStatus
-            classification={classification.current.data}
+            classification={currentClassification}
             matter={classification.currentMatter}
-            loading={classification.current.isPending}
+            matterUrl={matterUrl}
+            loading={checkingClassification}
             failed={classification.current.isError}
             onRetry={() => void classification.current.refetch()}
             onOpen={classification.open}
@@ -321,13 +335,13 @@ const MeetingDetailContent = ({
           statusKey={summaryStatusKey(summaryState)}
           look={summarySectionLook(summaryState)}
         >
-          {identityKey &&
-            classification.current.data?.can_classify &&
-            !classification.current.isError && (
-              <Button size="sm" variant="outline" onPress={classification.open}>
-                {t('classification.title')}
-              </Button>
-            )}
+          {identityKey && (
+            <ClassificationActions
+              canClassify={Boolean(currentClassification?.can_classify)}
+              matterUrl={matterUrl}
+              onClassify={classification.open}
+            />
+          )}
           <SummaryBody
             summary={meeting.summary}
             view={summaryState}

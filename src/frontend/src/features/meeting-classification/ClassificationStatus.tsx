@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { ClassificationActions } from './ClassificationActions'
 import type { MeetingClassification } from './classificationApi'
 import type { MatterDestination } from './ClassificationDialog'
 
 export function ClassificationStatus({
   classification,
   matter,
+  matterUrl,
   loading,
   failed,
   onRetry,
@@ -14,6 +16,7 @@ export function ClassificationStatus({
 }: {
   classification?: MeetingClassification
   matter: MatterDestination | null
+  matterUrl: string | null
   loading: boolean
   failed: boolean
   onRetry: () => void
@@ -45,11 +48,11 @@ export function ClassificationStatus({
       })}
     >
       <p role="status">{label}</p>
-      {classification.can_classify && (
-        <Button size="sm" variant="outline" onPress={onOpen}>
-          {t('classification.title')}
-        </Button>
-      )}
+      <ClassificationActions
+        canClassify={classification.can_classify}
+        matterUrl={matterUrl}
+        onClassify={onOpen}
+      />
     </div>
   )
 }

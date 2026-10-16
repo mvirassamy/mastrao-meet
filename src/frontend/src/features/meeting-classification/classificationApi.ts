@@ -6,6 +6,7 @@ export type MeetingClassification = {
   meeting_ref: string
   matter_ref: string | null
   matter_display_label?: string | null
+  matter_path: string | null
   classification_version: number
   can_classify: boolean
 }
@@ -54,6 +55,24 @@ function parseClassification(
       !data.matter_display_label.trim())
   )
     throw new Error('Invalid classification destination label')
+  const path = data.matter_path
+  if (path !== null) {
+    const match =
+      typeof path === 'string'
+        ? /^\/orgs\/([a-z0-9]+(?:-[a-z0-9]+)*)\/matters\/([A-Za-z0-9_-]{16,160})$/.exec(
+            path
+          )
+        : null
+    if (
+      !match ||
+      match[1].length > 100 ||
+      match[2] !== data.matter_ref ||
+      !data.matter_display_label
+    )
+      throw new Error('Invalid classification destination path')
+  } else if (data.matter_ref && data.matter_display_label) {
+    throw new Error('Missing classification destination path')
+  }
   return data as MeetingClassification
 }
 function parseMatter(value: unknown): MatterDestination {

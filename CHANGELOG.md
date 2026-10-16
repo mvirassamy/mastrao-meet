@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-16: Open the currently authorized folder from the meeting result
+  and summary using Platform's canonical path and configured origin. Restore
+  navigation after reload for readers without filing rights, and withdraw
+  stale links while rereading permissions or after access is lost.
+
 - 2026-10-16: Connect the meeting result to its private assistant thread, sourced
   answers and three editable, copyable proposals. Show source coverage,
   abstention and technical failures separately; reread current rights and
