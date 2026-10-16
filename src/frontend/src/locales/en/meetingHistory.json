@@ -157,5 +157,12 @@
     "open": "Download",
     "retainedUntil": "Retained until {{date}}",
     "accessUnavailable": "Video access is currently unavailable."
+  },
+  "result": {
+    "navigation": "In this meeting",
+    "privateNotes": "My private notes",
+    "ended": "Meeting ended",
+    "endUnconfirmed": "Meeting end not confirmed: the result may still change.",
+    "refreshing": "A newer version is being checked. Displayed content may be out of date."
   }
 }

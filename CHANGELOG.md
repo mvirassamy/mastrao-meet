@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-16: Keep meeting result navigation and independent call, summary and
+  transcript states visible, including unconfirmed endings and newer source
+  versions awaiting verification. Preserve the existing private notes editor.
+
 - 2026-10-16: Add author-only personal meeting notes alongside Messages and
   Transcript, with durable Core storage, autosave, conflict recovery and
   personal access after a meeting ends.
