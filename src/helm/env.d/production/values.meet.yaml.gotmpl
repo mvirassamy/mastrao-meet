@@ -1,6 +1,11 @@
 # Production is deployed dark. Activation remains a separate, human-authorized
 # trusted-executor operation; reconciliation is never controlled by these flags.
 backend:
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/path: "/metrics"
+      prometheus.io/port: "80"
   envVars:
     MASTRAO_MEETING_RECORDING_ENABLED: False
     MASTRAO_MEETING_RECORDING_START_ENABLED: False
