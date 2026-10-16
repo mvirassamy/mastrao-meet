@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-16: Record the PgBouncer transaction-pooling contract and guard
+  Django's safe connection defaults.
+
 - 2026-10-13: Stop native ASR redispatch when Core reports exhausted provider
   retries as a terminal failed outcome.
 
