@@ -1,5 +1,11 @@
 # Meet helm chart
 
+Native ASR queue alerts use an operator-approved `nativeAsrAlerts` policy.
+The empty default emits no `PrometheusRule`; no numerical alert threshold is
+inferred from KEDA targets. See
+[VISIO alert qualification](../../../docs/features/visio-alert-qualification.md)
+for required values and monitoring evidence.
+
 ## Parameters
 
 ### General configuration

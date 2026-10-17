@@ -1,0 +1,60 @@
+{{- with .Values.nativeAsrAlerts }}
+{{- $policy := . }}
+{{- $service := required "nativeAsrAlerts.service must match the observed Prometheus service label" .service }}
+{{- $owner := required "nativeAsrAlerts.routingOwner is required" .routingOwner }}
+{{- $severity := required "nativeAsrAlerts.severity is required" .severity }}
+{{- range $lane := list "ready" "retry" }}
+{{- $limits := index $policy $lane | default dict }}
+{{- range $field := list "pendingMax" "oldestDueAgeMaxSeconds" }}
+{{- if not (regexMatch "^[0-9]+$" (toString (index $limits $field))) }}
+{{- fail (printf "nativeAsrAlerts.%s.%s requires an approved non-negative integer" $lane $field) }}
+{{- end }}
+{{- end }}
+{{- if not (regexMatch "^[0-9]+(ms|s|m|h|d|w|y)$" (toString (index $limits "for"))) }}
+{{- fail (printf "nativeAsrAlerts.%s.for requires an approved duration, for example 0s or 2m" $lane) }}
+{{- end }}
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "meet.fullname" $ }}-native-asr
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list $ "native-asr-alerts") | nindent 4 }}
+    {{- with .prometheusRuleLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "meet.fullname" $ }}.native-asr
+      rules:
+        {{- range $lane := list "ready" "retry" }}
+        {{- $limits := index $policy $lane }}
+        - alert: MastraoNativeAsr{{ $lane | title }}QueueDepth
+          expr: >-
+            max(mastrao_native_asr_queue_pending{namespace={{ $.Release.Namespace | toJson }},service={{ $service | toJson }},lane={{ $lane | toJson }}}) > {{ $limits.pendingMax }}
+          for: {{ index $limits "for" | quote }}
+          labels:
+            namespace: {{ $.Release.Namespace | quote }}
+            service: {{ $service | quote }}
+            lane: {{ $lane | quote }}
+            severity: {{ $severity | quote }}
+            routing_owner: {{ $owner | quote }}
+          annotations:
+            summary: Native ASR {{ $lane }} queue exceeds its approved depth
+            description: Inspect lane occupancy and worker readiness; preserve admission and recording policy.
+        - alert: MastraoNativeAsr{{ $lane | title }}QueueAge
+          expr: >-
+            max(mastrao_native_asr_queue_oldest_due_age_seconds{namespace={{ $.Release.Namespace | toJson }},service={{ $service | toJson }},lane={{ $lane | toJson }}}) > {{ $limits.oldestDueAgeMaxSeconds }}
+          for: {{ index $limits "for" | quote }}
+          labels:
+            namespace: {{ $.Release.Namespace | quote }}
+            service: {{ $service | quote }}
+            lane: {{ $lane | quote }}
+            severity: {{ $severity | quote }}
+            routing_owner: {{ $owner | quote }}
+          annotations:
+            summary: Native ASR {{ $lane }} queue exceeds its approved due age
+            description: Due age includes live reservations and claims; inspect delivery evidence before any replay.
+        {{- end }}
+{{- end }}

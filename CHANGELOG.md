@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-17: Prepare native ASR queue alert rules with operator-supplied
+  thresholds and document the missing VISIO Pod/DB alert evidence.
+
 - 2026-10-17: Document the passive staging database receipt for Gate 1, with
   read-only capacity, session and refusal evidence; no pooler or deployment.
 

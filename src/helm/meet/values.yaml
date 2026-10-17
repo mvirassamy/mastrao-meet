@@ -1466,6 +1466,21 @@ agentSubtitles:
   pdb:
     enabled: false
 
+## @section Native ASR alerts
+
+## @param nativeAsrAlerts Operator-approved queue alert policy; empty emits no rule
+## @extra nativeAsrAlerts.service Backend service label observed in Prometheus
+## @extra nativeAsrAlerts.routingOwner Alertmanager routing owner
+## @extra nativeAsrAlerts.severity Alertmanager severity
+## @extra nativeAsrAlerts.prometheusRuleLabels Labels required by the Prometheus rule selector
+## @extra nativeAsrAlerts.ready.pendingMax Approved ready queue depth ceiling
+## @extra nativeAsrAlerts.ready.oldestDueAgeMaxSeconds Approved ready due-age ceiling
+## @extra nativeAsrAlerts.ready.for Approved ready alert hold duration
+## @extra nativeAsrAlerts.retry.pendingMax Approved retry queue depth ceiling
+## @extra nativeAsrAlerts.retry.oldestDueAgeMaxSeconds Approved retry due-age ceiling
+## @extra nativeAsrAlerts.retry.for Approved retry alert hold duration
+nativeAsrAlerts: {}
+
 ## @section Extra Manifests
 
 ## @param extraManifests Extra Kubernetes manifests to deploy
