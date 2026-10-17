@@ -1,0 +1,112 @@
+{{- if not (kindIs "map" .Values.nativeAsrAlerts) }}
+{{- fail "nativeAsrAlerts must be a map; use {} to omit alert rules" }}
+{{- end }}
+{{- with .Values.nativeAsrAlerts }}
+{{- $policy := deepCopy . }}
+{{- range $field := list "service" "routingOwner" "severity" }}
+{{- $value := index $policy $field }}
+{{- if not (kindIs "string" $value) }}
+{{- fail (printf "nativeAsrAlerts.%s requires a non-empty string" $field) }}
+{{- end }}
+{{- if or (eq (trim $value) "") (ne $value (trim $value)) (regexMatch "[[:cntrl:]]" $value) }}
+{{- fail (printf "nativeAsrAlerts.%s requires a non-empty string without surrounding whitespace or control characters" $field) }}
+{{- end }}
+{{- end }}
+{{- $service := .service }}
+{{- if or (gt (len $service) 63) (not (regexMatch "^[a-z]([-a-z0-9]*[a-z0-9])?$" $service)) }}
+{{- fail "nativeAsrAlerts.service requires a Kubernetes RFC 1035 Service name of at most 63 characters" }}
+{{- end }}
+{{- $owner := .routingOwner }}
+{{- $severity := .severity }}
+{{- if not (hasKey . "prometheusRuleLabels") }}
+{{- fail "nativeAsrAlerts.prometheusRuleLabels is required; use {} when the Prometheus rule selector allows empty labels" }}
+{{- end }}
+{{- if not (kindIs "map" .prometheusRuleLabels) }}
+{{- fail "nativeAsrAlerts.prometheusRuleLabels must be a map of string label values" }}
+{{- end }}
+{{- range $key, $value := .prometheusRuleLabels }}
+{{- $parts := splitList "/" $key }}
+{{- $name := last $parts }}
+{{- if or (gt (len $parts) 2) (gt (len $name) 63) (not (regexMatch "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$" $name)) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels key %q requires a valid Kubernetes label name" $key) }}
+{{- end }}
+{{- if eq (len $parts) 2 }}
+{{- $prefix := first $parts }}
+{{- if or (gt (len $prefix) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $prefix)) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels key %q requires a valid Kubernetes DNS prefix" $key) }}
+{{- end }}
+{{- end }}
+{{- if not (kindIs "string" $value) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels.%s requires a string label value" $key) }}
+{{- end }}
+{{- if or (gt (len $value) 63) (not (regexMatch "^([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)?$" $value)) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels.%s requires a valid Kubernetes label value" $key) }}
+{{- end }}
+{{- end }}
+{{- range $lane := list "ready" "retry" }}
+{{- $limits := index $policy $lane }}
+{{- if not (kindIs "map" $limits) }}
+{{- fail (printf "nativeAsrAlerts.%s requires a map of approved limits" $lane) }}
+{{- end }}
+{{- range $field := list "pendingMax" "oldestDueAgeMaxSeconds" }}
+{{- $value := index $limits $field }}
+{{- $normalized := toString $value }}
+{{- if kindIs "float64" $value }}
+{{- if or (lt $value 0.0) (ne $value (floor $value)) }}
+{{- fail (printf "nativeAsrAlerts.%s.%s requires an approved non-negative integer" $lane $field) }}
+{{- end }}
+{{- $normalized = printf "%.0f" $value }}
+{{- end }}
+{{- if not (regexMatch "^[0-9]+$" $normalized) }}
+{{- fail (printf "nativeAsrAlerts.%s.%s requires an approved non-negative integer" $lane $field) }}
+{{- end }}
+{{- $_ := set $limits $field $normalized }}
+{{- end }}
+{{- if not (regexMatch "^[0-9]+(ms|s|m|h|d|w|y)$" (toString (index $limits "for"))) }}
+{{- fail (printf "nativeAsrAlerts.%s.for requires an approved duration, for example 0s or 2m" $lane) }}
+{{- end }}
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "meet.fullname" $ }}-native-asr
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list $ "native-asr-alerts") | nindent 4 }}
+    {{- with .prometheusRuleLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "meet.fullname" $ }}.native-asr
+      rules:
+        {{- range $lane := list "ready" "retry" }}
+        {{- $limits := index $policy $lane }}
+        - alert: MastraoNativeAsr{{ $lane | title }}QueueDepth
+          expr: >-
+            max(mastrao_native_asr_queue_pending{namespace={{ $.Release.Namespace | toJson }},service={{ $service | toJson }},lane={{ $lane | toJson }}}) > {{ $limits.pendingMax }}
+          for: {{ index $limits "for" | quote }}
+          labels:
+            namespace: {{ $.Release.Namespace | quote }}
+            service: {{ $service | quote }}
+            lane: {{ $lane | quote }}
+            severity: {{ $severity | quote }}
+            routing_owner: {{ $owner | quote }}
+          annotations:
+            summary: Native ASR {{ $lane }} queue exceeds its approved depth
+            description: Inspect lane occupancy and worker readiness; preserve admission and recording policy.
+        - alert: MastraoNativeAsr{{ $lane | title }}QueueAge
+          expr: >-
+            max(mastrao_native_asr_queue_oldest_due_age_seconds{namespace={{ $.Release.Namespace | toJson }},service={{ $service | toJson }},lane={{ $lane | toJson }}}) > {{ $limits.oldestDueAgeMaxSeconds }}
+          for: {{ index $limits "for" | quote }}
+          labels:
+            namespace: {{ $.Release.Namespace | quote }}
+            service: {{ $service | quote }}
+            lane: {{ $lane | quote }}
+            severity: {{ $severity | quote }}
+            routing_owner: {{ $owner | quote }}
+          annotations:
+            summary: Native ASR {{ $lane }} queue exceeds its approved due age
+            description: Due age includes live reservations and claims; inspect delivery evidence before any replay.
+        {{- end }}
+{{- end }}

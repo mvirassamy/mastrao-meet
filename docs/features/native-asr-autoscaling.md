@@ -39,6 +39,9 @@ oldest age of 60 seconds therefore request two workers; satisfying both signals
 is not required. `active_count` is available for observing lane occupancy and
 is not a third trigger. These metrics come from durable PostgreSQL state.
 
+Queue alert rules require a separate operator-approved policy; KEDA targets
+are not alert thresholds. See [VISIO alert qualification](visio-alert-qualification.md).
+
 ## Enabling a lane
 
 Install KEDA separately, then create a namespaced `TriggerAuthentication`
