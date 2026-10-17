@@ -46,6 +46,9 @@
   Transcript, with durable Core storage, autosave, conflict recovery and
   personal access after a meeting ends.
 
+- 2026-10-16: Expose aggregate native ASR pipeline metrics with a bounded
+  seven-day history window and no customer identifiers.
+
 - 2026-10-16: Record the PgBouncer transaction-pooling contract and guard
   Django's safe connection defaults.
 

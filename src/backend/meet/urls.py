@@ -12,7 +12,10 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from core.observability import metrics_response
+
 urlpatterns = [
+    path("metrics", metrics_response, name="metrics"),
     path("admin/", admin.site.urls),
     path("", include("core.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),

@@ -22,7 +22,7 @@ def test_yes_no_yes_fails_before_migration_and_succeeds_after_with_exact_replay(
     assert connection.vendor == "postgresql"
     executor = MigrationExecutor(connection)
     assert executor.loader.graph.leaf_nodes("core") == [
-        ("core", "0056_native_asr_delivery_recovery")
+        ("core", "0057_observability_metrics_history_indexes")
     ]
     normal_migration = MigrationRecorder(connection).migration_qs.get(
         app="core", name="0051_normal_post_meeting_transcription"
@@ -135,5 +135,5 @@ def test_yes_no_yes_fails_before_migration_and_succeeds_after_with_exact_replay(
         assert normal_migration.applied == normal_applied_at
     finally:
         MigrationExecutor(connection).migrate(
-            [("core", "0056_native_asr_delivery_recovery")]
+            [("core", "0057_observability_metrics_history_indexes")]
         )

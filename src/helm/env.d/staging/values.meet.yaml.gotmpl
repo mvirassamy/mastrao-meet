@@ -1,6 +1,11 @@
 # Dark rollout defaults. The trusted Meet deployment consumes this overlay only
 # after supplying its normal application configuration through Secrets.
 backend:
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/path: "/metrics"
+      prometheus.io/port: "80"
   envVars:
     OIDC_STORE_ACCESS_TOKEN: True
     MASTRAO_PLATFORM_API_BASE_URL: https://app.mastrao-staging.com
