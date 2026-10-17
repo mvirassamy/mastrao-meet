@@ -43,6 +43,8 @@ unlock, including when the provider raises an error.
 for this dedicated session. The operator must supply it through the existing
 protected configuration mechanism. No endpoint, credential, Secret, or Helm
 value is supplied by this preparation.
+The credential-bearing URL is masked in Django exception reports, alongside
+Django's existing sensitive-setting filtering.
 
 - When unset or empty, the lock keeps using Django's default connection
   parameters, preserving the existing direct route. Django's `DATABASES`

@@ -27,12 +27,13 @@ import pytest
 def test_database_configuration_is_safe_for_transaction_pooling(
     database_environment, direct_url
 ):
-    """Both database configuration paths remain safe for transaction pooling."""
+    """Both routes keep pooling-safe defaults and redact the lock URL."""
 
     environment = {
         **os.environ,
         "DJANGO_CONFIGURATION": "Development",
         "DJANGO_SETTINGS_MODULE": "meet.settings",
+        "DJANGO_SECRET_KEY": "synthetic-settings-report-key",
         **database_environment,
     }
     environment.pop("ROOM_SUBTITLE_LOCK_DATABASE_URL", None)
@@ -51,6 +52,7 @@ def test_database_configuration_is_safe_for_transaction_pooling(
                 "importer.install(); "
                 "from django.conf import settings; "
                 "from django.db import connections; "
+                "from django.views.debug import get_default_exception_reporter_filter; "
                 "database = settings.DATABASES['default']; "
                 "assert len(settings.DATABASES) == 1; "
                 "assert database['HOST'] == 'postgres.example'; "
@@ -60,7 +62,16 @@ def test_database_configuration_is_safe_for_transaction_pooling(
                 "assert settings.ROOM_SUBTITLE_LOCK_DATABASE_URL "
                 "== os.environ.get('ROOM_SUBTITLE_LOCK_DATABASE_URL', ''); "
                 "assert database['DISABLE_SERVER_SIDE_CURSORS']; "
-                "assert connections['default'].get_connection_params()['prepare_threshold'] is None"
+                "assert connections['default'].get_connection_params()"
+                "['prepare_threshold'] is None; "
+                "settings.DEBUG = False; "
+                "report_filter = get_default_exception_reporter_filter(); "
+                "safe_settings = report_filter.get_safe_settings(); "
+                "assert safe_settings['ROOM_SUBTITLE_LOCK_DATABASE_URL'] "
+                "== report_filter.cleansed_substitute; "
+                "assert safe_settings['DATABASES']['default']['PASSWORD'] "
+                "== report_filter.cleansed_substitute; "
+                "assert report_filter.cleanse_setting('ORDINARY_SETTING', 'visible') == 'visible'"
             ),
         ],
         check=True,
