@@ -1507,6 +1507,14 @@ class Base(Configuration):
         environ_name="ROOM_SUBTITLE_PROVIDER",
         environ_prefix=None,
     )
+    ROOM_SUBTITLE_LOCK_DATABASE_URL = values.Value(
+        "",
+        environ_name="ROOM_SUBTITLE_LOCK_DATABASE_URL",
+        environ_prefix=None,
+    )
+    DEFAULT_EXCEPTION_REPORTER_FILTER = (
+        "core.exception_reporting.MeetExceptionReporterFilter"
+    )
     ROOM_SUBTITLE_LOCK_NAMESPACE = values.IntegerValue(
         218,
         environ_name="ROOM_SUBTITLE_LOCK_NAMESPACE",

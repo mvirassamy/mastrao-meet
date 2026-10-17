@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-17: Add an optional direct database route for subtitle convergence
+  session locks, preserving the default route and proving session ownership.
+  Mask the credential-bearing route in Django exception reports.
+
 - 2026-10-17: Prepare native ASR queue alert rules with operator-supplied
   thresholds and document the missing VISIO Pod/DB alert evidence.
 
