@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connections, transaction
 
 import psycopg
+from psycopg.conninfo import conninfo_to_dict
 
 from core.models import RoomSubtitleAdvisoryKey
 
@@ -100,6 +101,9 @@ def _gate_release():
 
 
 def _connection_parameters():
+    if settings.ROOM_SUBTITLE_LOCK_DATABASE_URL:
+        return conninfo_to_dict(settings.ROOM_SUBTITLE_LOCK_DATABASE_URL)
+
     connection = connections["default"]
     parameters = connection.get_connection_params().copy()
     parameters.pop("context", None)

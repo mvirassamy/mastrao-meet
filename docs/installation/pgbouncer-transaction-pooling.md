@@ -36,9 +36,41 @@ route.
 Subtitle-agent convergence uses `pg_try_advisory_lock` and
 `pg_advisory_unlock` on one Psycopg connection. These are session-scoped
 locks, so this path must keep a direct PostgreSQL route. The current code
-derives that connection from Django's default database configuration; therefore
-the default route must not be changed to transaction pooling until this
-convergence connection has an explicit direct configuration and qualification.
+opens one dedicated Psycopg connection and uses it for both acquisition and
+unlock, including when the provider raises an error.
+
+`ROOM_SUBTITLE_LOCK_DATABASE_URL` is the optional PostgreSQL connection string
+for this dedicated session. The operator must supply it through the existing
+protected configuration mechanism. No endpoint, credential, Secret, or Helm
+value is supplied by this preparation.
+
+- When unset or empty, the lock keeps using Django's default connection
+  parameters, preserving the existing direct route. Django's `DATABASES`
+  configuration is unchanged whether this setting is present or absent.
+- When set, the lock uses the explicit connection string, including its TLS
+  parameters, without inheriting Django's connection parameters. An invalid
+  string or a failed connection fails lock acquisition; it does not fall back
+  to Django's route.
+- The existing per-process connection cap, acquisition timeout, connection
+  timeout, and statement timeout still apply. The connection uses autocommit,
+  remains open during convergence, and closes after unlock.
+
+Before routing Django through transaction pooling, qualify this setting against
+the same PostgreSQL primary and database used by Django, with access to the
+same advisory-key registry and lock namespace. Account for the dedicated
+sessions in the connection budget. Maintenance routing must also be qualified
+separately. Setting this URL alone does not qualify or deploy PgBouncer.
+
+The regression tests observe PostgreSQL backend PIDs and advisory-lock ownership
+to prove that acquisition and unlock share one session on both routes, on
+normal completion and after a provider error. They also cover invalid and
+unavailable explicit routes without fallback and unchanged Django settings
+for both `DATABASE_URL` and `DB_*` configuration.
+
+To roll back the explicit lock route, first confirm Django's default route is
+direct PostgreSQL, then remove `ROOM_SUBTITLE_LOCK_DATABASE_URL` through the
+same configuration authority. Do not remove it while the default route uses
+transaction pooling.
 
 ## Maintenance route
 
