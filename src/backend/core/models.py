@@ -774,6 +774,9 @@ class MastraoRoomClosure(BaseModel):
 
     class Meta:
         db_table = "meet_mastrao_room_closure"
+        indexes = [
+            models.Index(fields=["applied_at"], name="mastrao_close_applied_idx"),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
@@ -1446,6 +1449,11 @@ class MastraoTranscriptionBinding(BaseModel):
 
     class Meta:
         db_table = "meet_mastrao_transcription_binding"
+        indexes = [
+            models.Index(
+                fields=["state", "updated_at"], name="mastrao_tx_available_idx"
+            ),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
@@ -1661,6 +1669,7 @@ class MastraoTranscriptionEffect(BaseModel):
                 fields=["dispatch_state", "next_attempt_at"],
                 name="mastrao_tx_dispatch_due_idx",
             ),
+            models.Index(fields=["created_at"], name="mastrao_tx_effect_created_idx"),
         ]
 
     def __str__(self):
@@ -1763,6 +1772,9 @@ class MastraoTranscriptionProviderAttempt(BaseModel):
 
     class Meta:
         db_table = "meet_mastrao_transcription_provider_attempt"
+        indexes = [
+            models.Index(fields=["created_at"], name="mastrao_tx_attempt_created_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["effect", "generation"],
