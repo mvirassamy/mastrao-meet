@@ -54,6 +54,13 @@ The policy, each lane and `prometheusRuleLabels` must be maps. See Kubernetes
 [Service names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names)
 and [label values](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).
 
+The `prometheusRuleLabels` map must be supplied explicitly, including `{}` when
+empty labels are allowed. Keys must have a non-empty name of at most 63
+characters and, if qualified with `/`, a valid DNS prefix of at most 253
+characters. Threshold integers are rendered in decimal consistently, including
+when Helm represents a numeric input in scientific notation; `1000000` and
+`"1000000"` select the same ceiling. Fractional and negative values remain invalid.
+
 The expression is `max(scoped gauge) > ceiling`, sustained for the configured
 lane duration. Equality does not fire. `max` avoids counting the same database
 queue once per backend replica. Both `namespace` (the Helm release namespace)

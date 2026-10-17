@@ -89,7 +89,15 @@ class NativeAsrAlertTests(unittest.TestCase):
 
     def test_missing_policy_fields_refuse_rendering(self):
         paths = [
-            (key,) for key in ("service", "routingOwner", "severity", "ready", "retry")
+            (key,)
+            for key in (
+                "service",
+                "routingOwner",
+                "severity",
+                "prometheusRuleLabels",
+                "ready",
+                "retry",
+            )
         ]
         paths += [
             (lane, key)
@@ -111,6 +119,7 @@ class NativeAsrAlertTests(unittest.TestCase):
         for key, value in (
             ("pendingMax", -1),
             ("pendingMax", 1.5),
+            ("pendingMax", 1000000.5),
             ("pendingMax", True),
             ("oldestDueAgeMaxSeconds", "1 or vector(1)"),
             ("for", ""),
@@ -171,6 +180,60 @@ class NativeAsrAlertTests(unittest.TestCase):
                 result = render(policy)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("nativeAsrAlerts.prometheusRuleLabels", result.stderr)
+
+    def test_explicit_empty_prometheus_rule_labels_are_accepted(self):
+        policy = copy.deepcopy(POLICY)
+        policy["prometheusRuleLabels"] = {}
+        result = render(policy)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("kind: PrometheusRule", result.stdout)
+
+    def test_invalid_kubernetes_label_keys_refuse_rendering(self):
+        for key in (
+            "bad/key/extra",
+            "",
+            "/name",
+            "example.com/",
+            "bad name",
+            "bad!key",
+            "a" * 64,
+            "UPPER.example/name",
+            "-example/name",
+            "example..com/name",
+            "a" * 254 + "/name",
+        ):
+            with self.subTest(key=key):
+                policy = copy.deepcopy(POLICY)
+                policy["prometheusRuleLabels"] = {key: "fixture"}
+                result = render(policy)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("nativeAsrAlerts.prometheusRuleLabels", result.stderr)
+
+    def test_valid_kubernetes_label_key_boundaries_are_accepted(self):
+        prefix = ".".join(["a" * 63] * 3 + ["b" * 61])
+        policy = copy.deepcopy(POLICY)
+        policy["prometheusRuleLabels"] = {
+            "a" * 63: "fixture",
+            "example.com/App_Name.v1": "fixture",
+            prefix + "/" + "b" * 63: "fixture",
+        }
+        result = render(policy)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_large_integer_thresholds_render_identically_in_each_representation(self):
+        for lane in ("ready", "retry"):
+            for field in ("pendingMax", "oldestDueAgeMaxSeconds"):
+                manifests = []
+                for value in (1000000, "1000000", 1e6):
+                    with self.subTest(lane=lane, field=field, value=value):
+                        policy = copy.deepcopy(POLICY)
+                        policy[lane][field] = value
+                        result = render(policy)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertRegex(result.stdout, r" > 1000000\n")
+                        manifests.append(result.stdout)
+                self.assertEqual(manifests[0], manifests[1])
+                self.assertEqual(manifests[0], manifests[2])
 
     def test_policy_and_nested_maps_reject_wrong_types(self):
         for value in (123, True, False, "fixture", [], ["fixture"]):

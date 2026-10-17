@@ -2,7 +2,7 @@
 {{- fail "nativeAsrAlerts must be a map; use {} to omit alert rules" }}
 {{- end }}
 {{- with .Values.nativeAsrAlerts }}
-{{- $policy := . }}
+{{- $policy := deepCopy . }}
 {{- range $field := list "service" "routingOwner" "severity" }}
 {{- $value := index $policy $field }}
 {{- if not (kindIs "string" $value) }}
@@ -18,17 +18,29 @@
 {{- end }}
 {{- $owner := .routingOwner }}
 {{- $severity := .severity }}
-{{- if hasKey . "prometheusRuleLabels" }}
+{{- if not (hasKey . "prometheusRuleLabels") }}
+{{- fail "nativeAsrAlerts.prometheusRuleLabels is required; use {} when the Prometheus rule selector allows empty labels" }}
+{{- end }}
 {{- if not (kindIs "map" .prometheusRuleLabels) }}
 {{- fail "nativeAsrAlerts.prometheusRuleLabels must be a map of string label values" }}
 {{- end }}
 {{- range $key, $value := .prometheusRuleLabels }}
+{{- $parts := splitList "/" $key }}
+{{- $name := last $parts }}
+{{- if or (gt (len $parts) 2) (gt (len $name) 63) (not (regexMatch "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$" $name)) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels key %q requires a valid Kubernetes label name" $key) }}
+{{- end }}
+{{- if eq (len $parts) 2 }}
+{{- $prefix := first $parts }}
+{{- if or (gt (len $prefix) 253) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $prefix)) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels key %q requires a valid Kubernetes DNS prefix" $key) }}
+{{- end }}
+{{- end }}
 {{- if not (kindIs "string" $value) }}
 {{- fail (printf "nativeAsrAlerts.prometheusRuleLabels.%s requires a string label value" $key) }}
 {{- end }}
 {{- if or (gt (len $value) 63) (not (regexMatch "^([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)?$" $value)) }}
 {{- fail (printf "nativeAsrAlerts.prometheusRuleLabels.%s requires a valid Kubernetes label value" $key) }}
-{{- end }}
 {{- end }}
 {{- end }}
 {{- range $lane := list "ready" "retry" }}
@@ -37,9 +49,18 @@
 {{- fail (printf "nativeAsrAlerts.%s requires a map of approved limits" $lane) }}
 {{- end }}
 {{- range $field := list "pendingMax" "oldestDueAgeMaxSeconds" }}
-{{- if not (regexMatch "^[0-9]+$" (toString (index $limits $field))) }}
+{{- $value := index $limits $field }}
+{{- $normalized := toString $value }}
+{{- if kindIs "float64" $value }}
+{{- if or (lt $value 0.0) (ne $value (floor $value)) }}
 {{- fail (printf "nativeAsrAlerts.%s.%s requires an approved non-negative integer" $lane $field) }}
 {{- end }}
+{{- $normalized = printf "%.0f" $value }}
+{{- end }}
+{{- if not (regexMatch "^[0-9]+$" $normalized) }}
+{{- fail (printf "nativeAsrAlerts.%s.%s requires an approved non-negative integer" $lane $field) }}
+{{- end }}
+{{- $_ := set $limits $field $normalized }}
 {{- end }}
 {{- if not (regexMatch "^[0-9]+(ms|s|m|h|d|w|y)$" (toString (index $limits "for"))) }}
 {{- fail (printf "nativeAsrAlerts.%s.for requires an approved duration, for example 0s or 2m" $lane) }}
