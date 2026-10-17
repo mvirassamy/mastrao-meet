@@ -132,9 +132,94 @@ class NativeAsrAlertTests(unittest.TestCase):
         self.assertIn('lane="ready"}) > 0', result.stdout)
         self.assertIn('for: "0s"', result.stdout)
 
-    def test_namespace_and_service_are_exact_escaped_matchers(self):
+    def test_selector_and_routing_fields_reject_non_string_values(self):
+        for field in ("service", "routingOwner", "severity"):
+            for value in (123, True, False, None, [], {"name": "fixture"}):
+                with self.subTest(field=field, value=value):
+                    policy = copy.deepcopy(POLICY)
+                    policy[field] = value
+                    result = render(policy)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f"nativeAsrAlerts.{field}", result.stderr)
+
+    def test_service_rejects_invalid_kubernetes_service_names(self):
+        for value in (
+            "",
+            " ",
+            "123",
+            "UPPER",
+            "-backend",
+            "backend-",
+            "foo.bar",
+            'fixture"backend',
+            "fixture\\backend",
+            "backend\nname",
+            "a" * 64,
+        ):
+            with self.subTest(value=value):
+                policy = copy.deepcopy(POLICY)
+                policy["service"] = value
+                result = render(policy)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("nativeAsrAlerts.service", result.stderr)
+
+    def test_prometheus_rule_labels_reject_non_string_values(self):
+        for value in (123, True, False, None, [], {}):
+            with self.subTest(value=value):
+                policy = copy.deepcopy(POLICY)
+                policy["prometheusRuleLabels"]["release"] = value
+                result = render(policy)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("nativeAsrAlerts.prometheusRuleLabels", result.stderr)
+
+    def test_policy_and_nested_maps_reject_wrong_types(self):
+        for value in (123, True, False, "fixture", [], ["fixture"]):
+            with self.subTest(policy=value):
+                result = render(value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("nativeAsrAlerts", result.stderr)
+            for field in ("ready", "retry", "prometheusRuleLabels"):
+                with self.subTest(field=field, value=value):
+                    policy = copy.deepcopy(POLICY)
+                    policy[field] = value
+                    result = render(policy)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f"nativeAsrAlerts.{field}", result.stderr)
+
+    def test_routing_strings_and_kubernetes_label_values_reject_invalid_format(self):
+        for field in ("routingOwner", "severity"):
+            for value in ("", " ", " owner", "owner ", "owner\nname", "owner\x00"):
+                with self.subTest(field=field, value=value):
+                    policy = copy.deepcopy(POLICY)
+                    policy[field] = value
+                    result = render(policy)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(f"nativeAsrAlerts.{field}", result.stderr)
+        for value in (" ", "-label", "label-", "label/name", "a" * 64):
+            with self.subTest(label=value):
+                policy = copy.deepcopy(POLICY)
+                policy["prometheusRuleLabels"]["release"] = value
+                result = render(policy)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("nativeAsrAlerts.prometheusRuleLabels", result.stderr)
+
+    def test_string_values_are_not_coerced_to_yaml_booleans_or_numbers(self):
         policy = copy.deepcopy(POLICY)
-        policy["service"] = 'fixture"backend\\literal'
+        policy["service"] = "true"
+        policy["routingOwner"] = "123"
+        policy["severity"] = "true"
+        policy["prometheusRuleLabels"] = {"release": "123", "enabled": "true"}
+        result = render(policy)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('service="true"', result.stdout)
+        self.assertIn('routing_owner: "123"', result.stdout)
+        self.assertIn('severity: "true"', result.stdout)
+        self.assertIn('release: "123"', result.stdout)
+        self.assertIn('enabled: "true"', result.stdout)
+
+    def test_namespace_and_service_are_exact_matchers(self):
+        policy = copy.deepcopy(POLICY)
+        policy["service"] = "a" * 63
         result = render(policy, namespace="another-staging")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(

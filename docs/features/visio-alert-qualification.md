@@ -44,6 +44,16 @@ all of the following; there are no numerical policy defaults:
 | `ready.oldestDueAgeMaxSeconds`, `retry.oldestDueAgeMaxSeconds` | Approved non-negative integer ceiling in seconds, independently per lane. |
 | `ready.for`, `retry.for` | Approved continuous exceedance duration per lane: number plus `s`, `m`, `h`, etc.; `0s` means immediate. |
 
+`service` must be a string containing a standard Kubernetes RFC 1035 Service
+name (at most 63 characters, starting with a lowercase letter). `routingOwner`
+and `severity` must be non-empty strings without surrounding whitespace or
+control characters. Metadata label values must be strings matching the Kubernetes
+label-value syntax. Numeric/boolean values are rejected rather than coerced;
+quote a label such as `"123"` or `"true"` if that is its intended string value.
+The policy, each lane and `prometheusRuleLabels` must be maps. See Kubernetes
+[Service names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names)
+and [label values](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).
+
 The expression is `max(scoped gauge) > ceiling`, sustained for the configured
 lane duration. Equality does not fire. `max` avoids counting the same database
 queue once per backend replica. Both `namespace` (the Helm release namespace)

@@ -1,10 +1,41 @@
+{{- if not (kindIs "map" .Values.nativeAsrAlerts) }}
+{{- fail "nativeAsrAlerts must be a map; use {} to omit alert rules" }}
+{{- end }}
 {{- with .Values.nativeAsrAlerts }}
 {{- $policy := . }}
-{{- $service := required "nativeAsrAlerts.service must match the observed Prometheus service label" .service }}
-{{- $owner := required "nativeAsrAlerts.routingOwner is required" .routingOwner }}
-{{- $severity := required "nativeAsrAlerts.severity is required" .severity }}
+{{- range $field := list "service" "routingOwner" "severity" }}
+{{- $value := index $policy $field }}
+{{- if not (kindIs "string" $value) }}
+{{- fail (printf "nativeAsrAlerts.%s requires a non-empty string" $field) }}
+{{- end }}
+{{- if or (eq (trim $value) "") (ne $value (trim $value)) (regexMatch "[[:cntrl:]]" $value) }}
+{{- fail (printf "nativeAsrAlerts.%s requires a non-empty string without surrounding whitespace or control characters" $field) }}
+{{- end }}
+{{- end }}
+{{- $service := .service }}
+{{- if or (gt (len $service) 63) (not (regexMatch "^[a-z]([-a-z0-9]*[a-z0-9])?$" $service)) }}
+{{- fail "nativeAsrAlerts.service requires a Kubernetes RFC 1035 Service name of at most 63 characters" }}
+{{- end }}
+{{- $owner := .routingOwner }}
+{{- $severity := .severity }}
+{{- if hasKey . "prometheusRuleLabels" }}
+{{- if not (kindIs "map" .prometheusRuleLabels) }}
+{{- fail "nativeAsrAlerts.prometheusRuleLabels must be a map of string label values" }}
+{{- end }}
+{{- range $key, $value := .prometheusRuleLabels }}
+{{- if not (kindIs "string" $value) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels.%s requires a string label value" $key) }}
+{{- end }}
+{{- if or (gt (len $value) 63) (not (regexMatch "^([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)?$" $value)) }}
+{{- fail (printf "nativeAsrAlerts.prometheusRuleLabels.%s requires a valid Kubernetes label value" $key) }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- range $lane := list "ready" "retry" }}
-{{- $limits := index $policy $lane | default dict }}
+{{- $limits := index $policy $lane }}
+{{- if not (kindIs "map" $limits) }}
+{{- fail (printf "nativeAsrAlerts.%s requires a map of approved limits" $lane) }}
+{{- end }}
 {{- range $field := list "pendingMax" "oldestDueAgeMaxSeconds" }}
 {{- if not (regexMatch "^[0-9]+$" (toString (index $limits $field))) }}
 {{- fail (printf "nativeAsrAlerts.%s.%s requires an approved non-negative integer" $lane $field) }}
