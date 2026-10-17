@@ -59,9 +59,12 @@ Django's existing sensitive-setting filtering.
 
 Before routing Django through transaction pooling, qualify this setting against
 the same PostgreSQL primary and database used by Django, with access to the
-same advisory-key registry and lock namespace. Account for the dedicated
-sessions in the connection budget. Maintenance routing must also be qualified
-separately. Setting this URL alone does not qualify or deploy PgBouncer.
+same advisory-key registry and lock namespace. Verify the TLS requirements,
+server identity, and trust material for each route independently: the explicit
+lock URL does not inherit Django's TLS parameters. Account for the dedicated
+sessions in the connection budget below. Maintenance routing must also be
+qualified separately. Setting this URL alone does not qualify or deploy
+PgBouncer.
 
 The regression tests observe PostgreSQL backend PIDs and advisory-lock ownership
 to prove that acquisition and unlock share one session on both routes, on
@@ -83,7 +86,45 @@ point. The raw-SQL migrations are `0002_create_pg_trgm_extension`,
 view). The cleanup CronJobs above are ordinary application work and may use the
 transaction-pool route once the direct-session exceptions are wired.
 
-No migration or maintenance routing is changed by this preparation.
+The current `backend-migrate` template reads `backend.envVars`, just like the
+API Deployment. Changing those shared database variables to a pooler would
+also redirect migrations. Before that change, separately wire and qualify
+the migration Job's direct database configuration through the deployment
+authority. The lock URL does not route Django migration commands. Confirm the
+same primary, database, and TLS requirements for maintenance; do not run
+migrations as a qualification probe. No migration or maintenance routing is
+changed by this preparation.
+
+## Connection budget
+
+The [Kubernetes example](kubernetes.md#postgresql-connection-budget) counts
+23 ordinary Django connections (`D`) under stated process and rollout
+assumptions. It excludes dedicated advisory-lock sessions (`L`). These are
+additional connections: convergence can query Django while holding its
+dedicated session. Derive `L` from the maximum simultaneous reconciling
+processes and their per-process lock concurrency, including rollout and
+operator-job overlap. The lock connection cap is per process, not global.
+
+For the direct-only Gate 1 baseline, the Meet budget is `D + L`. An
+operator-held manifest must prove the deployed process bounds, routes,
+concurrency, and allocation of both components to each existing role. Include
+any non-Meet workloads sharing those roles in their allocations. The sum of
+the complete role allocations is `A`; count each connection once. A finite
+role limit must cover that role's allocation plus one sequential probe slot.
+Global normal slots must cover
+`A + 1 + R`; reserve at least four slots for platform, monitoring, and an
+administrator, and increase `R` for their actual demand and other workloads
+sharing the server that are not already counted in `A`. A missing bound is
+`NOT_QUALIFIED`.
+The former `23 + 1 = 24` calculation excludes `L` and is not a guaranteed
+capacity requirement or proof of sufficient capacity.
+
+A future pooler requires a separate server-side budget: aggregate pool server
+caps, including reserve pools, across every user/database pair, pooler instance,
+and rollout overlap, then add direct maintenance and other bypass sessions,
+`L`, the sequential probe, and `R`. Pooled Django clients are not additional
+direct PostgreSQL sessions. Qualify the resulting global and per-role limits
+and the actual pooler behavior separately; the receipt below does not do so.
 
 ## Staging Gate 1 database receipt
 
@@ -103,10 +144,12 @@ Before the readback, the operator records:
   requirements, and the database name; this receipt must not use or configure
   a pooler;
 - an operator-held application-role manifest. Each entry names one existing,
-  deployed Meet database role, its application connection allocation, and its
-  direct connection-string source. The allocations must sum to the documented
-  23-connection application budget. The repository contains only example
-  `DB_USER` values, so it is not an authority for staging role names;
+  deployed Meet database role, its ordinary Django and dedicated lock-session
+  allocations, and its direct connection-string source. Record the process,
+  concurrency, and rollout evidence behind those allocations, their total
+  `A`, and the shared-server reserve `R`. The allocations must match the
+  complete budget above, not a fixed total of 23. The repository contains only
+  example `DB_USER` values, so it is not an authority for staging role names;
 - one direct, short-lived probe connection at a time. Run it sequentially for
   the manifest entries, authenticating as one application role before closing
   it and proceeding to the next. Use each role's existing privileges and role
@@ -135,8 +178,8 @@ the readback passive without changing an existing privilege or membership.
 export PGAPPNAME='meet-db-gate1-readback'
 export PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=5s -c lock_timeout=1s -c idle_in_transaction_session_timeout=5s'
 export GATE1_EXPECTED_ROLE='<operator manifest value>'
-export GATE1_APPLICATION_BUDGET='<operator manifest value>'
-export GATE1_REQUIRED_CONNECTION_LIMIT='<application budget plus one readback slot>'
+export GATE1_APPLICATION_BUDGET='<complete allocation for this manifest role>'
+export GATE1_REQUIRED_CONNECTION_LIMIT='<role allocation plus one readback slot>'
 psql -X -v ON_ERROR_STOP=1 \
   -v expected_role="$GATE1_EXPECTED_ROLE" \
   -v application_budget="$GATE1_APPLICATION_BUDGET" \
@@ -230,20 +273,20 @@ reserved`.
 Stop and mark the receipt `NOT_QUALIFIED` without changing staging if any item
 below is true:
 
-- the functional-batch deployment evidence, direct endpoint, or required
-  read-only privilege is missing;
+- the functional-batch deployment evidence, direct endpoint, required
+  read-only privilege, or manifest evidence for the complete connection
+  budget is missing;
 - `transaction_read_only` is not `on`, or the database identity does not match
   the selected staging target;
 - `max_connections - reserved_connections - superuser_reserved_connections`
-  is below 28. The global normal-slot budget is 23 application allocations,
-  one sequential probe connection, and four slots reserved for platform,
-  monitoring, and an administrator: `23 + 1 + 4 = 28`;
+  is below `A + 1 + R`: the complete manifest allocation, one sequential
+  probe connection, and the documented shared-server reserve (at least four);
 - completing the receipt would require creating or revoking a role, or
   granting, revoking, or modifying a privilege or role membership. Use only
   the existing deployed roles in the manifest;
 - an observed role differs from its manifest entry, the manifest allocations
-  do not sum to 23, `required_budget_matches` is false, or its finite
-  `current_role_connection_limit` is below its `required_connection_limit`;
+  do not match the complete budget, `required_budget_matches` is false, or its
+  finite `current_role_connection_limit` is below its `required_connection_limit`;
 - either idle-in-transaction snapshot is nonempty, contains a session older
   than 60 seconds, or differs from the other snapshot for the same role;
 - `stats_reset` differs between the first and second `pg_stat_database`
@@ -260,7 +303,8 @@ deployment or application traffic change.
 ### Receipt and rollback
 
 The operator receipt contains the source/deployed revisions, the redacted
-application-role manifest, UTC start and end, both snapshots for every role,
+application-role manifest with process bounds, `D`, `L`, `A`, and `R`,
+UTC start and end, both snapshots for every role,
 the two `pg_stat_database` snapshots and unchanged `stats_reset` values, the
 redacted log or metric result, each threshold decision, and
 `QUALIFIED_READ_ONLY` or `NOT_QUALIFIED`.

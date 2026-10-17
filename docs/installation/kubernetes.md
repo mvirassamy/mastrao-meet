@@ -227,12 +227,13 @@ that use `QuerySet.iterator()` compatible with a transaction-level connection
 pooler, without changing their transaction boundaries.
 
 Size PostgreSQL for the maximum number of application processes that can query
-it, including a rolling update and concurrent maintenance jobs. The Helmfile
-staging and production values keep one backend replica; the chart also renders
-the Mastrao admission, transcription, and native ASR workers. With the default
-Kubernetes rolling-update surge, the conservative bound is:
+it, including a rolling update and concurrent maintenance jobs. The following
+example assumes one backend replica, the worker counts below, default
+rolling-update surge, and one Django connection per listed worker or job.
+Verify these assumptions against the deployed manifest, process concurrency,
+autoscaling limits, and rollout overlap; this is not a measured staging bound.
 
-| Source | Maximum connections |
+| Source | Ordinary Django connections under these assumptions |
 | --- | ---: |
 | Backend: 2 pods during rollout x 3 Gunicorn workers | 6 |
 | `celeryBackend`: 2 pods during rollout x 1 solo worker | 2 |
@@ -242,11 +243,37 @@ Kubernetes rolling-update surge, the conservative bound is:
 | Native ASR retry lane: 3 pods during rollout x 1 solo worker | 3 |
 | Three independent CronJobs | 3 |
 | `migrate` and `createsuperuser` Jobs | 2 |
-| **Total** | **23** |
+| **Django subtotal (`D`)** | **23** |
 
-The chart defaults alone use three backend replicas, raising this bound to 29.
-Reserve additional PostgreSQL connections for administrators, monitoring, and
-the platform before setting an application or pool limit.
+Three backend replicas as in the chart defaults raise this Django subtotal to
+29 under the same assumptions. Neither subtotal includes dedicated subtitle
+advisory-lock sessions. Convergence keeps one dedicated Psycopg session open
+while also using Django for ORM queries, so these connections are additive.
+
+For every process group that can reconcile subtitles, record its maximum
+simultaneous process count and concurrent lock-session bound per process.
+Include Celery reconciliation, API synchronous reconciliation when enabled,
+and operator jobs that can overlap. Sum their products as `L`.
+`ROOM_SUBTITLE_LOCK_MAX_CONNECTIONS` caps each process, not the deployment;
+its default of eight is neither eight global sessions nor a claim that every
+process opens eight sessions.
+
+Before pooling, the Meet allocation is `D + L`. Map both components to the
+existing database roles in an operator-held manifest, including any other
+workloads sharing those roles; their complete allocation is `A`. Each finite
+role limit must cover its full allocation plus one sequential readback slot.
+Global normal slots must cover `A + 1 + R`, where `R` covers platform,
+monitoring, administrators, and other workloads not already counted in `A`.
+Neither 23 application slots nor a role limit of 24 guarantees capacity
+without the process manifest and actual PostgreSQL limits.
+
+For a future transaction pool, count PostgreSQL server connections, not Django
+client connections: sum pool server caps across user/database pairs, pooler
+instances, reserve pools, and rollout overlap, then add direct maintenance,
+dedicated lock sessions, the probe, and `R`. Do not count pooled Django clients
+again as direct server sessions. See the
+[pooling contract](pgbouncer-transaction-pooling.md) for route prerequisites
+and the passive qualification receipt.
 
 ## Deployment
 

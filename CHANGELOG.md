@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-17: Count dedicated subtitle lock sessions in database budgets and
+  document direct migration routing prerequisites before transaction pooling.
+
 - 2026-10-17: Add an optional direct database route for subtitle convergence
   session locks, preserving the default route and proving session ownership.
   Mask the credential-bearing route in Django exception reports.
