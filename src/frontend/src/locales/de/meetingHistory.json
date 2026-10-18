@@ -64,7 +64,11 @@
       "description": "Für diese Besprechung wurde keine Zusammenfassung erstellt.",
       "title": "Keine Zusammenfassung"
     },
-    "automatic": "Automatisch aus dem Transkript erstellte Zusammenfassung, nicht von einer Person geprüft.",
+    "pendingReview": "Automatisch erstellte Zusammenfassung, noch zu prüfen.",
+    "published": "Von einer Person geprüfte und veröffentlichte Zusammenfassung.",
+    "reviewUnknown": "Zusammenfassung auf Grundlage des Transkripts. Prüfstatus nicht angegeben.",
+    "stale": "Das Quelltranskript hat sich geändert. Diese Zusammenfassung ist veraltet.",
+    "validated": "Validierte Zusammenfassung, Veröffentlichung ausstehend.",
     "failed": {
       "description": "Die Verarbeitung konnte nicht abgeschlossen werden.",
       "title": "Verarbeitung nicht verfügbar"

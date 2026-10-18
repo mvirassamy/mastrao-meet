@@ -4,6 +4,23 @@ import { contentPhase } from './meetingContent'
 /** Local state of the summary request sent when the detail opens. */
 export type SummaryRequestState = 'idle' | 'pending' | 'failed'
 
+export const summaryEditorialStatusKey = (
+  state: MeetingSummary['productState']
+) => {
+  switch (state) {
+    case 'published_reviewed':
+      return 'summary.published'
+    case 'generated_pending_review':
+      return 'summary.pendingReview'
+    case 'validated_ready_to_publish':
+      return 'summary.validated'
+    case 'stale_draft':
+      return 'summary.stale'
+    default:
+      return 'summary.reviewUnknown'
+  }
+}
+
 /** Statuses for which the service is still working on the content. */
 const isPendingStatus = (status: MeetingContentStatus) =>
   contentPhase(status) === 'pending'

@@ -159,12 +159,12 @@ describe('automatic summary request', () => {
     expect(screen.queryByText('summary.requestFailed.title')).toBeNull()
   })
 
-  it('shows an available summary as automatic and unreviewed', async () => {
+  it('does not infer human review when the server omits editorial state', async () => {
     serve({ detail: () => detail('available', 'available') })
     renderDetail()
 
     expect(await screen.findByText('Résumé prêt.')).toBeTruthy()
-    expect(screen.getByText('summary.automatic')).toBeTruthy()
+    expect(screen.getByText('summary.reviewUnknown')).toBeTruthy()
     expect(calls(SUMMARY_URL, 'POST')).toBe(0)
   })
 })

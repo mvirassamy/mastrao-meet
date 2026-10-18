@@ -64,7 +64,11 @@
       "description": "Aucune synthèse n’a été produite pour cette réunion.",
       "title": "Aucune synthèse"
     },
-    "automatic": "Synthèse générée automatiquement à partir de la transcription, sans relecture humaine.",
+    "pendingReview": "Synthèse générée automatiquement, à relire.",
+    "published": "Synthèse relue et publiée.",
+    "reviewUnknown": "Synthèse issue de la transcription. État de relecture non renseigné.",
+    "stale": "La transcription source a changé. Cette synthèse est obsolète.",
+    "validated": "Synthèse validée, en attente de publication.",
     "failed": {
       "description": "Le traitement n’a pas pu aboutir pour cette réunion.",
       "title": "Traitement indisponible"

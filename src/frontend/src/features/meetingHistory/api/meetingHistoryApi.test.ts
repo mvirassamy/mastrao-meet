@@ -257,6 +257,70 @@ describe('normalizeHistoryDetail', () => {
     transcript_status: 'available',
   }
 
+  it.each([
+    'generated_pending_review',
+    'validated_ready_to_publish',
+    'published_reviewed',
+    'stale_draft',
+  ])(
+    'preserves editorial state with no accepted sections (%s)',
+    (productState) => {
+      const detail = normalizeHistoryDetail({
+        ...base,
+        summary: {
+          status: 'available',
+          product_state: productState,
+          text: 'Résumé relu.',
+          sections: [],
+        },
+      })
+
+      expect(detail?.summary).toMatchObject({
+        productState,
+        paragraphs: ['Résumé relu.'],
+        sections: [],
+      })
+    }
+  )
+
+  it.each([undefined, null, 'reviewed', 42])(
+    'never infers review from absent or unknown editorial state (%s)',
+    (productState) => {
+      const detail = normalizeHistoryDetail({
+        ...base,
+        summary: { text: 'Résumé.', product_state: productState },
+      })
+
+      expect(detail?.summary.productState).toBeUndefined()
+      expect(detail?.summary.paragraphs).toEqual(['Résumé.'])
+    }
+  )
+
+  it('refreshes editorial state and excluded items after publication on the same source', () => {
+    const current = normalizeHistoryDetail({
+      ...base,
+      summary: {
+        text: 'Résumé.',
+        product_state: 'generated_pending_review',
+        sections: [{ title: 'Actions', items: ['Action proposée'] }],
+      },
+    })
+    const incoming = normalizeHistoryDetail({
+      ...base,
+      summary: {
+        text: 'Résumé.',
+        product_state: 'published_reviewed',
+        sections: [],
+      },
+    })
+    if (!current || !incoming) throw new Error('Expected valid meeting details')
+
+    const merged = mergeHistoryDetail(current, incoming)
+    expect(merged.summary.productState).toBe('published_reviewed')
+    expect(merged.summary.paragraphs).toEqual(['Résumé.'])
+    expect(merged.summary.sections).toEqual([])
+  })
+
   it('shows available content as paragraphs, sections and ordered segments', () => {
     const detail = normalizeHistoryDetail({
       ...base,

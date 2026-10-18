@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-18: Show the canonical summary review and publication state in Meet,
+  including publications with no accepted items. Keep missing review state
+  neutral.
+
 - 2026-10-18: Refresh Meet runtime security patches and Python dependencies
   rejected by the staging image scan. Keep the HIGH/CRITICAL gate unchanged.
 
