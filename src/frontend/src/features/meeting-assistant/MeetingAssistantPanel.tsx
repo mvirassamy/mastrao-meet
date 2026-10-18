@@ -96,7 +96,10 @@ function Composer({
         placeholder={t('placeholder')}
         rows={1}
         maxLength={1024}
-        disabled={disabled}
+        // Read-only rather than disabled while an answer is pending, so
+        // the field keeps the focus after Enter sends the question.
+        readOnly={disabled}
+        aria-disabled={disabled || undefined}
         fieldSizing="content"
         css={{
           border: 'none',

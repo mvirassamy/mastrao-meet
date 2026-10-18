@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchApi } from '@/api/fetchApi'
@@ -62,15 +68,19 @@ describe('assistant on a narrow screen', () => {
     const open = await screen.findByRole('button', { name: 'result.assistant' })
     expect(screen.queryByRole('dialog')).toBeNull()
 
+    open.focus()
     fireEvent.click(open)
     expect(
       await screen.findByRole('dialog', { name: 'result.assistant' })
     ).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'close assistant' }))
-    expect(
-      await screen.findByRole('button', { name: 'result.assistant' })
-    ).toBeTruthy()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // Focus returns to the button that opened the drawer.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'result.assistant' })
+      )
+    )
   })
 })

@@ -9,6 +9,8 @@ import { ConfirmStep, CreateStep } from './ClassificationSteps'
 export type MatterDestination = { matter_ref: string; display_label: string }
 export type DestinationSearch = {
   phase: 'idle' | 'loading' | 'ready' | 'error'
+  /** The search the listed folders answer. */
+  query: string
   items: MatterDestination[]
   hasMore: boolean
 }
@@ -30,6 +32,7 @@ export function ClassificationDialog({
   onLoadMore,
   onClassify,
   onCreate,
+  clearError,
   pending,
   error,
   createdMatter,
@@ -41,13 +44,19 @@ export function ClassificationDialog({
   onLoadMore: () => void
   onClassify: (matter: MatterDestination) => void
   onCreate: (label: string) => void
+  /** A filing error belongs to the folder it was raised for. */
+  clearError: () => void
   pending: boolean
   error: 'conflict' | 'failed' | null
   createdMatter: MatterDestination | null
 }) {
   const { t } = useTranslation('meetingHistory')
   const [step, setStep] = useState<Step>({ kind: 'choose' })
-  const backToList = () => setStep({ kind: 'choose' })
+  const goTo = (next: Step) => {
+    clearError()
+    setStep(next)
+  }
+  const backToList = () => goTo({ kind: 'choose' })
 
   function renderStep() {
     // A folder created before a failed filing is resumed, never created twice.
@@ -69,8 +78,8 @@ export function ClassificationDialog({
             search={search}
             onSearch={onSearch}
             onLoadMore={onLoadMore}
-            onChoose={(matter) => setStep({ kind: 'confirm', matter })}
-            onCreate={(label) => setStep({ kind: 'create', label })}
+            onChoose={(matter) => goTo({ kind: 'confirm', matter })}
+            onCreate={(label) => goTo({ kind: 'create', label })}
             onClose={onClose}
           />
         )

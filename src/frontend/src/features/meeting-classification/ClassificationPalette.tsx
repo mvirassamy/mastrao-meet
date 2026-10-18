@@ -49,7 +49,8 @@ export function ClassificationPalette({
 }) {
   const { t } = useTranslation('meetingHistory')
   const listId = useId()
-  const [query, setQuery] = useState('')
+  // The field shows the search the list answers, also after a step back.
+  const [query, setQuery] = useState(search.query)
   const [active, setActive] = useState(0)
   const searchTimer = useRef<number | undefined>(undefined)
   const listRef = useRef<HTMLUListElement>(null)
@@ -104,6 +105,12 @@ export function ClassificationPalette({
         return
       case 'Enter':
         event.preventDefault()
+        // The list still answers an older search: search now, choose next.
+        if (name !== search.query) {
+          window.clearTimeout(searchTimer.current)
+          onSearch(name)
+          return
+        }
         select(options[activeIndex])
     }
   }

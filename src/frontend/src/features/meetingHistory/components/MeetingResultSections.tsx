@@ -360,11 +360,14 @@ export const TranscriptBody = ({
         </div>
       )}
       <MeetingContentToolbar
+        // Unnamed speakers cannot be counted, so no count is shown for them.
         note={
-          <>
-            <GroupIcon size={15} aria-hidden="true" />
-            {t('transcript.speakers', { count: colors.size })}
-          </>
+          colors.size > 0 && (
+            <>
+              <GroupIcon size={15} aria-hidden="true" />
+              {t('transcript.speakers', { count: colors.size })}
+            </>
+          )
         }
         copyText={transcriptPlainText(turns, unknownSpeaker)}
       />

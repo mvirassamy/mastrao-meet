@@ -137,6 +137,7 @@ export function useMeetingClassification(
   else if (destinations.isError) phase = 'error'
   const search: DestinationSearch = {
     phase,
+    query: searchText,
     items: destinations.data?.pages.flatMap((page) => page.items) ?? [],
     hasMore: destinations.hasNextPage,
   }
@@ -154,10 +155,16 @@ export function useMeetingClassification(
     error,
     createdMatter,
     isOpen,
-    open: () => setOpen(true),
+    // Each opening starts from the full list, without an old error.
+    open: () => {
+      setSearchText('')
+      setError(null)
+      setOpen(true)
+    },
     close: () => {
       if (!busy.current) setOpen(false)
     },
+    clearError: () => setError(null),
     onSearch: (text: string) => {
       setSearchText(text)
       if (text === searchText) void destinations.refetch()

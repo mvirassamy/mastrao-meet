@@ -89,7 +89,10 @@ describe('meeting classification entry points', () => {
       await screen.findByRole('option', { name: /classification\.create/ })
     )
     expect(screen.getByText('classification.sharing')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'classification.back' }))
+    // The header arrow and the "Esc" footer action both go back.
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'classification.back' })[0]
+    )
     expect(
       screen.getByRole('combobox', { name: 'classification.search' })
     ).toBeTruthy()

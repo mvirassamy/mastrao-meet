@@ -7,8 +7,10 @@ import { css } from '@/styled-system/css'
 import type { MatterDestination } from './ClassificationDialog'
 import { DOSSIER_ICON } from './ClassificationStatus'
 
+/** Visual keyboard hint; the action it sits in already names itself. */
 export const Kbd = ({ children }: { children: ReactNode }) => (
   <kbd
+    aria-hidden="true"
     className={css({
       fontFamily: 'inherit',
       fontSize: '0.6875rem',
@@ -49,27 +51,10 @@ export function PaletteFooter({
         fontSize: '0.75rem',
       })}
     >
-      <button
-        type="button"
-        onClick={onEscape}
-        className={css({
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.375rem',
-          padding: '0.25rem',
-          border: 'none',
-          borderRadius: '6px',
-          background: 'none',
-          color: 'inherit',
-          font: 'inherit',
-          cursor: 'pointer',
-          _hover: { color: 'foreground' },
-          _focusVisible: { outline: '2px solid token(colors.ring)' },
-        })}
-      >
+      <Button variant="ghost" size="xs" onPress={onEscape}>
         <Kbd>Esc</Kbd>
         {escapeLabel}
-      </button>
+      </Button>
       {children}
     </div>
   )

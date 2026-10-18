@@ -105,7 +105,6 @@ export function AssistantResult({
       )}
       {result.coverage.length > 0 && (
         <p
-          aria-label={t('result.coverage')}
           className={`${mutedLine} ${css({
             display: 'flex',
             alignItems: 'flex-start',
@@ -118,7 +117,12 @@ export function AssistantResult({
             aria-hidden="true"
             className={css({ flexShrink: 0, marginTop: '0.2rem' })}
           />
-          {result.coverage.join(' ')}
+          <span>
+            <span className={css({ srOnly: true })}>
+              {t('result.coverage')} :{' '}
+            </span>
+            {result.coverage.join(' ')}
+          </span>
         </p>
       )}
     </div>

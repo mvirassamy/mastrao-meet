@@ -60,10 +60,6 @@ const config: Config = {
         },
       },
       fade: { from: { opacity: 0 }, to: { opacity: 1 } },
-      progress_slide: {
-        from: { transform: 'translateX(-100%)' },
-        to: { transform: 'translateX(340%)' },
-      },
       unread_pulse: {
         from: { transform: 'scale(1)', opacity: 0.5 },
         to: { transform: 'scale(2.6)', opacity: 0 },

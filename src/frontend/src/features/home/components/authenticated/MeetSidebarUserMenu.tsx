@@ -79,7 +79,8 @@ export const MeetSidebarUserMenu = ({
             <span
               className={css({
                 ...truncate,
-                color: 'var(--muted-foreground)',
+                // Muted ink is below 4.5:1 on the raised Bleu nuit button.
+                color: 'var(--foreground)',
                 fontSize: '0.75rem',
                 fontWeight: 400,
               })}

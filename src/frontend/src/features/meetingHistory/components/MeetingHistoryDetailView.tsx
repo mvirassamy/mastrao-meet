@@ -88,8 +88,21 @@ export const MeetingHistoryDetailView = ({
   const docked = useMediaQuery(DOCKED_ASSISTANT_QUERY)
   const [dockedOpen, setDockedOpen] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const assistantOpen = docked ? dockedOpen : drawerOpen
   const setAssistantOpen = docked ? setDockedOpen : setDrawerOpen
+  // The header button stays in place while the drawer is open, so the
+  // drawer returns focus to it. Closing the docked panel removes the
+  // panel, so focus moves back to the button explicitly.
+  const assistantButtonRef = useRef<HTMLButtonElement>(null)
+  const focusAssistantButton = useRef(false)
+  useEffect(() => {
+    if (dockedOpen || !focusAssistantButton.current) return
+    focusAssistantButton.current = false
+    assistantButtonRef.current?.focus()
+  }, [dockedOpen])
+  const closeAssistant = () => {
+    if (docked) focusAssistantButton.current = true
+    setAssistantOpen(false)
+  }
 
   // Moves keyboard and screen reader focus to the page heading once known.
   useEffect(() => {
@@ -162,7 +175,8 @@ export const MeetingHistoryDetailView = ({
         headingRef={headingRef}
         summaryRequestState={summaryRequestState}
         onRetrySummary={() => requestSummary()}
-        assistantOpen={assistantOpen}
+        assistantInPage={docked && dockedOpen}
+        assistantButtonRef={assistantButtonRef}
         onOpenAssistant={() => setAssistantOpen(true)}
       />
     )
@@ -211,7 +225,7 @@ export const MeetingHistoryDetailView = ({
       key={`${identityKey}:${detail.id}`}
       meetingId={detail.id}
       identityKey={identityKey}
-      onClose={() => setAssistantOpen(false)}
+      onClose={closeAssistant}
     />
   )
   // The page keeps one place in the tree whatever the screen width, so an
@@ -254,7 +268,8 @@ const MeetingDetailContent = ({
   summaryRequestState,
   onRetrySummary,
   identityKey,
-  assistantOpen,
+  assistantInPage,
+  assistantButtonRef,
   onOpenAssistant,
 }: {
   meeting: MeetingHistoryDetail
@@ -263,7 +278,9 @@ const MeetingDetailContent = ({
   summaryRequestState: SummaryRequestState
   onRetrySummary: () => void
   identityKey?: string
-  assistantOpen: boolean
+  /** The assistant is docked beside the page, so no button is needed. */
+  assistantInPage: boolean
+  assistantButtonRef: React.Ref<HTMLButtonElement>
   onOpenAssistant: () => void
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
@@ -279,7 +296,7 @@ const MeetingDetailContent = ({
     config?.mastrao_platform_origin
   )
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
-  const showAssistantButton = Boolean(identityKey) && !assistantOpen
+  const showAssistantButton = Boolean(identityKey) && !assistantInPage
   const summaryState = summaryView(
     meeting.summary,
     meeting.transcript.status,
@@ -393,7 +410,11 @@ const MeetingDetailContent = ({
               />
             )}
           {showAssistantButton && (
-            <Button size="sm" onPress={onOpenAssistant}>
+            <Button
+              ref={assistantButtonRef}
+              size="sm"
+              onPress={onOpenAssistant}
+            >
               <img
                 src={ASSISTANT_ICON}
                 alt=""

@@ -25,6 +25,7 @@ afterEach(() => {
 
 const folders: DestinationSearch = {
   phase: 'ready',
+  query: '',
   hasMore: false,
   items: [
     { matter_ref: 'matter_a', display_label: 'Fontaine c/ Martin' },
@@ -41,8 +42,9 @@ const renderDialog = (
     onLoadMore: vi.fn(),
     onClassify: vi.fn(),
     onCreate: vi.fn(),
+    clearError: vi.fn(),
   }
-  render(
+  const dialog = (next: typeof props = {}) => (
     <ClassificationDialog
       isOpen
       search={folders}
@@ -51,9 +53,14 @@ const renderDialog = (
       createdMatter={null}
       {...handlers}
       {...props}
+      {...next}
     />
   )
-  return handlers
+  const view = render(dialog())
+  return {
+    ...handlers,
+    rerender: (next: typeof props) => view.rerender(dialog(next)),
+  }
 }
 
 const searchField = () =>
@@ -88,13 +95,14 @@ describe('classification palette', () => {
 
   it('searches after a pause and offers to create the typed name', () => {
     vi.useFakeTimers()
-    const { onSearch, onCreate } = renderDialog({
-      search: { phase: 'ready', hasMore: false, items: [] },
-    })
+    const { onSearch, onCreate, rerender } = renderDialog()
     fireEvent.change(searchField(), { target: { value: ' Durand ' } })
     expect(onSearch).not.toHaveBeenCalled()
     act(() => vi.advanceTimersByTime(250))
     expect(onSearch).toHaveBeenCalledWith('Durand')
+    rerender({
+      search: { phase: 'ready', query: 'Durand', hasMore: false, items: [] },
+    })
     expect(screen.getByText('classification.noMatch: Durand')).toBeTruthy()
 
     fireEvent.keyDown(searchField(), { key: 'Enter' })
@@ -104,6 +112,16 @@ describe('classification palette', () => {
       screen.getByRole('button', { name: 'classification.createAndClassify' })
     )
     expect(onCreate).toHaveBeenCalledWith('Durand')
+  })
+
+  it('searches at once on Enter instead of choosing from an older list', () => {
+    const { onSearch, onClassify } = renderDialog()
+    fireEvent.change(searchField(), { target: { value: 'Durand' } })
+    fireEvent.keyDown(searchField(), { key: 'Enter' })
+    expect(onSearch).toHaveBeenCalledWith('Durand')
+    expect(searchField()).toBeTruthy()
+    expect(screen.queryByText('classification.sharing')).toBeNull()
+    expect(onClassify).not.toHaveBeenCalled()
   })
 
   it('loads more folders from the last row', () => {
