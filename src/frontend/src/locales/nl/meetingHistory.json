@@ -64,7 +64,11 @@
       "description": "Voor deze vergadering is geen samenvatting gemaakt.",
       "title": "Geen samenvatting"
     },
-    "automatic": "Automatisch gegenereerde samenvatting op basis van de transcriptie, niet door een persoon nagelezen.",
+    "pendingReview": "Automatisch gegenereerde samenvatting, nog na te lezen.",
+    "published": "Door een persoon nagelezen en gepubliceerde samenvatting.",
+    "reviewUnknown": "Samenvatting op basis van de transcriptie. Naleesstatus niet opgegeven.",
+    "stale": "De brontranscriptie is gewijzigd. Deze samenvatting is verouderd.",
+    "validated": "Gevalideerde samenvatting, wacht op publicatie.",
     "failed": {
       "description": "De verwerking kon niet worden voltooid.",
       "title": "Verwerking niet beschikbaar"

@@ -25,6 +25,18 @@ const isRecord = (value: unknown): value is RawRecord =>
 const asString = (value: unknown) =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : null
 
+const normalizeSummaryProductState = (value: unknown) => {
+  switch (value) {
+    case 'generated_pending_review':
+    case 'validated_ready_to_publish':
+    case 'published_reviewed':
+    case 'stale_draft':
+      return value
+    default:
+      return undefined
+  }
+}
+
 const asDate = (value: unknown) => {
   if (typeof value !== 'string') return null
   const date = new Date(value)
@@ -382,6 +394,7 @@ export const normalizeHistoryDetail = (
 
   const summary = {
     status: summaryProjection.state,
+    productState: normalizeSummaryProductState(rawSummary.product_state),
     projection: summaryProjection,
     paragraphs: isReadable(summaryProjection) ? paragraphs : [],
     sections: isReadable(summaryProjection) ? sections : [],

@@ -64,7 +64,11 @@
       "description": "No summary was produced for this meeting.",
       "title": "No summary"
     },
-    "automatic": "Summary generated automatically from the transcript, not reviewed by a person.",
+    "pendingReview": "Automatically generated summary, awaiting review.",
+    "published": "Human-reviewed and published summary.",
+    "reviewUnknown": "Summary based on the transcript. Review status is not provided.",
+    "stale": "The source transcript has changed. This summary is out of date.",
+    "validated": "Validated summary, awaiting publication.",
     "failed": {
       "description": "Processing could not complete for this meeting.",
       "title": "Processing unavailable"

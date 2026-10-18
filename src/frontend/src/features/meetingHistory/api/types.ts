@@ -81,8 +81,15 @@ export type MeetingSummarySection = {
   items: string[]
 }
 
+export type MeetingSummaryProductState =
+  | 'generated_pending_review'
+  | 'validated_ready_to_publish'
+  | 'published_reviewed'
+  | 'stale_draft'
+
 export type MeetingSummary = {
   status: MeetingContentStatus
+  productState?: MeetingSummaryProductState
   projection: MeetingContentProjection
   paragraphs: string[]
   sections: MeetingSummarySection[]

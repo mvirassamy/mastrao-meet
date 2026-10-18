@@ -13,6 +13,7 @@ import { formatTranscriptTimestamp } from '../utils/meetingHistoryFormat'
 import { SECTION_ICONS, type MeetingContentKind } from './meetingContent'
 import {
   contentSectionLook,
+  summaryEditorialStatusKey,
   type SectionLook,
   type SummaryView,
 } from './meetingResultState'
@@ -227,7 +228,7 @@ export const SummaryBody = ({
         })}
       >
         <InformationIcon size={15} aria-hidden="true" />
-        {t('summary.automatic')}
+        {t(summaryEditorialStatusKey(summary.productState))}
       </p>
       {summary.paragraphs.map((paragraph, index) => (
         <p key={index} className={bodyTextClass}>
