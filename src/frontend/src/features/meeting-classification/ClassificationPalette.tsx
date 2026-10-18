@@ -64,6 +64,7 @@ export function ClassificationPalette({
     { kind: 'create' },
   ]
   const activeIndex = Math.min(active, options.length - 1)
+  const activeOption = options[activeIndex]
   const optionId = (index: number) => `${listId}-${optionKey(options[index])}`
 
   useEffect(() => {
@@ -111,9 +112,10 @@ export function ClassificationPalette({
           onSearch(name)
           return
         }
-        // While the folders load, only "Créer" is listed: never act on it.
-        if (search.phase === 'loading') return
-        select(options[activeIndex])
+        // A folder of that name may still be loading: never create on Enter
+        // then. Listed folders (load more, refresh) stay selectable.
+        if (search.phase === 'loading' && activeOption.kind === 'create') return
+        select(activeOption)
     }
   }
 
