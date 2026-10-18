@@ -1,3 +1,4 @@
+{{- if .Values.backend.migrate.enabled }}
 {{- $envVars := include "meet.common.env" (list . .Values.backend) -}}
 {{- $fullName := include "meet.backend.fullname" . -}}
 {{- $component := "backend-migrate" -}}
@@ -7,14 +8,24 @@ metadata:
   name: {{ $fullName }}-migrate
   namespace: {{ .Release.Namespace | quote }}
   annotations:
+    {{- if not (hasKey .Values.backend.migrateJobAnnotations "argocd.argoproj.io/hook") }}
     argocd.argoproj.io/sync-options: Replace=true,Force=true
+    {{- end }}
   {{- with .Values.backend.migrateJobAnnotations }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
   labels:
     {{- include "meet.common.labels" (list . $component) | nindent 4 }}
 spec:
+  {{- if ne .Values.backend.jobs.ttlSecondsAfterFinished nil }}
   ttlSecondsAfterFinished: {{ .Values.backend.jobs.ttlSecondsAfterFinished }}
+  {{- end }}
+  {{- if ne .Values.backend.migrate.activeDeadlineSeconds nil }}
+  {{- if not (regexMatch "^[1-9][0-9]*$" (toString .Values.backend.migrate.activeDeadlineSeconds)) }}
+  {{- fail "backend.migrate.activeDeadlineSeconds must be a positive integer" }}
+  {{- end }}
+  activeDeadlineSeconds: {{ .Values.backend.migrate.activeDeadlineSeconds }}
+  {{- end }}
   backoffLimit: {{ .Values.backend.jobs.backoffLimit }}
   template:
     metadata:
@@ -39,7 +50,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+          image: {{ include "meet.image" (dict "image" .Values.backend.image "defaults" .Values.image "path" "backend.image") | quote }}
           imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
           {{- with .Values.backend.migrate.command }}
           command:
@@ -122,3 +133,4 @@ spec:
           emptyDir: {}
           {{- end }}
         {{- end }}
+{{- end }}

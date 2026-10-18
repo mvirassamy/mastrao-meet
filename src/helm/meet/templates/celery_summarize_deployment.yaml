@@ -40,7 +40,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.celerySummarize.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.celerySummarize.image | default dict).tag | default .Values.image.tag }}"
+          image: {{ include "meet.image" (dict "image" .Values.celerySummarize.image "defaults" .Values.image "path" "celerySummarize.image") | quote }}
           imagePullPolicy: {{ (.Values.celerySummarize.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
           {{- with .Values.celerySummarize.command }}
           command:

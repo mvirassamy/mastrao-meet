@@ -302,3 +302,37 @@ Usage : {{ include "meet.ingress.backendPaths" (dict "root" $) }}
     {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Render a component image without carrying a fallback digest to another repository
+or tag. An explicit digest (including "" to select a tag) wins. Components with
+no repository/tag override inherit the fallback digest, notably backend workers.
+*/}}
+{{- define "meet.image" -}}
+{{- $image := .image | default dict -}}
+{{- $defaults := .defaults | default dict -}}
+{{- range $candidate := list (dict "image" $defaults "path" (.defaultsPath | default "image")) (dict "image" $image "path" .path) -}}
+{{- if hasKey $candidate.image "digest" -}}
+{{- $digest := $candidate.image.digest -}}
+{{- if not (kindIs "string" $digest) -}}
+{{- fail (printf "%s.digest must be sha256:<64 lowercase hex characters> or an empty string" $candidate.path) -}}
+{{- end -}}
+{{- if and (ne $digest "") (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) -}}
+{{- fail (printf "%s.digest must be sha256:<64 lowercase hex characters> or an empty string" $candidate.path) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $repository := $image.repository | default $defaults.repository -}}
+{{- $tag := $image.tag | default $defaults.tag -}}
+{{- $digest := "" -}}
+{{- if hasKey $image "digest" -}}
+{{- $digest = $image.digest -}}
+{{- else if not (or $image.repository $image.tag) -}}
+{{- $digest = $defaults.digest | default "" -}}
+{{- end -}}
+{{- if $digest -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- else -}}
+{{- printf "%s:%s" $repository $tag -}}
+{{- end -}}
+{{- end -}}

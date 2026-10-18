@@ -93,6 +93,8 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: v3.18.4
+      - name: Verify immutable images and bounded GitOps migration rendering
+        run: python src/helm/tests/meet-immutable-gitops.py
       - name: Verify agent subtitles Helm rendering
         run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh
       - name: Verify native ASR alert policy rendering without cluster access

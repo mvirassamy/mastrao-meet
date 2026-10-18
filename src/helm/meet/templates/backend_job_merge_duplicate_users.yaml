@@ -15,7 +15,9 @@ metadata:
   labels:
     {{- include "meet.common.labels" (list . $component) | nindent 4 }}
 spec:
+  {{- if ne .Values.backend.jobs.ttlSecondsAfterFinished nil }}
   ttlSecondsAfterFinished: {{ .Values.backend.jobs.ttlSecondsAfterFinished }}
+  {{- end }}
   backoffLimit: {{ .Values.backend.jobs.backoffLimit }}
   template:
     metadata:
@@ -40,7 +42,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+          image: {{ include "meet.image" (dict "image" .Values.backend.image "defaults" .Values.image "path" "backend.image") | quote }}
           imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
           {{- with .Values.backend.mergeDuplicateUsers.command }}
           command:

@@ -41,7 +41,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+          image: {{ include "meet.image" (dict "image" .Values.backend.image "defaults" .Values.image "path" "backend.image") | quote }}
           imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
           {{- with .Values.celeryMastraoTranscription.command }}
           command:

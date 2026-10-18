@@ -31,7 +31,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ $root.Chart.Name }}
-          image: "{{ ($root.Values.backend.image | default dict).repository | default $root.Values.image.repository }}:{{ ($root.Values.backend.image | default dict).tag | default $root.Values.image.tag }}"
+          image: {{ include "meet.image" (dict "image" $root.Values.backend.image "defaults" $root.Values.image "path" "backend.image") | quote }}
           imagePullPolicy: {{ ($root.Values.backend.image | default dict).pullPolicy | default $root.Values.image.pullPolicy }}
           command:
             - celery
