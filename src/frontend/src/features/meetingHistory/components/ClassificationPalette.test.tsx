@@ -114,6 +114,30 @@ describe('classification palette', () => {
     expect(onCreate).toHaveBeenCalledWith('Durand')
   })
 
+  it('ignores Enter while the folders of the typed search load', () => {
+    const { onCreate, onClassify } = renderDialog({
+      search: { phase: 'loading', query: 'Durand', hasMore: false, items: [] },
+    })
+    fireEvent.change(searchField(), { target: { value: 'Durand' } })
+    fireEvent.keyDown(searchField(), { key: 'Enter' })
+    expect(searchField()).toBeTruthy()
+    expect(
+      screen.queryByRole('textbox', { name: /classification\.name/ })
+    ).toBeNull()
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(onClassify).not.toHaveBeenCalled()
+  })
+
+  it('keeps the way back closed while a filing is pending', () => {
+    const createdMatter = { matter_ref: 'matter_new', display_label: 'Durand' }
+    renderDialog({ createdMatter, pending: true })
+    expect(
+      screen
+        .getByRole('button', { name: 'classification.close' })
+        .hasAttribute('disabled')
+    ).toBe(true)
+  })
+
   it('searches at once on Enter instead of choosing from an older list', () => {
     const { onSearch, onClassify } = renderDialog()
     fireEvent.change(searchField(), { target: { value: 'Durand' } })

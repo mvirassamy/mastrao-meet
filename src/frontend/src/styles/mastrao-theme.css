@@ -189,7 +189,6 @@
   --border: var(--sidebar-border);
   --input: var(--sidebar-border);
   --ring: var(--sidebar-ring);
-  --workspace-ink-soft: var(--sidebar-foreground);
   --colors-foreground: var(--foreground);
   --colors-muted: var(--muted);
   --colors-muted-foreground: var(--muted-foreground);

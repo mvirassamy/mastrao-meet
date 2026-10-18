@@ -32,10 +32,13 @@ export const Kbd = ({ children }: { children: ReactNode }) => (
 export function PaletteFooter({
   escapeLabel,
   onEscape,
+  isDisabled = false,
   children,
 }: {
   escapeLabel: string
   onEscape: () => void
+  /** Going back waits for a pending filing, like the other ways back. */
+  isDisabled?: boolean
   children?: ReactNode
 }) {
   return (
@@ -51,7 +54,12 @@ export function PaletteFooter({
         fontSize: '0.75rem',
       })}
     >
-      <Button variant="ghost" size="xs" onPress={onEscape}>
+      <Button
+        variant="ghost"
+        size="xs"
+        isDisabled={isDisabled}
+        onPress={onEscape}
+      >
         <Kbd>Esc</Kbd>
         {escapeLabel}
       </Button>
@@ -246,6 +254,7 @@ export function ConfirmStep({
       <PaletteFooter
         escapeLabel={t(onBack ? 'classification.back' : 'classification.close')}
         onEscape={onBack ?? onClose}
+        isDisabled={pending}
       >
         <Button
           size="sm"
@@ -310,7 +319,11 @@ export function CreateStep({
         <SharingNote />
         <FilingError error={error} />
       </div>
-      <PaletteFooter escapeLabel={t('classification.back')} onEscape={onBack}>
+      <PaletteFooter
+        escapeLabel={t('classification.back')}
+        onEscape={onBack}
+        isDisabled={pending}
+      >
         <Button
           type="submit"
           size="sm"

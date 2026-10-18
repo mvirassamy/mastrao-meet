@@ -111,6 +111,8 @@ export function ClassificationPalette({
           onSearch(name)
           return
         }
+        // While the folders load, only "Créer" is listed: never act on it.
+        if (search.phase === 'loading') return
         select(options[activeIndex])
     }
   }
