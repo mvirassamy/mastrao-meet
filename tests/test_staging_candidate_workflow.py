@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,6 +11,7 @@ WORKFLOW = Path(".github/workflows/staging-candidate.yml")
 CI_WORKFLOW = Path(".github/workflows/meet.yml")
 TOOLING_STEPS = (
     "Select the closed build recipe",
+    "Verify and bind the local candidate archive",
     "Read back the exact candidate from the registry",
     "Render the immutable candidate receipt",
 )
@@ -132,7 +134,7 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         self.assertIn("scripts.ci.staging_candidate_receipt", recipe)
         self.assertLess(
             names.index("Select the closed build recipe"),
-            names.index("Build and publish the selected candidate"),
+            names.index("Build the selected candidate once"),
         )
 
     def test_source_is_the_validated_commit_built_in_isolation(self):
@@ -152,7 +154,7 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
                 self.assertRegex(bind, rf"(?m)^ +{re.escape(line)}$")
 
     def test_build_inputs_are_exactly_the_closed_recipe(self):
-        build = self.steps["Build and publish the selected candidate"]
+        build = self.steps["Build the selected candidate once"]
         build_inputs = {}
         for line in build.split("        with:\n", 1)[1].splitlines():
             if not line.strip():
@@ -170,7 +172,8 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
                 "target": "${{ steps.recipe.outputs.build_target }}",
                 "platforms": "linux/amd64",
                 "build-args": "${{ steps.recipe.outputs.build_args }}",
-                "push": "true",
+                "push": "false",
+                "outputs": "type=oci,dest=${{ runner.temp }}/meet-candidate.tar",
                 "tags": (
                     "${{ steps.recipe.outputs.repository }}:sha-${{ inputs.source_sha }}"
                     "-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}"
@@ -179,6 +182,88 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
                 "sbom": "true",
             },
         )
+
+    def test_archive_is_scanned_before_registry_access_and_published_once(self):
+        names = list(self.steps)
+        ordered = (
+            "Build the selected candidate once",
+            "Verify and bind the local candidate archive",
+            "Scan the exact candidate archive",
+            "Require the dedicated registry publisher",
+            "Authenticate to the staging registry",
+            "Publish the qualified archive without rebuilding",
+            "Read back the exact candidate from the registry",
+            "Render the immutable candidate receipt",
+        )
+        positions = [names.index(name) for name in ordered]
+        self.assertEqual(positions, sorted(positions))
+        self.assertEqual(self.workflow.count("uses: docker/build-push-action@"), 1)
+        scan = self.steps["Scan the exact candidate archive"]
+        for setting in (
+            "input: ${{ runner.temp }}/candidate-layout",
+            "scanners: vuln",
+            "exit-code: '1'",
+            "severity: CRITICAL,HIGH",
+        ):
+            self.assertIn(setting, scan)
+
+    def test_publication_refuses_changed_archive_before_invoking_oras(self):
+        # Exercise the real shell boundary with a harmless ORAS stand-in. No registry.
+        script = run_scripts(
+            self.steps["Publish the qualified archive without rebuilding"]
+        )[0].split("\n", 1)[1]
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            archive = temporary / "meet-candidate.tar"
+            archive.write_bytes(b"qualified bytes")
+            checksum = subprocess.run(
+                ["sha256sum", str(archive)], capture_output=True, check=True
+            ).stdout
+            (temporary / "candidate-archive.sha256").write_bytes(checksum)
+            call = temporary / "oras-call"
+            executable = temporary / "oras"
+            executable.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$ORAS_CALL"\n')
+            executable.chmod(0o700)
+            environment = {
+                **os.environ,
+                "PATH": f"{temporary}:{os.environ['PATH']}",
+                "RUNNER_TEMP": directory,
+                "ORAS_CALL": str(call),
+                "REPOSITORY": TARGETS["meet-backend"].repository,
+                "DIGEST": "sha256:" + "a" * 64,
+                "SOURCE_SHA": "b" * 40,
+                "RUN_ID": "123",
+                "RUN_ATTEMPT": "2",
+            }
+            result = subprocess.run(
+                ["bash", "-eo", "pipefail", "-c", script],
+                env=environment,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                call.read_text().splitlines(),
+                [
+                    "cp",
+                    "--from-oci-layout",
+                    f"{archive}@sha256:" + "a" * 64,
+                    TARGETS["meet-backend"].repository
+                    + ":sha-"
+                    + "b" * 40
+                    + "-run-123-attempt-2",
+                ],
+            )
+            call.unlink()
+            archive.write_bytes(b"changed after qualification")
+            result = subprocess.run(
+                ["bash", "-eo", "pipefail", "-c", script],
+                env=environment,
+                capture_output=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(call.exists())
 
     def test_candidate_is_read_back_and_receipted_with_its_recipe(self):
         readback = self.steps["Read back the exact candidate from the registry"]

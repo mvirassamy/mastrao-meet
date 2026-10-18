@@ -4,8 +4,9 @@ The `meet Workflow` CI (`.github/workflows/meet.yml`) is the only publication
 entry point, on push or manual dispatch from `develop`. After its checks
 succeed, it calls the reusable `Publish one Meet staging candidate` workflow
 (`.github/workflows/staging-candidate.yml`) for `meet-frontend`, `meet-backend`
-and `meet-agents`. Each call builds one image at the exact CI run SHA, pushes
-it to the Scaleway staging registry and uploads a digest-pinned receipt.
+and `meet-agents`. Each call builds one image at the exact CI run SHA, scans
+the resulting OCI archive, copies it to the Scaleway staging registry without
+rebuilding and uploads a digest-pinned receipt.
 It never deploys: every receipt records `PUBLISHED_NOT_DEPLOYED` and
 `deploymentApplied: false`.
 
@@ -56,10 +57,34 @@ cannot publish production releases.
   BuildKit actually used remains inspectable in the `mode=max` provenance.
 - Every shell step runs with `bash -eo pipefail`, so a failing `git`
   command cannot yield an empty status or the hash of an empty archive.
+- BuildKit exports an OCI archive, with `mode=max` provenance and SBOM. The
+  local index must hash to the build output digest and contain one attested
+  `linux/amd64` image, using the same validator as the remote readback.
+- The archive is extracted to an OCI layout directory for Trivy (its OCI reader
+  requires a directory, not a tar file). Its scan-only index selects the exact
+  runtime manifest from the validated readback, so Trivy cannot select an
+  attestation instead. The original archive remains unchanged for publication.
+  Trivy scans the layout before registry login. Fixable
+  HIGH or CRITICAL findings fail publication. This is an image vulnerability
+  gate, not proof that a container starts or that a meeting works.
+- The archive checksum is recorded before scanning and checked immediately
+  before publication. ORAS copies the archive's exact index and its children
+  by digest, including attestations; there is no second build or retagged
+  Docker daemon export. The subsequent remote readback must match that digest.
 - The registry readback hashes the raw index returned for
   `repository@digest` and rejects it unless the bytes match the digest, the
   index holds exactly one `linux/amd64` image, and an attestation manifest
   references that image.
+
+The copy uses the standard [ORAS OCI layout support](https://oras.land/docs/commands/oras_cp/),
+including tar archives and complete image indexes. The scan uses
+[Trivy image archive input](https://trivy.dev/docs/latest/target/container_image/).
+The existing V1 receipt shape remains unchanged. It proves a published
+candidate, not the scan database's future freshness, the absence of every
+vulnerability, an installed image, or application qualification.
+
+For the separate GitOps adoption prerequisites, see
+[Meet automatic staging preparation](meet-automatic-staging.md).
 
 ## Activation prerequisites
 

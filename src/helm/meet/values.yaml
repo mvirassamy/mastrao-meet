@@ -5,6 +5,7 @@
 ## @section General configuration
 
 ## @param image.repository Repository to use to pull meet's container image
+## @param image.digest Immutable backend fallback digest; empty keeps tag rendering
 ## @param image.tag meet's container tag
 ## @param image.pullPolicy Container image pull policy
 ## @extra image.credentials.username Username for container registry authentication
@@ -14,6 +15,7 @@
 image:
   repository: lasuite/meet-backend
   pullPolicy: IfNotPresent
+  digest: ""
   tag: "latest"
 
 ## @param nameOverride Override the chart name
@@ -189,6 +191,11 @@ serviceMediaFiles:
 ## @section backend
 
 backend:
+  ## @param backend.image Component image overrides; workers, Jobs and CronJobs share this image
+  ## @extra backend.image.digest Overrides image.digest; "" explicitly selects a tag
+  ## A repository or tag override without a digest uses a tag, never image.digest.
+  image: {}
+
   ## @param backend.dpAnnotations Annotations to add to the backend Deployment
   dpAnnotations: {}
 
@@ -210,7 +217,7 @@ backend:
   ## @param backend.migrateJobAnnotations Annotations for the migrate job
   migrateJobAnnotations: {}
 
-  ## @param backend.jobs.ttlSecondsAfterFinished Period to wait before remove jobs
+  ## @param backend.jobs.ttlSecondsAfterFinished Period before removing Jobs; null retains failed hooks for diagnosis
   ## @param backend.jobs.backoffLimit Numbers of jobs retries
   jobs:
     ttlSecondsAfterFinished: 30
@@ -249,9 +256,17 @@ backend:
     targetPort: 8000
     annotations: {}
 
+  ## @param backend.migrate.enabled Render the migration Job
+  ## @param backend.migrate.activeDeadlineSeconds Maximum execution duration, including database readiness; null leaves development unchanged
+  ## For reviewed additive migrations, use migrateJobAnnotations for native Argo
+  ## PreSync ordering. All referenced configuration must exist before PreSync.
+  ## Set jobs.backoffLimit=0 and jobs.ttlSecondsAfterFinished=null for diagnosis
+  ## before retry; use restartPolicy=Never. Selective sync does not run hooks.
   ## @param backend.migrate.command backend migrate command
   ## @param backend.migrate.restartPolicy backend migrate job restart policy
   migrate:
+    enabled: true
+    activeDeadlineSeconds: null
     command:
       - "/bin/sh"
       - "-c"
@@ -266,9 +281,13 @@ backend:
         python manage.py migrate --no-input
     restartPolicy: Never
 
+  ## @param backend.createsuperuser.enabled Render the bootstrap administrator Job; disable for ordinary GitOps releases
+  ## @param backend.createsuperuser.annotations Bootstrap Job annotations, independent of migration hooks
   ## @param backend.createsuperuser.command backend createsuperuser command
   ## @param backend.createsuperuser.restartPolicy backend createsuperuser job restart policy
   createsuperuser:
+    enabled: true
+    annotations: {}
     command:
       - "/bin/sh"
       - "-c"
@@ -391,11 +410,13 @@ backend:
 
 frontend:
   ## @param frontend.image.repository Repository to use to pull meet's frontend container image
+  ## @param frontend.image.digest Immutable digest; empty keeps tag rendering
   ## @param frontend.image.tag meet's frontend container tag
   ## @param frontend.image.pullPolicy frontend container image pull policy
   image:
     repository: lasuite/meet-frontend
     pullPolicy: IfNotPresent
+    digest: ""
     tag: "latest"
 
   ## @param frontend.dpAnnotations Annotations to add to the frontend Deployment
@@ -579,11 +600,13 @@ posthog:
 
 summary:
   ## @param summary.image.repository Repository to use to pull meet's summary container image
+  ## @param summary.image.digest Immutable digest; empty keeps tag rendering
   ## @param summary.image.tag meet's summary container tag
   ## @param summary.image.pullPolicy summary container image pull policy
   image:
     repository: lasuite/meet-summary
     pullPolicy: IfNotPresent
+    digest: ""
     tag: "latest"
 
   ## @param summary.dpAnnotations Annotations to add to the summary Deployment
@@ -947,11 +970,13 @@ celeryMastraoNativeAsrRetry:
 
 celeryTranscribe:
   ## @param celeryTranscribe.image.repository Repository to use to pull meet's celeryTranscribe container image
+  ## @param celeryTranscribe.image.digest Immutable digest; empty keeps tag rendering
   ## @param celeryTranscribe.image.tag meet's celeryTranscribe container tag
   ## @param celeryTranscribe.image.pullPolicy celeryTranscribe container image pull policy
   image:
     repository: lasuite/meet-summary
     pullPolicy: IfNotPresent
+    digest: ""
     tag: "latest"
 
   ## @param celeryTranscribe.dpAnnotations Annotations to add to the celeryTranscribe Deployment
@@ -1057,6 +1082,7 @@ celeryTranscribe:
 
   ## @param celeryTranscribe.instances List of celeryTranscribe instances to deploy. Each entry creates a dedicated Deployment. Useful when wanting to use multiple instances of WhisperX (configure each endpoint in the extraEnv value specific to that instance).
   ## @extra celeryTranscribe.instances[].name Unique name suffix for the instance (used in the Deployment name and pod labels)
+  ## @extra celeryTranscribe.instances[].image Component image override; digest can explicitly be empty to select a tag
   ## @extra celeryTranscribe.instances[].replicas Override the number of replicas for this specific instance
   ## @extra celeryTranscribe.instances[].extraEnvVars Additional environment variables for this specific instance (same structure as envVars)
   ## @extra celeryTranscribe.instances[].command Override the container command for this specific instance
@@ -1074,11 +1100,13 @@ celeryTranscribe:
 
 celerySummarize:
   ## @param celerySummarize.image.repository Repository to use to pull meet's celerySummarize container image
+  ## @param celerySummarize.image.digest Immutable digest; empty keeps tag rendering
   ## @param celerySummarize.image.tag meet's celerySummarize container tag
   ## @param celerySummarize.image.pullPolicy celerySummarize container image pull policy
   image:
     repository: lasuite/meet-summary
     pullPolicy: IfNotPresent
+    digest: ""
     tag: "latest"
 
   ## @param celerySummarize.dpAnnotations Annotations to add to the celerySummarize Deployment
@@ -1186,11 +1214,13 @@ celerySummarize:
 
 celerySummaryBackend:
   ## @param celerySummaryBackend.image.repository Repository to use to pull meet's celerySummaryBackend container image
+  ## @param celerySummaryBackend.image.digest Immutable digest; empty keeps tag rendering
   ## @param celerySummaryBackend.image.tag meet's celerySummaryBackend container tag
   ## @param celerySummaryBackend.image.pullPolicy celerySummaryBackend container image pull policy
   image:
     repository: lasuite/meet-summary
     pullPolicy: IfNotPresent
+    digest: ""
     tag: "latest"
 
   ## @param celerySummaryBackend.dpAnnotations Annotations to add to the celerySummaryBackend Deployment
@@ -1297,11 +1327,13 @@ celerySummaryBackend:
 agentMetadata:
 
   ## @param agentMetadata.image.repository Repository to use to pull meet's agentMetadata container image
+  ## @param agentMetadata.image.digest Immutable digest; empty keeps tag rendering
   ## @param agentMetadata.image.tag meet's agentMetadata container tag
   ## @param agentMetadata.image.pullPolicy agentMetadata container image pull policy
   image:
     repository: lasuite/meet-agents
     pullPolicy: IfNotPresent
+    digest: ""
     tag: "latest"
 
   ## @param agentMetadata.dpAnnotations Annotations to add to the agentMetadata Deployment

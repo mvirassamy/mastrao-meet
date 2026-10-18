@@ -40,7 +40,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.agentMetadata.image | default dict).repository | default .Values.agentMetadata.image.repository }}:{{ (.Values.agentMetadata.image | default dict).tag | default .Values.agentMetadata.image.tag }}"
+          image: {{ include "meet.image" (dict "image" .Values.agentMetadata.image "path" "agentMetadata.image") | quote }}
           imagePullPolicy: {{ (.Values.agentMetadata.image | default dict).pullPolicy | default .Values.agentMetadata.image.pullPolicy }}
           {{- with .Values.agentMetadata.command }}
           command:

@@ -1,0 +1,73 @@
+{
+  "image": {
+    "repository": "fixture.invalid/meet-backend",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "frontend": {
+    "image": {
+      "repository": "fixture.invalid/meet-frontend",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  "backend": {
+    "migrateJobAnnotations": {
+      "argocd.argoproj.io/hook": "PreSync",
+      "argocd.argoproj.io/sync-wave": "-1",
+      "argocd.argoproj.io/hook-delete-policy": "HookSucceeded"
+    },
+    "migrate": {
+      "activeDeadlineSeconds": 600
+    },
+    "jobs": {
+      "backoffLimit": 0,
+      "ttlSecondsAfterFinished": null
+    },
+    "createsuperuser": {
+      "enabled": false
+    }
+  },
+  "celeryMastraoTranscription": {
+    "enabled": true
+  },
+  "agentSubtitles": {
+    "image": {
+      "repository": "fixture.invalid/meet-agents",
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  },
+  "agentMetadata": {
+    "image": {
+      "repository": "fixture.invalid/meet-agents",
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "command": [
+      "python",
+      "metadata_collector.py",
+      "start"
+    ]
+  },
+  "summary": {
+    "image": {
+      "repository": "fixture.invalid/meet-summary",
+      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  "celeryTranscribe": {
+    "image": {
+      "repository": "fixture.invalid/meet-summary",
+      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  "celerySummarize": {
+    "image": {
+      "repository": "fixture.invalid/meet-summary",
+      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  },
+  "celerySummaryBackend": {
+    "image": {
+      "repository": "fixture.invalid/meet-summary",
+      "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  }
+}

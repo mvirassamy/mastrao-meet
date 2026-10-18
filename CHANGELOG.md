@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-18: Prepare immutable Meet images and bounded Argo migrations.
+  Scan each candidate archive before publishing the same image bytes.
+  Keep staging adoption and automatic delivery awaiting operator bindings.
+
 - 2026-10-17: Add an optional direct database route for subtitle convergence
   session locks, preserving the default route and proving session ownership.
   Mask the credential-bearing route in Django exception reports.
