@@ -1,7 +1,7 @@
 FROM python:3.14.6-slim@sha256:7bec7ddcddeff7975d6ba9b4be7dd6f6b2f55e7491539145e2978f7f97ce9144 AS base
 
-# Install system dependencies required by LiveKit
-RUN apt-get update && apt-get install -y \
+# Patch the pinned base before installing system dependencies for LiveKit.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libglib2.0-0 \
     libgobject-2.0-0 \
     && rm -rf /var/lib/apt/lists/*

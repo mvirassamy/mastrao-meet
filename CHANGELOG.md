@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-18: Refresh Meet runtime security patches and Python dependencies
+  rejected by the staging image scan. Keep the HIGH/CRITICAL gate unchanged.
+
 - 2026-10-18: Prepare immutable Meet images and bounded Argo migrations.
   Scan each candidate archive before publishing the same image bytes.
   Keep staging adoption and automatic delivery awaiting operator bindings.
