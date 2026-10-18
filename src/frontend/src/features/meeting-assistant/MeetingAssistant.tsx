@@ -13,9 +13,11 @@ import { useMeetingAssistant } from './useMeetingAssistant'
 export function MeetingAssistant({
   meetingId,
   identityKey,
+  onClose,
 }: {
   meetingId: string
   identityKey: string
+  onClose?: () => void
 }) {
   const { t } = useTranslation('meetingAssistant')
   const flow = useMeetingAssistant(meetingId, identityKey)
@@ -58,6 +60,7 @@ export function MeetingAssistant({
         onAsk={(question) => flow.send('question', question)}
         onAction={action}
         onOpenCitation={openCitation}
+        onClose={onClose}
       >
         {flow.error && <p role="alert">{t(`command.${flow.error}`)}</p>}
         {flow.retryCommand && !query.isError && (

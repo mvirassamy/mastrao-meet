@@ -1,85 +1,41 @@
-import type { CSSProperties } from 'react'
-import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
-import { SECTION_ICONS, type MeetingContentKind } from './meetingContent'
-import {
-  detailHeader,
-  detailSections,
-  sectionBody,
-  sectionCard,
-  sectionHeader,
-  sectionTitle,
-} from './meetingDetailLayout'
+import { detailHeader } from './meetingDetailLayout'
 import { skeletonBar } from './skeleton'
 
-const Bar = ({ width, height }: { width: string; height: number }) => (
-  <span className={skeletonBar} style={{ width, height }} />
-)
-
-const stack = (gap: CSSProperties['gap']) =>
-  css({ display: 'flex', flexDirection: 'column', gap })
-
-/** The real section header, greyed, so the page keeps its shape. */
-const SkeletonSection = ({
-  kind,
-  children,
+const Bar = ({
+  width,
+  height,
+  round = false,
 }: {
-  kind: MeetingContentKind
-  children: React.ReactNode
-}) => {
-  const { t } = useTranslation('meetingHistory')
-
-  return (
-    <div className={sectionCard}>
-      <div className={sectionHeader({ look: 'pending' })}>
-        <img src={SECTION_ICONS[kind]} alt="" width={96} height={96} />
-        <p className={sectionTitle}>{t(`${kind}.title`)}</p>
-      </div>
-      <div className={sectionBody}>{children}</div>
-    </div>
-  )
-}
-
-const SummaryPlaceholder = () => (
-  <div className={stack('1rem')}>
-    <Bar width="70%" height={12} />
-    <div className={stack('0.5rem')}>
-      <Bar width="100%" height={12} />
-      <Bar width="94%" height={12} />
-      <Bar width="62%" height={12} />
-    </div>
-    <div className={stack('0.5rem')}>
-      <Bar width="35%" height={14} />
-      <Bar width="88%" height={12} />
-      <Bar width="76%" height={12} />
-    </div>
-  </div>
+  width: string
+  height: number
+  round?: boolean
+}) => (
+  <span
+    className={skeletonBar}
+    style={{ width, height, borderRadius: round ? 999 : undefined }}
+  />
 )
 
-const TRANSCRIPT_TURNS = [
-  ['92%', '58%'],
-  ['84%', '0%'],
-  ['96%', '70%'],
+/** Rubrics of the summary sheet: label width, then its content lines. */
+const SHEET_ROWS = [
+  ['4rem', ['92%', '70%']],
+  ['5rem', ['78%', '60%']],
+  ['4rem', ['84%', '52%']],
 ] as const
 
-const TranscriptPlaceholder = () => (
-  <div className={stack('1rem')}>
-    {TRANSCRIPT_TURNS.map(([first, second], index) => (
-      <div key={index} className={stack('0.375rem')}>
-        <div className={css({ display: 'flex', gap: '0.5rem' })}>
-          <Bar width="5.5rem" height={12} />
-          <Bar width="2.5rem" height={12} />
-        </div>
-        <Bar width={first} height={12} />
-        {second !== '0%' && <Bar width={second} height={12} />}
-      </div>
-    ))}
-  </div>
-)
+const sheetRow = css({
+  display: 'grid',
+  gridTemplateColumns: { base: 'minmax(0, 1fr)', sm: '8rem minmax(0, 1fr)' },
+  columnGap: '1.25rem',
+  rowGap: '0.5rem',
+  paddingY: '0.875rem',
+  borderBottom: '1px solid token(colors.border)',
+})
 
 /**
  * Loading state of the meeting detail with the page's own shape: title,
- * date line, then the Summary and Transcript cards.
+ * date line, the pill tabs, then the summary sheet.
  */
 export const MeetingHistoryDetailSkeleton = ({ label }: { label: string }) => (
   <div role="status" aria-live="polite">
@@ -104,13 +60,43 @@ export const MeetingHistoryDetailSkeleton = ({ label }: { label: string }) => (
           <Bar width="6rem" height={14} />
         </div>
       </div>
-      <div className={detailSections}>
-        <SkeletonSection kind="summary">
-          <SummaryPlaceholder />
-        </SkeletonSection>
-        <SkeletonSection kind="transcript">
-          <TranscriptPlaceholder />
-        </SkeletonSection>
+      <div
+        className={css({
+          display: 'flex',
+          gap: '0.25rem',
+          paddingBottom: '0.75rem',
+          borderBottom: '1px solid token(colors.border)',
+        })}
+      >
+        <Bar width="6.5rem" height={36} round />
+        <Bar width="8rem" height={36} round />
+        <Bar width="6.5rem" height={36} round />
+      </div>
+      <div className={css({ marginTop: '1rem' })}>
+        <Bar width="14rem" height={14} />
+        <div
+          className={css({
+            marginTop: '0.75rem',
+            borderTop: '1px solid token(colors.border)',
+          })}
+        >
+          {SHEET_ROWS.map(([labelWidth, lines], index) => (
+            <div key={index} className={sheetRow}>
+              <Bar width={labelWidth} height={12} />
+              <div
+                className={css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                })}
+              >
+                {lines.map((width) => (
+                  <Bar key={width} width={width} height={12} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   </div>

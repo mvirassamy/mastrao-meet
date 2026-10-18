@@ -1,5 +1,14 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  ArrowUpIcon,
+  CloseIcon,
+  ListIcon,
+  LockIcon,
+  MailIcon,
+  RetryIcon,
+  SparklesIcon,
+} from '@/icons'
 import { Button, TextArea } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { AssistantResult, type AssistantResultView } from './AssistantResult'
@@ -14,6 +23,154 @@ export type AssistantTurnView = {
   result: AssistantResultView
 }
 
+export const ASSISTANT_ICON = '/assets/illustrations/assistant.webp'
+
+const ACTION_ICONS = {
+  'short-summary': SparklesIcon,
+  actions: ListIcon,
+  'follow-up-email': MailIcon,
+} as const
+
+function ScopeLine() {
+  const { t } = useTranslation('meetingAssistant')
+  return (
+    <span
+      className={css({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.375rem',
+        fontSize: '0.75rem',
+        color: 'muted-foreground',
+      })}
+    >
+      <LockIcon size={12} aria-hidden="true" />
+      {t('scopeShort')}
+    </span>
+  )
+}
+
+function Composer({
+  disabled,
+  onAsk,
+  onAction,
+}: {
+  disabled: boolean
+  onAsk: (question: string) => void
+  onAction: (action: MeetingAssistantAction) => void
+}) {
+  const { t } = useTranslation('meetingAssistant')
+  const [question, setQuestion] = useState('')
+  const submit = () => {
+    if (!disabled && question.trim()) onAsk(question.trim())
+  }
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        submit()
+      }}
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5rem',
+        padding: '0.625rem 0.75rem',
+        border: '1px solid token(colors.border)',
+        borderRadius: '16px',
+        backgroundColor: 'card',
+        boxShadow: '0 10px 30px -18px rgba(8, 20, 46, 0.35)',
+      })}
+    >
+      <label htmlFor="meeting-question" className={css({ srOnly: true })}>
+        {t('question')}
+      </label>
+      <TextArea
+        id="meeting-question"
+        value={question}
+        onChange={(event) => setQuestion(event.target.value)}
+        onKeyDown={(event) => {
+          // Enter sends, Shift+Enter keeps a new line.
+          if (event.key !== 'Enter' || event.shiftKey) return
+          event.preventDefault()
+          submit()
+        }}
+        placeholder={t('placeholder')}
+        rows={1}
+        maxLength={1024}
+        disabled={disabled}
+        fieldSizing="content"
+        css={{
+          border: 'none',
+          padding: '0.25rem 0.125rem',
+          resize: 'none',
+          maxHeight: '8rem',
+          fontSize: '0.875rem',
+          lineHeight: '1.5',
+          color: 'var(--heading-foreground)',
+          backgroundColor: 'transparent',
+          _placeholder: { color: 'muted-foreground' },
+          _focusVisible: { outline: 'none!' },
+        }}
+      />
+      <div
+        role="group"
+        aria-label={t('actions.title')}
+        className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' })}
+      >
+        {(['short-summary', 'actions', 'follow-up-email'] as const).map(
+          (action) => {
+            const Icon = ACTION_ICONS[action]
+            return (
+              <Button
+                key={action}
+                variant="outline"
+                size="xs"
+                isDisabled={disabled}
+                onPress={() => onAction(action)}
+                className={css({ borderRadius: 'full!' })}
+              >
+                <Icon aria-hidden="true" />
+                {t(`actions.${action}`)}
+              </Button>
+            )
+          }
+        )}
+      </div>
+      <div
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.5rem',
+        })}
+      >
+        <ScopeLine />
+        <Button
+          type="submit"
+          size="icon-sm"
+          aria-label={t('ask')}
+          isDisabled={disabled || !question.trim()}
+          className={css({ borderRadius: 'full!' })}
+        >
+          <ArrowUpIcon aria-hidden="true" />
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+const userBubble = css({
+  alignSelf: 'flex-end',
+  maxWidth: '85%',
+  margin: 0,
+  padding: '0.5rem 0.875rem',
+  borderRadius: '16px 16px 4px 16px',
+  backgroundColor: 'primary',
+  color: 'primary.text',
+  fontSize: '0.875rem',
+  lineHeight: '1.5',
+  overflowWrap: 'anywhere',
+})
+
 /** Presentation only: authorized history and commands belong to the API hook. */
 export function MeetingAssistantPanel({
   turns,
@@ -24,6 +181,7 @@ export function MeetingAssistantPanel({
   onAsk,
   onAction,
   onOpenCitation,
+  onClose,
   canSend,
   children,
 }: {
@@ -35,138 +193,212 @@ export function MeetingAssistantPanel({
   onAsk: (question: string) => void
   onAction: (action: MeetingAssistantAction) => void
   onOpenCitation: (turnId: string, id: string) => void
+  /** Absent when the panel cannot be dismissed. */
+  onClose?: () => void
   canSend: boolean
   children?: ReactNode
 }) {
   const { t } = useTranslation('meetingAssistant')
-  const [question, setQuestion] = useState('')
   const disabled = loading || pending || error || !canSend
   return (
     <section
       id="meeting-assistant"
       aria-labelledby="meeting-assistant-title"
       className={css({
-        marginTop: '1.25rem',
-        border: '1px solid token(colors.border)',
-        borderRadius: '12px',
-        padding: { base: '1rem', md: '1.5rem' },
-        backgroundColor: 'card',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem',
+        height: '100%',
+        backgroundColor: 'card',
+        overflow: 'hidden',
       })}
     >
-      <header>
-        <h2
-          id="meeting-assistant-title"
-          className={css({ fontSize: '1.125rem', fontWeight: 600, margin: 0 })}
-        >
-          {t('title')}
-        </h2>
-        <p className={css({ color: 'muted-foreground', fontSize: '0.875rem' })}>
-          {t('scope')}
-        </p>
-      </header>
-      {loading && <p role="status">{t('loading')}</p>}
-      {error && (
-        <div role="alert">
-          <p>{t('error')}</p>
-          <Button variant="secondary" onPress={onRetry}>
-            {t('retry')}
-          </Button>
+      <header
+        className={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.625rem',
+          minHeight: '64px',
+          padding: '0.75rem 0.75rem 0.75rem 1rem',
+          borderBottom: '1px solid token(colors.border)',
+        })}
+      >
+        <img
+          src={ASSISTANT_ICON}
+          alt=""
+          aria-hidden="true"
+          width={32}
+          height={32}
+        />
+        <div className={css({ flex: 1, minWidth: 0 })}>
+          <h2
+            id="meeting-assistant-title"
+            className={css({
+              margin: 0,
+              fontSize: '0.9375rem',
+              fontWeight: 600,
+              color: 'var(--heading-foreground)',
+            })}
+          >
+            {t('title')}
+          </h2>
+          <ScopeLine />
         </div>
-      )}
-      {!error && (
-        <div hidden={loading}>
-          {turns.length === 0 && <p>{t('empty')}</p>}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('retry')}
+          tooltip={t('retry')}
+          isDisabled={pending}
+          onPress={onRetry}
+        >
+          <RetryIcon aria-hidden="true" />
+        </Button>
+        {onClose && (
           <Button
             variant="ghost"
-            size="sm"
-            isDisabled={pending}
-            onPress={onRetry}
+            size="icon-sm"
+            aria-label={t('close')}
+            tooltip={t('close')}
+            onPress={onClose}
           >
-            {t('retry')}
+            <CloseIcon aria-hidden="true" />
           </Button>
+        )}
+      </header>
+      <div
+        className={css({
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem',
+        })}
+      >
+        {loading && (
+          <p role="status" className={css({ color: 'muted-foreground' })}>
+            {t('loading')}
+          </p>
+        )}
+        {error && (
+          <div
+            role="alert"
+            className={css({
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: '0.5rem',
+            })}
+          >
+            <p>{t('error')}</p>
+            <Button variant="secondary" size="sm" onPress={onRetry}>
+              {t('retry')}
+            </Button>
+          </div>
+        )}
+        {!error && !loading && turns.length === 0 && (
+          <div
+            className={css({
+              margin: 'auto 0',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.5rem',
+              textAlign: 'center',
+              padding: '1rem 0.5rem',
+            })}
+          >
+            <img
+              src={ASSISTANT_ICON}
+              alt=""
+              aria-hidden="true"
+              width={56}
+              height={56}
+            />
+            <p
+              className={css({
+                fontWeight: 500,
+                color: 'var(--heading-foreground)',
+              })}
+            >
+              {t('empty')}
+            </p>
+            <p
+              className={css({
+                fontSize: '0.8125rem',
+                color: 'muted-foreground',
+              })}
+            >
+              {t('scope')}
+            </p>
+          </div>
+        )}
+        {!error && (
           <ol
+            hidden={loading}
             aria-label={t('history')}
             className={css({
+              margin: 0,
               padding: 0,
               listStyle: 'none',
               display: 'flex',
               flexDirection: 'column',
-              gap: '1.5rem',
+              gap: '1.25rem',
             })}
           >
             {turns.map((turn) => (
-              <li key={turn.id}>
-                <h3
+              <li
+                key={turn.id}
+                className={css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                })}
+              >
+                <p className={userBubble}>{turn.question}</p>
+                <div
                   className={css({
-                    fontSize: '0.9375rem',
-                    fontWeight: 600,
-                    overflowWrap: 'anywhere',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.625rem',
                   })}
                 >
-                  {turn.question}
-                </h3>
-                <AssistantResult
-                  key={turn.result.id}
-                  result={turn.result}
-                  onOpenCitation={(id) => onOpenCitation(turn.id, id)}
-                />
+                  <img
+                    src={ASSISTANT_ICON}
+                    alt=""
+                    aria-hidden="true"
+                    width={24}
+                    height={24}
+                    className={css({ flexShrink: 0 })}
+                  />
+                  <div className={css({ flex: 1, minWidth: 0 })}>
+                    <AssistantResult
+                      key={turn.result.id}
+                      result={turn.result}
+                      onOpenCitation={(id) => onOpenCitation(turn.id, id)}
+                    />
+                  </div>
+                </div>
               </li>
             ))}
           </ol>
-        </div>
-      )}
-      {pending && <p role="status">{t('pending')}</p>}
-      {children}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!disabled && question.trim()) onAsk(question.trim())
-        }}
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          gap: '0.5rem',
-        })}
-      >
-        <label htmlFor="meeting-question">{t('question')}</label>
-        <TextArea
-          id="meeting-question"
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          rows={3}
-          maxLength={1024}
-          disabled={disabled}
-          className={css({
-            padding: '0.75rem',
-            backgroundColor: 'card',
-            resize: 'vertical',
-          })}
-        />
-        <Button type="submit" isDisabled={disabled || !question.trim()}>
-          {t('ask')}
-        </Button>
-      </form>
-      <div
-        aria-label={t('actions.title')}
-        role="group"
-        className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })}
-      >
-        {(['short-summary', 'actions', 'follow-up-email'] as const).map(
-          (action) => (
-            <Button
-              key={action}
-              variant="outline"
-              isDisabled={disabled}
-              onPress={() => onAction(action)}
-            >
-              {t(`actions.${action}`)}
-            </Button>
-          )
         )}
+        {pending && (
+          <p
+            role="status"
+            className={css({
+              fontSize: '0.8125rem',
+              color: 'muted-foreground',
+            })}
+          >
+            {t('pending')}
+          </p>
+        )}
+        {children}
+      </div>
+      <div className={css({ padding: '0 0.75rem 0.75rem' })}>
+        <Composer disabled={disabled} onAsk={onAsk} onAction={onAction} />
       </div>
     </section>
   )

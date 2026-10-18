@@ -7,6 +7,10 @@ export const SECTION_ICONS: Record<MeetingContentKind, string> = {
   transcript: '/assets/illustrations/section-transcription.webp',
 }
 
+export const NOTES_ICON = '/assets/illustrations/section-notes.webp'
+
+export const VIDEO_ICON = '/assets/illustrations/section-video.webp'
+
 /** Where a summary or transcript stands, as the interface groups it. */
 export type ContentPhase = 'ready' | 'partial' | 'pending' | 'failed' | 'absent'
 

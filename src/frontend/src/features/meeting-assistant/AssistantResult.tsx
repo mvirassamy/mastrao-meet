@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { InformationIcon } from '@/icons'
 import { Button, TextArea } from '@/primitives'
 import { css } from '@/styled-system/css'
 
@@ -20,6 +21,16 @@ export type AssistantResultView = {
   editable: boolean
 }
 
+const mutedLine = css({
+  margin: 0,
+  fontSize: '0.8125rem',
+  lineHeight: '1.5',
+  color: 'muted-foreground',
+})
+
+/** Actions read as links aligned with the answer text. */
+const inlineAction = css({ paddingX: '0!', minHeight: 'auto!' })
+
 /** Edits stay in this private view and never mutate the official summary. */
 export function AssistantResult({
   result,
@@ -32,13 +43,20 @@ export function AssistantResult({
   if (
     ['unavailable', 'failure', 'processing', 'unknown'].includes(result.outcome)
   )
-    return <p role="status">{t(`result.${result.outcome}`)}</p>
+    return (
+      <p role="status" className={mutedLine}>
+        {t(`result.${result.outcome}`)}
+      </p>
+    )
   return (
     <div
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: '0.625rem',
+        fontSize: '0.875rem',
+        lineHeight: '1.6',
+        color: 'var(--heading-foreground)',
       })}
     >
       {result.outcome === 'abstention' && (
@@ -46,13 +64,6 @@ export function AssistantResult({
       )}
       {result.outcome === 'refusal' && (
         <p role="status">{t('result.refusal')}</p>
-      )}
-      {result.coverage.length > 0 && (
-        <ul aria-label={t('result.coverage')}>
-          {result.coverage.map((limit) => (
-            <li key={limit}>{limit}</li>
-          ))}
-        </ul>
       )}
       {result.editable ? (
         <EditableProposal key={result.text} initialText={result.text} />
@@ -62,7 +73,6 @@ export function AssistantResult({
             whiteSpace: 'pre-wrap',
             overflowWrap: 'anywhere',
             margin: 0,
-            lineHeight: 1.6,
           })}
         >
           {result.text}
@@ -72,18 +82,19 @@ export function AssistantResult({
         <ul
           aria-label={t('result.sources')}
           className={css({
+            margin: 0,
             padding: 0,
             listStyle: 'none',
             display: 'flex',
             flexWrap: 'wrap',
-            gap: '0.5rem',
+            gap: '0.375rem',
           })}
         >
           {result.citations.map((citation) => (
             <li key={citation.id}>
               <Button
-                size="sm"
-                variant="outline"
+                size="xs"
+                variant="secondary"
                 onPress={() => onOpenCitation(citation.id)}
               >
                 {citation.label}
@@ -91,6 +102,24 @@ export function AssistantResult({
             </li>
           ))}
         </ul>
+      )}
+      {result.coverage.length > 0 && (
+        <p
+          aria-label={t('result.coverage')}
+          className={`${mutedLine} ${css({
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.375rem',
+            fontSize: '0.75rem',
+          })}`}
+        >
+          <InformationIcon
+            size={12}
+            aria-hidden="true"
+            className={css({ flexShrink: 0, marginTop: '0.2rem' })}
+          />
+          {result.coverage.join(' ')}
+        </p>
       )}
     </div>
   )
@@ -109,32 +138,67 @@ function EditableProposal({ initialText }: { initialText: string }) {
     }
   }
   return (
-    <>
-      <label>
-        {t('result.edit')}
-        <TextArea
-          aria-label={t('result.edit')}
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value)
-            setCopy('idle')
-          }}
-          rows={8}
+    <div
+      className={css({
+        border: '1px solid token(colors.border)',
+        borderRadius: '12px',
+        overflow: 'hidden',
+      })}
+    >
+      <TextArea
+        aria-label={t('result.edit')}
+        value={text}
+        onChange={(event) => {
+          setText(event.target.value)
+          setCopy('idle')
+        }}
+        fieldSizing="content"
+        css={{
+          border: 'none',
+          borderRadius: 0,
+          resize: 'none',
+          minHeight: '6rem',
+          maxHeight: '24rem',
+          padding: '0.75rem',
+          fontSize: '0.8125rem',
+          lineHeight: '1.6',
+          color: 'var(--heading-foreground)',
+          backgroundColor: 'card',
+        }}
+      />
+      <div
+        className={css({
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.25rem',
+          padding: '0.5rem 0.75rem',
+          borderTop: '1px solid token(colors.border)',
+          backgroundColor: 'muted',
+        })}
+      >
+        <p className={mutedLine}>{t('result.proposal')}</p>
+        <div
           className={css({
-            resize: 'vertical',
-            minHeight: '10rem',
-            padding: '0.75rem',
-            backgroundColor: 'card',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
           })}
-        />
-      </label>
-      <p className={css({ color: 'muted-foreground', fontSize: '0.8125rem' })}>
-        {t('result.proposal')}
-      </p>
-      <Button size="sm" variant="secondary" onPress={() => void copyText()}>
-        {t('result.copy')}
-      </Button>
-      {copy !== 'idle' && <p role="status">{t(`result.${copy}`)}</p>}
-    </>
+        >
+          <Button
+            variant="link"
+            size="xs"
+            className={inlineAction}
+            onPress={() => void copyText()}
+          >
+            {t('result.copy')}
+          </Button>
+          {copy !== 'idle' && (
+            <p role="status" className={mutedLine}>
+              {t(`result.${copy}`)}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

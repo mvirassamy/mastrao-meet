@@ -161,6 +161,51 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * "Bleu nuit" sidebar, the Platform one (src/globals.css, sidebar tokens).
+ * The sidebar is a dark surface: shared controls placed in it (ghost
+ * buttons, avatars, muted text, borders) read the generic roles, so the
+ * surface points those roles at its own colours. Menus and tooltips opened
+ * from it are portalled out and keep the light roles.
+ */
+.meet-sidebar {
+  --sidebar: #1d2b45;
+  --sidebar-foreground: #d3dae7;
+  --sidebar-muted-foreground: #8f9ab0;
+  --sidebar-hover: rgb(255 255 255 / 0.06);
+  --sidebar-raised: rgb(255 255 255 / 0.1);
+  --sidebar-border: rgb(255 255 255 / 0.1);
+  --sidebar-active: color-mix(in srgb, #2d5be3 38%, transparent);
+  --sidebar-active-foreground: #ffffff;
+  --sidebar-ring: #7c9cff;
+
+  color-scheme: dark;
+  --heading-foreground: #ffffff;
+  --foreground: var(--sidebar-foreground);
+  --muted: var(--sidebar-raised);
+  --muted-foreground: var(--sidebar-muted-foreground);
+  --accent: var(--sidebar-hover);
+  --accent-foreground: #ffffff;
+  --border: var(--sidebar-border);
+  --input: var(--sidebar-border);
+  --ring: var(--sidebar-ring);
+  --workspace-ink-soft: var(--sidebar-foreground);
+  --colors-foreground: var(--foreground);
+  --colors-muted: var(--muted);
+  --colors-muted-foreground: var(--muted-foreground);
+  --colors-accent: var(--accent);
+  --colors-accent-foreground: var(--accent-foreground);
+  --colors-border: var(--border);
+  --colors-input: var(--input);
+  --colors-ring: var(--ring);
+  --button-muted: var(--sidebar-hover);
+  --button-foreground: #ffffff;
+  --button-background: var(--sidebar-raised);
+  --button-ring: var(--sidebar-ring);
+  background-color: var(--sidebar);
+  color: var(--foreground);
+}
+
 html.font-lexend .authenticated-meet-workspace {
   --fonts-sans: 'Lexend Variable', ui-sans-serif, system-ui, sans-serif;
 }

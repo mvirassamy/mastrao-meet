@@ -10,16 +10,15 @@ type MeetSidebarBrandProps = {
   toggleLabel: string
 }
 
+/** The light mark Platform shows on its Bleu nuit sidebar. */
 const MastraoLogo = () => (
-  <svg
-    viewBox="270 335 780 485"
-    width="29"
-    height="22"
+  <img
+    src="/assets/mastrao-logo-light.png"
+    alt=""
     aria-hidden="true"
-    focusable="false"
-  >
-    <image href="/assets/mastrao-logo-icon.png" width="1254" height="1254" />
-  </svg>
+    width={29}
+    height={18}
+  />
 )
 
 export const MeetSidebarBrand = ({
@@ -48,7 +47,7 @@ export const MeetSidebarBrand = ({
           minHeight: mobile ? '44px' : '29px',
           alignItems: 'center',
           gap: '0.625rem',
-          color: 'foreground',
+          color: 'var(--heading-foreground)',
           textDecoration: 'none',
           _focusVisible: {
             outline: '2px solid',

@@ -1,6 +1,8 @@
 {
   "title": "Ask about this meeting",
+  "close": "Close the assistant",
   "scope": "This meeting only. Your conversation is private; personal notes and other folders are not used.",
+  "scopeShort": "Private thread · this meeting only",
   "loading": "Loading your private conversation…",
   "pending": "Reading sources and preparing the result…",
   "error": "The conversation or request could not be confirmed. Reload the conversation before retrying.",
@@ -8,6 +10,7 @@
   "empty": "Ask a question about what was discussed in this meeting.",
   "history": "Your private conversation",
   "question": "Your question about this meeting",
+  "placeholder": "Ask a question about this meeting…",
   "ask": "Ask question",
   "actions": {
     "title": "Prepare a proposal",

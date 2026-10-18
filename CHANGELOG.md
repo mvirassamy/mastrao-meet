@@ -1,5 +1,12 @@
 # Changelog
 
+- 2026-10-19: Redesign the past meeting page: pill tabs with 3D icons, the
+  summary as a meeting sheet, coloured transcript speakers, copy actions and
+  centred tab states. Dock the meeting assistant on the right on wide screens
+  and open it as a drawer elsewhere. File meetings through a keyboard palette.
+  Label the video download, hide it when nothing was recorded, and move the
+  workspace sidebar to the Platform Bleu nuit look with 3D icons.
+
 - 2026-10-18: Show the canonical summary review and publication state in Meet,
   including publications with no accepted items. Keep missing review state
   neutral.

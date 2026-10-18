@@ -18,6 +18,10 @@ import { redirectToLogin } from '../api/loginRedirect'
 import { MeetingHistoryDetailView } from './MeetingHistoryDetailView'
 import { MeetingHistoryList } from './MeetingHistoryList'
 
+// Wide screen: the assistant sits beside the page.
+vi.mock('@/features/rooms/livekit/hooks/useMediaQuery', () => ({
+  useMediaQuery: () => true,
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,

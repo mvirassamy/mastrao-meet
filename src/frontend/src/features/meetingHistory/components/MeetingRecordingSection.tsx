@@ -1,18 +1,24 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/api/useConfig'
-import { DownloadIcon } from '@/icons'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
+import { css, cva } from '@/styled-system/css'
 import type { MeetingRecording } from '../api/types'
 import { recordingAccessAction } from '../utils/recordingAccess'
+import { VIDEO_ICON } from './meetingContent'
 
 export const MeetingRecordingSection = ({
   recording,
   timeZone,
+  align = 'end',
 }: {
   recording: MeetingRecording
   timeZone?: string
+  /**
+   * Edge the notes follow from the `sm` breakpoint: 'end' when the section
+   * closes the header, 'start' when another action sits on its right.
+   */
+  align?: 'start' | 'end'
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
   const { data: config } = useConfig()
@@ -76,14 +82,7 @@ export const MeetingRecordingSection = ({
     <section
       aria-labelledby="meeting-recording-heading"
       data-section="recording"
-      className={css({
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: { base: 'flex-start', sm: 'flex-end' },
-        gap: '0.25rem',
-        flexShrink: 0,
-        textAlign: { base: 'left', sm: 'right' },
-      })}
+      className={recordingSection({ align })}
     >
       <h2 id="meeting-recording-heading" className={css({ srOnly: true })}>
         {t('recording.title')}
@@ -108,7 +107,16 @@ export const MeetingRecordingSection = ({
             ref={actionButtonRef}
             type="submit"
             variant="outline"
-            icon={<DownloadIcon aria-hidden="true" />}
+            size="sm"
+            icon={
+              <img
+                src={VIDEO_ICON}
+                alt=""
+                aria-hidden="true"
+                width={22}
+                height={22}
+              />
+            }
             onFocus={() => {
               actionHasFocus.current = true
             }}
@@ -120,56 +128,101 @@ export const MeetingRecordingSection = ({
           </Button>
         </form>
       )}
-      {/* The button already says the video is available. */}
-      <p
-        ref={statusMessageRef}
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        tabIndex={-1}
-        className={
-          availableAction
-            ? css({ srOnly: true })
-            : css({
-                margin: 0,
-                fontSize: '0.8125rem',
-                color: 'muted-foreground',
-              })
-        }
+      <div
+        className={recordingNotes({
+          underButton: Boolean(availableAction && access),
+        })}
       >
-        {t(`status.recording.${recording.status}`)}
-      </p>
-      {recording.status === 'available' && retainedUntil && (
+        {/* The button already says the video is available. */}
         <p
-          className={css({
-            margin: 0,
-            fontSize: '0.75rem',
-            color: 'muted-foreground',
-          })}
-        >
-          {t('recording.retainedUntil', {
-            date: new Intl.DateTimeFormat(locale, {
-              dateStyle: 'long',
-              timeZone,
-            }).format(retainedUntil),
-          })}
-        </p>
-      )}
-      {recording.status === 'available' && !availableAction && (
-        <p
-          ref={accessUnavailableMessageRef}
+          ref={statusMessageRef}
           role="status"
           aria-live="polite"
+          aria-atomic="true"
           tabIndex={-1}
-          className={css({
-            margin: 0,
-            fontSize: '0.75rem',
-            color: 'muted-foreground',
-          })}
+          className={
+            availableAction
+              ? css({ srOnly: true })
+              : css({
+                  margin: 0,
+                  fontSize: '0.8125rem',
+                  color: 'muted-foreground',
+                })
+          }
         >
-          {t('recording.accessUnavailable')}
+          {t(`status.recording.${recording.status}`)}
         </p>
-      )}
+        {recording.status === 'available' && retainedUntil && (
+          <p
+            className={css({
+              margin: 0,
+              fontSize: '0.75rem',
+              color: 'muted-foreground',
+            })}
+          >
+            {t('recording.retainedUntil', {
+              date: new Intl.DateTimeFormat(locale, {
+                dateStyle: 'long',
+                timeZone,
+              }).format(retainedUntil),
+            })}
+          </p>
+        )}
+        {recording.status === 'available' && !availableAction && (
+          <p
+            ref={accessUnavailableMessageRef}
+            role="status"
+            aria-live="polite"
+            tabIndex={-1}
+            className={css({
+              margin: 0,
+              fontSize: '0.75rem',
+              color: 'muted-foreground',
+            })}
+          >
+            {t('recording.accessUnavailable')}
+          </p>
+        )}
+      </div>
     </section>
   )
 }
+
+const recordingSection = cva({
+  base: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '0.25rem',
+    flexShrink: 0,
+    textAlign: 'left',
+  },
+  variants: {
+    align: {
+      start: {},
+      end: { sm: { alignItems: 'flex-end', textAlign: 'right' } },
+    },
+  },
+})
+
+/**
+ * Notes under the download button. From the `sm` breakpoint they take no
+ * width of their own: the date reads on one line, aligned on the button's
+ * edge, and may extend under the neighbouring action instead of pushing it
+ * away.
+ */
+const recordingNotes = cva({
+  base: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'inherit',
+    gap: '0.25rem',
+  },
+  variants: {
+    // Without a button, the status message keeps its own width.
+    underButton: {
+      true: { sm: { width: 0, minWidth: '100%', whiteSpace: 'nowrap' } },
+      false: {},
+    },
+  },
+})

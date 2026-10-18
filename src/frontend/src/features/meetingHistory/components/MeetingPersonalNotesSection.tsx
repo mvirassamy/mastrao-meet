@@ -5,31 +5,39 @@ import {
   usePersonalNotes,
 } from '@/features/meeting-notes'
 import { useUser } from '@/features/auth/api/useUser'
+import { css } from '@/styled-system/css'
+import { NOTES_ICON } from './meetingContent'
 import { sectionCard, sectionHeader, sectionTitle } from './meetingDetailLayout'
 
-const NOTES_ICON = '/assets/illustrations/section-notes.webp'
-
-function NotesCard() {
+/** In a tab, the tab already shows the title and its 3D icon. */
+function NotesCard({ inTab }: { inTab: boolean }) {
   const { t } = useTranslation('personalNotes', { useSuspense: false })
+  const title = t('title', { defaultValue: 'Mes notes' })
   return (
     <section
       aria-labelledby="personal-notes-heading"
       data-section="personal-notes"
-      className={sectionCard}
+      className={inTab ? undefined : sectionCard}
     >
-      <div className={sectionHeader({ look: 'content' })}>
-        <img
-          src={NOTES_ICON}
-          alt=""
-          aria-hidden="true"
-          width={96}
-          height={96}
-          decoding="async"
-        />
-        <h2 id="personal-notes-heading" className={sectionTitle}>
-          {t('title', { defaultValue: 'Mes notes' })}
+      {inTab ? (
+        <h2 id="personal-notes-heading" className={css({ srOnly: true })}>
+          {title}
         </h2>
-      </div>
+      ) : (
+        <div className={sectionHeader}>
+          <img
+            src={NOTES_ICON}
+            alt=""
+            aria-hidden="true"
+            width={96}
+            height={96}
+            decoding="async"
+          />
+          <h2 id="personal-notes-heading" className={sectionTitle}>
+            {title}
+          </h2>
+        </div>
+      )}
       {/* The whole note shows at once, growing with its text. */}
       <PersonalNotesEditor fit="content" />
     </section>
@@ -39,18 +47,20 @@ function NotesCard() {
 /** Deliberately outside the shared meeting summary/transcript payload. */
 export function MeetingPersonalNotesSection({
   endpoint,
+  inTab = false,
 }: {
   endpoint: string
+  inTab?: boolean
 }) {
   const { user } = useUser()
   const notes = usePersonalNotes()
-  if (notes?.endpoint === endpoint) return <NotesCard />
+  if (notes?.endpoint === endpoint) return <NotesCard inTab={inTab} />
   return (
     <PersonalNotesProvider
       endpoint={endpoint}
       identityKey={user?.id ?? 'guest'}
     >
-      <NotesCard />
+      <NotesCard inTab={inTab} />
     </PersonalNotesProvider>
   )
 }

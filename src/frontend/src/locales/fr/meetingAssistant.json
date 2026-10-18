@@ -1,6 +1,8 @@
 {
   "title": "Interroger cette réunion",
+  "close": "Fermer l’assistant",
   "scope": "Cette réunion uniquement. Votre fil est privé ; les notes personnelles et les autres dossiers ne sont pas utilisés.",
+  "scopeShort": "Fil privé · cette réunion uniquement",
   "loading": "Chargement de votre fil privé…",
   "pending": "Lecture des sources et préparation du résultat…",
   "error": "Le fil ou la demande n’a pas pu être confirmé. Rechargez le fil avant de reprendre.",
@@ -8,6 +10,7 @@
   "empty": "Posez une question sur ce qui a été évoqué dans cette réunion.",
   "history": "Votre conversation privée",
   "question": "Votre question sur cette réunion",
+  "placeholder": "Posez une question sur cette réunion…",
   "ask": "Poser la question",
   "actions": {
     "title": "Préparer une proposition",

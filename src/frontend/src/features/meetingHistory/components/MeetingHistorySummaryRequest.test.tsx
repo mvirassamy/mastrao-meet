@@ -11,6 +11,10 @@ import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { MeetingHistoryDetailView } from './MeetingHistoryDetailView'
 
+// Wide screen: the assistant sits beside the page.
+vi.mock('@/features/rooms/livekit/hooks/useMediaQuery', () => ({
+  useMediaQuery: () => true,
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,

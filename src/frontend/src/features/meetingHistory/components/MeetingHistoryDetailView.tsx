@@ -1,5 +1,5 @@
 import { FALLBACK_LANGUAGE } from '@/i18n/languageDetection'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 import { useHistoryState } from 'wouter/use-browser-location'
@@ -12,13 +12,14 @@ import {
 } from '@/icons'
 import { ApiError } from '@/api/ApiError'
 import { useConfig } from '@/api/useConfig'
-import { Button, LinkButton } from '@/primitives'
-import { ClassificationActions } from '@/features/meeting-classification/ClassificationActions'
+import { Button } from '@/primitives'
 import { classificationMatterUrl } from '@/features/meeting-classification/classificationMatterUrl'
 import { ClassificationDialog } from '@/features/meeting-classification/ClassificationDialog'
 import { ClassificationStatus } from '@/features/meeting-classification/ClassificationStatus'
 import { useMeetingClassification } from '@/features/meeting-classification/useMeetingClassification'
 import { MeetingAssistant } from '@/features/meeting-assistant/MeetingAssistant'
+import { ASSISTANT_ICON } from '@/features/meeting-assistant/MeetingAssistantPanel'
+import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryDetail } from '../api/types'
 import {
@@ -37,9 +38,11 @@ import {
 } from '../utils/meetingHistoryFormat'
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistoryDetailSkeleton } from './MeetingHistoryDetailSkeleton'
+import { MeetingAssistantDrawer } from './MeetingAssistantDrawer'
 import { MeetingRecordingSection } from './MeetingRecordingSection'
 import { MeetingPersonalNotesSection } from './MeetingPersonalNotesSection'
-import { detailHeader, detailSections } from './meetingDetailLayout'
+import { detailHeader } from './meetingDetailLayout'
+import { MeetingResultTabs } from './MeetingResultTabs'
 import { MeetingResultOverview } from './MeetingResultOverview'
 import {
   MeetingContentSection,
@@ -56,6 +59,9 @@ import {
 
 const isNotFoundError = (error: unknown) =>
   error instanceof ApiError && [403, 404].includes(error.statusCode)
+
+/** From this width the assistant sits beside the page (Panda `xl`). */
+const DOCKED_ASSISTANT_QUERY = '(min-width: 80em)'
 
 export const MeetingHistoryDetailView = ({
   meetingId,
@@ -77,6 +83,13 @@ export const MeetingHistoryDetailView = ({
     useRequestMeetingSummary(meetingId)
   const summaryRequestedRef = useRef(false)
   const detail = query.data
+  // Wide screens show the assistant beside the page from the start; narrower
+  // ones open it over the page on demand.
+  const docked = useMediaQuery(DOCKED_ASSISTANT_QUERY)
+  const [dockedOpen, setDockedOpen] = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const assistantOpen = docked ? dockedOpen : drawerOpen
+  const setAssistantOpen = docked ? setDockedOpen : setDrawerOpen
 
   // Moves keyboard and screen reader focus to the page heading once known.
   useEffect(() => {
@@ -149,11 +162,13 @@ export const MeetingHistoryDetailView = ({
         headingRef={headingRef}
         summaryRequestState={summaryRequestState}
         onRetrySummary={() => requestSummary()}
+        assistantOpen={assistantOpen}
+        onOpenAssistant={() => setAssistantOpen(true)}
       />
     )
   }
 
-  return (
+  const page = (
     <div
       className={css({
         width: '100%',
@@ -191,6 +206,45 @@ export const MeetingHistoryDetailView = ({
       {content}
     </div>
   )
+  const assistant = identityKey && detail && (
+    <MeetingAssistant
+      key={`${identityKey}:${detail.id}`}
+      meetingId={detail.id}
+      identityKey={identityKey}
+      onClose={() => setAssistantOpen(false)}
+    />
+  )
+  // The page keeps one place in the tree whatever the screen width, so an
+  // open dialog or a scrolled transcript survives a resize. Wide screens put
+  // the assistant beside it, narrower ones over it.
+  return (
+    <div className={css({ display: 'flex', flex: 1, minHeight: 0 })}>
+      <div className={css({ flex: 1, minWidth: 0, overflowY: 'auto' })}>
+        {page}
+      </div>
+      {assistant && docked && dockedOpen && (
+        <aside
+          className={css({
+            width: '24rem',
+            flexShrink: 0,
+            borderLeft: '1px solid token(colors.border)',
+            backgroundColor: 'card',
+          })}
+        >
+          {assistant}
+        </aside>
+      )}
+      {assistant && !docked && (
+        <MeetingAssistantDrawer
+          isOpen={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          label={t('result.assistant')}
+        >
+          {assistant}
+        </MeetingAssistantDrawer>
+      )}
+    </div>
+  )
 }
 
 const MeetingDetailContent = ({
@@ -200,6 +254,8 @@ const MeetingDetailContent = ({
   summaryRequestState,
   onRetrySummary,
   identityKey,
+  assistantOpen,
+  onOpenAssistant,
 }: {
   meeting: MeetingHistoryDetail
   timeZone?: string
@@ -207,6 +263,8 @@ const MeetingDetailContent = ({
   summaryRequestState: SummaryRequestState
   onRetrySummary: () => void
   identityKey?: string
+  assistantOpen: boolean
+  onOpenAssistant: () => void
 }) => {
   const { t, i18n } = useTranslation('meetingHistory')
   const classification = useMeetingClassification(meeting.id, identityKey)
@@ -221,6 +279,7 @@ const MeetingDetailContent = ({
     config?.mastrao_platform_origin
   )
   const locale = i18n.resolvedLanguage || i18n.language || FALLBACK_LANGUAGE
+  const showAssistantButton = Boolean(identityKey) && !assistantOpen
   const summaryState = summaryView(
     meeting.summary,
     meeting.transcript.status,
@@ -232,8 +291,29 @@ const MeetingDetailContent = ({
     gap: '0.375rem',
   })
 
-  return (
+  const classificationLine = identityKey && (
     <>
+      <ClassificationStatus
+        classification={currentClassification}
+        matter={classification.currentMatter}
+        matterUrl={matterUrl}
+        loading={checkingClassification}
+        failed={classification.current.isError}
+        onRetry={() => void classification.current.refetch()}
+        onOpen={classification.open}
+      />
+      {classification.current.data?.can_classify &&
+        !classification.current.isError && (
+          <ClassificationDialog
+            key={classification.isOpen ? 'open' : 'closed'}
+            {...classification}
+            onClose={classification.close}
+          />
+        )}
+    </>
+  )
+  return (
+    <div className={css({ minWidth: 0 })}>
       <header
         className={`${detailHeader} ${css({
           display: 'flex',
@@ -291,79 +371,74 @@ const MeetingDetailContent = ({
               </span>
             )}
           </p>
+          {classificationLine}
         </div>
-        {meeting.recordingProjected === true && (
-          <MeetingRecordingSection
-            recording={meeting.recording}
-            timeZone={timeZone}
-          />
-        )}
-      </header>
-      <MeetingResultOverview
-        meeting={meeting}
-        hasAssistant={Boolean(identityKey)}
-      />
-      {identityKey && (
-        <>
-          <ClassificationStatus
-            classification={currentClassification}
-            matter={classification.currentMatter}
-            matterUrl={matterUrl}
-            loading={checkingClassification}
-            failed={classification.current.isError}
-            onRetry={() => void classification.current.refetch()}
-            onOpen={classification.open}
-          />
-          {classification.current.data?.can_classify &&
-            !classification.current.isError && (
-              <ClassificationDialog
-                key={classification.isOpen ? 'open' : 'closed'}
-                {...classification}
-                onClose={classification.close}
+        <div
+          className={css({
+            display: 'flex',
+            // Both actions stay on one line; the video date sits under them.
+            flexWrap: { base: 'wrap', sm: 'nowrap' },
+            alignItems: 'flex-start',
+            gap: '0.5rem',
+            flexShrink: 0,
+          })}
+        >
+          {/* A meeting without a recording shows nothing about video. */}
+          {meeting.recordingProjected === true &&
+            meeting.recording.status !== 'absent' && (
+              <MeetingRecordingSection
+                recording={meeting.recording}
+                timeZone={timeZone}
+                align={showAssistantButton ? 'start' : 'end'}
               />
             )}
-        </>
-      )}
-      <div className={detailSections}>
-        <MeetingContentSection
-          kind="summary"
-          statusKey={summaryStatusKey(summaryState)}
-          look={summarySectionLook(summaryState)}
-        >
-          {identityKey && (
-            <ClassificationActions
-              canClassify={Boolean(currentClassification?.can_classify)}
-              matterUrl={matterUrl}
-              onClassify={classification.open}
-            />
-          )}
-          <SummaryBody
-            summary={meeting.summary}
-            view={summaryState}
-            onRetry={onRetrySummary}
-          />
-          {identityKey && (
-            <LinkButton variant="outline" size="sm" href="#meeting-assistant">
+          {showAssistantButton && (
+            <Button size="sm" onPress={onOpenAssistant}>
+              <img
+                src={ASSISTANT_ICON}
+                alt=""
+                aria-hidden="true"
+                width={20}
+                height={20}
+              />
               {t('result.assistant')}
-            </LinkButton>
+            </Button>
           )}
-        </MeetingContentSection>
-        <MeetingContentSection
-          kind="transcript"
-          statusKey={`status.transcript.${meeting.transcript.status}`}
-          look={contentSectionLook(meeting.transcript.status)}
-        >
-          <TranscriptBody transcript={meeting.transcript} />
-        </MeetingContentSection>
-      </div>
-      {identityKey && (
-        <MeetingAssistant meetingId={meeting.id} identityKey={identityKey} />
-      )}
-      <div id="meeting-notes" className={css({ marginTop: '1.25rem' })}>
-        <MeetingPersonalNotesSection
-          endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
-        />
-      </div>
-    </>
+        </div>
+      </header>
+      <MeetingResultOverview meeting={meeting} />
+      <MeetingResultTabs
+        states={{
+          summary: summarySectionLook(summaryState),
+          transcript: contentSectionLook(meeting.transcript.status),
+        }}
+        summary={
+          <MeetingContentSection
+            kind="summary"
+            statusKey={summaryStatusKey(summaryState)}
+          >
+            <SummaryBody
+              summary={meeting.summary}
+              view={summaryState}
+              onRetry={onRetrySummary}
+            />
+          </MeetingContentSection>
+        }
+        transcript={
+          <MeetingContentSection
+            kind="transcript"
+            statusKey={`status.transcript.${meeting.transcript.status}`}
+          >
+            <TranscriptBody transcript={meeting.transcript} />
+          </MeetingContentSection>
+        }
+        notes={
+          <MeetingPersonalNotesSection
+            inTab
+            endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
+          />
+        }
+      />
+    </div>
   )
 }
