@@ -46,14 +46,8 @@ FROM nginxinc/nginx-unprivileged:1.30.3-alpine3.23@sha256:b3f2436575bd5be7386518
 
 USER root
 
-# Security patches for known CVEs
-RUN apk update && apk upgrade  \
-    libcrypto3>=3.5.7-r0 \
-    libssl3>=3.5.7-r0 \
-    musl \
-    musl-utils \
-    zlib>=1.3.2-r0 \
-    && apk del curl
+# Apply security updates to every installed package in this Alpine release.
+RUN apk update && apk upgrade && apk del curl
 
 USER nginx
 

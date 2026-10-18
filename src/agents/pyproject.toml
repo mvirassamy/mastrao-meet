@@ -23,6 +23,12 @@ dev = [
 
 [tool.uv]
 package = false
+constraint-dependencies = [
+    "aiohttp==3.14.3",
+    "anyio==4.14.2",
+    "PyJWT==2.14.0",
+    "urllib3==2.8.0",
+]
 
 [tool.ruff]
 target-version = "py313"
