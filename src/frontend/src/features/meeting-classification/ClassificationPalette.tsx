@@ -15,7 +15,7 @@ import type {
   MatterDestination,
 } from './ClassificationDialog'
 import { DOSSIER_ICON } from './ClassificationStatus'
-import { Kbd, PaletteFooter } from './ClassificationSteps'
+import { Kbd, PaletteFooter } from './PaletteFooter'
 
 /** Wait for a pause in typing before asking the server for folders. */
 const SEARCH_DELAY_MS = 250
@@ -319,6 +319,8 @@ function SearchState({
     case 'idle':
       return null
     case 'loading':
+      // Loading more or refreshing keeps the listed folders in place.
+      if (search.items.length) return null
       return (
         <div role="status" aria-label={t('classification.loading')}>
           {[0, 1, 2].map((row) => (

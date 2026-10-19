@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-19: Keep listed folders in place while more load in the meeting
+  filing palette, and tidy the palette footer and assistant close action.
+
 - 2026-10-19: Redesign the past meeting page: pill tabs with 3D icons, the
   summary as a meeting sheet, coloured transcript speakers, copy actions and
   centred tab states. Dock the meeting assistant on the right on wide screens

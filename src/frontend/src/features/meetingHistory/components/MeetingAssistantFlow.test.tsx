@@ -105,6 +105,7 @@ function setup(identityKey = 'author-a') {
         key={identity}
         meetingId={meetingId}
         identityKey={identity}
+        onClose={vi.fn()}
       />
     </QueryClientProvider>
   )
