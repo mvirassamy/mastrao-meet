@@ -246,12 +246,114 @@ const delayed = (response: Response, delayMs = 350) =>
 export const isPreviewMeetingHistoryRequest = (url: URL) =>
   url.pathname.includes(`/${MEETING_HISTORY_ENDPOINT}`)
 
+const previewCitation = (meetingId: string, id: string, startMs: number) => ({
+  citation_id: id,
+  meeting_ref: meetingId,
+  source_kind: 'provider_run',
+  source_ref: 'source_preview_0001',
+  source_version: 1,
+  source_digest: 'a'.repeat(64),
+  segment_id: id,
+  start_ms: startMs,
+  end_ms: startMs + 6_000,
+  time_basis: 'meeting_relative_ms',
+})
+
+const previewCoverage = {
+  state: 'full',
+  source_coverage: 'reference_transcript',
+  selection: 'complete',
+  total_segments: 6,
+  selected_segments: 6,
+  omitted_segments: 0,
+}
+
+/** A fictional private thread: one question and one action extraction. */
+const previewAssistantThread = (meetingId: string) => ({
+  version: 1,
+  meeting_ref: meetingId,
+  thread_ref: 'thread_preview_0001',
+  thread_version: 2,
+  visibility: 'private',
+  deleted: false,
+  has_more: false,
+  next_cursor: null,
+  turns: [
+    {
+      command_id: 'command_preview_0001',
+      operation: 'question',
+      question: 'Quelle date a été retenue pour la livraison ?',
+      state: 'completed',
+      created_at: Math.floor(Date.now() / 1000) - 600,
+      coverage: previewCoverage,
+      result: {
+        state: 'answered',
+        text: 'La livraison est maintenue au vendredi. Camille l’a confirmé et Karim s’occupe du test mobile avant cette date.',
+        rationale_category: 'supported',
+        citations: [
+          previewCitation(meetingId, 'segment_preview_0005', 76_000),
+          previewCitation(meetingId, 'segment_preview_0006', 80_000),
+        ],
+        actions: [],
+        email_draft: null,
+        publication_state: 'private_proposal',
+      },
+    },
+    {
+      command_id: 'command_preview_0002',
+      operation: 'actions',
+      question: null,
+      state: 'completed',
+      created_at: Math.floor(Date.now() / 1000) - 300,
+      coverage: previewCoverage,
+      result: {
+        state: 'answered',
+        text: '',
+        rationale_category: 'supported',
+        citations: [previewCitation(meetingId, 'segment_preview_0003', 42_000)],
+        actions: [
+          {
+            statement: 'Préparer la liste des testeurs.',
+            owner: 'Camille · test',
+            due_date: null,
+            citation_ids: ['segment_preview_0003'],
+          },
+          {
+            statement: 'Tester l’accès mobile avant vendredi.',
+            owner: 'Karim · test',
+            due_date: 'vendredi',
+            citation_ids: ['segment_preview_0003'],
+          },
+        ],
+        email_draft: null,
+        publication_state: 'private_proposal',
+      },
+    },
+  ],
+})
+
+/** Not filed yet, and the preview user may file it. */
+const previewClassification = (meetingId: string) => ({
+  version: 1,
+  meeting_ref: meetingId,
+  matter_ref: null,
+  matter_display_label: null,
+  matter_path: null,
+  classification_version: 0,
+  can_classify: true,
+})
+
 /** PREVIEW ONLY — answers the provisional history endpoints locally. */
 export const previewMeetingHistoryResponse = (
   url: URL,
   scenario: string
 ): Promise<Response> => {
   const [, rest = ''] = url.pathname.split(`/${MEETING_HISTORY_ENDPOINT}`)
+  const [owner, resource] = rest.split('/')
+  if (resource === 'assistant')
+    return delayed(json(previewAssistantThread(decodeURIComponent(owner))))
+  if (resource === 'classification')
+    return delayed(json(previewClassification(decodeURIComponent(owner))))
   const meetingId = decodeURIComponent(rest.replace(/\/$/, ''))
 
   if (!meetingId) {

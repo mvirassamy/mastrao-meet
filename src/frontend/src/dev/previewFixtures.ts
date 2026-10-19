@@ -32,6 +32,18 @@ export const previewRoom: ApiRoom = {
   recording: { mode: 'disabled' },
 }
 
+/** Folders offered by the classification palette, filtered by its search. */
+const PREVIEW_MATTERS = [
+  'Succession Fontaine',
+  'Fontaine c/ Martin',
+  'Cession Atelier Nova',
+  'Martin c/ SCI Horizon',
+].map((label, index) => ({
+  version: 1,
+  matter_ref: `matter_preview_000${index + 1}`,
+  display_label: label,
+}))
+
 const previewVideo = (
   policy: Partial<VideoRecordingPolicy> = {}
 ): VideoRecordingPolicy => ({
@@ -245,6 +257,16 @@ export const preparePreview = () => {
         )
       if (url.pathname.endsWith('/personal-note/'))
         return jsonResponse(previewPersonalNote)
+      if (url.pathname.endsWith('/matters/')) {
+        const query = (url.searchParams.get('query') ?? '').toLowerCase()
+        return jsonResponse({
+          version: 1,
+          items: PREVIEW_MATTERS.filter((matter) =>
+            matter.display_label.toLowerCase().includes(query)
+          ),
+          next_cursor: null,
+        })
+      }
       if (
         url.pathname.endsWith('/meetings/') &&
         url.searchParams.has('day_start')

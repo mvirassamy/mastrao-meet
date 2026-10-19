@@ -110,7 +110,8 @@
       "description": "Für diese Besprechung ist kein verwertbares Audio verfügbar.",
       "title": "Audio nicht verfügbar"
     },
-    "partial": "Diese Zusammenfassung ist unvollständig. Einige Inhalte können fehlen."
+    "partial": "Diese Zusammenfassung ist unvollständig. Einige Inhalte können fehlen.",
+    "brief": "Kurz gesagt"
   },
   "title": "Verlauf",
   "transcript": {
@@ -153,13 +154,28 @@
       "description": "Für diese Besprechung ist kein verwertbares Audio verfügbar.",
       "title": "Audio nicht verfügbar"
     },
-    "partial": "Dieses Transkript ist unvollständig. Teile der Besprechung können fehlen."
+    "partial": "Dieses Transkript ist unvollständig. Teile der Besprechung können fehlen.",
+    "speakers_one": "{{count}} Sprecher",
+    "speakers_other": "{{count}} Sprechende"
   },
   "untitled": "Besprechung ohne Titel",
   "recording": {
     "title": "Video",
-    "open": "Herunterladen",
-    "retainedUntil": "Aufbewahrt bis {{date}}",
+    "open": "Video herunterladen",
+    "retainedUntil": "Video verfügbar bis {{date}}",
     "accessUnavailable": "Der Videozugriff ist derzeit nicht verfügbar."
+  },
+  "result": {
+    "sections": "Inhalt des Meetings",
+    "tabState": {
+      "pending": "in Bearbeitung",
+      "failed": "nicht verfügbar",
+      "empty": "kein Inhalt"
+    }
+  },
+  "content": {
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "failed": "Kopieren fehlgeschlagen"
   }
 }

@@ -111,7 +111,8 @@
       "title": "Audio unavailable"
     },
     "partial": "This summary is incomplete. Some content may be missing.",
-    "emptySection": "No items are listed in this section."
+    "emptySection": "No items are listed in this section.",
+    "brief": "In brief"
   },
   "title": "History",
   "transcript": {
@@ -154,22 +155,27 @@
       "description": "No usable audio is available for this meeting.",
       "title": "Audio unavailable"
     },
-    "partial": "This transcript is incomplete. Parts of the meeting may be missing."
+    "partial": "This transcript is incomplete. Parts of the meeting may be missing.",
+    "speakers_one": "{{count}} speaker",
+    "speakers_other": "{{count}} speakers"
   },
   "untitled": "Untitled meeting",
   "recording": {
     "title": "Video",
-    "open": "Download",
-    "retainedUntil": "Retained until {{date}}",
+    "open": "Download video",
+    "retainedUntil": "Video available until {{date}}",
     "accessUnavailable": "Video access is currently unavailable."
   },
   "result": {
-    "navigation": "In this meeting",
-    "privateNotes": "My private notes",
-    "ended": "Meeting ended",
     "endUnconfirmed": "Meeting end not confirmed: the result may still change.",
     "refreshing": "A newer version is being checked. Displayed content may be out of date.",
-    "assistant": "Ask about this meeting"
+    "assistant": "Ask about this meeting",
+    "sections": "Meeting content",
+    "tabState": {
+      "pending": "in progress",
+      "failed": "unavailable",
+      "empty": "no content"
+    }
   },
   "classification": {
     "title": "File in a folder",
@@ -178,14 +184,11 @@
     "search": "Search folders",
     "create": "Create a folder",
     "createAndClassify": "Create then file",
-    "confirm": "Confirm filing",
     "resume": "Resume filing",
-    "cancel": "Cancel",
     "loading": "Searching authorized folders…",
     "searchFailed": "Folders could not be loaded. Search again.",
     "empty": "No folder is available for filing this meeting.",
     "destinations": "Available folders",
-    "selected": "Selected folder: {{name}}",
     "created": "Folder “{{name}}” was created. Filing still needs confirmation; resume without creating another folder.",
     "conflict": "Filing changed in another session. Check its state before confirming again.",
     "failed": "Filing could not be confirmed. You can retry the same request.",
@@ -194,6 +197,22 @@
     "unavailable": "Filing is currently unavailable.",
     "current": "Folder: {{name}}",
     "openMatter": "Open folder in Platform",
-    "filed": "Filed in a folder"
+    "filed": "Filed in a folder",
+    "back": "Back",
+    "close": "Close",
+    "confirmTitle": "File in this folder?",
+    "change": "Change",
+    "classifyHere": "File here",
+    "newTitle": "New folder",
+    "placeholder": "Search or create a folder",
+    "createNamed": "Create the folder “{{name}}”",
+    "noMatch": "No folder matches “{{query}}”.",
+    "hintNavigate": "Navigate",
+    "hintChoose": "Choose"
+  },
+  "content": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "failed": "Copy failed"
   }
 }

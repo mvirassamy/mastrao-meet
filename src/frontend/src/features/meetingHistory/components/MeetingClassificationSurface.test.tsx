@@ -13,6 +13,10 @@ import { ApiError } from '@/api/ApiError'
 import type { MeetingClassification } from '@/features/meeting-classification/classificationApi'
 import { MeetingHistoryDetailView } from './MeetingHistoryDetailView'
 
+// Wide screen: the assistant sits beside the page.
+vi.mock('@/features/rooms/livekit/hooks/useMediaQuery', () => ({
+  useMediaQuery: () => true,
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { name?: string }) =>
@@ -32,7 +36,7 @@ vi.mock('./MeetingPersonalNotesSection', () => ({
 afterEach(cleanup)
 
 describe('meeting classification entry points', () => {
-  it('shares a single confirmation flow from the detail and summary while transcription runs', async () => {
+  it('offers one classification entry under the date while transcription runs', async () => {
     const meetingId = 'meeting_0123456789abcdef'
     const api = vi.mocked(fetchApi)
     api.mockReset()
@@ -72,17 +76,30 @@ describe('meeting classification entry points', () => {
     const entries = await screen.findAllByRole('button', {
       name: 'classification.title',
     })
-    expect(entries).toHaveLength(2)
-    for (const entry of entries) {
-      fireEvent.click(entry)
-      expect(
-        await screen.findByRole('dialog', { name: 'classification.title' })
-      ).toBeTruthy()
-      expect(screen.getByText('classification.sharing')).toBeTruthy()
-      fireEvent.click(
-        screen.getByRole('button', { name: 'classification.cancel' })
-      )
-    }
+    expect(entries).toHaveLength(1)
+    fireEvent.click(entries[0])
+    expect(
+      await screen.findByRole('dialog', { name: 'classification.title' })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('combobox', { name: 'classification.search' })
+    ).toBeTruthy()
+    // The sharing notice shows before anything can be filed.
+    fireEvent.click(
+      await screen.findByRole('option', { name: /classification\.create/ })
+    )
+    expect(screen.getByText('classification.sharing')).toBeTruthy()
+    // The header arrow and the "Esc" footer action both go back.
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'classification.back' })[0]
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'classification.search' })
+    ).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('button', { name: /classification\.close/ })
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(
       api.mock.calls.some(([, options]) => options?.method === 'POST')
     ).toBe(false)
@@ -238,16 +255,17 @@ describe('meeting classification entry points', () => {
       'https://platform.example/orgs/server-tenant/matters/matter_0123456789abcdef'
     )
   })
-  it('uses the new canonical destination from a successful filing receipt in both surfaces', async () => {
+  it('uses the new canonical destination from a successful filing receipt', async () => {
     await renderFiledMeeting()
     fireEvent.click(
-      screen.getAllByRole('button', { name: 'classification.title' })[1]
+      screen.getByRole('button', { name: 'classification.title' })
     )
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Dossier suivant' })
+      await screen.findByRole('option', { name: /Dossier suivant/ })
     )
+    expect(screen.getByText('classification.sharing')).toBeTruthy()
     fireEvent.click(
-      screen.getByRole('button', { name: 'classification.confirm' })
+      screen.getByRole('button', { name: 'classification.classifyHere' })
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     await screen.findByText('classification.current: Dossier suivant')
@@ -318,7 +336,7 @@ async function renderFiledMeeting() {
   await waitFor(() =>
     expect(
       screen.getAllByRole('button', { name: 'classification.title' })
-    ).toHaveLength(2)
+    ).toHaveLength(1)
   )
   return {
     ...view,
@@ -343,7 +361,7 @@ function expectFolderLinks(url: string) {
   const links = screen.getAllByRole('link', {
     name: 'classification.openMatter',
   })
-  expect(links).toHaveLength(2)
+  expect(links).toHaveLength(1)
   for (const link of links) {
     expect(link.getAttribute('href')).toBe(url)
     expect(link.getAttribute('target')).toBe('_blank')

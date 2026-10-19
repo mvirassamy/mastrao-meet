@@ -117,74 +117,141 @@ export const MeetingHistoryStatePanel = ({
   )
 }
 
-const STATE_DOT_COLORS = {
-  neutral: STATUS_COLORS.absent,
-  danger: STATUS_COLORS.failed,
-} as const
+/** What a content tab shows instead of its content. */
+export type SectionStateLook = 'pending' | 'failed' | 'empty'
 
-const stateDot = css({
-  width: '7px',
-  height: '7px',
-  borderRadius: '50%',
-  flexShrink: 0,
-})
-
-const sectionState = cva({
-  base: { minWidth: 0 },
+const stateIcon = cva({
+  base: {
+    width: '56px',
+    height: '56px',
+    userSelect: 'none',
+  },
   variants: {
-    // Aligns the explanation and action with the title, after the dot.
-    dotted: { true: { '& > :not(:first-child)': { paddingLeft: '15px' } } },
+    look: {
+      pending: {},
+      // Greyed: nothing to read in this tab.
+      failed: { filter: 'grayscale(1)', opacity: 0.5 },
+      empty: { filter: 'grayscale(1)', opacity: 0.5 },
+    },
   },
 })
 
+/** Ring turning around the icon while the content is prepared. */
+const PendingRing = () => (
+  <span
+    aria-hidden="true"
+    className={css({
+      position: 'absolute',
+      inset: '-4px',
+      borderRadius: 'full',
+      border: '2px solid #dfe6fa',
+      borderTopColor: 'primary',
+      animation: 'rotate 1.1s linear infinite',
+      _motionReduce: { animation: 'none' },
+    })}
+  />
+)
+
+/** Red mark on the greyed icon when the processing failed. */
+const FailedBadge = () => (
+  <span
+    aria-hidden="true"
+    className={css({
+      position: 'absolute',
+      right: '-2px',
+      bottom: '0',
+      display: 'grid',
+      placeItems: 'center',
+      width: '22px',
+      height: '22px',
+      borderRadius: 'full',
+      border: '2px solid token(colors.card)',
+      backgroundColor: STATUS_COLORS.failed,
+      color: 'white',
+      fontSize: '0.75rem',
+      fontWeight: 700,
+      lineHeight: 1,
+    })}
+  >
+    !
+  </span>
+)
+
 /**
- * Compact state shown inside the Synthèse and Transcription sections: a
- * coloured dot and a title, with the explanation always visible below.
- * In-progress states have no dot: the section header shows a progress bar.
+ * State shown inside a content tab: the tab's 3D icon in the middle (a
+ * turning ring while it is prepared, greyed with a red mark on failure,
+ * greyed when there is nothing), then a title, an explanation and, when
+ * possible, an action.
  */
 export const MeetingSectionState = ({
+  icon,
+  look,
   title,
   description,
-  tone,
   action,
 }: {
+  /** The tab's 3D icon (public asset path). */
+  icon: string
+  look: SectionStateLook
   title: string
   description: string
-  tone?: 'neutral' | 'danger'
   action?: ReactNode
 }) => (
-  <div className={sectionState({ dotted: tone !== undefined })}>
-    <p
+  <div
+    className={css({
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      maxWidth: '24rem',
+      marginX: 'auto',
+      paddingY: { base: '2rem', md: '3rem' },
+      textAlign: 'center',
+    })}
+  >
+    <span
       className={css({
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        margin: 0,
-        fontSize: '0.875rem',
-        lineHeight: '1.25rem',
-        fontWeight: 500,
+        position: 'relative',
+        display: 'grid',
+        placeItems: 'center',
+        width: '64px',
+        height: '64px',
+        marginBottom: '0.75rem',
       })}
     >
-      {tone && (
-        <span
-          aria-hidden="true"
-          className={stateDot}
-          style={{ backgroundColor: STATE_DOT_COLORS[tone] }}
-        />
-      )}
+      <img
+        src={icon}
+        alt=""
+        aria-hidden="true"
+        width={56}
+        height={56}
+        className={stateIcon({ look })}
+      />
+      {look === 'pending' && <PendingRing />}
+      {look === 'failed' && <FailedBadge />}
+    </span>
+    <p
+      className={css({
+        margin: 0,
+        color: 'var(--heading-foreground)',
+        fontSize: '0.9375rem',
+        lineHeight: '1.5rem',
+        fontWeight: 600,
+      })}
+    >
       {title}
     </p>
     <p
       className={css({
-        marginTop: '0.125rem',
+        marginTop: '0.25rem',
         marginBottom: 0,
         color: 'muted-foreground',
         fontSize: '0.8125rem',
         lineHeight: '1.25rem',
+        textWrap: 'balance',
       })}
     >
       {description}
     </p>
-    {action && <div className={css({ marginTop: '0.75rem' })}>{action}</div>}
+    {action && <div className={css({ marginTop: '1rem' })}>{action}</div>}
   </div>
 )

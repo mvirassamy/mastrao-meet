@@ -111,7 +111,8 @@
       "title": "Audio indisponible"
     },
     "partial": "Cette synthèse est incomplète. Certains éléments peuvent manquer.",
-    "emptySection": "Aucun élément indiqué dans cette rubrique."
+    "emptySection": "Aucun élément indiqué dans cette rubrique.",
+    "brief": "En bref"
   },
   "title": "Historique",
   "transcript": {
@@ -154,22 +155,27 @@
       "description": "Aucun audio exploitable n’est disponible pour cette réunion.",
       "title": "Audio indisponible"
     },
-    "partial": "Cette transcription est incomplète. Des passages de la réunion peuvent manquer."
+    "partial": "Cette transcription est incomplète. Des passages de la réunion peuvent manquer.",
+    "speakers_one": "{{count}} intervenant",
+    "speakers_other": "{{count}} intervenants"
   },
   "untitled": "Réunion sans titre",
   "recording": {
     "title": "Vidéo",
-    "open": "Télécharger",
-    "retainedUntil": "Conservée jusqu’au {{date}}",
+    "open": "Télécharger la vidéo",
+    "retainedUntil": "Vidéo disponible jusqu’au {{date}}",
     "accessUnavailable": "L’accès à la vidéo est indisponible pour le moment."
   },
   "result": {
-    "navigation": "Dans cette réunion",
-    "privateNotes": "Mes notes privées",
-    "ended": "Réunion terminée",
     "endUnconfirmed": "Fin de réunion non confirmée : le résultat peut encore évoluer.",
     "refreshing": "Une nouvelle version est en cours de vérification. Le contenu affiché peut ne pas être à jour.",
-    "assistant": "Interroger cette réunion"
+    "assistant": "Interroger cette réunion",
+    "sections": "Contenu de la réunion",
+    "tabState": {
+      "pending": "en cours",
+      "failed": "indisponible",
+      "empty": "aucun contenu"
+    }
   },
   "classification": {
     "title": "Classer dans un dossier",
@@ -178,14 +184,11 @@
     "search": "Rechercher un dossier",
     "create": "Créer un dossier",
     "createAndClassify": "Créer puis classer",
-    "confirm": "Confirmer le classement",
     "resume": "Reprendre le classement",
-    "cancel": "Annuler",
     "loading": "Recherche des dossiers autorisés…",
     "searchFailed": "Les dossiers ne peuvent pas être chargés. Relancez la recherche.",
     "empty": "Aucun dossier disponible pour ce classement.",
     "destinations": "Dossiers disponibles",
-    "selected": "Dossier choisi : {{name}}",
     "created": "Le dossier « {{name}} » a été créé. Le classement reste à confirmer ; reprenez sans créer un autre dossier.",
     "conflict": "Le classement a changé dans une autre session. Vérifiez son état avant de confirmer à nouveau.",
     "failed": "Le classement n’a pas pu être confirmé. Vous pouvez reprendre la même demande.",
@@ -194,6 +197,22 @@
     "unavailable": "Classement indisponible pour le moment.",
     "current": "Dossier : {{name}}",
     "openMatter": "Ouvrir le dossier dans Platform",
-    "filed": "Classée dans un dossier"
+    "filed": "Classée dans un dossier",
+    "back": "Retour",
+    "close": "Fermer",
+    "confirmTitle": "Classer dans ce dossier ?",
+    "change": "Changer",
+    "classifyHere": "Classer ici",
+    "newTitle": "Nouveau dossier",
+    "placeholder": "Rechercher ou créer un dossier",
+    "createNamed": "Créer le dossier « {{name}} »",
+    "noMatch": "Aucun dossier ne correspond à « {{query}} ».",
+    "hintNavigate": "Naviguer",
+    "hintChoose": "Choisir"
+  },
+  "content": {
+    "copy": "Copier",
+    "copied": "Copié",
+    "failed": "Copie impossible"
   }
 }

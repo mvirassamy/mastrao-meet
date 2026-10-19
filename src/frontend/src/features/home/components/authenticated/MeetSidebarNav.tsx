@@ -1,4 +1,3 @@
-import { CalendarEventIcon, HistoryIcon, type AppIconComponent } from '@/icons'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'wouter'
 import {
@@ -17,7 +16,8 @@ type MeetSidebarNavProps = {
 type NavItem = {
   to: string
   label: string
-  Icon: AppIconComponent
+  /** 3D icon shared with Platform (public asset path). */
+  icon: string
   isActive: boolean
 }
 
@@ -32,18 +32,18 @@ export const MeetSidebarNav = ({
     {
       to: '/',
       label: t('dashboard.sidebar.meetings'),
-      Icon: CalendarEventIcon,
+      icon: '/assets/illustrations/calendrier.webp',
       isActive: location === '/',
     },
     {
       to: MEETING_HISTORY_PATH,
       label: t('dashboard.sidebar.history'),
-      Icon: HistoryIcon,
+      icon: '/assets/illustrations/reunion.webp',
       isActive: isMeetingHistoryPath(location),
     },
   ]
 
-  const renderLink = ({ to, label, Icon, isActive }: NavItem) => (
+  const renderLink = ({ to, label, icon, isActive }: NavItem) => (
     <Link
       to={to}
       aria-current={isActive ? 'page' : undefined}
@@ -60,16 +60,14 @@ export const MeetSidebarNav = ({
         gap: collapsed ? 0 : '9px',
         paddingX: collapsed ? 0 : '12px',
         borderRadius: collapsed ? '12px' : '9px',
-        backgroundColor: isActive ? 'accent' : 'transparent',
-        color: isActive
-          ? 'primary'
-          : 'var(--workspace-ink-soft, var(--foreground))',
+        backgroundColor: isActive ? 'var(--sidebar-active)' : 'transparent',
+        color: isActive ? 'var(--sidebar-active-foreground)' : 'foreground',
         fontSize: '0.875rem',
         fontWeight: 400,
         textDecoration: 'none',
         _hover: {
-          backgroundColor: isActive ? 'accent' : 'muted',
-          color: isActive ? 'primary' : 'foreground',
+          backgroundColor: isActive ? 'var(--sidebar-active)' : 'accent',
+          color: 'var(--sidebar-active-foreground)',
         },
         _focusVisible: {
           outline: '2px solid',
@@ -78,7 +76,7 @@ export const MeetSidebarNav = ({
         },
       })}
     >
-      <Icon size={19} aria-hidden="true" />
+      <img src={icon} alt="" aria-hidden="true" width={22} height={22} />
       <span className={collapsed ? css({ srOnly: true }) : undefined}>
         {label}
       </span>

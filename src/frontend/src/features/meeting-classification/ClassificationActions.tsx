@@ -2,7 +2,10 @@ import { useTranslation } from 'react-i18next'
 import { Button, LinkButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 
-/** The result card and summary expose the same authorized destination. */
+/** Links aligned with the text before them. */
+const inlineAction = css({ paddingX: '0!', minHeight: 'auto!' })
+
+/** Inline links next to the meeting's dossier line. */
 export function ClassificationActions({
   canClassify,
   matterUrl,
@@ -15,16 +18,21 @@ export function ClassificationActions({
   const { t } = useTranslation('meetingHistory')
   if (!canClassify && !matterUrl) return null
   return (
-    <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' })}>
+    <div className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' })}>
       {canClassify && (
-        <Button size="sm" variant="outline" onPress={onClassify}>
+        <Button
+          size="xs"
+          variant="link"
+          className={inlineAction}
+          onPress={onClassify}
+        >
           {t('classification.title')}
         </Button>
       )}
       {matterUrl && (
         <LinkButton
-          size="sm"
-          variant="outline"
+          size="xs"
+          variant="link"
           href={matterUrl}
           target="_blank"
           rel="noopener noreferrer"

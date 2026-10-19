@@ -30,15 +30,14 @@ export const MeetSidebar = ({
 
   return (
     <div
-      className={css({
+      // Bleu nuit surface: its colours live in mastrao-theme.css.
+      className={`meet-sidebar ${css({
         display: 'flex',
         width: '100%',
         height: '100%',
         minHeight: 0,
         flexDirection: 'column',
-        backgroundColor: 'var(--workspace-paper)',
-        color: 'foreground',
-      })}
+      })}`}
     >
       <div
         className={css({

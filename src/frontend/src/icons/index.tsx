@@ -42,7 +42,9 @@ import {
   InformationCircleIcon as HeroInformationCircleIcon,
   LanguageIcon as HeroLanguageIcon,
   LinkIcon as HeroLinkIcon,
+  ListBulletIcon as HeroListBulletIcon,
   LockClosedIcon as HeroLockClosedIcon,
+  MagnifyingGlassIcon as HeroMagnifyingGlassIcon,
   MegaphoneIcon as HeroMegaphoneIcon,
   MicrophoneIcon as HeroMicrophoneIcon,
   MinusCircleIcon as HeroMinusCircleIcon,
@@ -148,6 +150,7 @@ export const InfinityIcon = sized(Custom.InfinityLoop) // RiInfinityFill
 export const InformationIcon = sized(HeroInformationCircleIcon) // RiInformationFill
 export const KeyboardIcon = sized(Custom.Keyboard) // RiKeyboardBoxFill
 export const LinkIcon = sized(HeroLinkIcon) // RiLinksFill
+export const ListIcon = sized(HeroListBulletIcon)
 export const LockIcon = sized(HeroLockClosedIcon)
 export const LoginIcon = sized(HeroArrowRightEndOnRectangleIcon) // RiLoginBoxFill
 export const LogoutIcon = sized(HeroArrowRightStartOnRectangleIcon) // RiLogoutBoxRFill
@@ -172,9 +175,11 @@ export const RoomsIcon = sized(HeroUserGroupIcon) // RiDoorOpenFill
 export const SendIcon = sized(HeroPaperAirplaneIcon) // RiSendPlane2Fill
 export const SettingsIcon = sized(HeroCog6ToothIcon) // RiSettings3Fill
 export const ShareBoxIcon = sized(HeroArrowTopRightOnSquareIcon) // RiShareBoxFill
+export const SearchIcon = sized(HeroMagnifyingGlassIcon)
 export const ShieldCheckIcon = sized(HeroShieldCheckIcon)
 export const SpeakerIcon = sized(HeroSpeakerWaveIcon) // RiSpeakerFill
 export const SpeakIcon = sized(HeroChatBubbleOvalLeftEllipsisIcon) // RiSpeakFill
+export const SparklesIcon = sized(HeroSparklesIcon)
 export const StopCircleIcon = sized(HeroStopCircleIcon) // RiStopCircleFill
 export const TimeIcon = sized(HeroClockIcon) // RiTimeFill
 export const ToolsIcon = sized(HeroSquares2X2Icon) // RiShapesFill

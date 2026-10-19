@@ -23,35 +23,22 @@ const detail = () => {
 }
 
 describe('meeting result overview', () => {
-  it('keeps navigation available during processing and does not claim the call ended', () => {
+  it('warns that the end of the call is not confirmed', () => {
     render(<MeetingResultOverview meeting={detail()} />)
-    expect(
-      screen.getByRole('link', { name: 'summary.title' }).getAttribute('href')
-    ).toBe('#meeting-summary')
-    expect(
-      screen
-        .getByRole('link', { name: 'result.privateNotes' })
-        .getAttribute('href')
-    ).toBe('#meeting-notes')
-    expect(screen.getByRole('status').textContent).toContain(
-      'result.endUnconfirmed'
-    )
-    expect(screen.getByRole('status').textContent).toContain(
-      'status.summary.failed'
-    )
-    expect(screen.getByRole('status').textContent).toContain(
-      'status.transcript.transcribing'
-    )
+    expect(screen.getByRole('status').textContent).toBe('result.endUnconfirmed')
+  })
+  it('stays silent once the call ended and the result is current', () => {
+    const meeting = detail()
+    meeting.endedAt = new Date('2026-10-16T09:00:00Z')
+    const { container } = render(<MeetingResultOverview meeting={meeting} />)
+    expect(container.textContent).toBe('')
   })
   it('marks a retained older projection as awaiting verification', () => {
     const meeting = detail()
     meeting.endedAt = new Date('2026-10-16T09:00:00Z')
     meeting.summaryProjection.refreshPending = true
     render(<MeetingResultOverview meeting={meeting} />)
-    expect(screen.getByText('result.refreshing')).toBeTruthy()
-    expect(screen.getAllByRole('status')[0].textContent).toContain(
-      'result.ended'
-    )
+    expect(screen.getByRole('status').textContent).toBe('result.refreshing')
   })
   it('keeps an explicitly empty result section visible without inventing a decision', () => {
     const meeting = normalizeHistoryDetail({

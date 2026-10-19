@@ -110,7 +110,8 @@
       "description": "Er is geen bruikbare audio beschikbaar voor deze vergadering.",
       "title": "Audio niet beschikbaar"
     },
-    "partial": "Deze samenvatting is onvolledig. Sommige inhoud kan ontbreken."
+    "partial": "Deze samenvatting is onvolledig. Sommige inhoud kan ontbreken.",
+    "brief": "In het kort"
   },
   "title": "Geschiedenis",
   "transcript": {
@@ -153,13 +154,28 @@
       "description": "Er is geen bruikbare audio beschikbaar voor deze vergadering.",
       "title": "Audio niet beschikbaar"
     },
-    "partial": "Deze transcriptie is onvolledig. Delen van de vergadering kunnen ontbreken."
+    "partial": "Deze transcriptie is onvolledig. Delen van de vergadering kunnen ontbreken.",
+    "speakers_one": "{{count}} spreker",
+    "speakers_other": "{{count}} sprekers"
   },
   "untitled": "Vergadering zonder titel",
   "recording": {
     "title": "Video",
-    "open": "Downloaden",
-    "retainedUntil": "Bewaard tot {{date}}",
+    "open": "Video downloaden",
+    "retainedUntil": "Video beschikbaar tot {{date}}",
     "accessUnavailable": "Toegang tot de video is momenteel niet beschikbaar."
+  },
+  "result": {
+    "sections": "Inhoud van de vergadering",
+    "tabState": {
+      "pending": "bezig",
+      "failed": "niet beschikbaar",
+      "empty": "geen inhoud"
+    }
+  },
+  "content": {
+    "copy": "Kopiëren",
+    "copied": "Gekopieerd",
+    "failed": "Kopiëren mislukt"
   }
 }

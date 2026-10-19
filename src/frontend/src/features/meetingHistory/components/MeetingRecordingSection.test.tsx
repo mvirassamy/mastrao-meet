@@ -13,6 +13,10 @@ import { MeetingRowLink } from './MeetingRowLink'
 const config = vi.hoisted(() => ({
   origin: 'https://platform.mastrao.test' as string | undefined,
 }))
+// Wide screen: the assistant sits beside the page.
+vi.mock('@/features/rooms/livekit/hooks/useMediaQuery', () => ({
+  useMediaQuery: () => true,
+}))
 vi.mock('@/api/useConfig', () => ({
   useConfig: () => ({ data: { mastrao_platform_origin: config.origin } }),
 }))
@@ -176,6 +180,28 @@ describe('recording history UI', () => {
     )
     expect(screen.queryByRole('button')).toBeNull()
     expect(screen.getByText('recording.accessUnavailable')).toBeTruthy()
+  })
+
+  it('says nothing about video when the meeting was not recorded', async () => {
+    vi.mocked(fetchApi).mockResolvedValue({
+      id: 'm1',
+      started_at: '2026-10-11T10:00:00Z',
+      recording: { status: 'absent' },
+      summary: { status: 'available', text: 'Readable summary' },
+      transcript: { status: 'absent' },
+    })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <MeetingHistoryDetailView meetingId="m1" />
+      </QueryClientProvider>
+    )
+    expect(await screen.findByText('Readable summary')).toBeTruthy()
+    expect(screen.queryByText('status.recording.absent')).toBeNull()
+    expect(document.querySelector('[data-section="recording"]')).toBeNull()
+    client.clear()
   })
 
   it('shows video above readable summary and transcript even after a video failure', async () => {

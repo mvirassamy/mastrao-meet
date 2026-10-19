@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { DialogTrigger } from 'react-aria-components'
 import { SettingsDialog } from '@/features/settings'
-import { SettingsIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 
@@ -35,12 +34,18 @@ export const MeetSidebarSettingsItem = ({
           gap: collapsed ? 0 : '9px',
           paddingX: collapsed ? 0 : '12px',
           borderRadius: collapsed ? '12px' : '9px',
-          color: 'var(--workspace-ink-soft, var(--foreground))',
+          color: 'foreground',
           fontSize: '0.875rem',
           fontWeight: 400,
         })}
       >
-        <SettingsIcon size={19} aria-hidden="true" />
+        <img
+          src="/assets/illustrations/parametres.webp"
+          alt=""
+          aria-hidden="true"
+          width={22}
+          height={22}
+        />
         {!collapsed && label}
       </Button>
       <SettingsDialog appearance="app" />
