@@ -349,11 +349,15 @@ export const previewMeetingHistoryResponse = (
   scenario: string
 ): Promise<Response> => {
   const [, rest = ''] = url.pathname.split(`/${MEETING_HISTORY_ENDPOINT}`)
-  const [owner, resource] = rest.split('/')
+  const [meetingSegment, resource] = rest.split('/')
   if (resource === 'assistant')
-    return delayed(json(previewAssistantThread(decodeURIComponent(owner))))
+    return delayed(
+      json(previewAssistantThread(decodeURIComponent(meetingSegment)))
+    )
   if (resource === 'classification')
-    return delayed(json(previewClassification(decodeURIComponent(owner))))
+    return delayed(
+      json(previewClassification(decodeURIComponent(meetingSegment)))
+    )
   const meetingId = decodeURIComponent(rest.replace(/\/$/, ''))
 
   if (!meetingId) {

@@ -196,8 +196,7 @@ export function MeetingAssistantPanel({
   onAsk: (question: string) => void
   onAction: (action: MeetingAssistantAction) => void
   onOpenCitation: (turnId: string, id: string) => void
-  /** Absent when the panel cannot be dismissed. */
-  onClose?: () => void
+  onClose: () => void
   canSend: boolean
   children?: ReactNode
 }) {
@@ -256,17 +255,15 @@ export function MeetingAssistantPanel({
         >
           <RetryIcon aria-hidden="true" />
         </Button>
-        {onClose && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('close')}
-            tooltip={t('close')}
-            onPress={onClose}
-          >
-            <CloseIcon aria-hidden="true" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('close')}
+          tooltip={t('close')}
+          onPress={onClose}
+        >
+          <CloseIcon aria-hidden="true" />
+        </Button>
       </header>
       <div
         className={css({
