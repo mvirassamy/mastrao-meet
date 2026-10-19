@@ -140,6 +140,7 @@ describe('private meeting assistant presentation', () => {
       onRetry: vi.fn(),
       onAsk: vi.fn(),
       onAction: vi.fn(),
+      onClose: vi.fn(),
       onOpenCitation: vi.fn(),
     }
     const { rerender } = render(<MeetingAssistantPanel {...props} />)
