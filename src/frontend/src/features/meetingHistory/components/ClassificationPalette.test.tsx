@@ -148,6 +148,16 @@ describe('classification palette', () => {
     expect(onClassify).not.toHaveBeenCalled()
   })
 
+  it('keeps the listed folders in place while more load', () => {
+    renderDialog({ search: { ...folders, phase: 'loading', hasMore: true } })
+    const options = screen.getAllByRole('option')
+    expect(options[0].textContent).toContain('Fontaine c/ Martin')
+    expect(screen.queryByRole('status')).toBeNull()
+    // The last row tells that more folders are on their way.
+    const more = screen.getByRole('option', { name: /classification\.loading/ })
+    expect(more.getAttribute('aria-busy')).toBe('true')
+  })
+
   it('loads more folders from the last row', () => {
     const { onLoadMore } = renderDialog({
       search: { ...folders, hasMore: true },

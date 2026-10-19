@@ -40,6 +40,7 @@ describe('private meeting assistant presentation', () => {
         onAsk={onAsk}
         onAction={onAction}
         onOpenCitation={vi.fn()}
+        onClose={vi.fn()}
       />
     )
     expect(onAsk).not.toHaveBeenCalled()
@@ -123,6 +124,7 @@ describe('private meeting assistant presentation', () => {
         onAsk={vi.fn()}
         onAction={vi.fn()}
         onOpenCitation={open}
+        onClose={vi.fn()}
       />
     )
     fireEvent.click(screen.getAllByRole('button', { name: '00:12' })[1])
@@ -138,6 +140,7 @@ describe('private meeting assistant presentation', () => {
       onRetry: vi.fn(),
       onAsk: vi.fn(),
       onAction: vi.fn(),
+      onClose: vi.fn(),
       onOpenCitation: vi.fn(),
     }
     const { rerender } = render(<MeetingAssistantPanel {...props} />)

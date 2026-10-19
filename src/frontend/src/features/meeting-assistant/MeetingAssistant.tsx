@@ -17,7 +17,7 @@ export function MeetingAssistant({
 }: {
   meetingId: string
   identityKey: string
-  onClose?: () => void
+  onClose: () => void
 }) {
   const { t } = useTranslation('meetingAssistant')
   const flow = useMeetingAssistant(meetingId, identityKey)

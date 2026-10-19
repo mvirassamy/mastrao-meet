@@ -15,7 +15,7 @@ import type {
   MatterDestination,
 } from './ClassificationDialog'
 import { DOSSIER_ICON } from './ClassificationStatus'
-import { Kbd, PaletteFooter } from './ClassificationSteps'
+import { Kbd, PaletteFooter } from './PaletteFooter'
 
 /** Wait for a pause in typing before asking the server for folders. */
 const SEARCH_DELAY_MS = 250
@@ -55,6 +55,8 @@ export function ClassificationPalette({
   const searchTimer = useRef<number | undefined>(undefined)
   const listRef = useRef<HTMLUListElement>(null)
   const name = query.trim()
+  // Loading more keeps the list in place; the last row says it is loading.
+  const loadingMore = search.phase === 'loading' && search.items.length > 0
 
   useEffect(() => () => window.clearTimeout(searchTimer.current), [])
 
@@ -192,6 +194,7 @@ export function ClassificationPalette({
               id={optionId(index)}
               role="option"
               aria-selected={index === activeIndex}
+              aria-busy={(option.kind === 'more' && loadingMore) || undefined}
               onMouseMove={() => setActive(index)}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => select(option)}
@@ -201,7 +204,11 @@ export function ClassificationPalette({
                   css({ color: 'primary', fontWeight: 500 })
               )}
             >
-              <OptionContent option={option} query={name} />
+              <OptionContent
+                option={option}
+                query={name}
+                loadingMore={loadingMore}
+              />
               {index === activeIndex && <Kbd>↵</Kbd>}
             </li>
           ))}
@@ -251,9 +258,11 @@ const iconSlot = css({
 function OptionContent({
   option,
   query,
+  loadingMore,
 }: {
   option: PaletteOption
   query: string
+  loadingMore: boolean
 }) {
   const { t } = useTranslation('meetingHistory')
   switch (option.kind) {
@@ -269,7 +278,11 @@ function OptionContent({
         </>
       )
     case 'more':
-      return <span className={css({ flex: 1 })}>{t('loadMore')}</span>
+      return (
+        <span className={css({ flex: 1 })}>
+          {loadingMore ? t('classification.loading') : t('loadMore')}
+        </span>
+      )
     case 'create':
       return (
         <>
@@ -319,6 +332,8 @@ function SearchState({
     case 'idle':
       return null
     case 'loading':
+      // Loading more or refreshing keeps the listed folders in place.
+      if (search.items.length) return null
       return (
         <div role="status" aria-label={t('classification.loading')}>
           {[0, 1, 2].map((row) => (
