@@ -91,6 +91,46 @@ test('no peer statistics cannot pass the functional media gate', async () => {
   assert.equal(samples, 6)
 })
 
+test('missing media reports fixed counts and progress without snapshot values', async () => {
+  const diagnostic = {}
+  const page = {
+    async evaluate() {
+      return { connections: [], streams: [] }
+    },
+  }
+  await assert.rejects(
+    requireMediaProgress([page, page], {
+      attempts: 1,
+      intervalMs: 1,
+      diagnostic,
+    }),
+    /did not progress/
+  )
+  assert.equal(diagnostic.participants.length, 2)
+  assert.deepEqual(diagnostic.participants[1], {
+    participant: 2,
+    step: 'PROGRESS',
+    samplesRead: 2,
+    connectionStates: {
+      new: 0,
+      connecting: 0,
+      connected: 0,
+      disconnected: 0,
+      failed: 0,
+      closed: 0,
+    },
+    streams: {
+      inboundAudio: 0,
+      inboundVideo: 0,
+      outboundAudio: 0,
+      outboundVideo: 0,
+    },
+    progressing: false,
+    roster: null,
+    failed: false,
+  })
+})
+
 test('departure requires every observed peer to be closed, including disconnected peers', () => {
   const closed = { connections: [{ state: 'closed' }, { state: 'closed' }] }
   assert.equal(connectionsClosed(closed), true)
@@ -168,6 +208,8 @@ function successfulMeetingDouble({
   rejectFeedback = false,
   retainClosedConnection = false,
   delayedConfirmation = false,
+  rejectMediaRead = false,
+  rejectRoster = false,
 } = {}) {
   const contexts = []
   const fixture = {
@@ -224,8 +266,13 @@ function successfulMeetingDouble({
           if (context.closed) throw new Error('Synthetic context is closed')
           if (id !== undefined) {
             assert.equal(id, 'synthetic-participants')
+            if (rejectRoster) return ['private-marker']
             return ['rtc-0', 'rtc-1']
           }
+          if (rejectMediaRead)
+            throw new Error(
+              'private-marker https://private.invalid/?token=hidden'
+            )
           if (left) {
             return {
               connections: [
@@ -294,6 +341,68 @@ function successfulMeetingDouble({
   }
   return { browser, fixture, contexts }
 }
+
+test('media read and roster failures identify their boundary and hide private values', async () => {
+  for (const [option, step] of [
+    ['rejectMediaRead', 'SNAPSHOT'],
+    ['rejectRoster', 'ROSTER_BEFORE_SAMPLE'],
+  ]) {
+    const { browser, fixture, contexts } = successfulMeetingDouble({
+      [option]: true,
+    })
+    const result = await qualifyMeeting(browser, fixture)
+    assert.equal(result.status, 'MEET_TWO_PARTY_BROWSER_NOT_CONFIRMED')
+    assert.equal(result.stage, 'AUDIO_VIDEO')
+    assert.equal(result.media.participants[0].step, step)
+    assert.equal(result.media.participants[0].samplesRead, 0)
+    assert.equal(result.media.participants[0].failed, true)
+    assert.equal(result.media.participants[0].connectionStates, null)
+    if (option === 'rejectRoster') {
+      assert.deepEqual(result.media.participants[0].roster, {
+        listFound: true,
+        count: 1,
+        expectedSetMatches: false,
+      })
+    }
+    assert.equal(JSON.stringify(result).includes('private-marker'), false)
+    assert.equal(
+      contexts.every((context) => context.closed),
+      true
+    )
+  }
+})
+
+test('extra inbound streams stay rejected and expose counts rather than stream identifiers', async () => {
+  const { browser, fixture } = successfulMeetingDouble()
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const evaluate = page.evaluate.bind(page)
+  page.evaluate = async (callback, id) => {
+    const value = await evaluate(callback, id)
+    if (id === undefined) {
+      const audio = value.streams.find(
+        (stream) => stream.direction === 'inbound' && stream.kind === 'audio'
+      )
+      value.streams.push({ ...audio, id: 'private-marker' })
+    }
+    return value
+  }
+  const diagnostic = {}
+  await assert.rejects(
+    requireMediaProgress([page], {
+      expectedIds: fixture.participants.map(
+        (participant) => participant.expectedRtcIdentity
+      ),
+      diagnostic,
+    }),
+    /Only one remote/
+  )
+  assert.equal(diagnostic.participants[0].step, 'STREAM_COUNT')
+  assert.equal(diagnostic.participants[0].failed, true)
+  assert.equal(diagnostic.participants[0].streams.inboundAudio, 2)
+  assert.equal(JSON.stringify(diagnostic).includes('private-marker'), false)
+  await context.close()
+})
 
 test('departure failure identifies the participant and UI step without private errors', async () => {
   const { browser, fixture, contexts } = successfulMeetingDouble({

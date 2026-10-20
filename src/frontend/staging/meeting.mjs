@@ -72,25 +72,68 @@ async function joinMeeting(page, roomUrl, reload = false) {
 
 export async function requireMediaProgress(
   pages,
-  { attempts = 12, intervalMs = 1000, expectedIds } = {}
+  { attempts = 12, intervalMs = 1000, expectedIds, diagnostic = {} } = {}
 ) {
+  const observations = pages.map((_page, index) => ({
+    participant: index + 1,
+    step: 'START',
+    samplesRead: 0,
+    connectionStates: null,
+    streams: null,
+    progressing: null,
+    roster: null,
+    failed: false,
+  }))
+  diagnostic.participants = observations
+
+  async function checkParticipants(step) {
+    if (!expectedIds) return
+    await Promise.all(
+      pages.map(async (page, index) => {
+        const observation = observations[index]
+        observation.step = step
+        observation.roster = null
+        try {
+          await requireExpectedParticipants(page, expectedIds, observation)
+        } catch (error) {
+          observation.failed = true
+          throw error
+        }
+      })
+    )
+  }
+
   async function readSamples() {
-    if (expectedIds)
-      await Promise.all(
-        pages.map((page) => requireExpectedParticipants(page, expectedIds))
-      )
-    const snapshots = await Promise.all(pages.map(readMediaSnapshot))
+    await checkParticipants('ROSTER_BEFORE_SAMPLE')
+    const snapshots = await Promise.all(
+      pages.map(async (page, index) => {
+        const observation = observations[index]
+        observation.step = 'SNAPSHOT'
+        let snapshot
+        try {
+          snapshot = await readMediaSnapshot(page)
+        } catch (error) {
+          observation.failed = true
+          throw error
+        }
+        observation.samplesRead++
+        observation.connectionStates = connectionStateCounts(snapshot)
+        observation.streams = mediaStreamCounts(snapshot)
+        return snapshot
+      })
+    )
+    await checkParticipants('ROSTER_AFTER_SAMPLE')
     if (expectedIds) {
-      await Promise.all(
-        pages.map((page) => requireExpectedParticipants(page, expectedIds))
-      )
-      for (const snapshot of snapshots) {
+      for (const [index, snapshot] of snapshots.entries()) {
+        observations[index].step = 'STREAM_COUNT'
         for (const kind of ['audio', 'video']) {
           const incoming = snapshot.streams.filter(
             (stream) => stream.direction === 'inbound' && stream.kind === kind
           )
-          if (incoming.length > 1)
+          if (incoming.length > 1) {
+            observations[index].failed = true
             throw new Error('Only one remote media source per kind is allowed')
+          }
         }
       }
     }
@@ -100,17 +143,43 @@ export async function requireMediaProgress(
   for (let attempt = 0; attempt < attempts; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs))
     const current = await readSamples()
-    if (
-      current.every((snapshot, index) =>
-        hasBidirectionalMediaProgress(previous[index], snapshot)
-      )
-    )
-      return
+    const progressing = current.map((snapshot, index) => {
+      const confirmed = hasBidirectionalMediaProgress(previous[index], snapshot)
+      observations[index].step = 'PROGRESS'
+      observations[index].progressing = confirmed
+      return confirmed
+    })
+    if (progressing.every(Boolean)) return
     previous = current
   }
   throw new Error(
     'Bidirectional audio and video did not progress for both participants'
   )
+}
+
+function connectionStateCounts(snapshot) {
+  return Object.fromEntries(
+    ['new', 'connecting', 'connected', 'disconnected', 'failed', 'closed'].map(
+      (state) => [
+        state,
+        snapshot.connections.filter((connection) => connection.state === state)
+          .length,
+      ]
+    )
+  )
+}
+
+function mediaStreamCounts(snapshot) {
+  const count = (direction, kind) =>
+    snapshot.streams.filter(
+      (stream) => stream.direction === direction && stream.kind === kind
+    ).length
+  return {
+    inboundAudio: count('inbound', 'audio'),
+    inboundVideo: count('inbound', 'video'),
+    outboundAudio: count('outbound', 'audio'),
+    outboundVideo: count('outbound', 'video'),
+  }
 }
 
 async function leaveMeeting(page, departure) {
@@ -164,20 +233,7 @@ async function waitForClosedConnections(page, departure, signal) {
   while (!signal.aborted) {
     const snapshot = await readMediaSnapshot(page)
     if (signal.aborted) return
-    departure.connectionStates = Object.fromEntries(
-      [
-        'new',
-        'connecting',
-        'connected',
-        'disconnected',
-        'failed',
-        'closed',
-      ].map((state) => [
-        state,
-        snapshot.connections.filter((connection) => connection.state === state)
-          .length,
-      ])
-    )
+    departure.connectionStates = connectionStateCounts(snapshot)
     if (connectionsClosed(snapshot)) return
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
@@ -187,6 +243,7 @@ export async function qualifyMeeting(browser, fixture) {
   const contexts = []
   let stage = 'AUTHENTICATION'
   let departure
+  let media
   let result
   try {
     const pages = []
@@ -199,12 +256,17 @@ export async function qualifyMeeting(browser, fixture) {
     const expectedIds = fixture.participants.map(
       (participant) => participant.expectedRtcIdentity
     )
+    media = { step: 'OPEN_PARTICIPANTS' }
     for (const page of pages) await openParticipants(page)
-    await requireMediaProgress(pages, { expectedIds })
+    media.step = 'SAMPLING'
+    await requireMediaProgress(pages, { expectedIds, diagnostic: media })
     stage = 'RELOAD_REJOIN'
+    media = { step: 'REJOIN' }
     await joinMeeting(pages[1], fixture.roomUrl, true)
+    media.step = 'OPEN_PARTICIPANTS'
     await openParticipants(pages[1])
-    await requireMediaProgress(pages, { expectedIds })
+    media.step = 'SAMPLING'
+    await requireMediaProgress(pages, { expectedIds, diagnostic: media })
     stage = 'LEAVE'
     for (let index = pages.length - 1; index >= 0; index--) {
       departure = {
@@ -229,6 +291,8 @@ export async function qualifyMeeting(browser, fixture) {
     }
   } catch {
     result = { status: 'MEET_TWO_PARTY_BROWSER_NOT_CONFIRMED', stage }
+    if (media && (stage === 'AUDIO_VIDEO' || stage === 'RELOAD_REJOIN'))
+      result.media = structuredClone(media)
     if (departure) result.departure = structuredClone(departure)
   } finally {
     const cleanup = await Promise.allSettled(

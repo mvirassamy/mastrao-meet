@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-20: Locate staging media qualification failures with private-safe
+  participant, connection-state and stream counts.
+
 - 2026-10-20: Diagnose staging Meet departure checks without private data.
 
 - 2026-10-20: Configure the private Core read and write endpoints for
