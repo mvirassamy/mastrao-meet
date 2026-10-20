@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-20: Configure the private Core read and write endpoints for
+  personal meeting notes in the staging overlay.
+
 - 2026-10-20: Prepare a two-party staging browser test with synthetic media,
   authenticated fixtures, reload/rejoin and leave checks. Keep live execution
   and automatic delivery separate from local probe validation.
