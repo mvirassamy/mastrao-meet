@@ -3,21 +3,43 @@
 import smtplib
 from datetime import datetime
 from logging import getLogger
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.utils import dateformat
 from django.utils.translation import get_language, override
 from django.utils.translation import gettext_lazy as _
 
 logger = getLogger(__name__)
+
+SCHEDULED_INVITATION_LANGUAGE = "fr"
+UNTITLED_MEETING_TITLE = "Réunion visio"
 
 
 class InvitationError(Exception):
     """Exception raised when invitation emails cannot be sent."""
 
     status_code = 500
+
+
+def _single_line(text):
+    """Collapse whitespace so a title can never break an e-mail header."""
+
+    return " ".join(text.split())
+
+
+def _timezone_label(timezone):
+    if timezone == "Europe/Paris":
+        return "heure de Paris"
+    return timezone
+
+
+def _origin(url):
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}"
 
 
 class InvitationService:
@@ -28,24 +50,30 @@ class InvitationService:
         """Send one recipient their meeting link and personal video choice."""
 
         zone = ZoneInfo(schedule["timezone"])
+        title = _single_line(schedule.get("title") or "") or UNTITLED_MEETING_TITLE
+        starts_at = datetime.fromtimestamp(schedule["scheduled_start_at"], zone)
         context = {
-            "title": schedule.get("title", ""),
-            "sender_email": sender.email,
-            "starts_at": datetime.fromtimestamp(schedule["scheduled_start_at"], zone),
+            "title": title,
+            "sender_name": sender.full_name or sender.email,
+            "starts_at": starts_at,
             "ends_at": datetime.fromtimestamp(schedule["scheduled_end_at"], zone),
-            "timezone": schedule["timezone"],
+            "timezone_label": _timezone_label(schedule["timezone"]),
             "room_url": room_url,
             "choice_url": choice_url,
+            # Images are served by the Meet frontend that also serves the room.
+            "asset_origin": _origin(room_url),
         }
-        message = EmailMultiAlternatives(
-            subject=str(_("Invitation to a scheduled meeting")),
-            body=render_to_string("invitations/scheduled.txt", context),
-            from_email=settings.EMAIL_FROM,
-            to=[email],
-        )
-        message.attach_alternative(
-            render_to_string("invitations/scheduled.html", context), "text/html"
-        )
+        with override(SCHEDULED_INVITATION_LANGUAGE):
+            starts_label = dateformat.format(starts_at, "l j F, H:i")
+            message = EmailMultiAlternatives(
+                subject=f"Invitation : {title} · {starts_label}",
+                body=render_to_string("invitations/scheduled.txt", context),
+                from_email=settings.EMAIL_FROM,
+                to=[email],
+            )
+            message.attach_alternative(
+                render_to_string("invitations/scheduled.html", context), "text/html"
+            )
         try:
             if message.send() != 1:
                 raise InvitationError("Could not confirm invitation send")

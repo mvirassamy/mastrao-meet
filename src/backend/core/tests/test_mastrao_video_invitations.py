@@ -20,7 +20,7 @@ from core.mastrao_video_invitations import (
     deliver_meeting_invitations,
     validate_invitations,
 )
-from core.services.invitation import InvitationError
+from core.services.invitation import InvitationError, InvitationService
 
 BINDING = SimpleNamespace(room=object(), meeting_ref="meeting_0123456789abcdef")
 INVITATION = {
@@ -64,7 +64,8 @@ def _response(state, sending=False):
 
 def _request():
     return SimpleNamespace(
-        user=SimpleNamespace(email="organizer@example.com"), session={}
+        user=SimpleNamespace(email="organizer@example.com", full_name=None),
+        session={},
     )
 
 
@@ -111,11 +112,18 @@ def test_personal_notice_is_sent_once_and_contains_choice_and_guest_links():
     assert len(mail.outbox) == 1
     message = mail.outbox[0]
     assert message.to == [INVITATION["email"]]
-    assert "15/01/2027 10:00" in message.body
-    assert "no objection, not an explicit acceptance" in message.body
-    assert "until video capture actually starts" in message.body
-    assert "Audio capture for transcription has a separate choice" in message.body
+    assert (
+        message.subject == "Invitation : Réunion <équipe> · vendredi 15 janvier, 10:00"
+    )
+    assert "vendredi 15 janvier 2027 · 10:00 – 11:00, heure de Paris" in message.body
+    assert "absence d’opposition, et non une acceptation explicite" in message.body
+    assert "jusqu’au démarrage effectif de l’enregistrement vidéo" in message.body
+    assert "La captation audio pour la transcription fait l’objet" in message.body
     assert "Réunion &lt;équipe&gt;" in message.alternatives[0].content
+    assert (
+        'src="https://meet.example.com/assets/email/calendrier.png"'
+        in message.alternatives[0].content
+    )
     urls = [
         line.split(": ", 1)[1]
         for line in message.body.splitlines()
@@ -247,3 +255,25 @@ def test_empty_invitees_do_not_call_the_delivery_runtime():
     with patch("core.mastrao_video_invitations.guest_invitation_url") as share:
         assert not deliver_meeting_invitations(_request(), BINDING, [], SCHEDULE)
     share.assert_not_called()
+
+
+@override_settings(**SETTINGS)
+@pytest.mark.parametrize(
+    ("title", "expected_title"),
+    [("Point\r\ndossier  Martin", "Point dossier Martin"), ("", "Réunion visio")],
+)
+def test_notice_subject_stays_on_one_line_and_names_untitled_meetings(
+    title, expected_title
+):
+    InvitationService.invite_to_scheduled_room(
+        sender=SimpleNamespace(
+            email="organizer@example.com", full_name="Claire Delmas"
+        ),
+        email=INVITATION["email"],
+        schedule={**SCHEDULE, "title": title},
+        room_url=ROOM_URL,
+        choice_url="https://app.example.com/meet/video-choice?token=t",
+    )
+    message = mail.outbox[0]
+    assert message.subject.startswith(f"Invitation : {expected_title} · ")
+    assert message.body.startswith("Claire Delmas vous invite à une réunion visio")

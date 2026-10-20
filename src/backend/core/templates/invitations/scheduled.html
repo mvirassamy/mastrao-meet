@@ -1,15 +1,66 @@
-{% load i18n tz %}{% localtime off %}
-<!doctype html>
-<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#202124">
-<h1>{% trans "Invitation to a scheduled meeting" %}</h1>
-<p>{{ sender_email }} — {{ title }}</p>
-<p>{{ starts_at|date:"d/m/Y H:i" }} – {{ ends_at|date:"H:i" }} ({{ timezone }})</p>
-<p><a href="{{ room_url }}">{% trans "Join the meeting" %}</a></p>
-<h2>{% trans "Video recording may be requested" %}</h2>
-<p>{% trans "The host may manually start video recording. Any refusal prevents video recording for the whole meeting. Without an objection after this email, your response remains no objection, not an explicit acceptance." %}</p>
-<p><a href="{{ choice_url }}">{% trans "Choose yes or no without an account" %}</a></p>
-<p>{% trans "You may change your choice until video capture actually starts. While a start request is being resolved, changes cannot be confirmed. Stopping video recording is permanent for this meeting." %}</p>
-<p>{% trans "Audio capture for transcription has a separate choice when you join. Refusing video does not refuse audio transcription." %}</p>
-</body></html>
-
+{% load tz %}{% localtime off %}<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Invitation : {{ title }}</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f5f6f8;">
+    <div style="display:none;max-height:0;overflow:hidden;">Rejoignez la réunion depuis votre navigateur, sans compte ni installation.</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f6f8;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+            <tr>
+              <td style="padding:30px 36px 0 36px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding-right:8px;vertical-align:middle;"><img src="{{ asset_origin }}/assets/email/mastrao-icon.png" width="28" height="28" alt="" style="display:block;border:0;"></td>
+                    <td style="vertical-align:middle;font-size:16px;font-weight:700;color:#1d2b45;">Mastrao</td>
+                  </tr>
+                </table>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:18px 0 22px 0;"><div style="border-top:1px solid #e5e7eb;font-size:0;line-height:0;">&nbsp;</div></td></tr></table>
+                <h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;font-weight:700;color:#1d2b45;">{{ sender_name }} vous invite à une réunion visio</h1>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #d7dfe9;border-radius:12px;">
+                  <tr>
+                    <td width="60" style="padding:12px 0 12px 14px;vertical-align:middle;"><img src="{{ asset_origin }}/assets/email/calendrier.png" width="40" height="40" alt="" style="display:block;border:0;"></td>
+                    <td style="padding:12px 14px 12px 4px;vertical-align:middle;">
+                      <p style="margin:0;font-size:15px;line-height:1.4;font-weight:600;color:#1d2b45;">{{ title }}</p>
+                      <p style="margin:2px 0 0 0;font-size:13px;line-height:1.5;color:#56637a;">{{ starts_at|date:"l j F Y" }} · {{ starts_at|date:"H:i" }} – {{ ends_at|date:"H:i" }}, {{ timezone_label }}</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:16px 0 18px 0;font-size:15px;line-height:1.6;color:#3d485e;">Rejoignez la réunion depuis votre navigateur. Aucun compte ni aucune installation n’est nécessaire.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="border-radius:10px;background-color:#2d5be3;"><a href="{{ room_url }}" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">Rejoindre la réunion</a></td>
+                  </tr>
+                </table>
+                <p style="margin:14px 0 0 0;font-size:12.5px;line-height:1.55;color:#56637a;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><a href="{{ room_url }}" style="color:#2d5be3;word-break:break-all;">{{ room_url }}</a></p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:26px 36px 28px 36px;">
+                <div style="border-top:1px solid #e5e7eb;font-size:0;line-height:0;">&nbsp;</div>
+                <h2 style="margin:22px 0 8px 0;font-size:15px;line-height:1.4;font-weight:600;color:#1d2b45;">Un enregistrement vidéo peut être demandé</h2>
+                <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#3d485e;">L’hôte peut démarrer manuellement un enregistrement vidéo. Un seul refus empêche l’enregistrement vidéo pour toute la réunion. Sans opposition de votre part après cet e-mail, votre réponse reste une absence d’opposition, et non une acceptation explicite.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="border-radius:10px;border:1px solid #c7d5f8;background-color:#ffffff;"><a href="{{ choice_url }}" style="display:inline-block;padding:9px 16px;font-size:14px;font-weight:600;color:#2d5be3;text-decoration:none;border-radius:10px;">Choisir oui ou non, sans compte</a></td>
+                  </tr>
+                </table>
+                <p style="margin:14px 0 0 0;font-size:12.5px;line-height:1.55;color:#56637a;">Vous pouvez modifier votre choix jusqu’au démarrage effectif de l’enregistrement vidéo. Pendant le traitement d’une demande de démarrage, une modification ne peut pas être confirmée. L’arrêt de l’enregistrement vidéo est définitif pour cette réunion.</p>
+                <p style="margin:8px 0 0 0;font-size:12.5px;line-height:1.55;color:#56637a;">La captation audio pour la transcription fait l’objet d’un choix séparé lorsque vous rejoignez la réunion. Refuser la vidéo ne refuse pas la transcription audio.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 36px;border-top:1px solid #e5e7eb;text-align:center;font-size:12px;line-height:1.5;color:#8a95a8;">Vous recevez cet e-mail car {{ sender_name }} vous a invité à une réunion Mastrao.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
 {% endlocaltime %}
