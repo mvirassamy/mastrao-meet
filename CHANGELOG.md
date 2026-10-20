@@ -5,6 +5,9 @@
   Diagnose unclosed peers at departure using lifecycle flags and live-track
   counts, while preserving the requirement that every peer closes.
 
+- 2026-10-20: Distinguish private notes local and Core HTTP refusals
+  using closed diagnostics without note, credential or identity data.
+
 - 2026-10-20: Locate staging media qualification failures with private-safe
   participant, connection-state and stream counts.
 

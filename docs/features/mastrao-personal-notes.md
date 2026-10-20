@@ -44,3 +44,26 @@ Les opérations internes Core sont des POST `/internal/v1/meetings/personal-note
 4. Livrer Meet puis vérifier deux auteurs, un conflit entre onglets et l'accès personnel après fermeture. Aucun déploiement distant n'est effectué par cette implémentation.
 
 Les tests PostgreSQL se lancent depuis Platform avec `pnpm test:meeting-personal-notes:postgres`. Ils créent un cluster local isolé, appliquent la chaîne SQL, testent la persistance, la concurrence, les permissions et les routes HTTP, puis arrêtent ce cluster. Ils n'acceptent aucune URL de base applicative.
+
+## Diagnostic des refus 404
+
+Le journal serveur `core.mastrao_personal_notes` émet
+`meet_personal_note_refused` uniquement pour les refus 404 du pont Core :
+
+| `cause_code` | Observation |
+|---|---|
+| `local_before_core` | Meet refuse avant le transport Core. |
+| `core_http_contract` | Une réponse HTTP Core porte une enveloppe d'erreur publique valide. |
+| `core_http_non_contract` | Une réponse HTTP est reçue sans enveloppe d'erreur publique reconnue. |
+
+`upstream_status` conserve le statut HTTP reçu, avant son éventuelle conversion
+en 404 ; il est absent (`None`) pour un refus local. `core_code` contient
+uniquement l'un des quatre codes publics Core : `invalid_assertion`,
+`resource_unavailable`, `runtime_busy` ou `service_unavailable` ; sinon `None`.
+Un 404 sans enveloppe contractuelle est compatible avec une route absente,
+mais ce diagnostic seul ne prouve pas son origine.
+
+Les messages et statuts navigateur restent opaques. Aucun contenu de note,
+message amont, identifiant de requête, de personne ou de réunion, preuve,
+jeton, session, en-tête ou exception n'est ajouté à ce journal. Les erreurs de
+la façade Platform conservent leur diagnostic distinct existant.
