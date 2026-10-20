@@ -1,16 +1,12 @@
 publiccodeYmlVersion: 0.5.0
-name: LaSuite Meet
-applicationSuite: LaSuite
-url: https://github.com/suitenumerique/meet
+name: Mastrao Visio
+applicationSuite: Mastrao
+url: https://github.com/mvirassamy/mastrao-meet
 releaseDate: 2026-07-22
 platforms:
   - web
 organisation:
-  name: DINUM
-  uri: https://numerique.gouv.fr
-fundedBy:
-  - name: Direction interministérielle du numérique (DINUM)
-    uri: https://www.numerique.gouv.fr
+  name: Mastrao
 developmentStatus: stable
 softwareType: standalone/web
 intendedAudience:
@@ -18,11 +14,11 @@ intendedAudience:
     - FR
 description:
   en:
-    localisedName: LaSuite Meet
+    localisedName: Mastrao Visio
     shortDescription: "Open Source video conference solution, based on LiveKit"
     longDescription: "Open Source video conference application, based on LiveKit,
-      Django and React. It is the official web video conference application of
-      French Ministries."
+      Django and React. Mastrao fork of Meet / La Suite Numérique, originally
+      developed by DINUM and its contributors."
     features:
       - Optimized for stability in large meetings (+100 p.)
       - Support for multiple screen sharing streams
@@ -37,12 +33,7 @@ legal:
 maintenance:
   type: internal
   contacts:
-    - name: "Samuel Paccoud"
-      email: samuel.paccoud@numerique.gouv.fr
-      affiliation: DINUM
-    - name: "Antoine Lebaud"
-      email: antoine.lebaud.ext@numerique.gouv.fr
-      affiliation: DINUM
+    - name: Mastrao
 localisation:
   localisationReady: true
   availableLanguages:

@@ -1,34 +1,16 @@
 {
   "accessibility": {
-    "title": "Accessibility",
-    "introduction": "<i>Visio</i> is committed to making its digital services accessible, in accordance with Article 47 of Law No. 2005-102 of February 11, 2005.",
-    "declaration": {
-      "title": "Accessibility Statement",
-      "date": "Established on December 4, 2024."
-    },
-    "scope": "This accessibility statement applies to the website visio.numerique.gouv.fr",
+    "title": "Toegankelijkheid van Mastrao Visio",
+    "introduction": "Deze pagina geeft informatie over de toegankelijkheid van Mastrao Visio.",
+    "scope": "Deze informatie heeft betrekking op de Mastrao Visio-instantie die je gebruikt.",
     "complianceStatus": {
-      "title": "Compliance Status",
-      "body": "visio.numerique.gouv.fr is not compliant with RGAA 4.1. The site has not yet been audited. However, the team strives to create a site that is accessible to everyone by following RGAA recommendations."
+      "title": "Conformiteitsstatus",
+      "body": "Op deze pagina zijn geen resultaten van een toegankelijkheidsaudit voor deze instantie gepubliceerd. Het conformiteitsniveau moet nog worden beoordeeld."
     },
     "improvement": {
-      "title": "Improvement and Contact",
-      "body": "If you cannot access content or a service, you can contact the person responsible for lasuite.numerique.gouv.fr to be directed to an accessible alternative or to obtain the content in another form.",
-      "contact": {
-        "email": "Email: visio@numerique.gouv.fr",
-        "address": "Address: DINUM, 20 avenue de Ségur 75007 Paris"
-      },
-      "response": "We try to respond within 2 working days."
-    },
-    "recourse": {
-      "title": "Means of Recourse",
-      "introduction": "This procedure is to be used in the following case: you have reported to the website manager an accessibility issue that prevents you from accessing content or one of the portal's services, and you have not received a satisfactory response.",
-      "options": {
-        "intro": "You can:",
-        "option1": "Write a message to the Rights Defender",
-        "option2": "Contact the Rights Defender's representative in your region",
-        "option3": "Send a letter by mail (free, no stamp needed): </br> Rights Defender Free response 71120 75342 Paris CEDEX 07"
-      }
+      "title": "Een obstakel melden",
+      "body": "Neem bij een obstakel contact op met je Mastrao-contactpersoon en vermeld de betrokken pagina, je browser en het probleem.",
+      "documentation": "Documentatie van deze instantie lezen"
     }
   }
 }

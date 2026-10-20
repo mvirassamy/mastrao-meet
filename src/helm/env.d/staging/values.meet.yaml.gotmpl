@@ -2,6 +2,9 @@
 # after supplying its normal application configuration through Secrets.
 backend:
   envVars:
+    # Bare sender address. Explicit deployment settings must use this environment’s sender.
+    DJANGO_EMAIL_FROM: "notifications@mastrao-staging.com"
+    DJANGO_EMAIL_BRAND_NAME: "Mastrao Visio"
     MASTRAO_MEETING_RECORDING_ENABLED: False
     MASTRAO_MEETING_RECORDING_START_ENABLED: False
     MASTRAO_MEETING_RECORDING_ARTIFACT_ACCESS_ENABLED: False

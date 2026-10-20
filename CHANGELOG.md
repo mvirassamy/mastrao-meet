@@ -15,6 +15,13 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(branding) identify Mastrao Visio in service pages, documentation and default
+  presets; remove inherited support destinations and DINUM operator claims while
+  preserving upstream attribution and copyrights
+- 🐛(mail) render invitations and recording notifications entirely in French,
+  populate previews and invitation footers, use the Mastrao white-background icon
+  and preserve configured bare sender addresses with distinct staging defaults
+
 - 🐛(backend) disable server-side cursors for transaction pooling #180
 - 🔧(ci) run existing frontend unit tests in the lint gate and build the
   SDK after lint and formatting with one dependency install

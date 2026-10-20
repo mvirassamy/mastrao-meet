@@ -177,14 +177,14 @@ def test_notify_user_by_email_success(mocked_current_site, settings):
 
         # Second call verification
         subject2, body2, sender2, recipients2 = call_args_list[1][0]
-        assert subject2 == "Je opname is klaar"
+        assert subject2 == "Votre enregistrement est prêt"
 
         # Verify second email content (if needed)
         personalized_content2 = [
             *base_content,
             "2023-05-15",  # Formatted date
             "16:30",  # Formatted time
-            "Je opname is klaar!",  # Intro
+            "Votre enregistrement est prêt !",  # French email, Dutch UI
         ]
         for content in personalized_content2:
             assert content in body2
@@ -194,7 +194,7 @@ def test_notify_user_by_email_success(mocked_current_site, settings):
 
         # Third call verification
         subject3, body3, sender3, recipients3 = call_args_list[2][0]
-        assert subject3 == "Your recording is ready"
+        assert subject3 == "Votre enregistrement est prêt"
 
         # Verify second email content (if needed)
         personalized_content3 = [
@@ -202,7 +202,7 @@ def test_notify_user_by_email_success(mocked_current_site, settings):
             "Conference Room A",  # Room name
             "2023-05-15",  # Formatted date
             "07:30",  # Formatted time
-            "Your recording is ready!",  # Intro
+            "Votre enregistrement est prêt !",  # French email, English UI
         ]
         for content in personalized_content3:
             assert content in body3

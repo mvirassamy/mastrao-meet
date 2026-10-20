@@ -8,7 +8,7 @@ Please refer to the [Recording feature documentation](https://github.com/suitenu
 
 ## How to develop
 
-(To develop locally follow the instructions on [developing La Suite Meet locally](https://github.com/suitenumerique/meet/blob/main/docs/developping_locally.md))
+(To develop locally follow the instructions on [developing Mastrao Visio locally](../../docs/developping_locally.md))
 
 From the root of the project:
 

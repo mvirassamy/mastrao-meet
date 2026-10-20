@@ -1,42 +1,34 @@
 <p align="center">
-  <img alt="meet logo" src="./docs/assets/banner-meet-fr.png" maxWidth="100%">
+  <img alt="Mastrao" src="./src/frontend/public/assets/mastrao-logo-icon.png" width="128">
 </p>
 
 
 <p align="center">
-  <a href="https://github.com/suitenumerique/meet/stargazers/">
-    <img src="https://img.shields.io/github/stars/suitenumerique/meet" alt="">
+  <a href="https://github.com/mvirassamy/mastrao-meet/stargazers/">
+    <img src="https://img.shields.io/github/stars/mvirassamy/mastrao-meet" alt="">
   </a>
   <a href='http://makeapullrequest.com'><img alt='PRs Welcome' src='https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=shields'/></a>
-  <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/m/suitenumerique/meet"/>
-  <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/suitenumerique/meet"/>
-  <a href="https://github.com/suitenumerique/meet/blob/main/LICENSE">
-    <img alt="GitHub closed issues" src="https://img.shields.io/github/license/suitenumerique/meet"/>
-  </a>
-  <a href="https://digitalpublicgoods.net/r/la-suite-meet-simple-video-conferencing">
-    <img src="https://img.shields.io/badge/Verified-DPG-3333AB?logo=data:image/svg%2bxml;base64,PHN2ZyB3aWR0aD0iMzEiIGhlaWdodD0iMzMiIHZpZXdCb3g9IjAgMCAzMSAzMyIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE0LjIwMDggMjEuMzY3OEwxMC4xNzM2IDE4LjAxMjRMMTEuNTIxOSAxNi40MDAzTDEzLjk5MjggMTguNDU5TDE5LjYyNjkgMTIuMjExMUwyMS4xOTA5IDEzLjYxNkwxNC4yMDA4IDIxLjM2NzhaTTI0LjYyNDEgOS4zNTEyN0wyNC44MDcxIDMuMDcyOTdMMTguODgxIDUuMTg2NjJMMTUuMzMxNCAtMi4zMzA4MmUtMDVMMTEuNzgyMSA1LjE4NjYyTDUuODU2MDEgMy4wNzI5N0w2LjAzOTA2IDkuMzUxMjdMMCAxMS4xMTc3TDMuODQ1MjEgMTYuMDg5NUwwIDIxLjA2MTJMNi4wMzkwNiAyMi44Mjc3TDUuODU2MDEgMjkuMTA2TDExLjc4MjEgMjYuOTkyM0wxNS4zMzE0IDMyLjE3OUwxOC44ODEgMjYuOTkyM0wyNC44MDcxIDI5LjEwNkwyNC42MjQxIDIyLjgyNzdMMzAuNjYzMSAyMS4wNjEyTDI2LjgxNzYgMTYuMDg5NUwzMC42NjMxIDExLjExNzdMMjQuNjI0MSA5LjM1MTI3WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==" alt="DPG Badge"/>
+  <img alt="GitHub commit activity" src="https://img.shields.io/github/commit-activity/m/mvirassamy/mastrao-meet"/>
+  <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/mvirassamy/mastrao-meet"/>
+  <a href="./LICENSES/LICENSE.MIT.md">
+    <img alt="GitHub closed issues" src="https://img.shields.io/github/license/mvirassamy/mastrao-meet"/>
   </a>
 </p>
 
 <p align="center">
-  <a href="https://livekit.io/">LiveKit</a> - <a href="https://matrix.to/#/#meet-official:matrix.org">Chat with us</a> - <a href="https://github.com/orgs/suitenumerique/projects/3/views/2">Roadmap</a> - <a href="https://github.com/suitenumerique/meet/blob/main/CHANGELOG.md">Changelog</a> - <a href="https://github.com/suitenumerique/meet/issues/new?assignees=&labels=bug&template=Bug_report.md">Bug reports</a> 
+  <a href="https://livekit.io/">LiveKit</a> - <a href="https://github.com/mvirassamy/mastrao-meet/blob/main/CHANGELOG.md">Changelog</a> - <a href="https://github.com/mvirassamy/mastrao-meet/issues/new?assignees=&labels=bug&template=Bug_report.md">Bug reports</a>
 </p>
 
-<p align="center">
-  <a href="https://visio.numerique.gouv.fr/">
-    <img src="https://github.com/user-attachments/assets/09c1faa1-de88-4848-af3a-6fbe793999bf" alt="La Suite Meet Demonstration">
-  </a>
-</p>
 
-## La Suite Meet: Simple Video Conferencing
 
-Powered by [LiveKit](https://livekit.io/), La Suite Meet offers Zoom-level performance with high-quality video and audio. No installation required—simply join calls directly from your browser. Check out LiveKit's impressive optimizations in their [blog post](https://blog.livekit.io/livekit-one-dot-zero/).
+## Mastrao Visio: Simple Video Conferencing
 
-> [!TIP]
-> New here? Start by introducing yourself in our Matrix channel:
-> **https://matrix.to/#/#meet-official:matrix.org**
->
-> We’re happy to discuss ideas, answer questions, and help to deploy LaSuite Meet.
+Mastrao Visio is the Mastrao fork of [Meet / La Suite Numérique](https://github.com/suitenumerique/meet), originally developed by DINUM and its contributors. Upstream attribution, copyrights and licenses are preserved.
+
+See [Mastrao branding and French email configuration](./docs/branding.md) for instance-specific settings.
+
+Powered by [LiveKit](https://livekit.io/), Mastrao Visio offers Zoom-level performance with high-quality video and audio. No installation required—simply join calls directly from your browser. Check out LiveKit's impressive optimizations in their [blog post](https://blog.livekit.io/livekit-one-dot-zero/).
+
 
 
 ### Features
@@ -57,13 +49,9 @@ Powered by [LiveKit](https://livekit.io/), La Suite Meet offers Zoom-level perfo
   - SVC codecs (VP9, AV1)
 
 
-La Suite Meet is fully self-hostable and released under the MIT License, ensuring complete control and flexibility. It's simple to [get started](https://visio.numerique.gouv.fr/) or [request a demo](mailto:visio@numerique.gouv.fr). 
+Mastrao Visio is fully self-hostable and released under the MIT License, ensuring complete control and flexibility. Use the meeting link provided by your Mastrao organizer to join your instance.
 
 We’re continuously adding new features to enhance your experience, with the latest updates coming soon!
-
-### 🚀 Major roll out to all French public servants
-
-On the 29th of January 2026, Prime Minister Sébastien Lecornu, announced the full deployment of Visio—the French government’s dedicated Meet platform—to all public servants. ([Source in English](https://www.nytimes.com/2026/01/29/world/europe/france-zoom-alternative-visio.html))
 
 ## Table of Contents
 
@@ -79,21 +67,21 @@ On the 29th of January 2026, Prime Minister Sébastien Lecornu, announced the fu
 
 ## Docs
 
-We're currently working on both technical and user documentation for La Suite Meet. In the meantime, many of the essential aspects are already well covered by the [LiveKit documentation](https://docs.livekit.io/home/) and their [self-hosting guide](https://docs.livekit.io/home/self-hosting/deployment/). Stay tuned for more updates!
+We're currently working on both technical and user documentation for Mastrao Visio. In the meantime, many of the essential aspects are already well covered by the [LiveKit documentation](https://docs.livekit.io/home/) and their [self-hosting guide](https://docs.livekit.io/home/self-hosting/deployment/). Stay tuned for more updates!
 
 ## Self-host
 
-### La Suite Meet is easy to install on your own servers
+### Mastrao Visio is easy to install on your own servers
 
-We use Kubernetes for our [production instance](https://visio.numerique.gouv.fr/) but also support Docker Compose. The community contributed a couple other methods (Nix, YunoHost etc.) check out the [docs](/docs/installation/README.md) to get detailed instructions and examples.
+The inherited installation guides cover Kubernetes and Docker Compose. Confirm the image and instance configuration before deploying this Mastrao fork. The community contributed a couple other methods (Nix, YunoHost etc.) check out the [docs](/docs/installation/README.md) to get detailed instructions and examples.
 
-**Questions?** Open an issue on [GitHub](https://github.com/suitenumerique/meet/issues/new?assignees=&labels=bug&template=Bug_report.md) or join our [Matrix community](https://matrix.to/#/#meet-official:matrix.org).
+**Questions?** Open an issue on [GitHub](https://github.com/mvirassamy/mastrao-meet/issues/new?assignees=&labels=bug&template=Bug_report.md).
 
 > [!NOTE]
 > Some advanced features (ex: recording, transcription) lack detailed documentation. We're working hard to provide comprehensive guides soon.
 
-#### Known instances
-We hope to see many more, here is an incomplete list of public La Suite Meet instances. Feel free to make a PR to add ones that are not listed below🙏
+#### Upstream instances
+The following instances were listed by the upstream Meet project; they are not Mastrao instances or Mastrao support channels.
 
 | Url                                                           | Org          | Access                                                                                                                                        |
 |---------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
@@ -113,7 +101,7 @@ We <3 contributions of all kinds **big or small** and we’re genuinely glad you
 
 **The best first contribution is simply to come say hi.**
 
-Before opening a PR, especially a larger one, or one written with the help of AI, we encourage you to reach out to a maintainer on our [Matrix channel](https://matrix.to/#/#meet-official:matrix.org) (@antoine.lebaud:matrix.org).
+Before opening a larger PR, discuss the change with this fork’s maintainers through [GitHub issues](https://github.com/mvirassamy/mastrao-meet/issues).
 
 Getting in touch early helps us align on goals, avoid duplicated or wasted effort, and build a community that stays active, welcoming, and fun to be part of. There are no silly questions here: whether you’ve shipped hundreds of PRs or you’re just getting started, you’re welcome.
 
@@ -134,38 +122,34 @@ Open source is much more than code. Writing documentation, improving onboarding,
 
 When you’re ready, here are a few ways to get involved:
 
-* 👋 **Say hello** and share your ideas with the community and maintainers on our [Matrix channel](https://matrix.to/#/#meet-official:matrix.org)
-* 🛠️ **Open a PR** by following our guide to [develop La Suite Meet locally](https://github.com/suitenumerique/meet/blob/main/docs/developping_locally.md)
-* 💡 **Suggest an idea** by opening a [feature request](https://github.com/suitenumerique/meet/issues/new?assignees=&labels=enhancement&template=Feature_request.md)
-* 🐛 **Report a bug** by opening a [bug report](https://github.com/suitenumerique/meet/issues/new?assignees=&labels=bug&template=Bug_report.md)
+* 👋 **Say hello** and share your ideas with this fork’s maintainers through [GitHub issues](https://github.com/mvirassamy/mastrao-meet/issues)
+* 🛠️ **Open a PR** by following our guide to [develop Mastrao Visio locally](https://github.com/mvirassamy/mastrao-meet/blob/main/docs/developping_locally.md)
+* 💡 **Suggest an idea** by opening a [feature request](https://github.com/mvirassamy/mastrao-meet/issues/new?assignees=&labels=enhancement&template=Feature_request.md)
+* 🐛 **Report a bug** by opening a [bug report](https://github.com/mvirassamy/mastrao-meet/issues/new?assignees=&labels=bug&template=Bug_report.md)
 
 Thank you for helping build something open, useful, and human. 💙
 
-### Community call
-
-We host a community call on the first Friday of every month to share updates, discuss ideas, and connect with contributors.
-
-Whether you’re actively contributing or just curious about the project, you’re welcome to join. More details are shared on the [Matrix channel](https://matrix.to/#/#meet-official:matrix.org).
+The upstream project also has a [Meet community channel](https://matrix.to/#/#meet-official:matrix.org). It is separate from Mastrao support.
 
 ## Philosophy
 
-We’re relentlessly focused on building the best open-source video conferencing product—La Suite Meet. Growth comes from creating something people truly need, not just from chasing metrics.
+We’re relentlessly focused on building the best open-source video conferencing product—Mastrao Visio. Growth comes from creating something people truly need, not just from chasing metrics.
 
-Our users come first. We’re committed to making La Suite Meet as accessible and easy to use as proprietary solutions, ensuring it meets the highest standards.
+Our users come first. We’re committed to making Mastrao Visio as accessible and easy to use as proprietary solutions, ensuring it meets the highest standards.
 
 Most of the heavy engineering is handled by the incredible LiveKit team, allowing us to focus on delivering a top-tier product. We follow extreme programming practices, favoring pair programming and quick, iterative releases. Challenge our tech and architecture—simplicity is always our top priority.
 
 
 ## Open-source
 
-Gov 🇫🇷 supports open source! This project is available under [MIT license](https://github.com/suitenumerique/meet/blob/0cc2a7b7b4f4821e2c4d9d790efa739622bb6601/LICENSE).
+This fork retains the original [MIT license](./LICENSES/LICENSE.MIT.md) and DINUM/Etalab copyright from [suitenumerique/meet](https://github.com/suitenumerique/meet).
 
 All features we develop will always remain open-source, and we are committed to contributing back to the LiveKit community whenever feasible.
-To learn more, don't hesitate to [reach out](mailto:visio@numerique.gouv.fr).
+Discuss this fork with its maintainers through [GitHub issues](https://github.com/mvirassamy/mastrao-meet/issues).
 
 ### Help us!
 
-Come help us make La Suite Meet even better. We're growing fast and [would love some help](mailto:visio@numerique.gouv.fr).
+Come help us make Mastrao Visio even better. Contributions to this fork are welcome through [GitHub](https://github.com/mvirassamy/mastrao-meet).
 
 
 ## Contributors 🧞
@@ -181,6 +165,6 @@ This project is tested with BrowserStack.
 
 ## License
 
-Code in this repository is published under the MIT license by DINUM (Direction interministériel du numérique).
+The original code was published under the MIT license by DINUM (Direction interministériel du numérique). This fork preserves that attribution and copyright.
 Documentation (in the docs/) directory is released under the [Etalab-2.0 license](https://spdx.org/licenses/etalab-2.0.html).
 

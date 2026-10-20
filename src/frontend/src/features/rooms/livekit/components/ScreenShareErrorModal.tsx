@@ -1,6 +1,7 @@
 import { A, Button, Dialog, P } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
+import { useConfig } from '@/api/useConfig'
 
 // todo - refactor it into a generic system
 export const ScreenShareErrorModal = ({
@@ -11,6 +12,7 @@ export const ScreenShareErrorModal = ({
   onClose: () => void
 }) => {
   const { t } = useTranslation('rooms', { keyPrefix: 'error.screenShare' })
+  const { data } = useConfig()
   const isMac = navigator.userAgent.toLowerCase().indexOf('mac') !== -1
 
   return (
@@ -39,16 +41,20 @@ export const ScreenShareErrorModal = ({
                   .{' '}
                 </>
               )}
-              {t('helpLinkText')}{' '}
-              <A
-                href="https://lasuite.crisp.help/fr/article/visio-probleme-de-presentation-1xkf799/"
-                aria-label={t('helpLinkLabel') + '-' + t('newTab')}
-                target="_blank"
-                color="primary"
-              >
-                {t('helpLinkLabel')}
-              </A>
-              .
+              {data?.documentation_url && (
+                <>
+                  {t('helpLinkText')}{' '}
+                  <A
+                    href={data.documentation_url}
+                    aria-label={t('helpLinkLabel') + '-' + t('newTab')}
+                    target="_blank"
+                    color="primary"
+                  >
+                    {t('helpLinkLabel')}
+                  </A>
+                  .
+                </>
+              )}
             </P>
             <Button
               onPress={close}

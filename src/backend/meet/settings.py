@@ -880,8 +880,8 @@ class Base(Configuration):
     EMAIL_PORT = values.PositiveIntegerValue(None)
     EMAIL_USE_TLS = values.BooleanValue(False)
     EMAIL_USE_SSL = values.BooleanValue(False)
-    EMAIL_FROM = values.Value("from@example.com")
-    EMAIL_BRAND_NAME = values.Value(None)
+    EMAIL_FROM = values.Value("notifications@mastrao.com")
+    EMAIL_BRAND_NAME = values.Value("Mastrao Visio")
     EMAIL_SUPPORT_EMAIL = values.Value(None)
     EMAIL_LOGO_IMG = values.Value(None)
     EMAIL_DOMAIN = values.Value(None)
@@ -1618,6 +1618,21 @@ class Base(Configuration):
                 "hide_untranslated": False,
             },
         }
+
+    @classmethod
+    def setup(cls):
+        """Resolve email defaults before settings are exported to Django."""
+        super().setup()
+        # Email links and the square logo use this installation's frontend origin.
+        cls.EMAIL_APP_BASE_URL = cls.EMAIL_APP_BASE_URL or cls.APPLICATION_BASE_URL
+        if cls.EMAIL_APP_BASE_URL:
+            cls.EMAIL_APP_BASE_URL = cls.EMAIL_APP_BASE_URL.rstrip("/")
+            cls.EMAIL_DOMAIN = (
+                cls.EMAIL_DOMAIN or urlparse(cls.EMAIL_APP_BASE_URL).netloc
+            )
+            cls.EMAIL_LOGO_IMG = cls.EMAIL_LOGO_IMG or (
+                f"{cls.EMAIL_APP_BASE_URL}/assets/mastrao-logo-icon.png"
+            )
 
     @classmethod
     def post_setup(cls):
