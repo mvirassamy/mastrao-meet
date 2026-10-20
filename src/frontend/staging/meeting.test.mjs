@@ -109,6 +109,7 @@ test('departure requires every observed peer to be closed, including disconnecte
   }
   assert.equal(connectionsClosed(undefined), false)
   assert.equal(connectionsClosed({}), false)
+  assert.equal(connectionsClosed({ connections: [] }), false)
 })
 
 test('a hanging snapshot read rejects at its deadline without waiting five seconds', async (t) => {
@@ -163,6 +164,10 @@ test('a hanging context cleanup becomes an unconfirmed result at its deadline', 
 function successfulMeetingDouble({
   rejectCleanup = false,
   initiallyEmptyMedia = false,
+  rejectDeparture = false,
+  rejectFeedback = false,
+  retainClosedConnection = false,
+  delayedConfirmation = false,
 } = {}) {
   const contexts = []
   const fixture = {
@@ -181,7 +186,11 @@ function successfulMeetingDouble({
       let left = false
       function element(name) {
         return {
-          async waitFor() {},
+          async waitFor() {
+            if (delayedConfirmation && name === 'Leave only') {
+              await new Promise((resolve) => setTimeout(resolve, 100))
+            }
+          },
           async isVisible() {
             return false
           },
@@ -190,6 +199,11 @@ function successfulMeetingDouble({
             return 'synthetic-participants'
           },
           async click() {
+            if (name === 'Leave only') context.confirmationClicks++
+            if (rejectDeparture && name === 'leave')
+              throw new Error(
+                'private-marker https://private.invalid/?token=hidden'
+              )
             if (name === 'leave' || name === 'Leave only') left = true
           },
           getByRole: (_role, options) => element(options.name),
@@ -198,17 +212,28 @@ function successfulMeetingDouble({
       const page = {
         async goto() {},
         async reload() {},
-        async waitForURL() {},
+        async waitForURL() {
+          if (rejectFeedback)
+            throw new Error(
+              'private-marker https://private.invalid/?token=hidden'
+            )
+        },
         getByRole: (_role, options) => element(options.name),
         locator: () => element('leave'),
         async evaluate(_callback, id) {
+          if (context.closed) throw new Error('Synthetic context is closed')
           if (id !== undefined) {
             assert.equal(id, 'synthetic-participants')
             return ['rtc-0', 'rtc-1']
           }
           if (left) {
             return {
-              connections: [{ id: 'pc-1', state: 'closed' }],
+              connections: [
+                {
+                  id: 'pc-1',
+                  state: retainClosedConnection ? 'disconnected' : 'closed',
+                },
+              ],
               streams: [],
             }
           }
@@ -235,6 +260,7 @@ function successfulMeetingDouble({
         },
       }
       const context = {
+        confirmationClicks: 0,
         closeAttempts: 0,
         closed: false,
         setDefaultTimeout() {},
@@ -268,6 +294,66 @@ function successfulMeetingDouble({
   }
   return { browser, fixture, contexts }
 }
+
+test('departure failure identifies the participant and UI step without private errors', async () => {
+  const { browser, fixture, contexts } = successfulMeetingDouble({
+    rejectDeparture: true,
+  })
+  const result = await qualifyMeeting(browser, fixture)
+  assert.deepEqual(result, {
+    status: 'MEET_TWO_PARTY_BROWSER_NOT_CONFIRMED',
+    stage: 'LEAVE',
+    departure: {
+      participant: 2,
+      step: 'CONTROL',
+      feedbackReached: false,
+      connectionStates: null,
+    },
+  })
+  assert.equal(JSON.stringify(result).includes('private-marker'), false)
+  assert.equal(
+    contexts.every((context) => context.closed),
+    true
+  )
+})
+
+test('an unconfirmed feedback transition cannot be reported as closed connections', async () => {
+  const { browser, fixture } = successfulMeetingDouble({ rejectFeedback: true })
+  const result = await qualifyMeeting(browser, fixture)
+  assert.equal(result.status, 'MEET_TWO_PARTY_BROWSER_NOT_CONFIRMED')
+  assert.equal(result.departure.participant, 2)
+  assert.equal(result.departure.feedbackReached, false)
+  assert.equal(result.departure.connectionStates, null)
+  assert.equal(JSON.stringify(result).includes('private-marker'), false)
+})
+
+test('a feedback page with an unclosed peer reports bounded state counts and cannot pass', async () => {
+  const { browser, fixture, contexts } = successfulMeetingDouble({
+    retainClosedConnection: true,
+    delayedConfirmation: true,
+  })
+  const result = await qualifyMeeting(browser, fixture)
+  assert.equal(result.status, 'MEET_TWO_PARTY_BROWSER_NOT_CONFIRMED')
+  assert.equal(result.departure.participant, 2)
+  assert.equal(result.departure.step, 'CONNECTIONS')
+  assert.equal(result.departure.feedbackReached, true)
+  assert.deepEqual(result.departure.connectionStates, {
+    new: 0,
+    connecting: 0,
+    connected: 0,
+    disconnected: 1,
+    failed: 0,
+    closed: 0,
+  })
+  assert.equal(
+    contexts.every((context) => context.confirmationClicks === 0),
+    true
+  )
+  assert.equal(
+    contexts.every((context) => context.closed),
+    true
+  )
+})
 
 test('empty initial media waits for two subsequent valid progressing samples', async () => {
   const { browser, fixture } = successfulMeetingDouble({

@@ -79,6 +79,16 @@ video and storage states are not written into the report. Do not enable
 `DEBUG=pw:*`, tracing or network logs on a live fixture. Successful output is
 `MEET_TWO_PARTY_BROWSER_PASS`, not a release qualification.
 
+An unconfirmed `LEAVE` result includes `departure`: the participant's position
+(1 or 2), a fixed step (`CONTROL`, `TRANSITION`, `CONFIRMATION`, `FEEDBACK` or
+`CONNECTIONS`), whether the voluntary-leave feedback route was reached, and the
+last observed number of WebRTC connections in each standard state. A null count
+means no departure snapshot was obtained. These fields do not contain identities,
+URLs or raw errors. They locate the failing check without relaxing the exit gate;
+successful media checks alone still cannot produce a passing qualification.
+An empty connection list also fails: a new document without the previously
+observed peers cannot establish that those peers were closed.
+
 ## Local checks and release correlation
 
 ```sh

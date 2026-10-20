@@ -1,9 +1,6 @@
 # Changelog
 
-- 2026-10-20: Use Mastrao branding and the existing white-background logo.
-  Author all transactional emails and subjects in French independently of
-  interface language, preserve configured sender addresses, and remove
-  inherited operator/support claims while retaining upstream attribution.
+- 2026-10-20: Diagnose staging Meet departure checks without private data.
 
 - 2026-10-20: Configure the private Core read and write endpoints for
   personal meeting notes in the staging overlay.
@@ -11,6 +8,11 @@
 - 2026-10-20: Prepare a two-party staging browser test with synthetic media,
   authenticated fixtures, reload/rejoin and leave checks. Keep live execution
   and automatic delivery separate from local probe validation.
+
+- 2026-10-20: Use Mastrao branding and the existing white-background logo.
+  Author all transactional emails and subjects in French independently of
+  interface language, preserve configured sender addresses, and remove
+  inherited operator/support claims while retaining upstream attribution.
 
 - 2026-10-20: Update backend and agents aiohttp to 3.14.4 for
   CVE-2026-111064 and GHSA-2g87-pp6c-29x5.
