@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-20: Update backend and agents aiohttp to 3.14.4 for
+  CVE-2026-111064 and GHSA-2g87-pp6c-29x5.
+
 - 2026-10-20: Diagnose Platform bridge refusals without private request data.
 
 - 2026-10-19: Keep listed folders in place while more load in the meeting
