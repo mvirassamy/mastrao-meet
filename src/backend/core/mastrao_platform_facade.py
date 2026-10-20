@@ -1,12 +1,17 @@
 """Bounded same-origin bridge from Meet to the Platform meeting facade."""
 
 import json
+import logging
 import re
+import time
 from urllib.parse import urlencode, urlparse
 
 from django.conf import settings
 
 import requests
+from urllib3.exceptions import ReadTimeoutError
+
+logger = logging.getLogger(__name__)
 
 MAX_PLATFORM_RESPONSE_BYTES = 2 * 1024 * 1024
 MEETING_REF = re.compile(r"^[A-Za-z0-9_-]{16,160}$")
@@ -20,9 +25,41 @@ MEETING_CREATION_TIMEOUT_SECONDS = (5, 20)
 class PlatformFacadeError(Exception):
     """Safe public failure returned by the Platform facade bridge."""
 
-    def __init__(self, status=503):
+    def __init__(self, status=503, *, cause_code=None, stage=None):
         self.status = status
+        self.cause_code = cause_code
+        self.stage = stage
         super().__init__("Platform meeting facade unavailable")
+
+
+def _transport_cause(error):
+    if isinstance(error, requests.ConnectTimeout):
+        return "connect_timeout"
+    # Requests wraps urllib3's body-read timeout in ConnectionError.
+    if isinstance(error, requests.ReadTimeout) or (
+        isinstance(error, requests.ConnectionError)
+        and error.args
+        and isinstance(error.args[0], ReadTimeoutError)
+    ):
+        return "read_timeout"
+    if isinstance(error, requests.Timeout):
+        return "timeout"
+    return "transport_error"
+
+
+def _report_refusal(cause_code, stage, started_at, upstream_status):
+    """Emit only closed diagnostic fields; logging must not affect the refusal."""
+    try:
+        logger.warning(
+            "meet_platform_facade_refused cause_code=%s stage=%s "
+            "elapsed_ms=%d upstream_status=%s",
+            cause_code,
+            stage,
+            int((time.monotonic() - started_at) * 1000),
+            upstream_status,
+        )
+    except Exception:  # noqa: BLE001 - a broken log handler must preserve the refusal
+        return
 
 
 def _platform_origin():
@@ -54,23 +91,33 @@ def _access_token(request):
 
 def _read_json(response, maximum_bytes=MAX_PLATFORM_RESPONSE_BYTES):
     declared = response.headers.get("content-length")
-    if declared is not None and (
-        len(declared) > 20 or not declared.isdecimal() or int(declared) > maximum_bytes
-    ):
-        raise PlatformFacadeError()
+    if declared is not None and (len(declared) > 20 or not declared.isdecimal()):
+        raise PlatformFacadeError(
+            cause_code="invalid_content_length", stage="check_response_size"
+        )
+    if declared is not None and int(declared) > maximum_bytes:
+        raise PlatformFacadeError(
+            cause_code="response_too_large", stage="check_response_size"
+        )
     chunks = []
     size = 0
     for chunk in response.iter_content(chunk_size=16_384):
         size += len(chunk)
         if size > maximum_bytes:
-            raise PlatformFacadeError()
+            raise PlatformFacadeError(
+                cause_code="response_too_large", stage="read_response_body"
+            )
         chunks.append(chunk)
     try:
         body = json.loads(b"".join(chunks))
     except (UnicodeDecodeError, ValueError, RecursionError) as error:
-        raise PlatformFacadeError() from error
+        raise PlatformFacadeError(
+            cause_code="invalid_json", stage="decode_json"
+        ) from error
     if not isinstance(body, dict):
-        raise PlatformFacadeError()
+        raise PlatformFacadeError(
+            cause_code="invalid_object", stage="check_response_shape"
+        )
     return body
 
 
@@ -103,6 +150,9 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
     query = _query_string(options)
     if query:
         target = f"{target}?{query}"
+    started_at = time.monotonic()
+    stage = "await_response_headers"
+    upstream_status = None
     try:
         with requests.Session() as session:
             session.trust_env = False
@@ -119,6 +169,7 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
                 **body_options,
             )
             try:
+                upstream_status = response.status_code
                 if response.status_code not in accepted_statuses:
                     if response.status_code == 401:
                         request.session.pop("oidc_access_token", None)
@@ -127,7 +178,12 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
                         if response.status_code in error_statuses
                         else 503
                     )
-                    raise PlatformFacadeError(status=status)
+                    raise PlatformFacadeError(
+                        status=status,
+                        cause_code="upstream_http_refused",
+                        stage="check_http_status",
+                    )
+                stage = "read_response_body"
                 return (
                     _read_json(
                         response,
@@ -137,7 +193,11 @@ def request_platform(request, method, path, *, accepted_statuses, options=None):
                 )
             finally:
                 response.close()
+    except PlatformFacadeError as error:
+        _report_refusal(error.cause_code, error.stage, started_at, upstream_status)
+        raise
     except requests.RequestException as error:
+        _report_refusal(_transport_cause(error), stage, started_at, upstream_status)
         raise PlatformFacadeError() from error
 
 
