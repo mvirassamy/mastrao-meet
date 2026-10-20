@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "panda codegen && vitest run --config vitest.config.ts",
     "test:staging:contracts": "node --test staging/fixture.test.mjs staging/media-probe.test.mjs staging/meeting.test.mjs staging/deadline.test.mjs staging/participants.test.mjs",
-    "test:staging:probe": "node --test staging/media-probe.browser.mjs",
+    "test:staging:probe": "node --test staging/media-probe.browser.mjs staging/participants.browser.mjs",
     "test:staging": "node staging/run.mjs",
     "i18n:extract": "npx i18next -c i18next-parser.config.json",
     "format": "prettier --write ./src",

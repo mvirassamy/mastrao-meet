@@ -19,6 +19,36 @@ export async function openParticipants(page) {
     .waitFor({ state: 'visible' })
 }
 
+export async function waitForExpectedParticipants(
+  page,
+  expectedIds,
+  observation
+) {
+  if (!validateParticipants(expectedIds, expectedIds))
+    throw new Error('Two distinct RTC identities are required')
+  const listId = await page
+    .getByRole('button', { name: /^Contributors/ })
+    .getAttribute('aria-controls')
+  try {
+    await page.waitForFunction(
+      ({ listId, expectedIds }) => {
+        const list = document.getElementById(listId)
+        if (!list) return false
+        const actual = [...list.querySelectorAll('[role="listitem"]')].map(
+          (row) => row.id
+        )
+        return (
+          actual.length === 2 && expectedIds.every((id) => actual.includes(id))
+        )
+      },
+      { listId, expectedIds },
+      { timeout: 15_000, polling: 250 }
+    )
+  } finally {
+    await requireExpectedParticipants(page, expectedIds, observation)
+  }
+}
+
 export async function requireExpectedParticipants(
   page,
   expectedIds,

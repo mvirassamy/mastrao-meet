@@ -3,6 +3,7 @@ import { within } from './deadline.mjs'
 import {
   openParticipants,
   requireExpectedParticipants,
+  waitForExpectedParticipants,
 } from './participants.mjs'
 import {
   installMediaProbe,
@@ -86,7 +87,7 @@ export async function requireMediaProgress(
   }))
   diagnostic.participants = observations
 
-  async function checkParticipants(step) {
+  async function checkParticipants(step, check = requireExpectedParticipants) {
     if (!expectedIds) return
     await Promise.all(
       pages.map(async (page, index) => {
@@ -94,7 +95,7 @@ export async function requireMediaProgress(
         observation.step = step
         observation.roster = null
         try {
-          await requireExpectedParticipants(page, expectedIds, observation)
+          await check(page, expectedIds, observation)
         } catch (error) {
           observation.failed = true
           throw error
@@ -139,6 +140,7 @@ export async function requireMediaProgress(
     }
     return snapshots
   }
+  await checkParticipants('WAIT_FOR_PARTICIPANTS', waitForExpectedParticipants)
   let previous = await readSamples()
   for (let attempt = 0; attempt < attempts; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs))

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-20: Wait for both expected staging participants after joining or
+  rejoining before measuring media; keep strict roster checks during sampling.
+
 - 2026-10-20: Locate staging media qualification failures with private-safe
   participant, connection-state and stream counts.
 
