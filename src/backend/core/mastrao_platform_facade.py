@@ -58,8 +58,10 @@ def _report_refusal(cause_code, stage, started_at, upstream_status):
             int((time.monotonic() - started_at) * 1000),
             upstream_status,
         )
-    except Exception:  # noqa: BLE001 - a broken log handler must preserve the refusal
-        return
+    # A broken log handler must preserve the original refusal.
+    # pylint: disable-next=broad-exception-caught
+    except Exception:  # noqa: BLE001, S110
+        pass
 
 
 def _platform_origin():

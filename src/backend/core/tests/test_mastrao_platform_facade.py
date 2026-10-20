@@ -72,6 +72,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
         return refused.exception
 
     def test_timeouts_and_transport_errors_before_response_headers(self):
+        """Classify transport failures before any upstream response exists."""
         for error, cause in [
             (requests.ConnectTimeout("private-url-token"), "connect_timeout"),
             (requests.ReadTimeout("private-url-token"), "read_timeout"),
@@ -88,6 +89,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
                 self.response.close.assert_not_called()
 
     def test_wrapped_read_timeout_during_response_body_is_distinct(self):
+        """Recognize the wrapped body timeout and close the upstream response."""
         timeout = ReadTimeoutError(None, "private-url", "private-content")
         error = requests.ConnectionError(timeout)
         self.response.iter_content.side_effect = error
@@ -95,6 +97,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
         self.response.close.assert_called_once_with()
 
     def test_http_refusals_keep_the_original_status_and_session_policy(self):
+        """Preserve HTTP mappings and clear the session token only for 401."""
         for upstream, public in [
             (401, 401),
             (404, 404),
@@ -120,6 +123,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
                 self.response.close.assert_called_once_with()
 
     def test_invalid_json_and_non_object_json_have_distinct_causes(self):
+        """Distinguish decoding failures from an invalid JSON object shape."""
         for body, cause, stage in [
             (b"private-invalid-json", "invalid_json", "decode_json"),
             (b"\xff", "invalid_json", "decode_json"),
@@ -133,6 +137,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
                 self.response.close.assert_called_once_with()
 
     def test_declared_and_streamed_bounds_are_distinguishable(self):
+        """Identify size failures at the declared or streamed response boundary."""
         for length, cause in [
             ("-1", "invalid_content_length"),
             ("9" * 21, "invalid_content_length"),
@@ -155,11 +160,13 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
         self.response.close.assert_called_once_with()
 
     def test_success_is_quiet_and_preserves_the_transport_options(self):
+        """Keep successful calls silent with the existing transport options."""
         with self.assertNoLogs(facade.__name__, level="WARNING"):
             self.assertEqual(self.call_bridge(), ({"ok": True}, 200))
         self.session.request.assert_called_once_with(
             "GET",
-            "https://platform.test/api/meet/meetings/history/private-meeting-reference/?cursor=private_cursor",
+            "https://platform.test/api/meet/meetings/history/"
+            "private-meeting-reference/?cursor=private_cursor",
             headers={"authorization": "Bearer private-synthetic-access-token"},
             timeout=5,
             allow_redirects=False,
@@ -169,6 +176,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
         self.response.close.assert_called_once_with()
 
     def test_custom_call_budgets_and_http_allowlists_are_preserved(self):
+        """Honor the existing timeout and HTTP status overrides."""
         self.response.status_code = 429
         with (
             self.assertLogs(facade.__name__, level="WARNING"),
@@ -181,6 +189,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
         self.response.close.assert_called_once_with()
 
     def test_logger_failure_never_replaces_http_refusal_or_skips_close(self):
+        """Preserve a 401 refusal and response cleanup when logging fails."""
         self.response.status_code = 401
         logger = logging.getLogger(facade.__name__)
         with (
@@ -195,6 +204,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
         self.response.close.assert_called_once_with()
 
     def test_logger_failure_never_replaces_body_or_transport_refusal(self):
+        """Preserve body and transport refusals when logging fails."""
         logger = logging.getLogger(facade.__name__)
         with patch.object(
             logger, "warning", side_effect=RuntimeError("private-message")
@@ -211,6 +221,7 @@ class PlatformFacadeDiagnosticsTests(unittest.TestCase):
             self.assertIs(transport_refusal.exception.__cause__, error)
 
     def test_missing_token_is_still_refused_before_transport(self):
+        """Reject a missing session token without contacting Platform."""
         self.request.session.clear()
         with self.assertRaises(facade.PlatformFacadeError) as refused:
             self.call_bridge()
@@ -224,7 +235,8 @@ class DelayedPlatformPeer(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         """Keep synthetic request paths out of test logs."""
 
-    def do_GET(self):
+    # BaseHTTPRequestHandler dispatches GET requests using this inherited name.
+    def do_GET(self):  # pylint: disable=invalid-name
         """Delay either headers or body beyond the test's existing call budget."""
         if self.path == "/headers":
             time.sleep(0.2)
@@ -236,14 +248,16 @@ class DelayedPlatformPeer(BaseHTTPRequestHandler):
             time.sleep(0.2)
         try:
             self.wfile.write(b'{"ok":true}')
+        # The client may disconnect after its expected timeout.
         except (BrokenPipeError, ConnectionResetError):
-            return
+            pass
 
 
 class PlatformFacadeRealTransportTests(unittest.TestCase):
     """Exercise sockets and response.close with the pinned Requests transport."""
 
     def test_header_and_streamed_body_read_timeouts(self):
+        """Identify real header and body timeouts while preserving cleanup."""
         server = ThreadingHTTPServer(("127.0.0.1", 0), DelayedPlatformPeer)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
