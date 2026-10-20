@@ -1,79 +1,45 @@
-<mjml>
+<mjml lang="fr">
   <mj-include path="./partial/header.mjml" />
-
-  <mj-body mj-class="bg--blue-100">
-    <!--
-      We load django tags here so they appear in the body of the HTML output.
-      This ensures html-to-text also includes them in the plain text template.
-    -->
-    <mj-raw>{% load i18n static extra_tags %}</mj-raw>
+  <mj-body>
     <mj-wrapper css-class="wrapper" padding="5px 25px 0px 25px">
-      <mj-section css-class="wrapper-logo">
+      <mj-section>
         <mj-column>
-          <mj-image
-            align="center"
-            src="{{logo_img}}"
-            width="320px"
-            alt="{%trans 'Logo email' %} {{brandname}}"
-          />
+          <mj-image align="center" src="{{logo_img}}" width="72px" alt="Logo {{brandname}}" />
         </mj-column>
       </mj-section>
-      <mj-section mj-class="bg--white-100" padding="0px 20px 60px 20px">
+      <mj-section padding="0px 20px 60px 20px">
         <mj-column>
           <mj-text align="center">
-            <h1>{% trans "Your recording is ready!"%}</h1>
+            <h1>Votre enregistrement est prêt !</h1>
           </mj-text>
-          <!-- Main Message -->
           <mj-text>
-            {% blocktrans %}
-            Your recording of "{{room_name}}" on {{recording_date}} at {{recording_time}} is now ready to download.
-            {% endblocktrans %}
+            Votre enregistrement de « {{room_name}} » du {{recording_date}} à {{recording_time}} est prêt à être téléchargé.
             {% if recording_expiration_days %}
-            {% blocktrans with days=recording_expiration_days %}
-            The recording will expire in {{days}} days.
-            {% endblocktrans %}
+            L’enregistrement expirera dans {{recording_expiration_days}} jours.
             {% endif %}
           </mj-text>
           <mj-text>
-            {% blocktrans %}
-            Sharing the recording via link is not yet available. Only organizers can download it.
-            {% endblocktrans %}
+            Le partage de l’enregistrement par lien n’est pas encore disponible. Seuls les organisateurs peuvent le télécharger.
           </mj-text>
           <mj-text>
-            <p>{% trans "To keep this recording permanently:" %}</p>
+            <p>Pour conserver cet enregistrement :</p>
             <ol>
-              <li>{% blocktrans %}Click the "<a href="{{link}}">Open</a>" link below {% endblocktrans %}</li>
-              <li>{% blocktrans %}Use the "Download" button in the interface {% endblocktrans %}</li>
-              <li>{% blocktrans %}Save the file to your preferred location{% endblocktrans %}</li>
+              <li>Cliquez sur le lien « <a href="{{link}}">Ouvrir</a> » ci-dessous.</li>
+              <li>Utilisez le bouton « Télécharger » dans l’interface.</li>
+              <li>Enregistrez le fichier à l’emplacement de votre choix.</li>
             </ol>
           </mj-text>
-          <mj-button
-            href="{{link}}"
-            background-color="#000091"
-            color="white"
-            padding-bottom="30px"
-          >
-            {% trans "Open"%}
+          <mj-button href="{{link}}" background-color="#000091" color="white" padding-bottom="30px">
+            Ouvrir
           </mj-button>
+          <mj-raw>{% if support_email %}</mj-raw>
           <mj-text>
-            {% blocktrans %}
-            If you have any questions or need assistance, please contact our support team at {{support_email}}.
-            {% endblocktrans %}
+            Pour toute question ou demande d’aide, contactez votre assistance : {{support_email}}.
           </mj-text>
-          <mj-divider
-            border-width="1px"
-            border-style="solid"
-            border-color="#DDDDDD"
-            width="30%"
-            align="center"
-          />
-          <!-- Signature -->
+          <mj-raw>{% endif %}</mj-raw>
+          <mj-divider border-width="1px" border-style="solid" border-color="#DDDDDD" width="30%" align="center" />
           <mj-text>
-            <p>
-              {% blocktrans %}
-              Thank you for using {{brandname}}.
-              {% endblocktrans %}
-            </p>
+            <p>Merci d’utiliser {{brandname}}.</p>
           </mj-text>
         </mj-column>
       </mj-section>

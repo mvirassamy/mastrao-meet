@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Meet External API
+  title: Mastrao Visio External API
   version: 1.0.0
   description: |
     External API for room management with resource server authentication.
@@ -29,12 +29,12 @@ info:
     * **Delete application-generated rooms:** Rooms created via the application can be deleted when no longer needed.
 
   contact:
-    name: API Support
-    email: antoine.lebaud@mail.numerique.gouv.fr
+    name: Mastrao Visio
+    url: https://github.com/mvirassamy/mastrao-meet/issues
 
 servers:
-  - url: https://visio-sandbox.beta.numerique.gouv.fr/external-api/v1.0
-    description: Sandbox server
+  - url: https://visio.example.com/external-api/v1.0
+    description: Example only — replace with your Mastrao Visio origin
 
 tags:
   - name: Rooms
@@ -96,13 +96,13 @@ paths:
                   summary: Paginated room list
                   value:
                     count: 2
-                    next: "https://visio-sandbox.beta.numerique.gouv.fr/external-api/v1.0/rooms?page=2"
+                    next: "https://visio.example.com/external-api/v1.0/rooms?page=2"
                     previous: null
                     results:
                       - id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
                         slug: "aae-erez-aaz"
                         access_level: "trusted"
-                        url: "https://visio-sandbox.beta.numerique.gouv.fr/aae-erez-aaz"
+                        url: "https://visio.example.com/aae-erez-aaz"
                         telephony:
                           enabled: true
                           pin_code: "123456"
@@ -192,7 +192,7 @@ paths:
                     id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
                     slug: "aae-erez-aaz"
                     access_level: "trusted"
-                    url: "https://visio-sandbox.beta.numerique.gouv.fr/aae-erez-aaz"
+                    url: "https://visio.example.com/aae-erez-aaz"
                     telephony:
                       enabled: true
                       pin_code: "123456"
@@ -291,7 +291,7 @@ components:
           format: uri
           readOnly: true
           description: Full URL to access the room
-          example: "https://visio-sandbox.beta.numerique.gouv.fr/aze-eere-zer"
+          example: "https://visio.example.com/aze-eere-zer"
         telephony:
           type: object
           readOnly: true

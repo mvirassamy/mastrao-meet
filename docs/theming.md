@@ -1,7 +1,7 @@
 
-# Theming La Suite Meet
+# Theming Mastrao Visio
 
-There are two ways to customize LaSuite Meet:
+There are two ways to customize Mastrao Visio:
 
 - **Runtime Theming**. You can load a custom CSS file to apply any CSS you want. You can change all design-system tokens through CSS variables: colors, fonts, spacing multipliers, and more.
 - **Build-time Theming**. Some additional things, like the app name appearing in the browser tab, can be customized through environment variables that are applied at build-time.
@@ -18,7 +18,7 @@ FRONTEND_CUSTOM_CSS_URL=https://example.com/custom-style.css
 ```
 
 > [!TIP]
-> If you serve your CSS file on the same domain as LaSuite Meet, paths are supported, i.e. `FRONTEND_CUSTOM_CSS_URL=/custom/style.css` will load `https://your-domain.com/custom/style.css`.
+> If you serve your CSS file on the same domain as Mastrao Visio, paths are supported, i.e. `FRONTEND_CUSTOM_CSS_URL=/custom/style.css` will load `https://your-domain.com/custom/style.css`.
 
 Setting this variable makes the app load your CSS at runtime, adding a `<link>` to `<head>` so you can override CSS variables and customize the frontend without rebuilding.
 
@@ -90,7 +90,7 @@ For example, to replace the images used in the landing page carousel, provide yo
 Some settings cannot be applied at runtime and require rebuilding the Docker image.
 One key example is the **application title and name**, controlled by the `VITE_APP_TITLE` build argument.
 
-* **Default:** `La Suite Meet`
+* **Default:** `Mastrao Visio`
 * **Override:** supply your own value at build time
 
 ```bash
@@ -101,7 +101,7 @@ docker build \
 
 ```dockerfile
 # Dockerfile
-ARG VITE_APP_TITLE="La Suite Meet"
+ARG VITE_APP_TITLE="Mastrao Visio"
 ENV VITE_APP_TITLE=${VITE_APP_TITLE}
 ```
 

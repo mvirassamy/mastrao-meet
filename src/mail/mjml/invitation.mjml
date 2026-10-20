@@ -1,70 +1,41 @@
-<mjml>
+<mjml lang="fr">
   <mj-include path="./partial/header.mjml" />
-
-  <mj-body mj-class="bg--blue-100">
-    <!--
-      We load django tags here so they appear in the body of the HTML output.
-      This ensures html-to-text also includes them in the plain text template.
-    -->
-    <mj-raw>{% load i18n static extra_tags %}</mj-raw>
+  <mj-body>
     <mj-wrapper css-class="wrapper" padding="0 40px 40px 40px">
-      <mj-section css-class="wrapper-logo">
+      <mj-section>
         <mj-column>
-          <mj-image
-            align="center"
-            src="{{logo_img}}"
-            width="320px"
-            alt="{%trans 'Logo email' %}"
-          />
+          <mj-image align="center" src="{{logo_img}}" width="72px" alt="Logo {{brandname}}" />
         </mj-column>
       </mj-section>
-
-      <mj-section mj-class="bg--white-100" padding="30px 20px 60px 20px">
+      <mj-section padding="30px 20px 60px 20px">
         <mj-column>
-          <!-- Invitation message -->
-          <mj-text font-size="18px" color="#202124">
-            <p><a href="mailto:{{ sender_email }}">{{ sender_email }}</a>  {% trans "invites you to join an ongoing video call" %}</p>
+          <mj-text font-size="18px">
+            <p><a href="mailto:{{ sender_email }}">{{ sender_email }}</a> vous invite à rejoindre une visioconférence en cours sur {{brandname}}.</p>
           </mj-text>
-
-          <!-- Join button -->
           <mj-button href="{{ room_url }}" background-color="#1A73E8" color="white" border-radius="4px" font-weight="bold" font-size="16px" padding="20px 0">
-            {% trans "JOIN THE CALL" %}
+            REJOINDRE LA VISIOCONFÉRENCE
           </mj-button>
-
-          <!-- Call URL -->
           <mj-text align="center" color="#5F6368" font-size="14px" padding-top="15px">
             <p>{{ room_link }}</p>
           </mj-text>
-
           <mj-divider border-width="1px" border-style="solid" border-color="#EEEEEE" padding="30px 0" />
-
-          <!-- Additional information -->
           <mj-text font-size="14px">
-            <p>{% trans "If you can't click the button, copy and paste the URL into your browser to join the call." %}</p>
+            <p>Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur : {{ room_url }}</p>
           </mj-text>
-
-          <!-- Quick tips -->
           <mj-text padding-top="20px" font-size="14px">
-            <p>{% trans "Tips for a better experience:" %}</p>
+            <p>Pour une meilleure expérience :</p>
             <ul>
-              <li>{% trans "Use Chrome or Firefox for better call quality" %}</li>
-              <li>{% trans "Test your microphone and camera before joining" %}</li>
-              <li>{% trans "Make sure you have a stable internet connection" %}</li>
+              <li>Utilisez Chrome ou Firefox pour une meilleure qualité d’appel.</li>
+              <li>Testez votre microphone et votre caméra avant de rejoindre la réunion.</li>
+              <li>Vérifiez que votre connexion Internet est stable.</li>
             </ul>
           </mj-text>
-
-          <!-- Signature -->
           <mj-text font-size="14px">
-            <p>
-              {% blocktrans %}
-              Thank you for using {{brandname}}.
-              {% endblocktrans %}
-            </p>
+            <p>Merci d’utiliser {{brandname}}.</p>
           </mj-text>
         </mj-column>
       </mj-section>
     </mj-wrapper>
-
     <mj-include path="./partial/footer.mjml" />
   </mj-body>
 </mjml>

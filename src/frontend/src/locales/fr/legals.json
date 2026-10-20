@@ -1,37 +1,21 @@
 {
-  "title": "Mentions Légales",
-  "creator": {
-    "title": "Éditeur",
-    "body": "Le service Visio est édité par la Direction interministérielle du numérique de l'Etat (DINUM) située :",
-    "contact": {
-      "title": "Coordonnées",
-      "address": "20 avenue de Ségur",
-      "city": "75007 Paris",
-      "phone": "Tel. Accueil : 01.71.21.01.70",
-      "siret": "SIRET : 12000101100010 (secrétariat général du gouvernement)",
-      "siren": "SIREN : 120 001 011"
-    }
+  "title": "Mentions légales de Mastrao Visio",
+  "service": {
+    "title": "Service",
+    "body": "Mastrao Visio est le service de visioconférence de Mastrao."
   },
-  "director": {
-    "title": "Directeur de la publication",
-    "body": "La directrice de la publication est Madame Stéphanie Schaer, Directrice interministérielle du numérique."
-  },
-  "hosting": {
-    "title": "Hébergement",
-    "body": "Le service est hébergé par Outscale West-1 CloudGouv SecNumCloud situé en France."
+  "publication": {
+    "title": "Édition et hébergement",
+    "body": "Les coordonnées légales de l’éditeur, la personne responsable de la publication et les informations d’hébergement de cette instance restent à renseigner par l’équipe Mastrao. Contactez votre interlocuteur Mastrao pour ces informations."
   },
   "accessibility": {
     "title": "Accessibilité",
-    "body": "La conformité aux normes d'accessibilité numérique est un objectif ultérieur. Le site n'a pas encore été audité. Cependant, l'équipe s'efforce de créer un site accessible à tous en suivant les recommandations du RGAA.",
-    "more": "Pour en savoir plus : ",
-    "link": "lien vers la page d'accessibilité",
-    "status": "Etat d'accessibilité : non conforme"
+    "link": "Consulter les informations d’accessibilité"
   },
-  "reuse": {
-    "title": "Réutilisation des contenus et liens",
-    "body1": "Sauf mention explicite de propriété intellectuelle détenue par des tiers, les contenus de ce site sont proposés sous ",
-    "license": "licence ouverte Etalab 2.0",
-    "body2": "Vous êtes notamment libres de les reproduire, copier, modifier, extraire, transformer, communiquer diffuser, redistribuer, publier, transmettre et exploiter sous réserve de mentionner leur source, leur date de dernière mise à jour et ne pas induire en erreur des tiers quant aux informations qui y figurent.",
-    "body3": "Tout site public ou privé est autorisé à établir, sans autorisation préalable, un lien (y compris profond) vers les informations diffusées sur ce site."
+  "upstream": {
+    "title": "Origine du logiciel et licences",
+    "body": "Mastrao Visio est adapté du projet libre Meet / La Suite Numérique, développé à l’origine par la DINUM et ses contributeurs. Cette attribution décrit l’origine du logiciel.",
+    "link": "Consulter le projet Meet d’origine",
+    "license": "Le code d’origine est distribué sous licence MIT, avec son copyright DINUM/Etalab. Les mentions de droits d’auteur et les licences des composants tiers sont conservées dans le dépôt."
   }
 }

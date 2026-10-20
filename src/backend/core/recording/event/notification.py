@@ -87,7 +87,9 @@ class NotificationService:
             logger.error("No owner found for recording %s", recording.id)
             return False
 
+        subject = "Votre enregistrement est prêt"
         context = {
+            "title": subject,
             "brandname": settings.EMAIL_BRAND_NAME,
             "support_email": settings.EMAIL_SUPPORT_EMAIL,
             "logo_img": settings.EMAIL_LOGO_IMG,
@@ -100,12 +102,12 @@ class NotificationService:
         has_failures = False
 
         # We process emails individually rather than in batch because:
-        # 1. Each email requires personalization (timezone, language)
+        # 1. Each email requires personalization for the owner's timezone
         # 2. The number of recipients per recording is typically small (not thousands)
         for access in owner_accesses:
             user = access.user
-            language = user.language or get_language()
-            with override(language):
+            # Email language is independent of the recipient's interface language.
+            with override("fr-fr"):
                 personalized_context = {
                     "recording_date": recording.created_at.astimezone(
                         user.timezone
@@ -121,11 +123,9 @@ class NotificationService:
                 msg_plain = render_to_string(
                     "mail/text/screen_recording.txt", personalized_context
                 )
-                subject = gettext("Your recording is ready")  # Force translation
-
                 try:
                     send_mail(
-                        subject.capitalize(),
+                        subject,
                         msg_plain,
                         settings.EMAIL_FROM,
                         [user.email],

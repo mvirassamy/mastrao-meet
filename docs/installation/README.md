@@ -1,19 +1,19 @@
 # Installation
-If you want to install La Suite Meet you've come to the right place.
-Here are a bunch of resources to help you install the project.
+If you want to install Mastrao Visio you've come to the right place.
+These guides include upstream examples. Read the [Mastrao branding and email configuration](../branding.md) before deploying an instance.
 
 ## Kubernetes
-La Suite Meet maintainers use only the Kubernetes deployment method in production, so advanced support is available exclusively for this setup. Please follow the instructions provided [here](/docs/installation/kubernetes.md).
+See the [Kubernetes guide](/docs/installation/kubernetes.md) for the inherited deployment examples. Confirm the image and configuration for your Mastrao instance.
 
 ## Docker Compose
 We understand that not everyone has a Kubernetes cluster available, please follow the instructions provided [here](/docs/installation/compose.md) to set up a docker compose instance.
-We also provide [Docker images](https://hub.docker.com/u/lasuite?page=1&search=meet) that can be deployed using Compose.
+The linked [upstream Docker images](https://hub.docker.com/u/lasuite?page=1&search=meet) are La Suite builds. Use the image built for this Mastrao fork when deploying Mastrao Visio.
 
 ## Scalingo
 
-La Suite Meet can be deployed on Scalingo PaaS using the Suite Numérique buildpack. See the [Scalingo deployment guide](./scalingo.md) for detailed instructions.
+The upstream La Suite Meet project can be deployed on Scalingo PaaS using the Suite Numérique buildpack. See the [Scalingo deployment guide](./scalingo.md) for detailed instructions.
 
-## Other ways to install La Suite Meet
+## Other upstream installation methods
 Community members have contributed alternative ways to install La Suite Meet 🙏. While maintainers may not provide direct support, we help keep these instructions up to date, and you can reach out to contributors or the community for assistance.
 
 Here is the list of other methods in alphabetical order:
@@ -24,6 +24,6 @@ Here is the list of other methods in alphabetical order:
 > Feel free to make a PR to add ones that are not listed above
 
 ## Cloud providers
-Currently, no cloud providers are listed for deploying La Suite Meet.
+No Mastrao-specific cloud provider configuration is listed here.
 > [!TIP]
 > Feel free to make a PR to add ones that are not listed above

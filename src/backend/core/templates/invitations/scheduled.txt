@@ -1,16 +1,19 @@
-{% load i18n tz %}{% localtime off %}{% autoescape off %}{% trans "Invitation to a scheduled meeting" %}
+{% load tz %}{% localtime off %}{% autoescape off %}{{ subject }}
+{{ brandname }}
 {{ sender_email }} — {{ title }}
 {{ starts_at|date:"d/m/Y H:i" }} – {{ ends_at|date:"H:i" }} ({{ timezone }})
 
-{% trans "Join the meeting" %}: {{ room_url }}
+Rejoindre la réunion : {{ room_url }}
 
-{% trans "Video recording may be requested" %}
-{% trans "The host may manually start video recording. Any refusal prevents video recording for the whole meeting. Without an objection after this email, your response remains no objection, not an explicit acceptance." %}
+Un enregistrement vidéo peut être demandé
+L’organisateur peut démarrer manuellement l’enregistrement vidéo. Tout refus empêche l’enregistrement vidéo de l’ensemble de la réunion. Sans opposition après cet e-mail, votre réponse reste une absence d’opposition, et non une acceptation explicite.
 
-{% trans "Choose yes or no without an account" %}: {{ choice_url }}
+Choisir oui ou non sans compte : {{ choice_url }}
 
-{% trans "You may change your choice until video capture actually starts. While a start request is being resolved, changes cannot be confirmed. Stopping video recording is permanent for this meeting." %}
+Vous pouvez modifier votre choix jusqu’au démarrage effectif de la capture vidéo. Pendant le traitement d’une demande de démarrage, les modifications ne peuvent pas être confirmées. L’arrêt de l’enregistrement vidéo est définitif pour cette réunion.
 
-{% trans "Audio capture for transcription has a separate choice when you join. Refusing video does not refuse audio transcription." %}
+La capture audio destinée à la transcription fait l’objet d’un choix distinct lorsque vous rejoignez la réunion. Refuser la vidéo ne signifie pas refuser la transcription audio.
+
+Cet e-mail vous a été envoyé par {{ brandname }}.
 
 {% endautoescape %}{% endlocaltime %}

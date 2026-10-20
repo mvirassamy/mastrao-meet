@@ -273,7 +273,7 @@ def test_api_rooms_invite_success(mock_email_class, settings):
     call_kwargs = mock_email_class.call_args[1]  # EmailMultiAlternatives(**kwargs)
 
     assert call_kwargs["subject"] == (
-        f"Video call in progress: {user.email} is waiting for you to connect"
+        f"Visioconférence en cours : {user.email} vous attend"
     )
     assert call_kwargs["from_email"] == "notifications@acme.com"
     assert call_kwargs["to"] == []
