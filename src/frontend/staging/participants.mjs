@@ -19,7 +19,11 @@ export async function openParticipants(page) {
     .waitFor({ state: 'visible' })
 }
 
-export async function requireExpectedParticipants(page, expectedIds) {
+export async function requireExpectedParticipants(
+  page,
+  expectedIds,
+  observation
+) {
   const listId = await page
     .getByRole('button', { name: /^Contributors/ })
     .getAttribute('aria-controls')
@@ -33,7 +37,15 @@ export async function requireExpectedParticipants(page, expectedIds) {
     }, listId),
     5000
   )
-  if (!validateParticipants(actual, expectedIds)) {
+  const matches = validateParticipants(actual, expectedIds)
+  if (observation) {
+    observation.roster = {
+      listFound: Array.isArray(actual),
+      count: Array.isArray(actual) ? actual.length : null,
+      expectedSetMatches: matches,
+    }
+  }
+  if (!matches) {
     throw new Error(
       'The meeting must contain exactly the two expected participants'
     )

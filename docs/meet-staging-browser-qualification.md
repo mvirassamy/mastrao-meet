@@ -89,6 +89,19 @@ successful media checks alone still cannot produce a passing qualification.
 An empty connection list also fails: a new document without the previously
 observed peers cannot establish that those peers were closed.
 
+An unconfirmed `AUDIO_VIDEO` or `RELOAD_REJOIN` result also includes `media`.
+It identifies participant-list opening, rejoining or sampling. Each sampling
+participant has a fixed step (roster before/after sample, snapshot, stream count,
+or progress), the number of samples read, connection-state counts and counts of
+the four audio/video directions. Roster reads expose only whether a list was
+found, its row count and whether the expected set matched. `failed` marks a
+rejected boundary; another participant may still have a read in flight.
+`progressing` is the existing complete media
+predicate for that participant; null means no pair was compared. These counts
+do not expose identifiers, byte/frame/energy counters, URLs or raw errors and
+do not replace the functional checks. A read failure can leave another
+participant's work unfinished; the report is a snapshot of the failure boundary.
+
 ## Local checks and release correlation
 
 ```sh
