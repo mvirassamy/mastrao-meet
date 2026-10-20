@@ -15,6 +15,7 @@ const ACTION_TIMEOUT = 30_000
 export function connectionsClosed(snapshot) {
   return (
     Array.isArray(snapshot?.connections) &&
+    snapshot.connections.length > 0 &&
     snapshot.connections.every((connection) => connection.state === 'closed')
   )
 }
@@ -112,34 +113,72 @@ export async function requireMediaProgress(
   )
 }
 
-async function leaveMeeting(page) {
+async function leaveMeeting(page, departure) {
   await page.locator('[data-attr="controls-leave"]').click()
   const dialog = page.getByRole('alertdialog', {
     name: 'Leave or end the meeting?',
     exact: true,
   })
-  // Both accounts are existing authorized members; the owner gets the leave-only dialog.
+  // The owner gets the leave-only dialog; an admitted guest leaves directly.
   const leaveOnly = dialog.getByRole('button', {
     name: 'Leave only',
     exact: true,
   })
-  await Promise.race([
-    leaveOnly.waitFor({ state: 'visible' }).then(() => leaveOnly.click()),
-    page.waitForURL(
-      (url) =>
-        url.pathname === '/feedback' &&
-        url.searchParams.get('outcome') === 'left'
-    ),
-  ])
+  departure.step = 'TRANSITION'
+  let waitingForTransition = true
+  try {
+    await Promise.race([
+      leaveOnly.waitFor({ state: 'visible' }).then(() => {
+        if (!waitingForTransition) return
+        departure.step = 'CONFIRMATION'
+        return leaveOnly.click()
+      }),
+      page.waitForURL(
+        (url) =>
+          url.pathname === '/feedback' &&
+          url.searchParams.get('outcome') === 'left'
+      ),
+    ])
+  } finally {
+    waitingForTransition = false
+  }
+  departure.step = 'FEEDBACK'
   await page.waitForURL(
     (url) =>
       url.pathname === '/feedback' && url.searchParams.get('outcome') === 'left'
   )
-  await within(waitForClosedConnections(page), 5000)
+  departure.feedbackReached = true
+  departure.step = 'CONNECTIONS'
+  const controller = new AbortController()
+  try {
+    await within(
+      waitForClosedConnections(page, departure, controller.signal),
+      5000
+    )
+  } finally {
+    controller.abort()
+  }
 }
 
-async function waitForClosedConnections(page) {
-  while (!connectionsClosed(await readMediaSnapshot(page))) {
+async function waitForClosedConnections(page, departure, signal) {
+  while (!signal.aborted) {
+    const snapshot = await readMediaSnapshot(page)
+    if (signal.aborted) return
+    departure.connectionStates = Object.fromEntries(
+      [
+        'new',
+        'connecting',
+        'connected',
+        'disconnected',
+        'failed',
+        'closed',
+      ].map((state) => [
+        state,
+        snapshot.connections.filter((connection) => connection.state === state)
+          .length,
+      ])
+    )
+    if (connectionsClosed(snapshot)) return
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
 }
@@ -147,6 +186,7 @@ async function waitForClosedConnections(page) {
 export async function qualifyMeeting(browser, fixture) {
   const contexts = []
   let stage = 'AUTHENTICATION'
+  let departure
   let result
   try {
     const pages = []
@@ -166,7 +206,15 @@ export async function qualifyMeeting(browser, fixture) {
     await openParticipants(pages[1])
     await requireMediaProgress(pages, { expectedIds })
     stage = 'LEAVE'
-    for (const page of pages.toReversed()) await leaveMeeting(page)
+    for (let index = pages.length - 1; index >= 0; index--) {
+      departure = {
+        participant: index + 1,
+        step: 'CONTROL',
+        feedbackReached: false,
+        connectionStates: null,
+      }
+      await leaveMeeting(pages[index], departure)
+    }
     result = {
       status: 'MEET_TWO_PARTY_BROWSER_PASS',
       stage: 'COMPLETE',
@@ -181,6 +229,7 @@ export async function qualifyMeeting(browser, fixture) {
     }
   } catch {
     result = { status: 'MEET_TWO_PARTY_BROWSER_NOT_CONFIRMED', stage }
+    if (departure) result.departure = structuredClone(departure)
   } finally {
     const cleanup = await Promise.allSettled(
       contexts.map((context) => within(context.close(), 5000))

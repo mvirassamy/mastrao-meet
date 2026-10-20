@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-20: Diagnose staging Meet departure checks without private data.
+
 - 2026-10-20: Configure the private Core read and write endpoints for
   personal meeting notes in the staging overlay.
 
