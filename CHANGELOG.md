@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-20: Diagnose Platform bridge refusals without private request data.
+
 - 2026-10-19: Keep listed folders in place while more load in the meeting
   filing palette, with a loading label on the load-more row. Tidy the
   palette footer and assistant close action.
