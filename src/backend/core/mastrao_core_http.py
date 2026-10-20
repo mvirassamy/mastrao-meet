@@ -1,11 +1,19 @@
 """Strict, bounded HTTP transport for private Cabinet Core calls."""
 
 import json
+import re
 from urllib.parse import urlparse
 
 import requests
 
 MAX_CORE_RESPONSE_BYTES = 20_000
+# Public tenantCoreErrorSchema codes; never retain upstream messages or IDs.
+PUBLIC_CORE_ERROR_CODES = {
+    "invalid_assertion",
+    "resource_unavailable",
+    "runtime_busy",
+    "service_unavailable",
+}
 TRANSCRIPTION_CALLBACK_OUTCOMES = {
     "available",
     "failed",
@@ -50,11 +58,54 @@ def _read_core_body(response, refusal, maximum_bytes=MAX_CORE_RESPONSE_BYTES):
     return json.loads(b"".join(chunks))
 
 
-def _raise_refusal(refusal, status, outcome=None):
+def _public_core_error_code(body):
+    """Recognize the strict public error envelope without retaining its data."""
+
+    required = {"code", "request_id", "message"}
+    if (
+        not isinstance(body, dict)
+        or not required <= body.keys()
+        or body.keys() - required - {"outcome", "reason_codes"}
+    ):
+        return None
+    if (
+        not isinstance(body["code"], str)
+        or body["code"] not in PUBLIC_CORE_ERROR_CODES
+        or any(
+            not isinstance(body[name], str) or not 1 <= len(body[name]) <= 200
+            for name in ("request_id", "message")
+        )
+    ):
+        return None
+    if "outcome" in body and (
+        not isinstance(body["outcome"], str)
+        or body["outcome"] not in TRANSCRIPTION_CALLBACK_OUTCOMES
+    ):
+        return None
+    if "reason_codes" in body:
+        reasons = body["reason_codes"]
+        if (
+            not isinstance(reasons, list)
+            or len(reasons) > 20
+            or any(
+                not isinstance(reason, str)
+                or not re.fullmatch(r"[a-z0-9_]{1,80}", reason)
+                for reason in reasons
+            )
+        ):
+            return None
+    return body["code"]
+
+
+def _raise_refusal(refusal, status, outcome=None, *, http_status=None, core_code=None):
     try:
-        raise refusal(status=status, outcome=outcome)
+        error = refusal(status=status, outcome=outcome)
     except TypeError:
-        raise refusal(status=status) from None
+        error = refusal(status=status)
+    # Only closed transport metadata survives the response-body boundary.
+    error.core_http_status = http_status
+    error.core_error_code = core_code
+    raise error
 
 
 def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaults unchanged  # pylint: disable=too-many-arguments
@@ -90,8 +141,10 @@ def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaul
             else client_error_status
         )
         outcome = None
+        core_code = None
         try:
             body = _read_core_body(response, refusal)
+            core_code = _public_core_error_code(body)
             if (
                 isinstance(body, dict)
                 and body.get("outcome") in TRANSCRIPTION_CALLBACK_OUTCOMES
@@ -101,7 +154,13 @@ def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaul
             outcome = None
         finally:
             response.close()
-        _raise_refusal(refusal, status, outcome)
+        _raise_refusal(
+            refusal,
+            status,
+            outcome,
+            http_status=response.status_code,
+            core_code=core_code,
+        )
     try:
         body = _read_core_body(response, refusal, maximum_bytes)
     except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:

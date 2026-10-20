@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -36,6 +37,8 @@ from core.mastrao_platform_facade import (
     request_platform,
 )
 
+logger = logging.getLogger(__name__)
+
 MAX_CONTENT_CHARACTERS = 100_000
 # JSON escapes can use six bytes per character, plus the grant/write envelope.
 MAX_WRITE_BODY_BYTES = 700_000
@@ -50,7 +53,33 @@ class PersonalNoteRefused(Exception):
 
     def __init__(self, status=404):
         self.status = status
+        self.core_http_status = None
+        self.core_error_code = None
         super().__init__("personal_note_unavailable")
+
+
+def _report_refusal(error):
+    """Locate opaque 404s using only closed transport fields, never request data."""
+
+    if error.status != 404:
+        return
+    if error.core_http_status is None:
+        cause = "local_before_core"
+    elif error.core_error_code is not None:
+        cause = "core_http_contract"
+    else:
+        cause = "core_http_non_contract"
+    try:
+        logger.warning(
+            "meet_personal_note_refused cause_code=%s upstream_status=%s core_code=%s",
+            cause,
+            error.core_http_status,
+            error.core_error_code,
+        )
+    # Follow the facade boundary: a broken logger must preserve the refusal.
+    # pylint: disable-next=broad-exception-caught
+    except Exception:  # noqa: BLE001, S110
+        pass
 
 
 def _safe_revision(value):
@@ -270,6 +299,8 @@ def _respond(request, operation):
         body = _validate_note(operation(payload))
         status = 200
     except (PersonalNoteRefused, PlatformFacadeError) as error:
+        if isinstance(error, PersonalNoteRefused):
+            _report_refusal(error)
         body = {"message": "Notes personnelles indisponibles"}
         status = error.status
     return JsonResponse(
