@@ -258,6 +258,16 @@ def consume_host_handoff_for_oidc_session(request, host_handoff):
     return binding
 
 
+def establish_mastrao_host_session(request, host_handoff):
+    """Consume one verified short handoff through the existing host session path."""
+
+    _admit_public_attempt(request, host_handoff)
+    grant, compact_grant = _redeem(host_handoff)
+    _, binding = _commit_grant(request, grant, compact_grant)
+    get_token(request)
+    return binding
+
+
 @csrf_exempt
 @require_POST
 def consume_mastrao_host_handoff(request):

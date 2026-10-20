@@ -50,6 +50,13 @@
     "temporaryError": "De dienst is tijdelijk niet beschikbaar. U kunt het opnieuw proberen.",
     "retry": "Opnieuw proberen"
   },
+  "hostInvitation": {
+    "title": "Deelnemen aan uw videovergadering",
+    "loading": "Uw hostlink wordt gecontroleerd…",
+    "error": "Deze hostlink is niet meer beschikbaar. Vraag de organisator om een nieuwe link.",
+    "temporaryError": "De dienst is tijdelijk niet beschikbaar. U kunt het opnieuw proberen.",
+    "retry": "Opnieuw proberen"
+  },
   "forbidden": {
     "heading": "U hebt geen toestemming om deze pagina te bekijken"
   },

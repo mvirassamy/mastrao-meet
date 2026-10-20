@@ -50,6 +50,13 @@
     "temporaryError": "The service is temporarily unavailable. You can try again.",
     "retry": "Try again"
   },
+  "hostInvitation": {
+    "title": "Join your video conference",
+    "loading": "Checking your host link…",
+    "error": "This host link is no longer available. Ask the organizer for a new link.",
+    "temporaryError": "The service is temporarily unavailable. You can try again.",
+    "retry": "Try again"
+  },
   "forbidden": {
     "heading": "You don't have the permission to view this page"
   },
