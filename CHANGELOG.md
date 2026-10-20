@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-20: Prepare a two-party staging browser test with synthetic media,
+  authenticated fixtures, reload/rejoin and leave checks. Keep live execution
+  and automatic delivery separate from local probe validation.
+
 - 2026-10-20: Update backend and agents aiohttp to 3.14.4 for
   CVE-2026-111064 and GHSA-2g87-pp6c-29x5.
 

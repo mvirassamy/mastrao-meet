@@ -14,6 +14,11 @@ the compatible identity, room and authorization contracts, but their own
 automatic deployment is not a prerequisite. Record their installed versions
 when qualifying Meet.
 
+The [staging browser recipe](meet-staging-browser-qualification.md) prepares
+authenticated two-party join, synthetic bidirectional media, reload/rejoin and
+leave checks against an existing dedicated room. It does not prove room
+creation, network-outage recovery or exact deployed image/Argo correlation.
+
 Recording, Egress, native ASR, subtitles and summaries form a second acceptance
 scope. Do not disable or abandon an installed consumer merely because its
 complete functional recipe is deferred. A release must preserve the configuration

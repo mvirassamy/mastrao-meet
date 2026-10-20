@@ -75,6 +75,13 @@ export default tseslint.config(
     },
   },
 
+  {
+    files: ['staging/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
+
   // CJS and root-level JS config files (postcss.config.js, etc.)
   {
     files: ['**/*.cjs', '*.config.js'],
