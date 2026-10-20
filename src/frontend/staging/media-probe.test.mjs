@@ -257,18 +257,25 @@ test('rejects malformed snapshots, ambiguous IDs and stream identity changes', (
   }
 })
 
-async function browserHarness() {
+async function browserHarness({ initialState = 'connected' } = {}) {
   class NativePeerConnection {
     static generateCertificate() {
       return 'native-static'
     }
     constructor(configuration) {
       this.configuration = configuration
-      this.connectionState = 'connected'
+      this.connectionState = initialState
       this.reports = new Map()
     }
     async getStats() {
       return this.reports
+    }
+    addEventListener() {}
+    getSenders() {
+      return []
+    }
+    getReceivers() {
+      return []
     }
   }
   const browser = vm.createContext({
@@ -358,6 +365,64 @@ test('native constructor, prototype, subclass and static behavior survive instal
   class Child extends Wrapped {}
   assert.ok(new Child() instanceof Child)
   assert.throws(() => Wrapped(), TypeError)
+})
+
+test('departure diagnostics distinguish existing and later peers without private values', async () => {
+  const { browser, page } = await browserHarness({ initialState: 'new' })
+  const active = new browser.RTCPeerConnection()
+  active.connectionState = 'connected'
+  active.reports = reports()
+  await readMediaSnapshot(page)
+  vm.runInContext('window.__meetMarkDeparture()', browser)
+  active.connectionState = 'closed'
+  const later = new browser.RTCPeerConnection()
+  later.connectionState = 'new'
+  later.localDescription = null
+  later.remoteDescription = null
+  const result = await readMediaSnapshot(page)
+  assert.deepEqual(result.departureConnections, [
+    {
+      state: 'new',
+      stateBeforeLeave: null,
+      createdAfterLeaveMark: true,
+      everConnected: false,
+      localDescriptionPresent: false,
+      remoteDescriptionPresent: false,
+      liveSenderTracks: 0,
+      liveReceiverTracks: 0,
+    },
+  ])
+})
+
+test('departure flags retain prior connection evidence and never export descriptions or track labels', async () => {
+  const { browser, page } = await browserHarness()
+  const peer = new browser.RTCPeerConnection()
+  peer.reports = reports()
+  await readMediaSnapshot(page)
+  vm.runInContext('window.__meetMarkDeparture()', browser)
+  peer.connectionState = 'new'
+  peer.localDescription = { sdp: 'PRIVATE_SENTINEL' }
+  peer.remoteDescription = { sdp: 'PRIVATE_SENTINEL' }
+  peer.getSenders = () => [
+    { track: { readyState: 'live', label: 'PRIVATE_SENTINEL' } },
+  ]
+  peer.getReceivers = () => [
+    { track: { readyState: 'ended', label: 'PRIVATE_SENTINEL' } },
+  ]
+  const result = await readMediaSnapshot(page)
+  assert.deepEqual(result.departureConnections, [
+    {
+      state: 'new',
+      stateBeforeLeave: 'connected',
+      createdAfterLeaveMark: false,
+      everConnected: true,
+      localDescriptionPresent: true,
+      remoteDescriptionPresent: true,
+      liveSenderTracks: 1,
+      liveReceiverTracks: 0,
+    },
+  ])
+  assert.equal(JSON.stringify(result).includes('PRIVATE_SENTINEL'), false)
 })
 
 test('serialized init script and page reader expose only projected RTP counters', async () => {

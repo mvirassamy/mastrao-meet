@@ -185,6 +185,16 @@ function mediaStreamCounts(snapshot) {
 }
 
 async function leaveMeeting(page, departure) {
+  departure.step = 'BASELINE'
+  await within(
+    page.evaluate(() => {
+      if (typeof window.__meetMarkDeparture !== 'function')
+        throw new Error('WebRTC departure probe is not installed')
+      window.__meetMarkDeparture()
+    }),
+    5000
+  )
+  departure.step = 'CONTROL'
   await page.locator('[data-attr="controls-leave"]').click()
   const dialog = page.getByRole('alertdialog', {
     name: 'Leave or end the meeting?',
@@ -236,6 +246,7 @@ async function waitForClosedConnections(page, departure, signal) {
     const snapshot = await readMediaSnapshot(page)
     if (signal.aborted) return
     departure.connectionStates = connectionStateCounts(snapshot)
+    departure.unclosedConnections = snapshot.departureConnections ?? null
     if (connectionsClosed(snapshot)) return
     await new Promise((resolve) => setTimeout(resolve, 500))
   }

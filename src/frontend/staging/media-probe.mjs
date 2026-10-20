@@ -7,6 +7,8 @@ export async function installMediaProbe(context) {
 
     const connections = new Set()
     const identifiers = new WeakMap()
+    const connectedPeers = new WeakSet()
+    let beforeDeparture
     let connectionCount = 0
     let documentId = ''
     const NativePeerConnection = window.RTCPeerConnection
@@ -19,9 +21,41 @@ export async function installMediaProbe(context) {
           const connection = Reflect.construct(target, argumentsList, newTarget)
           connections.add(connection)
           identifiers.set(connection, `pc-${++connectionCount}`)
+          connection.addEventListener('connectionstatechange', () => {
+            if (connection.connectionState === 'connected')
+              connectedPeers.add(connection)
+          })
           return connection
         },
       })
+    }
+
+    window.__meetMarkDeparture = () => {
+      beforeDeparture = new Map(
+        [...connections].map((connection) => [
+          connection,
+          connection.connectionState,
+        ])
+      )
+    }
+
+    function departureConnections() {
+      return [...connections]
+        .filter((connection) => connection.connectionState !== 'closed')
+        .map((connection) => ({
+          state: connection.connectionState,
+          stateBeforeLeave: beforeDeparture.get(connection) ?? null,
+          createdAfterLeaveMark: !beforeDeparture.has(connection),
+          everConnected: connectedPeers.has(connection),
+          localDescriptionPresent: connection.localDescription != null,
+          remoteDescriptionPresent: connection.remoteDescription != null,
+          liveSenderTracks: connection
+            .getSenders()
+            .filter((sender) => sender.track?.readyState === 'live').length,
+          liveReceiverTracks: connection
+            .getReceivers()
+            .filter((receiver) => receiver.track?.readyState === 'live').length,
+        }))
     }
 
     // Missing optional counters stay missing. Malformed values become an
@@ -41,6 +75,7 @@ export async function installMediaProbe(context) {
         const entry = { id, state: connection.connectionState }
         snapshot.connections.push(entry)
         if (entry.state !== 'connected') continue
+        connectedPeers.add(connection)
 
         let reports
         try {
@@ -87,6 +122,8 @@ export async function installMediaProbe(context) {
           })
         }
       }
+      if (beforeDeparture)
+        snapshot.departureConnections = departureConnections()
       return snapshot
     }
   })

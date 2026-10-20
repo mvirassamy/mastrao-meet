@@ -291,6 +291,20 @@ function successfulMeetingDouble({
                 },
               ],
               streams: [],
+              departureConnections: retainClosedConnection
+                ? [
+                    {
+                      state: 'disconnected',
+                      stateBeforeLeave: 'connected',
+                      createdAfterLeave: false,
+                      everConnected: true,
+                      localDescriptionPresent: true,
+                      remoteDescriptionPresent: true,
+                      liveSenderTracks: 0,
+                      liveReceiverTracks: 0,
+                    },
+                  ]
+                : [],
             }
           }
           sample++
@@ -505,6 +519,18 @@ test('a feedback page with an unclosed peer reports bounded state counts and can
     failed: 0,
     closed: 0,
   })
+  assert.deepEqual(result.departure.unclosedConnections, [
+    {
+      state: 'disconnected',
+      stateBeforeLeave: 'connected',
+      createdAfterLeave: false,
+      everConnected: true,
+      localDescriptionPresent: true,
+      remoteDescriptionPresent: true,
+      liveSenderTracks: 0,
+      liveReceiverTracks: 0,
+    },
+  ])
   assert.equal(
     contexts.every((context) => context.confirmationClicks === 0),
     true
