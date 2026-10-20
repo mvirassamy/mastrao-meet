@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-20: Diagnose staging Meet departure checks without private data.
+
 - 2026-10-20: Prepare a two-party staging browser test with synthetic media,
   authenticated fixtures, reload/rejoin and leave checks. Keep live execution
   and automatic delivery separate from local probe validation.
