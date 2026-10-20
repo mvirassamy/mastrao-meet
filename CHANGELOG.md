@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-20: Wait for both expected staging participants after joining or
+  rejoining before measuring media; keep strict roster checks during sampling.
+  Diagnose unclosed peers at departure using lifecycle flags and live-track
+  counts, while preserving the requirement that every peer closes.
+
 - 2026-10-20: Distinguish private notes local and Core HTTP refusals
   using closed diagnostics without note, credential or identity data.
 

@@ -3,6 +3,7 @@ import { within } from './deadline.mjs'
 import {
   openParticipants,
   requireExpectedParticipants,
+  waitForExpectedParticipants,
 } from './participants.mjs'
 import {
   installMediaProbe,
@@ -86,7 +87,7 @@ export async function requireMediaProgress(
   }))
   diagnostic.participants = observations
 
-  async function checkParticipants(step) {
+  async function checkParticipants(step, check = requireExpectedParticipants) {
     if (!expectedIds) return
     await Promise.all(
       pages.map(async (page, index) => {
@@ -94,7 +95,7 @@ export async function requireMediaProgress(
         observation.step = step
         observation.roster = null
         try {
-          await requireExpectedParticipants(page, expectedIds, observation)
+          await check(page, expectedIds, observation)
         } catch (error) {
           observation.failed = true
           throw error
@@ -139,6 +140,7 @@ export async function requireMediaProgress(
     }
     return snapshots
   }
+  await checkParticipants('WAIT_FOR_PARTICIPANTS', waitForExpectedParticipants)
   let previous = await readSamples()
   for (let attempt = 0; attempt < attempts; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs))
@@ -183,6 +185,16 @@ function mediaStreamCounts(snapshot) {
 }
 
 async function leaveMeeting(page, departure) {
+  departure.step = 'BASELINE'
+  await within(
+    page.evaluate(() => {
+      if (typeof window.__meetMarkDeparture !== 'function')
+        throw new Error('WebRTC departure probe is not installed')
+      window.__meetMarkDeparture()
+    }),
+    5000
+  )
+  departure.step = 'CONTROL'
   await page.locator('[data-attr="controls-leave"]').click()
   const dialog = page.getByRole('alertdialog', {
     name: 'Leave or end the meeting?',
@@ -234,6 +246,7 @@ async function waitForClosedConnections(page, departure, signal) {
     const snapshot = await readMediaSnapshot(page)
     if (signal.aborted) return
     departure.connectionStates = connectionStateCounts(snapshot)
+    departure.unclosedConnections = snapshot.departureConnections ?? null
     if (connectionsClosed(snapshot)) return
     await new Promise((resolve) => setTimeout(resolve, 500))
   }

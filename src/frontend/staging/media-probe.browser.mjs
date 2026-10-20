@@ -6,6 +6,7 @@ import {
   readMediaSnapshot,
   hasBidirectionalMediaProgress,
 } from './media-probe.mjs'
+import { connectionsClosed } from './meeting.mjs'
 
 test(
   'real Chromium probe observes synthetic audio/video and rejects closed peers',
@@ -90,9 +91,30 @@ test(
         true,
         'Synthetic RTP media must pass the same probe used on staging'
       )
+      await page.evaluate(() => window.__meetMarkDeparture())
       await page.evaluate(() => window.closeSyntheticPeers())
       const closed = await readMediaSnapshot(page)
       assert.equal(hasBidirectionalMediaProgress(before, closed), false)
+      assert.equal(connectionsClosed(closed), true)
+      await page.evaluate(() => {
+        window.unusedSyntheticPeer = new RTCPeerConnection({ iceServers: [] })
+      })
+      const remaining = await readMediaSnapshot(page)
+      assert.equal(connectionsClosed(remaining), false)
+      assert.deepEqual(remaining.departureConnections, [
+        {
+          state: 'new',
+          stateBeforeLeave: null,
+          createdAfterLeaveMark: true,
+          everConnected: false,
+          localDescriptionPresent: false,
+          remoteDescriptionPresent: false,
+          liveSenderTracks: 0,
+          liveReceiverTracks: 0,
+        },
+      ])
+      await page.evaluate(() => window.unusedSyntheticPeer.close())
+      assert.equal(connectionsClosed(await readMediaSnapshot(page)), true)
     } finally {
       await browser.close()
     }

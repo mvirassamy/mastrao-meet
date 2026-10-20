@@ -13,8 +13,13 @@ microphone input. The probe reads standard `RTCPeerConnection.getStats()` counte
 without capturing SDP, network addresses, tokens or media payloads.
 
 Both browsers must show exactly the two expected RTC participant identities in
-the participant list around each sample, with one incoming audio and video source
-per browser. Both must show progress in inbound and outbound audio and video. Video
+the participant list. After joining or rejoining, each browser has up to fifteen
+seconds to discover both identities before sampling starts. A missing user,
+different identity or additional participant that persists cannot pass. The
+same exact roster remains required around every media sample.
+
+Each browser must have one incoming audio and video source. Both must show
+progress in inbound and outbound audio and video. Video
 requires decoded/encoded frames as well as bytes; received audio requires energy
 as well as bytes. A static preview or a successful signaling connection cannot
 pass. The second participant reloads, rejoins and repeats the media checks; both
@@ -80,7 +85,7 @@ video and storage states are not written into the report. Do not enable
 `MEET_TWO_PARTY_BROWSER_PASS`, not a release qualification.
 
 An unconfirmed `LEAVE` result includes `departure`: the participant's position
-(1 or 2), a fixed step (`CONTROL`, `TRANSITION`, `CONFIRMATION`, `FEEDBACK` or
+(1 or 2), a fixed step (`BASELINE`, `CONTROL`, `TRANSITION`, `CONFIRMATION`, `FEEDBACK` or
 `CONNECTIONS`), whether the voluntary-leave feedback route was reached, and the
 last observed number of WebRTC connections in each standard state. A null count
 means no departure snapshot was obtained. These fields do not contain identities,
@@ -88,9 +93,19 @@ URLs or raw errors. They locate the failing check without relaxing the exit gate
 successful media checks alone still cannot produce a passing qualification.
 An empty connection list also fails: a new document without the previously
 observed peers cannot establish that those peers were closed.
+Before clicking Leave, the probe records each existing peer by object identity
+inside the browser. During the exit check, `unclosedConnections` reports each
+remaining peer's state before Leave (null for a later peer), whether it was
+created after the pre-click mark (`createdAfterLeaveMark`), whether it was ever
+observed connected, description-presence
+flags and counts of live sender/receiver tracks. No peer IDs, descriptions,
+track labels, addresses or payloads are exported. A peer at `new` still fails
+the exit check; these fields distinguish hypotheses without accepting them.
 
 An unconfirmed `AUDIO_VIDEO` or `RELOAD_REJOIN` result also includes `media`.
-It identifies participant-list opening, rejoining or sampling. Each sampling
+It identifies participant-list opening, rejoining or sampling. A participant step
+of `WAIT_FOR_PARTICIPANTS` means the initial exact roster did not converge before
+its deadline; no media snapshot has been read. Each sampling
 participant has a fixed step (roster before/after sample, snapshot, stream count,
 or progress), the number of samples read, connection-state counts and counts of
 the four audio/video directions. Roster reads expose only whether a list was
