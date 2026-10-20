@@ -11,6 +11,9 @@ backend:
     MASTRAO_PLATFORM_API_BASE_URL: https://app.mastrao-staging.com
     MASTRAO_CORE_VIDEO_DELIVERY_ENDPOINT: http://cabinet-core:8080/internal/v1/meetings/video-invitations/delivery
     MASTRAO_CORE_VIDEO_PARTICIPANT_ENDPOINT: http://cabinet-core:8080/internal/v1/meetings/video-invitations/participant
+    # Bare sender address. Explicit deployment settings must use this environment’s sender.
+    DJANGO_EMAIL_FROM: "notifications@mastrao-staging.com"
+    DJANGO_EMAIL_BRAND_NAME: "Mastrao Visio"
     MASTRAO_CORE_PERSONAL_NOTES_READ_ENDPOINT: http://cabinet-core:8080/internal/v1/meetings/personal-notes/read
     MASTRAO_CORE_PERSONAL_NOTES_WRITE_ENDPOINT: http://cabinet-core:8080/internal/v1/meetings/personal-notes/write
     MASTRAO_MEETING_RECORDING_ENABLED: False

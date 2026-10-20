@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-20: Use Mastrao branding and the existing white-background logo.
+  Author all transactional emails and subjects in French independently of
+  interface language, preserve configured sender addresses, and remove
+  inherited operator/support claims while retaining upstream attribution.
+
 - 2026-10-20: Configure the private Core read and write endpoints for
   personal meeting notes in the staging overlay.
 

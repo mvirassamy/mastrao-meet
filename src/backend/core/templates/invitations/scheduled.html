@@ -1,15 +1,20 @@
-{% load i18n tz %}{% localtime off %}
+{% load tz %}{% localtime off %}
 <!doctype html>
-<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#202124">
-<h1>{% trans "Invitation to a scheduled meeting" %}</h1>
+<html lang="fr">
+<head><meta charset="utf-8"><title>{{ subject }}</title></head>
+<body style="font-family:Arial,sans-serif;line-height:1.6;color:#202124">
+<div style="display:none;max-height:0;overflow:hidden">{{ subject }}</div>
+{% if logo_img %}<img src="{{ logo_img }}" width="72" alt="Logo {{ brandname }}">{% endif %}
+<h1>{{ subject }}</h1>
 <p>{{ sender_email }} — {{ title }}</p>
 <p>{{ starts_at|date:"d/m/Y H:i" }} – {{ ends_at|date:"H:i" }} ({{ timezone }})</p>
-<p><a href="{{ room_url }}">{% trans "Join the meeting" %}</a></p>
-<h2>{% trans "Video recording may be requested" %}</h2>
-<p>{% trans "The host may manually start video recording. Any refusal prevents video recording for the whole meeting. Without an objection after this email, your response remains no objection, not an explicit acceptance." %}</p>
-<p><a href="{{ choice_url }}">{% trans "Choose yes or no without an account" %}</a></p>
-<p>{% trans "You may change your choice until video capture actually starts. While a start request is being resolved, changes cannot be confirmed. Stopping video recording is permanent for this meeting." %}</p>
-<p>{% trans "Audio capture for transcription has a separate choice when you join. Refusing video does not refuse audio transcription." %}</p>
+<p><a href="{{ room_url }}">Rejoindre la réunion</a></p>
+<h2>Un enregistrement vidéo peut être demandé</h2>
+<p>L’organisateur peut démarrer manuellement l’enregistrement vidéo. Tout refus empêche l’enregistrement vidéo de l’ensemble de la réunion. Sans opposition après cet e-mail, votre réponse reste une absence d’opposition, et non une acceptation explicite.</p>
+<p><a href="{{ choice_url }}">Choisir oui ou non sans compte</a></p>
+<p>Vous pouvez modifier votre choix jusqu’au démarrage effectif de la capture vidéo. Pendant le traitement d’une demande de démarrage, les modifications ne peuvent pas être confirmées. L’arrêt de l’enregistrement vidéo est définitif pour cette réunion.</p>
+<p>La capture audio destinée à la transcription fait l’objet d’un choix distinct lorsque vous rejoignez la réunion. Refuser la vidéo ne signifie pas refuser la transcription audio.</p>
+<p>Cet e-mail vous a été envoyé par <a href="{{ room_url }}">{{ brandname }}</a>.</p>
 </body></html>
 
 {% endlocaltime %}

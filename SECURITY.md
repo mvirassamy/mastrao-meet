@@ -4,9 +4,9 @@
 
 Security is very important to us.
 
-If you have any issue regarding security, please disclose the information responsibly submiting [this form](https://vdp.numerique.gouv.fr/p/Send-a-report?lang=en) and not by creating an issue on the repository. You can also email us at visio@numerique.gouv.fr
+Report vulnerabilities in Mastrao Visio privately to this fork’s maintainers. If enabled, use [GitHub private vulnerability reporting](https://github.com/mvirassamy/mastrao-meet/security/advisories/new). Otherwise, request a private reporting channel from your Mastrao representative. Do not publish vulnerability details or credentials in a public issue.
 
-We appreciate your effort to make Visio more secure.
+We appreciate your effort to make Mastrao Visio more secure.
 
 ## Vulnerability disclosure policy
 

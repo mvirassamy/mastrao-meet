@@ -2,7 +2,7 @@ import { A, Text } from '@/primitives'
 import { useTranslation } from 'react-i18next'
 import { useConfig } from '@/api/useConfig'
 
-const appTitle = import.meta.env.VITE_APP_TITLE ?? 'LaSuite Meet'
+const appTitle = import.meta.env.VITE_APP_TITLE ?? 'Mastrao Visio'
 
 /**
  * Optional "learn more" link of the public home, shown only when the
