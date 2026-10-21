@@ -184,6 +184,7 @@ class SingleConnectionSDKTests(unittest.IsolatedAsyncioTestCase):
             vad=None,
             can_send=lambda: True,
             reconnect_refused=refused,
+            failed=Mock(),
         )
         self.addAsyncCleanup(provider.aclose)
         with self.assertRaises(ConnectionError):
@@ -197,5 +198,7 @@ class SingleConnectionSDKTests(unittest.IsolatedAsyncioTestCase):
         """A future SDK needs new source review and executed reconnect evidence."""
         with patch("live_single_connection.version", return_value="1.8.4"):
             with self.assertRaises(RuntimeError):
-                AuthorizedOpenAI(can_send=lambda: True, reconnect_refused=Mock())
+                AuthorizedOpenAI(
+                    can_send=lambda: True, reconnect_refused=Mock(), failed=Mock()
+                )
         self.connector.assert_not_awaited()

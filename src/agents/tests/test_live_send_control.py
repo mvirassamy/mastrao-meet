@@ -20,6 +20,7 @@ from live_send_control import (
 
 SOURCE = "source_reference_0001"
 ADMISSION = "admission_reference_0001"
+LEG = "initial_leg_reference_0001"
 ATTEMPT = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 WORKER = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
@@ -32,7 +33,7 @@ class Gateway:
         self.requests = []
         self.entered = {
             action: asyncio.Event()
-            for action in ("prepare", "claim", "renew", "stopped")
+            for action in ("prepare", "claim", "renew", "rotate", "stopped")
         }
         self.release = {action: asyncio.Event() for action in self.entered}
         for gate in self.release.values():
@@ -40,6 +41,7 @@ class Gateway:
         self.responses = {}
         self.errors = {}
         self.before_stopped = None
+        self.audio_start = 0
 
     async def post(self, body):
         """Hold or corrupt individual actions without fabricating extra fields."""
@@ -50,11 +52,18 @@ class Gateway:
         if action in self.errors:
             raise self.errors[action]
         if action == "prepare":
-            result = {"version": 1, "source_ref": SOURCE, "admission_ref": ADMISSION}
+            result = {
+                "version": 2,
+                "source_ref": SOURCE,
+                "admission_ref": ADMISSION,
+                "leg_ref": LEG,
+            }
         else:
+            if action == "rotate":
+                self.audio_start = body["audio_end_sample"]
             stopped = action == "stopped"
             result = {
-                "version": 1,
+                "version": 2,
                 "source_ref": SOURCE,
                 "admission_ref": ADMISSION,
                 "attempt_ref": body["attempt_ref"],
@@ -62,7 +71,9 @@ class Gateway:
                 "action": action,
                 "state": "stopped" if stopped else "active",
                 "lease_expires_at": None if stopped else int(time.time()) + 12,
-                "start_authorized": action == "claim",
+                "start_authorized": action in {"claim", "rotate"},
+                "leg_ref": body.get("next_leg_ref", body["leg_ref"]),
+                "audio_start_sample": self.audio_start,
                 "send_authorized": not stopped,
                 "replayed": False,
             }
@@ -176,7 +187,7 @@ class AuthorityTests(unittest.IsolatedAsyncioTestCase):
         for body in gateway.requests:
             expected = base
             if body["action"] != "prepare":
-                expected = base | {"source_ref", "admission_ref"}
+                expected = base | {"source_ref", "admission_ref", "leg_ref"}
             self.assertEqual(set(body), expected)
             self.assertEqual(body["attempt_ref"], ATTEMPT)
             self.assertEqual(body["worker_instance_ref"], WORKER)
@@ -263,7 +274,7 @@ class AuthorityTests(unittest.IsolatedAsyncioTestCase):
         gateway.responses["claim"] = {"lease_expires_at": 1015}
         lease = authority(gateway)
         clock = SimpleNamespace(
-            monotonic=Mock(side_effect=[50, 52, 52, 52]),
+            monotonic=Mock(side_effect=[50, 52, 52, 52, 52]),
             time=Mock(side_effect=[1000, 1002]),
         )
         with patch("live_send_control.time", clock):
@@ -279,7 +290,7 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
         """Keep all traffic inside a short-lived local fixture server."""
         self.observed = []
         self.status = 200
-        self.raw = b'{"version":1}'
+        self.raw = b'{"version":2}'
         self.wait = None
         self.redirect_hits = 0
         app = web.Application()
@@ -308,11 +319,11 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
     async def redirected(self, request):
         """Detect an accidental credential-bearing redirect."""
         self.redirect_hits += 1
-        return web.json_response({"version": 1})
+        return web.json_response({"version": 2})
 
     def metadata(self, **changes):
         """Encode the dispatch metadata shape agreed with the Meet backend."""
-        control = {"version": 1, "url": self.url, "capability": self.client.capability}
+        control = {"version": 2, "url": self.url, "capability": self.client.capability}
         control.update(changes)
         return json.dumps({"liveControl": control})
 
@@ -329,9 +340,9 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
             },
         ):
             client = LiveControlClient.from_metadata(self.metadata())
-            self.assertEqual(await client.post({"version": 1}), {"version": 1})
+            self.assertEqual(await client.post({"version": 2}), {"version": 2})
         self.assertEqual(
-            self.observed, [(f"Bearer {self.client.capability}", {"version": 1})]
+            self.observed, [(f"Bearer {self.client.capability}", {"version": 2})]
         )
         self.assertNotIn(self.client.capability, repr(self.client))
 
@@ -339,7 +350,7 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
         """Refuse redirect responses without forwarding the scoped capability."""
         self.status = 307
         with self.assertRaises(ControlError):
-            await self.client.post({"version": 1})
+            await self.client.post({"version": 2})
         self.assertEqual(self.redirect_hits, 0)
         self.assertEqual(len(self.observed), 1)
 
@@ -347,24 +358,24 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
         """Do not classify an explicit gateway status as an ambiguous wire loss."""
         self.status = 503
         with self.assertRaises(ControlUnavailable) as refused:
-            await self.client.post({"version": 1})
+            await self.client.post({"version": 2})
         self.assertNotIsInstance(refused.exception, ControlResponseLost)
         self.raw = b"invalid-json"
         self.status = 200
         with self.assertRaises(ControlError) as malformed:
-            await self.client.post({"version": 1})
+            await self.client.post({"version": 2})
         self.assertNotIsInstance(malformed.exception, ControlResponseLost)
 
     async def test_body_and_transport_time_are_bounded(self):
         """Abort oversized bodies and held responses; neither request is retried."""
         self.raw = b"x" * 16_385
         with self.assertRaises(ControlError):
-            await self.client.post({"version": 1})
+            await self.client.post({"version": 2})
         self.wait = asyncio.Event()
         try:
             with patch("live_send_control.REQUEST_TIMEOUT_SECONDS", 0.02):
                 with self.assertRaises(ControlResponseLost):
-                    await self.client.post({"version": 1})
+                    await self.client.post({"version": 2})
         finally:
             self.wait.set()
         self.assertEqual(len(self.observed), 2)
@@ -375,7 +386,7 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
             self.raw = raw
             with self.subTest(raw=raw):
                 with self.assertRaises(ControlError):
-                    await self.client.post({"version": 1})
+                    await self.client.post({"version": 2})
 
     def test_absent_control_preserves_legacy_and_invalid_metadata_fails_closed(self):
         """Present but malformed control never silently selects the legacy path."""

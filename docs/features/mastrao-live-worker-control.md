@@ -20,17 +20,19 @@ A `renew` extends continuation only. It cannot open or restart a provider.
 
 ## Worker protocol
 
-Server-created job metadata adds a `liveControl` object containing version 1,
+Server-created job metadata adds a `liveControl` object containing version 2,
 a private endpoint URL and an opaque technical capability. It contains no
 participant bearer, receipt-signing key or transcript. The worker accepts only
 the explicitly configured endpoint and validates bounded responses.
 
-Requests carry version, action (`prepare`, `claim`, `renew`, `stopped`), actual
-room/participant/track SIDs, a stable attempt reference and a worker-instance
-reference. All actions except prepare also carry source and admission refs.
+Requests carry version, action (`prepare`, `claim`, `renew`, `rotate`,
+`stopped`), actual room/participant/track SIDs, a stable attempt reference and a
+worker-instance reference. All actions except prepare also carry source,
+admission and leg refs. Only rotate adds the successor leg and cumulative PCM
+end position.
 The capability is scoped to the room and subtitle-control generation.
 
-Prepare returns only version, source reference and admission reference. The
+Prepare returns version 2, source, admission and the initial leg reference. The
 other operations return Core's exact send-authority response. Meet signs the
 Core calls and never mirrors consent decisions. Lost or ambiguous responses
 fail closed; no automatic audio repair or replay starts.
@@ -49,20 +51,20 @@ Only successful provider cleanup permits a `stopped` acknowledgement. Slow
 subtitle publication is not proof of a still-open audio stream; accepted SDK
 results use the bounded delivery queue already implemented.
 
-The source cannot be reopened after expiry or reconnection. This can create an
-explicit incomplete transcript rather than spend extra minutes silently.
-The existing SDK may still leave a final unread at close; this path does not
-certify complete coverage, a common meeting clock, durable final delivery or
+The source cannot be reopened after expiry, stop or an unexpected
+reconnection. This can create an explicit incomplete transcript. Planned
+handoffs drain the SDK and accepted publications before opening a successor.
+This path does not certify complete coverage, a common meeting clock,
+durable final delivery or
 eligibility for automatic summary reuse. Those remain separate qualification
 and integration work. Tests use synthetic media and transports only.
 
 The pinned OpenAI plugin rotates its realtime connection after ten minutes.
-The controlled path refuses this second acquisition. Consequently a long
-meeting can become incomplete at that rotation; this is a known activation
-blocker, not an acceptable qualified product behavior. A separately authorized
-continuation that does not replay already processed audio must be designed and
-qualified before enabling this path for long meetings. Do not remove the SDK
-limit or silently reconnect to hide this gap.
+Each connection still refuses a second acquisition. Planned continuation uses
+a separate Core-authorized leg after the old connection drains and closes;
+see [the continuation boundary](mastrao-live-continuation.md). An unexpected SDK
+rotation remains terminal. Do not remove the SDK limit or silently reconnect
+to hide a gap. This inactive path still requires real quality qualification.
 
 ## Configuration boundaries
 

@@ -44,6 +44,7 @@ class ControlledSessionTests(unittest.IsolatedAsyncioTestCase):
         self.speech = SpeechSource()
         self.provider = CloseGate()
         self.provider.fence_audio = MagicMock()
+        self.provider.appended_samples = 0
         self.provider.stream = MagicMock(return_value=self.speech)
         self.factory = self.enterContext(
             patch("live_transcriber.AuthorizedOpenAI", return_value=self.provider)
@@ -204,7 +205,7 @@ class ControlledSessionTests(unittest.IsolatedAsyncioTestCase):
     ):
         """The push boundary checks monotonic expiry even before watchdog runs."""
         await self.started()
-        frame = object()
+        frame = rtc.AudioFrame.create(24000, 1, 480)
         self.audio.frames.put_nowait(frame)
         self.assertIs(await self.audio.delivered.get(), frame)
         self.assertEqual(self.speech.pushed, [frame])
@@ -484,7 +485,7 @@ class ControlledSessionTests(unittest.IsolatedAsyncioTestCase):
                 metadata=json.dumps(
                     {
                         "liveControl": {
-                            "version": 1,
+                            "version": 2,
                             "url": url,
                             "capability": "payload:timestamp:signature",
                         }

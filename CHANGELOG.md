@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-22: Bind planned live connection handoffs to exact Core leg
+  identities and cumulative PCM boundaries. Reject old controlled jobs and
+  malformed rotation receipts; preserve terminal stop and demo isolation.
+
 - 2026-10-22: Fence queued live SDK writes at the socket and cancel pending
   writes before cleanup. Require a coherent claim or an unknown transport
   outcome before acknowledging stop; block unattributed subtitle dispatches

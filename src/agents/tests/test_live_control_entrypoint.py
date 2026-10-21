@@ -22,7 +22,7 @@ class ControlEntrypointTests(unittest.IsolatedAsyncioTestCase):
             patch.dict(os.environ, {"LIVE_TRANSCRIPT_CONTROL_URL": self.url})
         )
         self.control = {
-            "version": 1,
+            "version": 2,
             "url": self.url,
             "capability": "payload:timestamp:signature",
         }

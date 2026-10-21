@@ -17,6 +17,8 @@ from livekit import rtc
 from livekit.agents import JobContext, stt
 from livekit.plugins import openai
 
+from live_continuation import ContinuationInput, continue_legs
+from live_input_drain import InputDrainError
 from live_send_control import LiveControlClient, LiveSendAuthority
 from live_single_connection import AuthorizedOpenAI
 
@@ -288,6 +290,12 @@ class TrackTranscriber:
         self._speech_stream: stt.RecognizeStream | None = None
         self._audio_stream: rtc.AudioStream | None = None
         self._provider: openai.STT | None = None
+        self._pcm_input: ContinuationInput | None = None
+        self._continuation_task: asyncio.Task[None] | None = None
+        self._leg_close_task: asyncio.Task[None] | None = None
+        self._leg_drained = False
+        self._published_items: set[str] = set()
+        self._publication_ready = asyncio.Event()
         self._audio_task: asyncio.Task[None] | None = None
         self._reader_task: asyncio.Task[None] | None = None
         self._publication_task: asyncio.Task[None] | None = None
@@ -296,6 +304,7 @@ class TrackTranscriber:
         self._events_ready = asyncio.Event()
         self._speech_read_done = False
         self._incomplete_reasons: list[str] = []
+        self._continuation_error: InputDrainError | None = None
         self._run_task: asyncio.Task[None] | None = None
         self._run_done = asyncio.Event()
         self._resource_close_task: asyncio.Task[None] | None = None
@@ -323,16 +332,7 @@ class TrackTranscriber:
             if self._authority is not None:
                 if not await self._authority.claim() or self._closing:
                     return
-                self._provider = AuthorizedOpenAI(
-                    can_send=self._authority.can_send,
-                    reconnect_refused=lambda: self._mark_incomplete(
-                        "canonical-provider-reconnect-refused"
-                    ),
-                    language=configured_languages(),
-                    model=MODEL,
-                    use_realtime=True,
-                    vad=self._vad,
-                )
+                self._open_authorized_leg()
                 self._control_tasks = [
                     asyncio.create_task(
                         self._watch_authority(self._authority.watch_expiry())
@@ -343,24 +343,7 @@ class TrackTranscriber:
                 ]
             else:
                 self._provider = create_openai_live_stt(self._vad)
-            self._audio_stream = rtc.AudioStream.from_track(
-                track=self.track,
-                sample_rate=24000,
-                num_channels=1,
-            )
-            self._speech_stream = self._provider.stream()
-            self._audio_task = asyncio.create_task(
-                self._push_audio(self._audio_stream, self._speech_stream)
-            )
-            self._reader_task = asyncio.create_task(
-                self._read_speech(self._speech_stream)
-            )
-            self._reader_task.add_done_callback(self._on_speech_read_done)
-            self._publication_task = asyncio.create_task(self._publish_events())
-            await asyncio.wait(
-                (self._reader_task, self._publication_task, *self._control_tasks),
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+            await self._run_audio()
         finally:
             self.fence_audio()
             for task in self._control_tasks:
@@ -384,6 +367,129 @@ class TrackTranscriber:
                 finally:
                     self._run_done.set()
 
+    async def _run_audio(self) -> None:
+        """Run one RTC reader with legacy speech or planned canonical legs."""
+        self._audio_stream = rtc.AudioStream.from_track(
+            track=self.track,
+            sample_rate=24000,
+            num_channels=1,
+        )
+        if self._authority is None:
+            self._start_speech()
+            self._audio_task = asyncio.create_task(
+                self._push_audio(self._audio_stream, self._speech_stream)
+            )
+            await asyncio.wait(
+                (self._reader_task, self._publication_task),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        else:
+            self._pcm_input = ContinuationInput(
+                self._authority.can_send, lambda: self._provider.appended_samples
+            )
+            self._pcm_input.attach(
+                self._speech_stream, self._authority.audio_start_sample
+            )
+            self._audio_task = asyncio.create_task(self._capture_authorized_audio())
+            self._continuation_task = asyncio.create_task(
+                continue_legs(
+                    self._authority,
+                    self._pcm_input,
+                    speech_tasks=lambda: (self._reader_task, self._publication_task),
+                    drain_leg=self._drain_leg,
+                    open_leg=self._open_authorized_leg,
+                )
+            )
+            await asyncio.wait(
+                (self._continuation_task, self._audio_task, *self._control_tasks),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+    def _fail_continuation(self, reason: str) -> None:
+        """Latch failure before another task can accept a successor receipt."""
+        if self._continuation_error is None:
+            self._continuation_error = InputDrainError(reason)
+        self._mark_incomplete(reason)
+        self.fence_audio()
+
+    async def _capture_authorized_audio(self) -> None:
+        """Fence synchronously on capture failure, before supervision resumes."""
+        try:
+            await self._pcm_input.run(self._audio_stream)
+        except Exception as error:
+            reason = "audio-consumption-failed"
+            if isinstance(error, InputDrainError):
+                reason = str(error)
+            self._fail_continuation(reason)
+            raise
+
+    def _start_speech(self) -> None:
+        """Start the existing independent reader and ordered publisher for a leg."""
+        self._speech_stream = self._provider.stream()
+        self._reader_task = asyncio.create_task(self._read_speech(self._speech_stream))
+        self._reader_task.add_done_callback(self._on_speech_read_done)
+        self._publication_task = asyncio.create_task(self._publish_events())
+
+    def _open_authorized_leg(self) -> None:
+        """Capture the exact Core leg in a fresh single-acquisition provider guard."""
+        authority = self._authority
+        leg_ref = authority.leg_ref
+        if self._closing or not authority.can_send_leg(leg_ref):
+            raise InputDrainError("live-continuation-open-not-authorized")
+        self.leg_id = leg_ref
+        self._provider = AuthorizedOpenAI(
+            can_send=lambda: authority.can_send_leg(leg_ref),
+            reconnect_refused=lambda: self._mark_incomplete(
+                "canonical-provider-reconnect-refused"
+            ),
+            failed=self._fail_continuation,
+            language=configured_languages(),
+            model=MODEL,
+            use_realtime=True,
+            vad=self._vad,
+        )
+        self._leg_close_task = None
+        self._leg_drained = False
+        self._speech_read_done = False
+        self._items.clear()
+        self._published_items.clear()
+        self._publication_ready.clear()
+        self._start_speech()
+        if self._pcm_input is not None:
+            self._pcm_input.attach(self._speech_stream, authority.audio_start_sample)
+
+    async def _drain_leg(self, end_sample: int) -> None:
+        """Prove old PCM, finals, publication and close before sending Core rotate."""
+        if self._incomplete_reasons or self._closing:
+            raise InputDrainError("live-continuation-leg-incomplete")
+        self._provider.seal_input(
+            self._speech_stream, end_sample - self._authority.audio_start_sample
+        )
+        expected = await self._provider.drain_input()
+        while not expected <= self._published_items:
+            for task in (self._reader_task, self._publication_task):
+                if task.done():
+                    task.result()
+                    raise InputDrainError("live-continuation-publication-ended")
+            self._publication_ready.clear()
+            changed = asyncio.create_task(self._publication_ready.wait())
+            try:
+                await asyncio.wait(
+                    (changed, self._reader_task, self._publication_task),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+            finally:
+                changed.cancel()
+                await asyncio.gather(changed, return_exceptions=True)
+        if self._speech_stream._task.done():
+            raise InputDrainError("live-continuation-sdk-ended-during-drain")
+        self._leg_drained = True
+        self._provider.fence_audio()
+        await self._close_leg()
+        await asyncio.gather(self._reader_task, self._publication_task)
+        if self._incomplete_reasons:
+            raise InputDrainError("live-continuation-delivery-incomplete")
+
     async def _join_control(self) -> None:
         """Join cancelled I/O after closing audio, preserving run waiters."""
         if not self._control_tasks:
@@ -405,6 +511,8 @@ class TrackTranscriber:
                 self._provider.fence_audio()
         if self._audio_task is not None and not self._audio_task.cancelling():
             self._audio_task.cancel()
+        if self._continuation_task is not None and not self._continuation_task.done():
+            self._continuation_task.cancel()
 
     async def _watch_authority(self, operation: Awaitable[None]) -> None:
         """Fence immediately on expiry/refusal, independently of control I/O."""
@@ -437,7 +545,11 @@ class TrackTranscriber:
         while True:
             await self._events_ready.wait()
             while self._pending_events:
-                await self._handle_event(self._pending_events.popleft())
+                event = self._pending_events.popleft()
+                await self._handle_event(event)
+                if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
+                    self._published_items.add(event.request_id)
+                    self._publication_ready.set()
             if self._speech_read_done:
                 return
             self._events_ready.clear()
@@ -451,14 +563,23 @@ class TrackTranscriber:
     async def _drain_delivery(self) -> None:
         """Report losses after draining what remains publicly readable."""
         errors: list[BaseException] = []
+        if self._continuation_error is not None:
+            errors.append(self._continuation_error)
         for task, reason in (
             (self._reader_task, "speech-consumption-failed"),
             (self._publication_task, "publication-failed"),
+            (self._audio_task, "audio-consumption-failed"),
+            (self._continuation_task, "live-continuation-failed"),
         ):
             if task is None:
                 continue
             result = (await asyncio.gather(task, return_exceptions=True))[0]
             if isinstance(result, BaseException):
+                if (
+                    task in (self._audio_task, self._continuation_task)
+                    and task.cancelled()
+                ):
+                    continue
                 if (
                     task is self._reader_task
                     and task.cancelled()
@@ -467,6 +588,8 @@ class TrackTranscriber:
                     # The failed SDK close is already retained by _close_resources.
                     continue
                 self._mark_incomplete(reason)
+                if isinstance(result, InputDrainError):
+                    self._mark_incomplete(str(result))
                 errors.append(result)
         for reason in self._incomplete_reasons:
             try:
@@ -522,24 +645,26 @@ class TrackTranscriber:
         errors: list[BaseException] = []
         if self._audio_task is not None and not self._audio_task.cancelling():
             self._audio_task.cancel()
-        if self._reader_task is not None and not self._reader_task.done():
+        if (
+            self._reader_task is not None
+            and not self._reader_task.done()
+            and not self._leg_drained
+        ):
             # SDK 1.8.3 aclose() closes its public iterator too. There is no
             # public stop-sender-then-drain operation or unread-final count.
             # Keep reading concurrently, but do not certify exhaustive recovery.
             self._mark_incomplete("sdk-close-final-drain-unconfirmed")
         # Do not let the SDK drain queued audio behind a slow input finalizer.
         # Neither end_input() nor flush() belongs in this stop path.
-        for resource, label in (
-            (self._speech_stream, "speech stream"),
-            (self._audio_stream, "audio stream"),
-            (self._provider, "OpenAI provider"),
-        ):
-            if resource is None:
-                continue
+        try:
+            await self._close_leg()
+        except BaseException as error:
+            errors.append(error)
+        if self._audio_stream is not None:
             try:
-                await resource.aclose()
+                await self._audio_stream.aclose()
             except (Exception, asyncio.CancelledError) as error:
-                logger.error("failed to close %s (%s)", label, type(error).__name__)
+                logger.error("failed to close audio stream (%s)", type(error).__name__)
                 errors.append(error)
         if self._audio_task is not None:
             await asyncio.gather(self._audio_task, return_exceptions=True)
@@ -551,6 +676,25 @@ class TrackTranscriber:
         self._speech_stream = None
         self._audio_stream = None
         self._provider = None
+
+    async def _close_leg(self) -> None:
+        if self._leg_close_task is None:
+            self._leg_close_task = asyncio.create_task(self._close_leg_resources())
+        await _await_shutdown(self._leg_close_task)
+
+    async def _close_leg_resources(self) -> None:
+        """Share physical leg closure between planned handoff and hard stop."""
+        errors: list[BaseException] = []
+        for resource in (self._speech_stream, self._provider):
+            if resource is None:
+                continue
+            try:
+                await resource.aclose()
+            except (Exception, asyncio.CancelledError) as error:
+                logger.error("failed to close speech leg (%s)", type(error).__name__)
+                errors.append(error)
+        if errors:
+            raise BaseExceptionGroup("live speech leg close failed", errors)
 
     async def _push_audio(
         self,
