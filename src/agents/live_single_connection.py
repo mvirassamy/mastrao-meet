@@ -25,7 +25,10 @@ class _AuthorizedSocket:
     """Fence the pinned SDK's queued writes at its actual socket boundary."""
 
     def __init__(
-        self, socket: aiohttp.ClientWebSocketResponse, can_send: Callable[[], bool]
+        self,
+        socket: aiohttp.ClientWebSocketResponse,
+        can_send: Callable[[], bool],
+        failed: Callable[[str], None],
     ):
         self._socket = socket
         self._can_send = can_send
@@ -33,12 +36,12 @@ class _AuthorizedSocket:
         self._senders: set[asyncio.Task] = set()
         self._write_lock = asyncio.Lock()
         self._close_task: asyncio.Task[None] | None = None
-        self.drain = InputDrain()
+        self.drain = InputDrain(failed)
 
     def fence_audio(self) -> None:
         """Discard future queued writes and cancel writes already awaiting I/O."""
         self._fenced = True
-        self.drain.fail("live-input-authority-fenced")
+        self.drain.fence()
         for sender in tuple(self._senders):
             sender.cancel()
 
@@ -48,7 +51,7 @@ class _AuthorizedSocket:
 
     async def _send(self, message: dict[str, object], *, tail_commit: bool) -> None:
         if self._fenced or not self._can_send():
-            self.drain.fail("live-input-authority-fenced")
+            self.drain.fence()
             return
         sender = asyncio.current_task()
         if sender is None:
@@ -58,7 +61,7 @@ class _AuthorizedSocket:
             async with self._write_lock:
                 # Recheck after waiting behind an append or a configuration write.
                 if self._fenced or not self._can_send():
-                    self.drain.fail("live-input-authority-fenced")
+                    self.drain.fence()
                     return
                 kind = message["type"]
                 if kind == "input_audio_buffer.commit":
@@ -72,7 +75,8 @@ class _AuthorizedSocket:
                     )
                     self.drain.appended(samples)
         except BaseException:
-            self.drain.fail("live-input-socket-write-failed")
+            if not self._fenced:
+                self.drain.fail("live-input-socket-write-failed")
             raise
         finally:
             self._senders.discard(sender)
@@ -104,10 +108,12 @@ class _AuthorizedSocket:
                 aiohttp.WSMsgType.CLOSING,
                 aiohttp.WSMsgType.ERROR,
             }:
-                self.drain.fail("live-input-socket-receive-closed")
+                if not self._fenced:
+                    self.drain.fail("live-input-socket-receive-closed")
             return message
         except BaseException:
-            self.drain.fail("live-input-socket-receive-failed")
+            if not self._fenced:
+                self.drain.fail("live-input-socket-receive-failed")
             raise
 
     @property
@@ -156,6 +162,7 @@ class AuthorizedOpenAI(openai.STT):
         *,
         can_send: Callable[[], bool],
         reconnect_refused: Callable[[], None],
+        failed: Callable[[str], None],
         **kwargs,
     ):
         """Fail closed on SDK updates until the single-connection proof is rerun."""
@@ -167,6 +174,7 @@ class AuthorizedOpenAI(openai.STT):
         super().__init__(**kwargs)
         self._can_send = can_send
         self._reconnect_refused = reconnect_refused
+        self._failed = failed
         self._connection_attempted = False
         self._audio_fenced = False
         self._socket: _AuthorizedSocket | None = None
@@ -183,7 +191,7 @@ class AuthorizedOpenAI(openai.STT):
             raise RuntimeError("canonical live source cannot open another socket")
         self._connection_attempted = True
         socket = await super()._connect_ws(timeout)
-        self._socket = _AuthorizedSocket(socket, self._can_send)
+        self._socket = _AuthorizedSocket(socket, self._can_send, self._failed)
         if self._audio_fenced:
             self._socket.fence_audio()
         return self._socket

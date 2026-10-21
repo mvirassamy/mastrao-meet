@@ -13,7 +13,7 @@ class InputDrainError(RuntimeError):
 class InputDrain:
     """Retain bounded evidence from the socket, independent of SDK usage clocks."""
 
-    def __init__(self):
+    def __init__(self, failed: Callable[[str], None] | None = None):
         """Start a fresh ledger for one physical, single-acquisition connection."""
         self.appended_samples = 0
         self.committed_samples = 0
@@ -22,18 +22,29 @@ class InputDrain:
         self._acks: dict[str, str | None] = {}
         self._completed: dict[str, bool] = {}
         self._error: InputDrainError | None = None
+        self._failed = failed
+        self._fenced = False
         self._changed = asyncio.Event()
 
     def fail(self, reason: str) -> None:
         """Wake every waiter with the same retained failure."""
         if self._error is None:
             self._error = InputDrainError(reason)
+            if self._failed is not None:
+                self._failed(reason)
+        self._changed.set()
+
+    def fence(self) -> None:
+        """Wake waiters on intentional closure without inventing a failure."""
+        self._fenced = True
         self._changed.set()
 
     def check(self) -> None:
         """Keep a previously uncertain outcome terminal for every caller."""
         if self._error is not None:
             raise self._error
+        if self._fenced:
+            raise InputDrainError("live-input-authority-fenced")
 
     def seal(self, expected_samples: int) -> None:
         """Seal the admitted input count before the SDK consumes its EOF."""

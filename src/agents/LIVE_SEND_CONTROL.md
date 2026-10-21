@@ -121,7 +121,14 @@ The handoff order is:
 A malformed receipt, changed sample offset, queue overflow, failed publication,
 missing ACK/final, timeout, close failure, provider error or unknown rotate outcome
 is terminal. There is no silent reconnect, audio catch-up, provider retry or new
-opening on replay. Lost rotate can retain the exact candidate only for cleanup;
+opening on replay. Raw drain failures synchronously latch terminal track state
+and fence authority, independently of asynchronous SDK unwind or cached drain
+success. Capture failures fence before the capture coroutine returns, including
+an overflow while a committed rotate reply is arriving. Intentional close has
+a separate fence so it cannot erase a retained failure or invent a new one.
+Failed shutdown remains observable to every close caller.
+
+Lost rotate can retain the exact candidate only for cleanup;
 it cannot be retried as a start. No rotate is sent after an incomplete local drain.
 
 ## Hard stop and SDK pin
@@ -150,6 +157,9 @@ accelerated 540-second timers: four authorized provider instances, 11,520 sample
 sent exactly once, old physical close before successor construction, and repeated
 provider item IDs distinguished by Core leg. Separate gates prove held append,
 ACK/final, publication and socket close cannot be overtaken by Core rotate.
+Tests also cover provider errors after successful drain during held publication/
+SDK unwind, and real-capacity capture overflow during a committed rotate reply.
+Both paths must retain one provider and an explicit terminal failure.
 Tests cover empty/failed finals, absent ACK, timeout, queue saturation, lost
 rotation, invalid identities/offsets, delayed renewal and cancellation, while
 legacy routing and hard-stop tests remain in force. Networking is forbidden in

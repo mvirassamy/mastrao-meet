@@ -304,6 +304,7 @@ class TrackTranscriber:
         self._events_ready = asyncio.Event()
         self._speech_read_done = False
         self._incomplete_reasons: list[str] = []
+        self._continuation_error: InputDrainError | None = None
         self._run_task: asyncio.Task[None] | None = None
         self._run_done = asyncio.Event()
         self._resource_close_task: asyncio.Task[None] | None = None
@@ -389,9 +390,7 @@ class TrackTranscriber:
             self._pcm_input.attach(
                 self._speech_stream, self._authority.audio_start_sample
             )
-            self._audio_task = asyncio.create_task(
-                self._pcm_input.run(self._audio_stream)
-            )
+            self._audio_task = asyncio.create_task(self._capture_authorized_audio())
             self._continuation_task = asyncio.create_task(
                 continue_legs(
                     self._authority,
@@ -405,6 +404,24 @@ class TrackTranscriber:
                 (self._continuation_task, self._audio_task, *self._control_tasks),
                 return_when=asyncio.FIRST_COMPLETED,
             )
+
+    def _fail_continuation(self, reason: str) -> None:
+        """Latch failure before another task can accept a successor receipt."""
+        if self._continuation_error is None:
+            self._continuation_error = InputDrainError(reason)
+        self._mark_incomplete(reason)
+        self.fence_audio()
+
+    async def _capture_authorized_audio(self) -> None:
+        """Fence synchronously on capture failure, before supervision resumes."""
+        try:
+            await self._pcm_input.run(self._audio_stream)
+        except Exception as error:
+            reason = "audio-consumption-failed"
+            if isinstance(error, InputDrainError):
+                reason = str(error)
+            self._fail_continuation(reason)
+            raise
 
     def _start_speech(self) -> None:
         """Start the existing independent reader and ordered publisher for a leg."""
@@ -425,6 +442,7 @@ class TrackTranscriber:
             reconnect_refused=lambda: self._mark_incomplete(
                 "canonical-provider-reconnect-refused"
             ),
+            failed=self._fail_continuation,
             language=configured_languages(),
             model=MODEL,
             use_realtime=True,
@@ -466,6 +484,7 @@ class TrackTranscriber:
         if self._speech_stream._task.done():
             raise InputDrainError("live-continuation-sdk-ended-during-drain")
         self._leg_drained = True
+        self._provider.fence_audio()
         await self._close_leg()
         await asyncio.gather(self._reader_task, self._publication_task)
         if self._incomplete_reasons:
@@ -544,6 +563,8 @@ class TrackTranscriber:
     async def _drain_delivery(self) -> None:
         """Report losses after draining what remains publicly readable."""
         errors: list[BaseException] = []
+        if self._continuation_error is not None:
+            errors.append(self._continuation_error)
         for task, reason in (
             (self._reader_task, "speech-consumption-failed"),
             (self._publication_task, "publication-failed"),

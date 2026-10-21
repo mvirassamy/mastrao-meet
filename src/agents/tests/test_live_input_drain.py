@@ -48,6 +48,7 @@ class SDKInputDrainTests(unittest.IsolatedAsyncioTestCase):
             vad=self.vad,
             can_send=lambda: self.allowed,
             reconnect_refused=Mock(),
+            failed=Mock(),
         )
         self.stream = self.provider.stream()
         self.finals = []
