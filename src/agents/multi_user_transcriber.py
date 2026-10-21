@@ -25,6 +25,7 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, silero
 
+from live_send_control import ControlError, LiveControlClient
 from live_transcriber import LiveTranscriber
 from observability import configure_sentry, set_job_context
 from tasks import done_callback
@@ -161,6 +162,9 @@ class MultiUserTranscriber:
 async def entrypoint(ctx: JobContext):
     """Initialize and run the multi-user transcriber."""
     set_job_context(room=ctx.room.name, job_id=ctx.job.id)
+    control = LiveControlClient.from_metadata(getattr(ctx.job, "metadata", ""))
+    if control is not None and STT_PROVIDER != OPENAI_LIVE_PROVIDER:
+        raise ControlError("liveControl jobs require STT_PROVIDER=openai-live")
 
     if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
         transcriber = LiveTranscriber(ctx)

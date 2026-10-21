@@ -31,6 +31,15 @@ provider reconnects remain inside the SDK stream; a room reconnect fences the
 old track streams and resubscribes the currently subscribed tracks after the
 room is connected again.
 
+## Controlled Mastrao path
+
+The server-scoped control path is documented in
+[Controlled live microphone transcription](mastrao-live-worker-control.md).
+Its lease and single-acquisition rules apply only to jobs with `liveControl`.
+Unlike the legacy POC described above, it cannot silently reconnect or start
+a replacement stream under the same RTC epoch. It remains unconfigured and
+requires long-meeting quality qualification before activation.
+
 ## Evidence boundary
 
 Unit tests use fakes only to verify envelope ordering, identity preservation,

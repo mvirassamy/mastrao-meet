@@ -71,9 +71,12 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "speaker_evidence_capture_receipt",
     "speaker_evidence_artifact_receipt",
     "object_ref",
+    "capability",
+    "liveControl",
 )
 
 MASTRAO_HANDOFF_CREDENTIAL_HEADERS = {
+    "authorization",
     "x-mastrao-transcription-egress-grant",
 }
 
@@ -522,6 +525,23 @@ class Base(Configuration):
         "",
         environ_name="MASTRAO_CORE_LIVE_CONSENT_DECISION_ENDPOINT",
         environ_prefix=None,
+    )
+    MASTRAO_LIVE_WORKER_CONTROL_ENABLED = values.BooleanValue(
+        False, environ_name="MASTRAO_LIVE_WORKER_CONTROL_ENABLED", environ_prefix=None
+    )
+    MASTRAO_LIVE_WORKER_CONTROL_URL = values.Value(
+        "", environ_name="MASTRAO_LIVE_WORKER_CONTROL_URL", environ_prefix=None
+    )
+    MASTRAO_LIVE_WORKER_CAPABILITY_MAX_AGE_SECONDS = values.IntegerValue(
+        3600,
+        environ_name="MASTRAO_LIVE_WORKER_CAPABILITY_MAX_AGE_SECONDS",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_LIVE_PREPARE_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_LIVE_PREPARE_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_LIVE_SEND_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_LIVE_SEND_ENDPOINT", environ_prefix=None
     )
     MASTRAO_RECORDING_REGION_REF = values.Value(
         "", environ_name="MASTRAO_RECORDING_REGION_REF", environ_prefix=None

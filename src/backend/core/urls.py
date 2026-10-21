@@ -17,6 +17,7 @@ from core.mastrao_guest_invitation_share import create_guest_invitation_share
 from core.mastrao_guest_share_link import consume_guest_share_link
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
 from core.mastrao_host_recovery import recover_meeting_host
+from core.mastrao_live_worker_control import live_worker_control
 from core.mastrao_meeting_assistant import meeting_assistant, meeting_assistant_citation
 from core.mastrao_meeting_classification import meeting_classification, meeting_matters
 from core.mastrao_meeting_history import (
@@ -78,6 +79,11 @@ external_router.register(
 )
 
 urlpatterns = [
+    path(
+        "internal/v1/meetings/transcripts/live/control",
+        live_worker_control,
+        name="mastrao_live_worker_control",
+    ),
     path(
         "internal/mastrao/captures/native/stop/",
         stop_native_capture,
