@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-21: Update backend and agents certifi to 2026.10.19 and Pillow to
+  13.0.0 to clear fixable HIGH/CRITICAL findings in staging candidate scans.
+
 - 2026-10-21: Distinguish notes load and access failures from unsaved drafts
   in meeting history and the in-call editor, preserving recovery feedback.
 
