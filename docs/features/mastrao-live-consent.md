@@ -99,9 +99,31 @@ some socket-close errors, so this proves no stronger remote guarantee than the
 SDK exposes. If cleanup blocks, shutdown stays pending; no maximum stop latency
 is promised by this slice.
 
-A final still unread inside the SDK buffer is not covered by the publication
-barrier. SDK closure can discard such an event while an earlier final is
-blocked in publication. This also occurs in the baseline worker; the present
-change preserves an engaged publication but does not implement exhaustive
-collection. Resolve this in the final-event collector and prove buffered-final
-coverage before qualifying durable transcript reuse or activating the modes.
+## Bounded local event collection
+
+The worker consumes public SDK events separately from ordered room publication.
+It retains at most 256 pending transcript events per track, plus the publication
+in progress. A blocked publication of final `a` no longer prevents collection
+of final `b` already emitted by the SDK. Shutdown joins both the reader and the
+accepted publication queue. Finals keep their identities, revision order and
+exact text; shutdown never flushes audio or opens a replacement stream.
+
+Saturation stops the stream and publishes an explicit gap after draining the
+accepted queue. Publication and gap failures remain observable to all shutdown
+callers and prevent a successful collection claim. Local `incomplete_reasons`
+also retains the uncertainty if sending the gap fails; it is not durable Core
+state. Diagnostic logs exclude upstream exception text and transcript content.
+
+The locked SDK's public `aclose()` also closes its event iterator. There is no
+public stop-audio-then-drain-final-events operation or unread-final count. If the
+reader is still active at closure, the worker records and publishes
+`sdk-close-final-drain-unconfirmed`, even when the locally accepted queue drains.
+A deterministic test holds the public read before `b`: closure can still discard
+that unread final. Another holds the read after acquiring `b` and proves that it
+is retained through closure. The original blocked-publication witness now emits
+both `a` and `b`, with no additional audio send or provider connection.
+
+This improves the demonstrated loss and makes the remaining boundary explicit.
+It does not prove exhaustive SDK collection, meeting coverage or durable summary
+reuse. Those proofs remain required before activating the live modes. The consent
+routes still do not invoke the worker stop barrier or grant stream authority.

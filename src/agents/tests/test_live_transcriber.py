@@ -282,20 +282,23 @@ class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
             patch("live_transcriber.rtc.AudioStream.from_track", return_value=audio),
             self.assertLogs("transcriber.live", level="ERROR") as logs,
         ):
-            await manager._run_session(key, track)
+            with self.assertRaises(ExceptionGroup):
+                await manager._run_session(key, track)
 
         factory.assert_called_once()
         provider.stream.assert_called_once()
         speech.aclose.assert_awaited_once()
         audio.aclose.assert_awaited_once()
         provider.aclose.assert_awaited_once()
-        self.assertIn("item capacity exceeded", "\n".join(logs.output))
-        self.assertEqual(manager._sessions, {})
+        self.assertIn("live transcription failed", "\n".join(logs.output))
+        self.assertIn("publication-failed", track.incomplete_reasons)
+        self.assertIs(manager._sessions[key], track)
         messages = room.local_participant.messages
         self.assertEqual(
             [message[0] for message in messages],
-            [TRANSCRIPTION_TOPIC, TRANSCRIPTION_TOPIC, GAP_TOPIC],
+            [TRANSCRIPTION_TOPIC, TRANSCRIPTION_TOPIC, GAP_TOPIC, GAP_TOPIC],
         )
+        self.assertEqual(json.loads(messages[-2][2])["reason"], "publication-failed")
         self.assertEqual(json.loads(messages[-1][2])["reason"], "provider-error")
 
     async def test_two_tracks_keep_identity_and_replace_interim_with_final(self):
