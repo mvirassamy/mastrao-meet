@@ -6,6 +6,7 @@
 import base64
 import hashlib
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from unittest.mock import Mock, patch
@@ -15,6 +16,7 @@ from django.db import close_old_connections, transaction
 from django.utils import timezone
 
 import pytest
+import requests
 
 from core import models
 from core.mastrao_core_http import read_bounded_core_json
@@ -25,6 +27,7 @@ from core.mastrao_native_asr_client import (
 )
 from core.mastrao_native_asr_worker import (
     _claim,
+    _diagnostic_fields,
     _finish,
     _reserve_dispatch,
     dispatch_native_asr,
@@ -48,6 +51,20 @@ from core.tests.test_mastrao_native_capture import (
 from core.tests.test_mastrao_native_source_transfer import ended_source
 
 pytestmark = pytest.mark.django_db(transaction=True)
+PRIVATE_CANARY = (
+    "PRIVATE_CANARY message args URL header token body grant receipt transcript"
+)
+
+
+def worker_warning(caplog):
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "core.mastrao_native_asr_worker"
+    ]
+    assert len(records) == 1
+    assert records[0].exc_info is None
+    return records[0]
 
 
 @pytest.fixture
@@ -140,16 +157,219 @@ def test_ack_failure_retries_only_ack_and_never_transcribes_again(asr_intent, pe
     assert ack.call_count == 2
 
 
-@pytest.mark.parametrize("stage", [0, 1, 2])
+@pytest.mark.parametrize(
+    ("stage", "expected_stage"),
+    [
+        (0, "prepare"),
+        (1, "gateway"),
+        (2, "result"),
+        (3, "ack"),
+    ],
+)
 def test_upstream_failure_keeps_gateway_cache_and_durable_retry(
-    asr_intent, peers, stage
+    asr_intent, peers, stage, expected_stage, caplog
 ):
-    peers[stage].side_effect = RecordingContractRefused(status=503)
-    assert not process_intent(asr_intent)
-    peers[3].assert_not_called()
+    refusal = RecordingContractRefused(status=503, outcome="unknown")
+    refusal.core_http_status = 502
+    refusal.core_error_code = "service_unavailable"
+    peers[stage].side_effect = refusal
+    with caplog.at_level(logging.WARNING, logger="core.mastrao_native_asr_worker"):
+        assert not process_intent(asr_intent)
+    if stage < 3:
+        peers[3].assert_not_called()
     asr_intent.refresh_from_db()
-    assert asr_intent.asr_receipt is None
+    assert (asr_intent.asr_receipt is None) is (stage < 3)
+    assert asr_intent.asr_error == "native_asr_outcome_unknown"
+    record = worker_warning(caplog)
+    assert record.args == (
+        expected_stage,
+        asr_intent.capture_ref,
+        "contract_refused",
+        503,
+        502,
+        "service_unavailable",
+        "unknown",
+    )
+    assert asr_intent.asr_attempts == 0
+    assert asr_intent.asr_retry_streak == 1
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_kind"),
+    [
+        (RecordingContractRefused(), "contract_refused"),
+        (requests.RequestException(PRIVATE_CANARY), "request_error"),
+        (ValueError(PRIVATE_CANARY), "invalid_value"),
+        (TypeError(PRIVATE_CANARY), "invalid_type"),
+        (KeyError(PRIVATE_CANARY), "missing_field"),
+        (OSError(PRIVATE_CANARY), "io_error"),
+    ],
+)
+def test_native_asr_diagnostic_error_kinds_are_closed(error, expected_kind):
+    assert _diagnostic_fields(error)[0] == expected_kind
+
+
+@pytest.mark.parametrize("accepted", [100, 599])
+def test_native_asr_diagnostic_accepts_bounded_statuses(accepted):
+    refusal = RecordingContractRefused(status=accepted)
+    refusal.core_http_status = accepted
+    assert _diagnostic_fields(refusal)[1:3] == (accepted, accepted)
+
+
+@pytest.mark.parametrize("rejected", [99, 600, True, "503"])
+def test_native_asr_diagnostic_rejects_unbounded_or_non_integer_statuses(rejected):
+    refusal = RecordingContractRefused(status=rejected)
+    refusal.core_http_status = rejected
+    assert _diagnostic_fields(refusal)[1:3] == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("core_code", "outcome"),
+    [
+        (PRIVATE_CANARY, PRIVATE_CANARY),
+        ([PRIVATE_CANARY], [PRIVATE_CANARY]),
+        ({"value": PRIVATE_CANARY}, {"value": PRIVATE_CANARY}),
+        (True, True),
+    ],
+)
+def test_native_asr_diagnostic_rejects_unknown_or_hostile_closed_fields(
+    core_code, outcome
+):
+    refusal = RecordingContractRefused(status=503)
+    refusal.core_error_code = core_code
+    refusal.outcome = outcome
+    assert _diagnostic_fields(refusal) == (
+        "contract_refused",
+        503,
+        None,
+        None,
+        None,
+    )
+
+
+def test_native_asr_warning_never_logs_exception_private_values(
+    asr_intent, peers, caplog
+):
+    error = requests.RequestException(PRIVATE_CANARY)
+    error.url = f"https://example.invalid/{PRIVATE_CANARY}"
+    error.headers = {"Authorization": f"Bearer {PRIVATE_CANARY}"}
+    error.body = PRIVATE_CANARY
+    error.grant = PRIVATE_CANARY
+    error.receipt = PRIVATE_CANARY
+    error.transcript = PRIVATE_CANARY
+    peers[1].side_effect = error
+
+    with caplog.at_level(logging.WARNING, logger="core.mastrao_native_asr_worker"):
+        assert not process_intent(asr_intent)
+
+    record = worker_warning(caplog)
+    assert record.args[0] == "gateway"
+    assert record.args[2:] == ("request_error", None, None, None, None)
+    assert PRIVATE_CANARY not in record.getMessage()
+    asr_intent.refresh_from_db()
     assert asr_intent.asr_error == "native_asr_delivery_failed"
+    assert asr_intent.asr_attempts == 1
+    assert asr_intent.asr_retry_streak == 1
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        (1, "verify_claim_after_prepare", (1, 0, 0, 0)),
+        (2, "verify_claim_after_gateway", (1, 1, 0, 0)),
+        (3, "verify_claim_before_ack", (1, 1, 1, 0)),
+    ],
+)
+def test_native_asr_logs_each_claim_verification_stage(asr_intent, peers, caplog, case):
+    fresh_call, expected_stage, expected_calls = case
+    calls = 0
+
+    def fail_selected_fresh(_intent):
+        nonlocal calls
+        calls += 1
+        if calls == fresh_call:
+            raise OSError(PRIVATE_CANARY)
+
+    with (
+        patch("core.mastrao_native_asr_worker._fresh", side_effect=fail_selected_fresh),
+        caplog.at_level(logging.WARNING, logger="core.mastrao_native_asr_worker"),
+    ):
+        assert not process_intent(asr_intent)
+
+    record = worker_warning(caplog)
+    assert record.args[0] == expected_stage
+    assert PRIVATE_CANARY not in record.getMessage()
+    assert tuple(peer.call_count for peer in peers) == expected_calls
+
+
+def test_native_asr_logs_receipt_persistence_stage(asr_intent, peers, caplog):
+    persistence = Mock()
+    persistence.filter.return_value.update.side_effect = OSError(PRIVATE_CANARY)
+    finish = Mock()
+    finish.update.return_value = 1
+
+    with (
+        patch("core.mastrao_native_asr_worker._fresh"),
+        patch(
+            "core.mastrao_native_asr_worker._owned", side_effect=[persistence, finish]
+        ),
+        caplog.at_level(logging.WARNING, logger="core.mastrao_native_asr_worker"),
+    ):
+        assert not process_intent(asr_intent)
+
+    record = worker_warning(caplog)
+    assert record.args[0] == "persist_receipt"
+    assert PRIVATE_CANARY not in record.getMessage()
+    assert tuple(peer.call_count for peer in peers) == (1, 1, 1, 0)
+
+
+def test_native_asr_logs_finish_stage_without_replaying_upstream(
+    asr_intent, peers, caplog
+):
+    real_finish = _finish
+    calls = 0
+
+    def fail_success_finish(intent, acknowledged, error=None):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError(PRIVATE_CANARY)
+        return real_finish(intent, acknowledged, error)
+
+    with (
+        patch(
+            "core.mastrao_native_asr_worker._finish", side_effect=fail_success_finish
+        ),
+        caplog.at_level(logging.WARNING, logger="core.mastrao_native_asr_worker"),
+    ):
+        assert not process_intent(asr_intent)
+
+    record = worker_warning(caplog)
+    assert record.args[0] == "finish"
+    assert PRIVATE_CANARY not in record.getMessage()
+    assert tuple(peer.call_count for peer in peers) == (1, 1, 1, 1)
+    asr_intent.refresh_from_db()
+    assert asr_intent.asr_receipt == peers[2].return_value
+    assert not asr_intent.asr_acknowledged
+    assert asr_intent.asr_error == "native_asr_delivery_failed"
+
+
+def test_existing_receipt_failure_logs_ack_without_replaying_upstream(
+    asr_intent, peers, caplog
+):
+    receipt = peers[2].return_value
+    models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
+        asr_receipt=receipt
+    )
+    peers[3].side_effect = OSError(PRIVATE_CANARY)
+
+    with caplog.at_level(logging.WARNING, logger="core.mastrao_native_asr_worker"):
+        assert not process_intent(asr_intent)
+
+    record = worker_warning(caplog)
+    assert record.args[0] == "ack"
+    assert tuple(peer.call_count for peer in peers) == (0, 0, 0, 1)
+    assert PRIVATE_CANARY not in record.getMessage()
 
 
 def test_rate_limit_waits_until_provider_deadline(asr_intent, peers):

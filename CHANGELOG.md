@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-21: Preserve the failed native ASR delivery stage and bounded public
+  Core diagnostics in private-safe worker logs without changing retry state.
+
 - 2026-10-21: Update backend and agents certifi to 2026.10.19 and Pillow to
   13.0.0 to clear fixable HIGH/CRITICAL findings in staging candidate scans.
 
