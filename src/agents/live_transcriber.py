@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 import os
 import time
 import uuid
@@ -24,6 +25,8 @@ TRANSCRIPTION_TOPIC = "lk.transcription"
 GAP_TOPIC = "mastrao.transcription.gap.v1"
 SCHEMA_VERSION = 1
 MODEL = "gpt-live-transcribe"
+# Retain identities for one track leg up to the canonical transcript item cap.
+MAX_ITEMS_PER_TRACK = 100_000
 
 
 def configured_languages() -> str | list[str]:
@@ -51,10 +54,49 @@ def create_openai_live_stt(vad: object) -> openai.STT:
 
 
 def _milliseconds(value: float) -> int | None:
-    """Convert provider-relative seconds to a frontend-safe millisecond value."""
-    if value <= 0:
+    """Convert positive SDK seconds; zero is also SpeechData's absent default."""
+    if not math.isfinite(value) or value <= 0:
         return None
     return int(value * 1000)
+
+
+def _audio_timing_reason(start_ms: int | None, end_ms: int | None) -> str:
+    """Describe the strongest timing evidence the current SDK leaves us."""
+    if start_ms is None and end_ms is None:
+        return "sdk-item-timing-unavailable"
+    if start_ms is None or end_ms is None:
+        return "sdk-item-timing-incomplete"
+    if end_ms <= start_ms:
+        return "sdk-item-timing-invalid"
+    return "provider-stream-origin-unavailable"
+
+
+def _audio_timing(data: stt.SpeechData, leg_id: str) -> dict[str, object]:
+    """Keep SDK timing evidence separate from the legacy UI receipt fallback.
+
+    OpenAI STT 1.8.3 drops raw item audio bounds and session identity before
+    emitting FINAL_TRANSCRIPT. Its public client argument does not control the
+    aiohttp realtime socket. There is no public raw-event/transport hook.
+    Preserve any SpeechData bounds, but never certify their provider origin:
+    an SDK stream can reset its socket without replacing this track leg.
+    speech_start_time/speech_end_time are wall clocks, not item audio bounds.
+    """
+    start_ms = _milliseconds(data.start_time)
+    end_ms = _milliseconds(data.end_time)
+    return {
+        "state": "uncertain",
+        "reason": _audio_timing_reason(start_ms, end_ms),
+        "clock": "sdk-speech-data",
+        "unit": "ms",
+        "startMs": start_ms,
+        "endMs": end_ms,
+        "streamOrigin": {
+            "type": "sdk-stream",
+            "id": leg_id,
+            "providerSessionId": None,
+        },
+        "meetingOffsetMs": None,
+    }
 
 
 def _language(data: stt.SpeechData) -> str | None:
@@ -78,6 +120,48 @@ class TranscriptionEvent:
     end_time: int | None
 
 
+@dataclass(frozen=True)
+class _FinalContent:
+    """Snapshot semantic SDK fields, excluding receipt-derived timestamps."""
+
+    text: str
+    language: str | None
+    data_start_time: float
+    data_end_time: float
+    speech_start_time: float | None
+    speech_end_time: float | None
+
+
+@dataclass(frozen=True)
+class _ItemState:
+    """Keep revisions and finality for one item within its track leg."""
+
+    start_time: int
+    revision: int = 0
+    end_time: int | None = None
+    final_content: _FinalContent | None = None
+
+
+def _transcription_times(
+    event: stt.SpeechEvent, item: _ItemState, received_at: int
+) -> tuple[int, int | None]:
+    """Return legacy UI times only; these may mix SDK and receipt clocks."""
+    data = event.alternatives[0]
+    start_time = _milliseconds(data.start_time)
+    end_time = _milliseconds(data.end_time)
+    if event.speech_start_time is not None:
+        start_time = int(event.speech_start_time * 1000)
+    if start_time is None:
+        start_time = item.start_time
+    if event.speech_end_time is not None:
+        end_time = int(event.speech_end_time * 1000)
+    if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT and end_time is None:
+        end_time = item.end_time
+        if item.final_content is None:
+            end_time = received_at
+    return start_time, end_time
+
+
 class TranscriptionPublisher:
     """Publish ordered, replaceable transcription envelopes to a LiveKit room."""
 
@@ -94,8 +178,8 @@ class TranscriptionPublisher:
 
     async def publish_segment(self, event: TranscriptionEvent) -> None:
         """Publish one interim or final revision for an OpenAI item."""
-        text = event.data.text.strip()
-        if not text:
+        text = event.data.text
+        if not text.strip():
             return
         async with self._lock:
             self._sequence += 1
@@ -113,6 +197,7 @@ class TranscriptionPublisher:
                 "language": _language(event.data),
                 "startTime": event.start_time,
                 "endTime": event.end_time,
+                "audioTiming": _audio_timing(event.data, event.leg_id),
                 "receivedAt": int(time.time() * 1000),
             }
             attributes = {
@@ -170,8 +255,7 @@ class TrackTranscriber:
         self._resource_lock = asyncio.Lock()
         self._resources_closed = False
         self._closing = False
-        self._revisions: dict[str, int] = {}
-        self._item_start_times: dict[str, int] = {}
+        self._items: dict[str, _ItemState] = {}
 
     async def run(self) -> None:
         """Pump one LiveKit audio track into one OpenAI realtime stream."""
@@ -251,21 +335,36 @@ class TrackTranscriber:
             return
         if not event.alternatives:
             return
+        data = event.alternatives[0]
+        if not data.text.strip():
+            return
+        # Without a provider request_id, replay/correction identity is unknown.
+        # Keep those events independent rather than guessing from their text.
         item_id = event.request_id or uuid.uuid4().hex
-        revision = self._revisions.get(item_id, 0) + 1
-        self._revisions[item_id] = revision
+        item = self._items.get(item_id)
+        if item is None and len(self._items) >= MAX_ITEMS_PER_TRACK:
+            # Fail through run() cleanup and the existing provider-error gap.
+            # Never evict revisions or silently discard new finals at capacity.
+            raise RuntimeError("live transcription item capacity exceeded")
+        final = event.type == stt.SpeechEventType.FINAL_TRANSCRIPT
+        final_content = None
+        if final:
+            final_content = _FinalContent(
+                text=data.text,
+                language=_language(data),
+                data_start_time=data.start_time,
+                data_end_time=data.end_time,
+                speech_start_time=event.speech_start_time,
+                speech_end_time=event.speech_end_time,
+            )
+        if item is not None and item.final_content is not None:
+            if not final or final_content == item.final_content:
+                return
         received_at = int(time.time() * 1000)
-        start_time = _milliseconds(event.alternatives[0].start_time)
-        end_time = _milliseconds(event.alternatives[0].end_time)
-        start_time = start_time or self._item_start_times.setdefault(
-            item_id, received_at
-        )
-        if event.speech_start_time is not None:
-            start_time = int(event.speech_start_time * 1000)
-        if event.speech_end_time is not None:
-            end_time = int(event.speech_end_time * 1000)
-        elif event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
-            end_time = received_at
+        if item is None:
+            item = _ItemState(start_time=received_at)
+        start_time, end_time = _transcription_times(event, item, received_at)
+        revision = item.revision + 1
         await self._publisher.publish_segment(
             TranscriptionEvent(
                 participant_identity=self.participant_identity,
@@ -273,15 +372,18 @@ class TrackTranscriber:
                 leg_id=self.leg_id,
                 item_id=item_id,
                 revision=revision,
-                final=event.type == stt.SpeechEventType.FINAL_TRANSCRIPT,
-                data=event.alternatives[0],
+                final=final,
+                data=data,
                 start_time=start_time,
                 end_time=end_time,
             )
         )
-        if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
-            self._revisions.pop(item_id, None)
-            self._item_start_times.pop(item_id, None)
+        self._items[item_id] = _ItemState(
+            revision=revision,
+            start_time=start_time,
+            end_time=end_time,
+            final_content=final_content,
+        )
 
 
 class LiveTranscriber:

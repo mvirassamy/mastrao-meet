@@ -1,5 +1,17 @@
 # Changelog
 
+- 2026-10-21: Mark live audio timing uncertain, separate from UI receipt.
+
+- 2026-10-21: Keep LIVE item revisions monotonic within each track leg,
+  suppress identical final replays and late interims, and publish real final
+  corrections without trimming provider text. Compare SDK content and explicit
+  clocks, retaining final fallback times when clocks are absent. A reconnect
+  starts a new leg; missing request IDs remain independent events with no
+  replay guarantee. Retain at most 100,000 item identities per leg (including
+  interims); overflow stops that stream through the existing provider-error gap
+  and cleanup, without ASR retry. This only stabilizes the existing producer:
+  no durable collection, shared meeting clock or activation is added.
+
 - 2026-10-21: Update backend and agents certifi to 2026.10.19 and Pillow to
   13.0.0 to clear fixable HIGH/CRITICAL findings in staging candidate scans.
 
