@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 import os
 import time
 import uuid
@@ -53,10 +54,49 @@ def create_openai_live_stt(vad: object) -> openai.STT:
 
 
 def _milliseconds(value: float) -> int | None:
-    """Convert provider-relative seconds to a frontend-safe millisecond value."""
-    if value <= 0:
+    """Convert positive SDK seconds; zero is also SpeechData's absent default."""
+    if not math.isfinite(value) or value <= 0:
         return None
     return int(value * 1000)
+
+
+def _audio_timing_reason(start_ms: int | None, end_ms: int | None) -> str:
+    """Describe the strongest timing evidence the current SDK leaves us."""
+    if start_ms is None and end_ms is None:
+        return "sdk-item-timing-unavailable"
+    if start_ms is None or end_ms is None:
+        return "sdk-item-timing-incomplete"
+    if end_ms <= start_ms:
+        return "sdk-item-timing-invalid"
+    return "provider-stream-origin-unavailable"
+
+
+def _audio_timing(data: stt.SpeechData, leg_id: str) -> dict[str, object]:
+    """Keep SDK timing evidence separate from the legacy UI receipt fallback.
+
+    OpenAI STT 1.8.3 drops raw item audio bounds and session identity before
+    emitting FINAL_TRANSCRIPT. Its public client argument does not control the
+    aiohttp realtime socket. There is no public raw-event/transport hook.
+    Preserve any SpeechData bounds, but never certify their provider origin:
+    an SDK stream can reset its socket without replacing this track leg.
+    speech_start_time/speech_end_time are wall clocks, not item audio bounds.
+    """
+    start_ms = _milliseconds(data.start_time)
+    end_ms = _milliseconds(data.end_time)
+    return {
+        "state": "uncertain",
+        "reason": _audio_timing_reason(start_ms, end_ms),
+        "clock": "sdk-speech-data",
+        "unit": "ms",
+        "startMs": start_ms,
+        "endMs": end_ms,
+        "streamOrigin": {
+            "type": "sdk-stream",
+            "id": leg_id,
+            "providerSessionId": None,
+        },
+        "meetingOffsetMs": None,
+    }
 
 
 def _language(data: stt.SpeechData) -> str | None:
@@ -105,7 +145,7 @@ class _ItemState:
 def _transcription_times(
     event: stt.SpeechEvent, item: _ItemState, received_at: int
 ) -> tuple[int, int | None]:
-    """Prefer explicit SDK clocks, preserving fallback times after finality."""
+    """Return legacy UI times only; these may mix SDK and receipt clocks."""
     data = event.alternatives[0]
     start_time = _milliseconds(data.start_time)
     end_time = _milliseconds(data.end_time)
@@ -157,6 +197,7 @@ class TranscriptionPublisher:
                 "language": _language(event.data),
                 "startTime": event.start_time,
                 "endTime": event.end_time,
+                "audioTiming": _audio_timing(event.data, event.leg_id),
                 "receivedAt": int(time.time() * 1000),
             }
             attributes = {
