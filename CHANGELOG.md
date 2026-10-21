@@ -8,6 +8,11 @@
   selection workflow after a successful develop CI run. Keep first selection
   review and live activation separate.
 
+- 2026-10-20: Restyle the scheduled-meeting invitation e-mail in the Mastrao
+  identity and in French: Mastrao logo, meeting card with date and time, join
+  button with a copyable link, and the same video-recording consent notice,
+  in French. The subject names the meeting and its start, on one line.
+
 - 2026-10-20: Wait for both expected staging participants after joining or
   rejoining before measuring media; keep strict roster checks during sampling.
   Diagnose unclosed peers at departure using lifecycle flags and live-track

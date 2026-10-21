@@ -160,7 +160,7 @@ def test_real_http_delivery_choices_binding_and_provider_fence(
     host = {"kind": "host", "claims": config["host"]}
     invitation = {**config["invitations"][0], "delivery_state": "pending"}
     request = SimpleNamespace(
-        user=SimpleNamespace(email="host@example.test"), session={}
+        user=SimpleNamespace(email="host@example.test", full_name=None), session={}
     )
     schedule = {
         "title": "Local HTTP qualification",
