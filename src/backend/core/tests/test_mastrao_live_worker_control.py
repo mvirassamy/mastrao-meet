@@ -21,7 +21,12 @@ from livekit import api
 from core import models
 from core.factories import RoomFactory
 from core.mastrao_live_track_provenance import epoch_references
-from core.mastrao_live_worker_contract import CONTROL_PATH, PREPARE_PATH, SEND_PATH
+from core.mastrao_live_worker_contract import (
+    CONTROL_PATH,
+    CONTROL_VERSION,
+    PREPARE_PATH,
+    SEND_PATH,
+)
 from core.mastrao_live_worker_control import (
     CAPABILITY_SALT,
     live_control_metadata,
@@ -90,7 +95,7 @@ def gateway(settings, host, receipt, client):
 
 def command(action="prepare", **changes):
     body = {
-        "version": 1,
+        "version": CONTROL_VERSION,
         "action": action,
         "room_sid": "RM_fixture",
         "participant_sid": "PA_host",
@@ -99,7 +104,11 @@ def command(action="prepare", **changes):
         "worker_instance_ref": "live_worker_fixture0123456789",
     }
     if action != "prepare":
-        body.update(source_ref=SOURCE, admission_ref=changes.pop("admission_ref"))
+        body.update(
+            source_ref=SOURCE,
+            admission_ref=changes.pop("admission_ref"),
+            leg_ref=changes.pop("leg_ref", "live_leg_fixture0123456789"),
+        )
     return {**body, **changes}
 
 
@@ -116,8 +125,8 @@ def core_admission():
 
 
 def core_send(body, *, state="active", start=False):
-    return {
-        "version": 1,
+    result = {
+        "version": CONTROL_VERSION,
         **{
             name: body[name]
             for name in (
@@ -126,6 +135,7 @@ def core_send(body, *, state="active", start=False):
                 "admission_ref",
                 "attempt_ref",
                 "worker_instance_ref",
+                "leg_ref",
             )
         },
         "state": state,
@@ -133,14 +143,19 @@ def core_send(body, *, state="active", start=False):
         "start_authorized": start,
         "send_authorized": state == "active",
         "replayed": False,
+        "audio_start_sample": 0,
     }
+    if body["action"] == "rotate":
+        result["leg_ref"] = body["next_leg_ref"]
+        result["audio_start_sample"] = body["audio_end_sample"]
+    return result
 
 
 def send_body(gateway, action="claim", **changes):
+    references = epoch_references(gateway["epoch"])
     return command(
         action,
-        admission_ref=epoch_references(gateway["epoch"])["admission_ref"],
-        **changes,
+        **{**references, **changes},
     )
 
 
@@ -164,9 +179,10 @@ def test_prepare_signs_exact_server_provenance_without_recording_or_credentials(
         response = invoke(client, gateway, command())
     assert response.status_code == 200
     assert response.json() == {
-        "version": 1,
+        "version": CONTROL_VERSION,
         "source_ref": SOURCE,
         "admission_ref": epoch_references(gateway["epoch"])["admission_ref"],
+        "leg_ref": epoch_references(gateway["epoch"])["leg_ref"],
     }
     assert response.headers["Cache-Control"] == "no-store"
     wire = post.call_args.kwargs["body"]
@@ -182,6 +198,7 @@ def test_prepare_signs_exact_server_provenance_without_recording_or_credentials(
         == "mastrao-live-track-prepare+jws"
     )
     assert claims["organization_external_id"] == host.organization_external_id
+    assert claims["version"] == 1  # Core preparation remains a v1 admission.
     assert claims["participant_ref"] == host.identity.host_ref
     assert claims["participant_session_digest"] == host.session_nonce_digest
     assert claims["grant_digest"] == host.grant_digest
@@ -191,6 +208,7 @@ def test_prepare_signs_exact_server_provenance_without_recording_or_credentials(
     assert "consent_ref" not in claims
     assert "worker_instance_ref" not in claims
     assert set(gateway["metadata"]) == {"version", "url", "capability"}
+    assert gateway["metadata"]["version"] == CONTROL_VERSION
 
 
 @pytest.mark.parametrize("action", ["claim", "renew", "stopped"])
@@ -214,6 +232,7 @@ def test_send_preserves_exact_owner_and_core_flags(client, gateway, action):
         options={"verify_aud": False},
     )
     assert claims["type"] == "mastrao.meet-live-transcript-send"
+    assert claims["version"] == CONTROL_VERSION
     assert all(claims[name] == body[name] for name in body if name != "version")
 
 
@@ -314,7 +333,7 @@ def test_prepare_refuses_bad_rtc_provenance_before_core(  # noqa: PLR0912  # pyl
         post.assert_not_called()
 
 
-@pytest.mark.parametrize("action", ["prepare", "claim", "renew"])
+@pytest.mark.parametrize("action", ["prepare", "claim", "renew", "rotate"])
 @pytest.mark.parametrize(
     "fault", ["generation", "off", "provider", "not_current", "kill_switch"]
 )
@@ -334,6 +353,8 @@ def test_live_actions_require_current_enabled_control(
             **changes[fault]
         )
     body = command() if action == "prepare" else send_body(gateway, action)
+    if action == "rotate":
+        body.update(next_leg_ref="live_leg_successor0123456789", audio_end_sample=24000)
     with mock.patch("core.mastrao_live_worker_control.post_core_json") as post:
         assert invoke(client, gateway, body).status_code == 404
         post.assert_not_called()
@@ -427,6 +448,7 @@ def test_capability_is_scoped_and_time_bounded(client, gateway, fault):
     "changes",
     [
         {"version": True},
+        {"version": 1},
         {"participant_grant": "secret"},
         {"consent_ref": "choice"},
         {"attempt_ref": True},
@@ -454,6 +476,12 @@ def test_body_does_not_accept_browser_authority_or_coercion(client, gateway, cha
         {"lease_expires_at": int(time.time()) + 3600},
         {"unexpected": "secret"},
         {"state": []},
+        {"version": 1},
+        {"leg_ref": "live_leg_wrong_identity0123456789"},
+        {"audio_start_sample": True},
+        {"audio_start_sample": -1},
+        {"audio_start_sample": 2**53},
+        {"audio_start_sample": 1},
     ],
 )
 def test_malformed_core_send_never_reaches_worker(client, gateway, changes):

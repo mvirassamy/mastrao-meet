@@ -17,6 +17,7 @@ from livekit import api
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from core import models, utils
+from core.mastrao_live_worker_contract import CONTROL_VERSION
 from core.mastrao_live_worker_control import live_control_metadata
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.tasks.subtitle import SUBTITLE_CONTROL_QUEUE
@@ -152,7 +153,7 @@ def _has_live_control(dispatch, expected):
     ):
         return False
     return (
-        existing["version"] == 1
+        existing["version"] == CONTROL_VERSION
         and existing["url"] == expected["url"]
         and isinstance(existing["capability"], str)
         and bool(existing["capability"])

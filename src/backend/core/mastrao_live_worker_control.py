@@ -25,6 +25,7 @@ from core.mastrao_core_http import post_core_json, validate_core_endpoint
 from core.mastrao_live_track_provenance import trusted_live_track
 from core.mastrao_live_worker_contract import (
     CONTROL_PATH,
+    CONTROL_VERSION,
     PREPARE_JOSE,
     PREPARE_PATH,
     PREPARE_TYPE,
@@ -37,7 +38,7 @@ from core.mastrao_live_worker_contract import (
 )
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
 
-CAPABILITY_SALT = "mastrao.live-worker-control.v1"
+CAPABILITY_SALT = "mastrao.live-worker-control.v2"
 CAPABILITY_FIELDS = {
     "version",
     "room_id",
@@ -137,7 +138,7 @@ def live_control_metadata(room_sid, generation, provider):
     )
     now = int(time.time())
     scope = {
-        "version": 1,
+        "version": CONTROL_VERSION,
         "room_id": str(control.room_id),
         "binding_id": str(binding.pk),
         "room_sid": room_sid,
@@ -147,7 +148,7 @@ def live_control_metadata(room_sid, generation, provider):
         "expires_at": now + _capability_lifetime(),
     }
     return {
-        "version": 1,
+        "version": CONTROL_VERSION,
         "url": url,
         "capability": signing.dumps(scope, salt=CAPABILITY_SALT),
     }
@@ -166,7 +167,7 @@ def _capability_scope(capability, command):
         not isinstance(scope, dict)
         or set(scope) != CAPABILITY_FIELDS
         or type(scope["version"]) is not int
-        or scope["version"] != 1
+        or scope["version"] != CONTROL_VERSION
         or type(scope["generation"]) is not int
         or scope["generation"] < 0
         or scope["provider"] != "openai-live"
@@ -230,12 +231,14 @@ def execute_worker_command(capability, body):
         )
         validate_admission(result)
         return {
-            "version": 1,
+            "version": CONTROL_VERSION,
             "source_ref": result["source_ref"],
             "admission_ref": facts["admission_ref"],
+            "leg_ref": facts["leg_ref"],
         }
     assertion = {
         **_envelope(SEND_TYPE),
+        "version": CONTROL_VERSION,
         **{
             name: facts[name]
             for name in (
@@ -255,9 +258,15 @@ def execute_worker_command(capability, body):
                 "source_ref",
                 "attempt_ref",
                 "worker_instance_ref",
+                "leg_ref",
             )
         },
     }
+    if command["action"] == "rotate":
+        assertion.update(
+            next_leg_ref=command["next_leg_ref"],
+            audio_end_sample=command["audio_end_sample"],
+        )
     result = _post(
         settings.MASTRAO_CORE_LIVE_SEND_ENDPOINT, SEND_PATH, SEND_JOSE, assertion
     )
