@@ -297,13 +297,7 @@ def consume_mastrao_host_handoff(request):
         fields = request.POST
         if set(fields) != {"host_handoff"} or len(fields.getlist("host_handoff")) != 1:
             raise HostHandoffRefused()
-        _admit_public_attempt(request, fields["host_handoff"])
-        grant, compact_grant = _redeem(fields["host_handoff"])
-        _, binding = _commit_grant(request, grant, compact_grant)
-        # The handoff authenticates an otherwise anonymous browser. Seed the
-        # CSRF cookie now so the first authenticated room mutation can carry a
-        # matching token instead of being rejected by DRF session auth.
-        get_token(request)
+        binding = establish_mastrao_host_session(request, fields["host_handoff"])
         response = HttpResponse(status=303)
         response["Location"] = _room_location(binding.room.slug)
         response["Cache-Control"] = "private, no-store"

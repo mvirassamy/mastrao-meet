@@ -205,6 +205,19 @@ def test_meeting_integration_refuses_partial_configuration():
         resolve_mastrao_meeting_integration(configuration)
 
 
+def test_meeting_integration_requires_host_invitation_exchange():
+    """Host invitations cannot start with the rest of the contract configured."""
+
+    values = dict.fromkeys(meet_settings.MASTRAO_BASE_CONTRACT_SETTINGS, "configured")
+    values["MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT"] = ""
+
+    with pytest.raises(
+        ImproperlyConfigured,
+        match="MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT",
+    ):
+        resolve_mastrao_meeting_integration(SimpleNamespace(**values))
+
+
 def test_meeting_integration_accepts_complete_base_contract():
     """A complete configuration atomically enables every base contract path."""
 

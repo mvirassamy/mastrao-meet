@@ -78,7 +78,7 @@ def _handoff(binding, grant):
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_host_invitation_uses_existing_short_handoff_session(client):
     """The durable bearer only resolves a short handoff; existing host code does the rest."""
@@ -119,7 +119,7 @@ def test_host_invitation_uses_existing_short_handoff_session(client):
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_same_host_invitation_can_rejoin_through_a_fresh_short_handoff(client):
     """Core may re-exchange the durable link while Meet keeps one host identity."""
@@ -167,7 +167,7 @@ def test_same_host_invitation_can_rejoin_through_a_fresh_short_handoff(client):
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_exact_exchange_retry_restores_a_usable_browser_session():
     """A lost success response can be retried without redeeming the handoff twice."""
@@ -233,7 +233,7 @@ def test_exact_exchange_retry_restores_a_usable_browser_session():
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_exact_exchange_retry_refuses_a_session_rebound_to_another_context(client):
     """A cached result cannot restore a session whose host context has changed."""
@@ -295,7 +295,7 @@ def test_identical_exchange_retries_have_one_distributed_owner():
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_core_terminal_host_invitation_refusal_is_opaque(client):
     """Every terminal Core policy decision is the same non-revealing 404 to the browser."""
@@ -316,7 +316,7 @@ def test_core_terminal_host_invitation_refusal_is_opaque(client):
 @pytest.mark.django_db(transaction=True)
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_meet_refuses_a_short_handoff_after_local_room_closure(client):
     """A stale Core response cannot bypass Meet's local closing fence."""
@@ -345,7 +345,7 @@ def test_meet_refuses_a_short_handoff_after_local_room_closure(client):
 
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_host_invitation_requires_same_origin_and_exact_input(client):
     """Cross-site and malformed submissions never reach the private Core exchange."""
@@ -383,7 +383,7 @@ def test_host_invitation_requires_same_origin_and_exact_input(client):
 
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_host_invitation_exchange_requires_a_prepared_session(client):
     """Core is never called before the browser has received its stable session."""
@@ -408,7 +408,7 @@ def test_host_invitation_exchange_requires_a_prepared_session(client):
 
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_host_invitation_preparation_is_stateless(client):
     """Issuing an exchange cookie does not allocate a public server session."""
@@ -448,7 +448,7 @@ def test_host_invitation_attempt_limits_cover_scoped_and_global_budgets():
 @pytest.mark.parametrize("status", [404, 503])
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_host_invitation_budget_refusal_never_calls_core(client, status):
     """Every admission-budget refusal happens before the private Core request."""
@@ -470,7 +470,7 @@ def test_host_invitation_budget_refusal_never_calls_core(client, status):
 
 @override_settings(
     APPLICATION_BASE_URL=ORIGIN,
-    MASTRAO_HOST_HANDOFF_ENABLED=True,
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
 )
 def test_host_invitation_full_exchange_slots_refuse_before_core(client):
     """A saturated worker refuses immediately without calling Core."""

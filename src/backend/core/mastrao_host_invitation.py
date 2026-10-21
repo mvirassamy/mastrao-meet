@@ -398,7 +398,7 @@ def establish_mastrao_host_invitation_session(request):
     """Issue a stateless exchange identity before any Core mutation."""
 
     headers = browser_handoff_headers()
-    if not settings.MASTRAO_HOST_HANDOFF_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return JsonResponse({"message": "Not found"}, status=404, headers=headers)
     try:
         if not is_same_origin_handoff(request):
@@ -441,7 +441,7 @@ def exchange_mastrao_host_invitation(request):
     """Resolve one fragment bearer through Core and establish the normal host session."""
 
     headers = browser_handoff_headers()
-    if not settings.MASTRAO_HOST_HANDOFF_ENABLED:
+    if not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED:
         return JsonResponse({"message": "Not found"}, status=404, headers=headers)
     try:
         if not is_same_origin_handoff(request):
