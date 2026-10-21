@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-21: Distinguish notes load and access failures from unsaved drafts
+  in meeting history and the in-call editor, preserving recovery feedback.
+
 - 2026-10-21: Expose the staging Signal source run/attempt in GitHub metadata
   and emit a sanitized dispatch acceptance diagnostic without claiming
   deployment.

@@ -357,7 +357,7 @@ describe('meeting notes exit guard with the real notes provider', () => {
     const recovery = await screen.findByRole('alertdialog', {
       name: 'exit.title',
     })
-    expect(within(recovery).getByText('sessionExpired')).toBeTruthy()
+    expect(within(recovery).getByText('accessErrorWithDraft')).toBeTruthy()
     expect(
       (
         within(recovery).getByRole('textbox', {
