@@ -18,9 +18,14 @@ from core.mastrao_guest_grant import (
     CANONICAL_ROOM_SLUG,
     active_guest_compact_grant,
     active_guest_grant,
+    active_guest_lifecycle_grant,
 )
 from core.mastrao_host_contract import verify_host_grant
-from core.mastrao_host_grant import active_host_compact_grant, active_host_grant
+from core.mastrao_host_grant import (
+    active_host_close_grant,
+    active_host_compact_grant,
+    active_host_grant,
+)
 from core.mastrao_recording_contract import (
     ACTIVATION_TYPE,
     DECISION_TYPE,
@@ -82,8 +87,13 @@ def _identifier(prefix):
     return f"{prefix}_{uuid4().hex}"
 
 
-def _participant(request, room):
-    host = active_host_grant(request, room)
+def _participant(request, room, *, include_closed=False):
+    host_lookup = active_host_grant
+    guest_lookup = active_guest_grant
+    if include_closed:
+        host_lookup = active_host_close_grant
+        guest_lookup = active_guest_lifecycle_grant
+    host = host_lookup(request, room)
     if host:
         compact = active_host_compact_grant(request, host)
         if not compact or compact_digest(compact) != host.grant_digest:
@@ -96,7 +106,7 @@ def _participant(request, room):
             "compact": compact,
             "claims": claims,
         }
-    guest = active_guest_grant(request, room)
+    guest = guest_lookup(request, room)
     if guest:
         compact = active_guest_compact_grant(request, guest)
         if not compact or compact_digest(compact) != guest.grant_digest:

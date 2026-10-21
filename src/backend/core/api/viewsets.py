@@ -43,6 +43,7 @@ from rest_framework.settings import api_settings
 from core import analytics, enums, models, utils
 from core.api import throttling
 from core.api.filters import ListFileFilter
+from core.api.live_consent import LiveConsentActions
 from core.enums import MEDIA_STORAGE_URL_PATTERN
 from core.mastrao_guest_contract import GuestHandoffRefused
 from core.mastrao_guest_grant import (
@@ -274,6 +275,7 @@ class UserViewSet(
 
 
 class RoomViewSet(  # pylint: disable=too-many-public-methods
+    LiveConsentActions,
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
     mixins.UpdateModelMixin,
@@ -293,7 +295,11 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
 
         response = super().finalize_response(request, response, *args, **kwargs)
         action = getattr(self, "action", None)
-        if action == "subtitle_state" or (
+        if action in (
+            "subtitle_state",
+            "live_consent_offer",
+            "live_consent_decision",
+        ) or (
             settings.MASTRAO_NATIVE_PREENTRY_ENABLED
             and action in ("retrieve", "request_entry")
         ):

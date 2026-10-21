@@ -515,6 +515,14 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
+    MASTRAO_CORE_LIVE_CONSENT_OFFER_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_LIVE_CONSENT_OFFER_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_LIVE_CONSENT_DECISION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_LIVE_CONSENT_DECISION_ENDPOINT",
+        environ_prefix=None,
+    )
     MASTRAO_RECORDING_REGION_REF = values.Value(
         "", environ_name="MASTRAO_RECORDING_REGION_REF", environ_prefix=None
     )
