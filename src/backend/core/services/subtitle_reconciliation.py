@@ -127,16 +127,6 @@ def dispatch_provider(dispatch):
     return metadata.get("provider") if metadata else None
 
 
-def _is_room_dispatch(dispatch, room_sid):
-    if not _is_subtitle_dispatch(dispatch):
-        return False
-    raw_metadata = getattr(dispatch, "metadata", None)
-    if not raw_metadata:
-        return True
-    metadata = _dispatch_metadata(dispatch)
-    return metadata is None or metadata.get("roomSid") == room_sid
-
-
 def _dispatch_metadata_json(room_sid, generation, provider, live_control=None):
     metadata = {
         "roomSid": room_sid,
@@ -209,11 +199,11 @@ async def _delete_dispatch(client, dispatch_id, room_name):
             raise
 
 
-def _lower_generation_dispatches(dispatches, room_sid, generation):
+def _lower_generation_dispatches(dispatches, generation):
     return [
         dispatch
         for dispatch in dispatches
-        if _is_room_dispatch(dispatch, room_sid)
+        if _is_subtitle_dispatch(dispatch)
         and _dispatch_generation(dispatch) is not None
         and _dispatch_generation(dispatch) < generation
     ]
@@ -244,7 +234,7 @@ def _dispatch_sort_key(dispatch):
 def _dispatch_is_malformed(dispatch, room_sid):
     """Identify an agent dispatch that cannot be safely adopted."""
 
-    if not _is_room_dispatch(dispatch, room_sid):
+    if not _is_subtitle_dispatch(dispatch):
         return False
     raw_metadata = getattr(dispatch, "metadata", None)
     if not raw_metadata:
@@ -288,9 +278,7 @@ async def _canonical_current_dispatch(  # noqa: PLR0913, PLR0917  # pylint: disa
 ):
     """Adopt one legacy dispatch or deterministically remove duplicates."""
 
-    targeted = [
-        dispatch for dispatch in dispatches if _is_room_dispatch(dispatch, room_sid)
-    ]
+    targeted = [dispatch for dispatch in dispatches if _is_subtitle_dispatch(dispatch)]
     if any(_dispatch_is_malformed(dispatch, room_sid) for dispatch in targeted):
         raise SubtitleReconciliationAmbiguous(
             "LiveKit subtitle dispatch metadata is malformed."
@@ -327,8 +315,12 @@ async def _canonical_current_dispatch(  # noqa: PLR0913, PLR0917  # pylint: disa
         confirmed = [
             dispatch
             for dispatch in await _list_dispatches(client, room_name)
-            if _is_room_dispatch(dispatch, room_sid)
+            if _is_subtitle_dispatch(dispatch)
         ]
+        if any(_dispatch_is_malformed(dispatch, room_sid) for dispatch in confirmed):
+            raise SubtitleReconciliationAmbiguous(
+                "LiveKit subtitle dispatch metadata is malformed."
+            )
         remaining = [
             dispatch
             for dispatch in confirmed
@@ -368,15 +360,14 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912, PLR0915  # pylint: dis
                     had_dispatches=True,
                 )
             raise
-        targeted = [
-            dispatch for dispatch in first if _is_room_dispatch(dispatch, room_sid)
-        ]
+        targeted = [dispatch for dispatch in first if _is_subtitle_dispatch(dispatch)]
 
+        # LiveKit lists the exact room. JSON hints cannot hide a matching agent.
+        if any(_dispatch_is_malformed(dispatch, room_sid) for dispatch in targeted):
+            raise SubtitleReconciliationAmbiguous(
+                "LiveKit subtitle dispatch metadata is malformed."
+            )
         if desired_state == models.RoomSubtitleControl.DesiredState.OFF:
-            if any(_dispatch_is_malformed(dispatch, room_sid) for dispatch in targeted):
-                raise SubtitleReconciliationAmbiguous(
-                    "LiveKit subtitle dispatch metadata is malformed."
-                )
             for dispatch in targeted:
                 await _delete_dispatch(client, str(dispatch.id), room_name)
             try:
@@ -387,7 +378,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912, PLR0915  # pylint: dis
                         room_name,
                         not_found_is_empty=True,
                     )
-                    if _is_room_dispatch(dispatch, room_sid)
+                    if _is_subtitle_dispatch(dispatch)
                 ]
             except SubtitleRoomNotFound:
                 second = []
@@ -404,20 +395,16 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912, PLR0915  # pylint: dis
 
         live_control = await _live_control_for_dispatch(room_sid, generation, provider)
 
-        lower_generations = _lower_generation_dispatches(
-            targeted,
-            room_sid,
-            generation,
-        )
+        lower_generations = _lower_generation_dispatches(targeted, generation)
         if lower_generations:
             for dispatch in lower_generations:
                 await _delete_dispatch(client, str(dispatch.id), room_name)
             targeted = [
                 dispatch
                 for dispatch in await _list_dispatches(client, room_name)
-                if _is_room_dispatch(dispatch, room_sid)
+                if _is_subtitle_dispatch(dispatch)
             ]
-            if _lower_generation_dispatches(targeted, room_sid, generation):
+            if _lower_generation_dispatches(targeted, generation):
                 raise SubtitleReconciliationAmbiguous(
                     "LiveKit stale subtitle dispatch cleanup is ambiguous."
                 )
@@ -464,7 +451,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912, PLR0915  # pylint: dis
                 confirmed = [
                     dispatch
                     for dispatch in await _list_dispatches(client, room_name)
-                    if _is_room_dispatch(dispatch, room_sid)
+                    if _is_subtitle_dispatch(dispatch)
                 ]
                 if confirmed:
                     canonical = await _canonical_current_dispatch(
@@ -498,7 +485,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912, PLR0915  # pylint: dis
         confirmed = [
             dispatch
             for dispatch in await _list_dispatches(client, room_name)
-            if _is_room_dispatch(dispatch, room_sid)
+            if _is_subtitle_dispatch(dispatch)
         ]
         canonical = await _canonical_current_dispatch(
             client,

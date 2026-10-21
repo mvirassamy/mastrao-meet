@@ -10,6 +10,7 @@ from unittest import mock
 
 from django.contrib.auth.models import AnonymousUser
 from django.core import signing
+from django.test import override_settings
 from django.utils import timezone
 
 import jwt
@@ -31,6 +32,7 @@ from core.services.subtitle_reconciliation import (
     SubtitleReconciliationAmbiguous,
     _dispatch_metadata_json,
     _reconcile_provider_unlocked,
+    reconcile_subtitle_control,
 )
 from core.tests.services.test_subtitle_reconciliation import mock_livekit_client
 from core.tests.test_mastrao_media_token_binding import (
@@ -730,4 +732,133 @@ def test_existing_uncontrolled_canonical_dispatch_is_never_adopted(
         async_to_sync(_reconcile_provider_unlocked)(
             str(gateway["control"].room_id), "RM_fixture", "ON", 3, "openai-live"
         )
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(CELERY_ENABLED=False)
+@pytest.mark.parametrize("desired_state,generation", [("ON", 3), ("OFF", 4)])
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        "{}",
+        json.dumps({"generation": 3, "provider": "openai-live"}),
+        json.dumps({"generation": 2, "provider": "openai-live"}),
+        *[
+            json.dumps(
+                {
+                    "roomSid": room_sid,
+                    "generation": 3,
+                    "provider": "openai-live",
+                    "agentName": "multi-user-transcriber",
+                }
+            )
+            for room_sid in (None, [], "invalid", "RM_other")
+        ],
+        "[]",
+        "{invalid",
+    ],
+    ids=[
+        "empty_object",
+        "missing_sid",
+        "missing_sid_old_generation",
+        "null_sid",
+        "array_sid",
+        "invalid_sid",
+        "other_sid",
+        "array_json",
+        "invalid_json",
+    ],
+)
+def test_unknown_dispatch_cannot_hide_behind_room_metadata(
+    gateway, mock_livekit_client, desired_state, generation, metadata
+):
+    """The room-scoped provider list owns attribution, not the JSON room hint."""
+    models.RoomSubtitleControl.objects.filter(pk=gateway["control"].pk).update(
+        desired_state=desired_state, control_generation=generation
+    )
+    existing = mock.Mock(
+        id="AD_unknown", agent_name="multi-user-transcriber", metadata=metadata
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = [existing]
+
+    with pytest.raises(SubtitleReconciliationAmbiguous):
+        reconcile_subtitle_control("RM_fixture")
+
+    mock_livekit_client.agent_dispatch.list_dispatch.assert_awaited_once_with(
+        str(gateway["control"].room_id)
+    )
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_not_called()
+    assert mock_livekit_client.agent_dispatch.list_dispatch.return_value == [existing]
+    control = models.RoomSubtitleControl.objects.get(pk=gateway["control"].pk)
+    assert control.public_state not in {"stopped", "live"}
+    assert control.attempts == 1
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "metadata", ["{}", '{"generation":3,"provider":"openai-live"}']
+)
+def test_off_relist_cannot_confirm_absence_while_unknown_dispatch_remains(
+    gateway, mock_livekit_client, metadata
+):
+    """Even after a known deletion, the verification list cannot hide a worker."""
+    models.RoomSubtitleControl.objects.filter(pk=gateway["control"].pk).update(
+        desired_state="OFF", control_generation=4
+    )
+    known = mock.Mock(
+        id="AD_legacy", agent_name="multi-user-transcriber", metadata=None
+    )
+    unknown = mock.Mock(
+        id="AD_unknown", agent_name="multi-user-transcriber", metadata=metadata
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [[known], [unknown]]
+
+    with pytest.raises(SubtitleReconciliationAmbiguous):
+        async_to_sync(_reconcile_provider_unlocked)(
+            str(gateway["control"].room_id), "RM_fixture", "OFF", 4, "openai-live"
+        )
+
+    assert mock_livekit_client.agent_dispatch.list_dispatch.await_count == 2
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+        dispatch_id="AD_legacy", room_name=str(gateway["control"].room_id)
+    )
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "metadata", ["{}", '{"generation":3,"provider":"openai-live"}']
+)
+def test_on_deduplication_relist_cannot_hide_unknown_dispatch(
+    gateway, mock_livekit_client, metadata
+):
+    """A valid current worker does not hide a malformed one in the relist."""
+    controlled = _dispatch_metadata_json(
+        "RM_fixture", 3, "openai-live", gateway["metadata"]
+    )
+    known = mock.Mock(
+        id="AD_0", agent_name="multi-user-transcriber", metadata=controlled
+    )
+    duplicate = mock.Mock(
+        id="AD_1", agent_name="multi-user-transcriber", metadata=controlled
+    )
+    unknown = mock.Mock(
+        id="AD_unknown", agent_name="multi-user-transcriber", metadata=metadata
+    )
+    mock_livekit_client.agent_dispatch.list_dispatch.side_effect = [
+        [known, duplicate],
+        [known, unknown],
+    ]
+
+    with pytest.raises(SubtitleReconciliationAmbiguous):
+        async_to_sync(_reconcile_provider_unlocked)(
+            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "openai-live"
+        )
+
+    assert mock_livekit_client.agent_dispatch.list_dispatch.await_count == 2
+    mock_livekit_client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+        dispatch_id="AD_1", room_name=str(gateway["control"].room_id)
+    )
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
