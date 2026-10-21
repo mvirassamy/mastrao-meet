@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-22: Bind controlled live transcription to server RTC microphone
+  facts and Core consent, claim one provider opening and enforce expiring
+  send authority in the worker. Acknowledge stop after local cleanup; keep
+  the new path unconfigured and inactive by default.
+
 - 2026-10-21: Collect live SDK events independently of blocked subtitle
   publication, drain the bounded accepted queue during shutdown and share
   delivery failures across stop callers. Report overflow and uncertain unread

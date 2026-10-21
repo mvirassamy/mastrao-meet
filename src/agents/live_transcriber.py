@@ -17,6 +17,9 @@ from livekit import rtc
 from livekit.agents import JobContext, stt
 from livekit.plugins import openai
 
+from live_send_control import LiveControlClient, LiveSendAuthority
+from live_single_connection import AuthorizedOpenAI
+
 logger = logging.getLogger("transcriber.live")
 
 TRANSCRIPTION_TOPIC = "lk.transcription"
@@ -260,7 +263,7 @@ class TranscriptionPublisher:
 class TrackTranscriber:
     """Transcribe one participant audio track and preserve its identity."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - track resources plus optional send authority
         self,
         *,
         track: rtc.Track,
@@ -268,6 +271,7 @@ class TrackTranscriber:
         track_sid: str,
         publisher: TranscriptionPublisher,
         vad: object,
+        authority: LiveSendAuthority | None = None,
     ):
         """Initialize an isolated OpenAI stream for a single track."""
         self.track = track
@@ -276,6 +280,10 @@ class TrackTranscriber:
         self.track_sid = track_sid
         self._publisher = publisher
         self._vad = vad
+        self._authority = authority
+        self._control_tasks: list[asyncio.Task[None]] = []
+        self._control_join_task: asyncio.Task[None] | None = None
+        self._authority_finish_task: asyncio.Task[None] | None = None
         self.leg_id = uuid.uuid4().hex
         self._speech_stream: stt.RecognizeStream | None = None
         self._audio_stream: rtc.AudioStream | None = None
@@ -312,7 +320,29 @@ class TrackTranscriber:
             return
         self._run_task = asyncio.current_task()
         try:
-            self._provider = create_openai_live_stt(self._vad)
+            if self._authority is not None:
+                if not await self._authority.claim() or self._closing:
+                    return
+                self._provider = AuthorizedOpenAI(
+                    can_send=self._authority.can_send,
+                    reconnect_refused=lambda: self._mark_incomplete(
+                        "canonical-provider-reconnect-refused"
+                    ),
+                    language=configured_languages(),
+                    model=MODEL,
+                    use_realtime=True,
+                    vad=self._vad,
+                )
+                self._control_tasks = [
+                    asyncio.create_task(
+                        self._watch_authority(self._authority.watch_expiry())
+                    ),
+                    asyncio.create_task(
+                        self._watch_authority(self._authority.renew_until_fenced())
+                    ),
+                ]
+            else:
+                self._provider = create_openai_live_stt(self._vad)
             self._audio_stream = rtc.AudioStream.from_track(
                 track=self.track,
                 sample_rate=24000,
@@ -328,18 +358,61 @@ class TrackTranscriber:
             self._reader_task.add_done_callback(self._on_speech_read_done)
             self._publication_task = asyncio.create_task(self._publish_events())
             await asyncio.wait(
-                (self._reader_task, self._publication_task),
+                (self._reader_task, self._publication_task, *self._control_tasks),
                 return_when=asyncio.FIRST_COMPLETED,
             )
         finally:
-            self._closing = True
+            self.fence_audio()
+            for task in self._control_tasks:
+                task.cancel()
             try:
-                await self._close_resources()
+                # A failed local close or delivery prevents a stopped ACK.
+                try:
+                    await self._close_resources()
+                finally:
+                    await self._finish_delivery()
+                await self._join_control()
+                if self._authority is not None:
+                    if self._authority_finish_task is None:
+                        self._authority_finish_task = asyncio.create_task(
+                            self._authority.stopped()
+                        )
+                    await _await_shutdown(self._authority_finish_task)
             finally:
                 try:
-                    await self._finish_delivery()
+                    await self._join_control()
                 finally:
                     self._run_done.set()
+
+    async def _join_control(self) -> None:
+        """Join cancelled I/O after closing audio, preserving run waiters."""
+        if not self._control_tasks:
+            return
+        if self._control_join_task is None:
+            self._control_join_task = asyncio.create_task(self._wait_for_control())
+        await _await_shutdown(self._control_join_task)
+
+    async def _wait_for_control(self) -> None:
+        """Collect cancellation outcomes without propagating transport exceptions."""
+        await asyncio.gather(*self._control_tasks, return_exceptions=True)
+
+    def fence_audio(self) -> None:
+        """Stop admission synchronously before any await, close or acknowledgement."""
+        self._closing = True
+        if self._authority is not None:
+            self._authority.fence()
+        if self._audio_task is not None and not self._audio_task.cancelling():
+            self._audio_task.cancel()
+
+    async def _watch_authority(self, operation: Awaitable[None]) -> None:
+        """Fence immediately on expiry/refusal, independently of control I/O."""
+        try:
+            await operation
+        except Exception as error:
+            logger.warning("live send control lost (%s)", type(error).__name__)
+        finally:
+            self.fence_audio()
+        self._mark_incomplete("live-send-authority-lost")
 
     async def _read_speech(self, speech_stream: stt.RecognizeStream) -> None:
         """Consume SDK events independently of ordered room publication."""
@@ -415,7 +488,7 @@ class TrackTranscriber:
         describe uncertainty at the SDK iterator boundary. Delivery failures
         are retained for every caller, including when reporting a gap fails.
         """
-        self._closing = True
+        self.fence_audio()
         if self._close_task is None:
             self._close_task = asyncio.create_task(self._stop())
         await _await_shutdown(self._close_task)
@@ -445,7 +518,7 @@ class TrackTranscriber:
     async def _shutdown_resources(self) -> None:
         """Close the SDK immediately, then join the cancelled audio pump."""
         errors: list[BaseException] = []
-        if self._audio_task is not None:
+        if self._audio_task is not None and not self._audio_task.cancelling():
             self._audio_task.cancel()
         if self._reader_task is not None and not self._reader_task.done():
             # SDK 1.8.3 aclose() closes its public iterator too. There is no
@@ -487,6 +560,9 @@ class TrackTranscriber:
             return
         async for audio_event in audio_stream:
             if self._closing:
+                return
+            if self._authority is not None and not self._authority.can_send():
+                self.fence_audio()
                 return
             speech_stream.push_frame(audio_event.frame)
 
@@ -551,6 +627,10 @@ class LiveTranscriber:
         self.ctx = ctx
         self._publisher = TranscriptionPublisher(ctx.room)
         self._vad = ctx.proc.userdata.get("vad")
+        metadata = getattr(getattr(ctx, "job", None), "metadata", "")
+        self._control = LiveControlClient.from_metadata(metadata)
+        self._worker_instance_ref = str(uuid.uuid4())
+        self._epochs: set[tuple[str, str, str]] = set()
         self._sessions: dict[tuple[str, str], TrackTranscriber] = {}
         self._session_tasks: dict[tuple[str, str], asyncio.Task] = {}
         self._session_task_set: set[asyncio.Task] = set()
@@ -614,7 +694,11 @@ class LiveTranscriber:
         participant: rtc.RemoteParticipant,
     ) -> None:
         """Start one session for a newly subscribed audio track."""
-        if not self._is_audio(track) or self._closed or self._reconnecting:
+        if (
+            not self._eligible_track(track, publication)
+            or self._closed
+            or self._reconnecting
+        ):
             return
         self._spawn(self._ensure_session(track, publication.sid, participant))
 
@@ -658,6 +742,9 @@ class LiveTranscriber:
         if self._closed:
             return
         self._reconnecting = True
+        if getattr(self, "_control", None) is not None:
+            for session in self._sessions.values():
+                session.fence_audio()
         self._spawn(self._handle_reconnecting())
 
     def on_reconnected(self) -> None:
@@ -685,10 +772,30 @@ class LiveTranscriber:
         participant: rtc.RemoteParticipant,
     ) -> None:
         """Create a session while the lifecycle lock is held."""
+        if self._closed or self._reconnecting:
+            return
         participant_identity = participant.identity
         key = (participant_identity, track_sid)
+        authority = None
+        if getattr(self, "_control", None) is not None:
+            room_sid = await self.ctx.room.sid
+            if self._closed or self._reconnecting:
+                return
+            epoch = (room_sid, participant.sid, track_sid)
+            if epoch in self._epochs:
+                return
+            # Tombstone before prepare/claim: loss or reconnect cannot retry it.
+            self._epochs.add(epoch)
+            authority = LiveSendAuthority(
+                self._control,
+                room_sid=room_sid,
+                participant_sid=participant.sid,
+                track_sid=track_sid,
+                attempt_ref=str(uuid.uuid4()),
+                worker_instance_ref=self._worker_instance_ref,
+            )
         await self._stop_session_unlocked(key)
-        if self._closed:
+        if self._closed or self._reconnecting:
             return
         session = TrackTranscriber(
             track=track,
@@ -696,6 +803,7 @@ class LiveTranscriber:
             track_sid=track_sid,
             publisher=self._publisher,
             vad=self._vad,
+            authority=authority,
         )
         self._sessions[key] = session
         task = asyncio.create_task(self._run_session(key, session))
@@ -825,7 +933,7 @@ class LiveTranscriber:
                     if (
                         getattr(publication, "subscribed", False)
                         and track is not None
-                        and self._is_audio(track)
+                        and self._eligible_track(track, publication)
                     ):
                         await self._ensure_session_unlocked(
                             track, publication.sid, participant
@@ -848,6 +956,16 @@ class LiveTranscriber:
             logger.error(
                 "live transcription background work failed (%s)", type(error).__name__
             )
+
+    def _eligible_track(
+        self, track: rtc.Track, publication: rtc.RemoteTrackPublication
+    ) -> bool:
+        """Canonical capture accepts only an actual microphone publication."""
+        if not self._is_audio(track):
+            return False
+        if getattr(self, "_control", None) is None:
+            return True
+        return publication.source == rtc.TrackSource.SOURCE_MICROPHONE
 
     @staticmethod
     def _is_audio(track: rtc.Track) -> bool:
