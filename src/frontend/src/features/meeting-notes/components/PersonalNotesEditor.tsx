@@ -70,7 +70,13 @@ export function PersonalNotesEditor({
       </label>
       <TextArea
         id={id}
-        aria-describedby={`${id}-privacy ${id}-limit`}
+        aria-describedby={[
+          `${id}-privacy`,
+          `${id}-limit`,
+          notes.isGuest && `${id}-guest-notice`,
+        ]
+          .filter(Boolean)
+          .join(' ')}
         fieldSizing={fit === 'content' ? 'content' : undefined}
         value={notes.content}
         disabled={!notes.hasLoaded}
@@ -162,6 +168,26 @@ export function PersonalNotesEditor({
           <NoteSaveStatus notes={notes} />
         </span>
       </footer>
+      {notes.isGuest && (
+        <p
+          id={`${id}-guest-notice`}
+          className={css({
+            marginX: '1.25rem',
+            marginBottom: '0.75rem',
+            padding: '0.625rem',
+            borderRadius: '8px',
+            backgroundColor: 'muted',
+            color: 'muted-foreground',
+            fontSize: '0.75rem',
+            lineHeight: '1.5',
+          })}
+        >
+          {t('guestNotice', {
+            defaultValue:
+              'Notes temporaires — pensez à les copier avant de quitter. Pour retrouver vos notes après vos réunions, utilisez un compte connecté.',
+          })}
+        </p>
+      )}
     </section>
   )
 }

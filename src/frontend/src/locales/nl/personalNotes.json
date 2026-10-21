@@ -4,6 +4,8 @@
   "placeholder": "Schrijf uw ideeën op tijdens de vergadering…",
   "loading": "Notities laden…",
   "saved": "Opgeslagen",
+  "temporary": "Tijdelijke notities",
+  "guestNotice": "Tijdelijke notities — kopieer ze voordat u vertrekt. Om uw notities na vergaderingen terug te vinden, maakt u ze terwijl u bent ingelogd.",
   "notSaved": "Niet opgeslagen",
   "saving": "Opslaan…",
   "saveError": "Notities niet opgeslagen. Uw concept blijft hier bewaard.",

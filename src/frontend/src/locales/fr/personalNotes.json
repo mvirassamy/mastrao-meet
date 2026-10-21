@@ -4,6 +4,8 @@
   "placeholder": "Notez vos idées pendant la réunion…",
   "loading": "Chargement des notes…",
   "saved": "Enregistré",
+  "temporary": "Notes temporaires",
+  "guestNotice": "Notes temporaires — pensez à les copier avant de quitter. Pour retrouver vos notes après vos réunions, utilisez un compte connecté.",
   "notSaved": "Non enregistré",
   "saving": "Enregistrement…",
   "saveError": "Notes non enregistrées. Votre brouillon est conservé ici.",

@@ -57,6 +57,7 @@ export function PersonalNotesProvider({
       value={{
         ...state,
         endpoint,
+        isGuest: identityKey === 'guest',
         flush: controller.flush,
         retry: controller.retry,
         setContent: controller.setContent,

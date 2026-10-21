@@ -4,6 +4,8 @@
   "placeholder": "Halten Sie Ihre Ideen während der Besprechung fest…",
   "loading": "Notizen werden geladen…",
   "saved": "Gespeichert",
+  "temporary": "Temporäre Notizen",
+  "guestNotice": "Temporäre Notizen — kopieren Sie sie, bevor Sie die Besprechung verlassen. Melden Sie sich vor dem Notieren an, um Ihre Notizen nach Besprechungen wiederzufinden.",
   "notSaved": "Nicht gespeichert",
   "saving": "Wird gespeichert…",
   "saveError": "Notizen nicht gespeichert. Ihr Entwurf bleibt hier erhalten.",

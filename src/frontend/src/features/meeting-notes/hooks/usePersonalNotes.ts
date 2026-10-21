@@ -6,6 +6,7 @@ import type {
 
 export interface PersonalNotesContextValue extends PersonalNotesState {
   endpoint: string
+  isGuest: boolean
   flush: PersonalNotesController['flush']
   retry: PersonalNotesController['retry']
   setContent: PersonalNotesController['setContent']
