@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-21: Expose the staging Signal source run/attempt in GitHub metadata
+  and emit a sanitized dispatch acceptance diagnostic without claiming
+  deployment.
+
 - 2026-10-21: Prepare a disabled publication Signal to the existing staging
   selection workflow after a successful develop CI run. Keep first selection
   review and live activation separate.
