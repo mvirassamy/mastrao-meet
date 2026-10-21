@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-10-21: Mark live audio timing uncertain, separate from UI receipt.
+
 - 2026-10-21: Keep LIVE item revisions monotonic within each track leg,
   suppress identical final replays and late interims, and publish real final
   corrections without trimming provider text. Compare SDK content and explicit
