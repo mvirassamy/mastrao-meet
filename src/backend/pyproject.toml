@@ -96,7 +96,11 @@ dev = [
 
 [tool.uv]
 exclude-newer = "7 days"
+# Admit these pinned security fixes without changing the delay for other packages.
+exclude-newer-package = { certifi = "2026-10-21T00:00:00Z", pillow = "2026-10-21T00:00:00Z" }
 constraint-dependencies = [
+    "certifi==2026.10.19",
+    "pillow==13.0.0",
     "sqlparse==0.6.0",
 ]
 
