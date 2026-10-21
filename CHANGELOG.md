@@ -1,5 +1,13 @@
 # Changelog
 
+- 2026-10-21: Expose the staging Signal source run/attempt in GitHub metadata
+  and emit a sanitized dispatch acceptance diagnostic without claiming
+  deployment.
+
+- 2026-10-21: Prepare a disabled publication Signal to the existing staging
+  selection workflow after a successful develop CI run. Keep first selection
+  review and live activation separate.
+
 - 2026-10-20: Restyle the scheduled-meeting invitation e-mail in the Mastrao
   identity and in French: Mastrao logo, meeting card with date and time, join
   button with a copyable link, and the same video-recording consent notice,
