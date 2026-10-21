@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-21: Fence new live audio during track shutdown and await the same
+  local cleanup for concurrent callers. Surface failed cleanup before restart;
+  keep consent wiring and provider-side guarantees separate. Finals unread
+  inside the SDK remain a known limit for the later exhaustive collector.
+
 - 2026-10-21: Add session-bound live consent offer and decision routes to Core,
   with explicit guest CSRF checks and closed-room withdrawal. Keep media and
   provider dispatch unchanged; this bridge alone authorizes no audio capture.

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import logging
 import math
@@ -27,6 +26,22 @@ SCHEMA_VERSION = 1
 MODEL = "gpt-live-transcribe"
 # Retain identities for one track leg up to the canonical transcript item cap.
 MAX_ITEMS_PER_TRACK = 100_000
+
+
+async def _await_shutdown(completion: asyncio.Task[None]) -> None:
+    """Finish local cleanup before propagating cancellation of a waiter."""
+    cancelled = False
+    while not completion.done():
+        try:
+            await asyncio.shield(completion)
+        except asyncio.CancelledError:
+            if completion.cancelled():
+                raise
+            cancelled = True
+    # Keep a failed shutdown observable to every subsequent caller.
+    completion.result()
+    if cancelled:
+        raise asyncio.CancelledError
 
 
 def configured_languages() -> str | list[str]:
@@ -252,8 +267,11 @@ class TrackTranscriber:
         self._speech_stream: stt.RecognizeStream | None = None
         self._audio_stream: rtc.AudioStream | None = None
         self._provider: openai.STT | None = None
-        self._resource_lock = asyncio.Lock()
-        self._resources_closed = False
+        self._audio_task: asyncio.Task[None] | None = None
+        self._run_task: asyncio.Task[None] | None = None
+        self._run_done = asyncio.Event()
+        self._resource_close_task: asyncio.Task[None] | None = None
+        self._close_task: asyncio.Task[None] | None = None
         self._closing = False
         self._items: dict[str, _ItemState] = {}
 
@@ -261,7 +279,7 @@ class TrackTranscriber:
         """Pump one LiveKit audio track into one OpenAI realtime stream."""
         if self._closing:
             return
-        audio_task: asyncio.Task | None = None
+        self._run_task = asyncio.current_task()
         try:
             self._provider = create_openai_live_stt(self._vad)
             self._audio_stream = rtc.AudioStream.from_track(
@@ -270,52 +288,74 @@ class TrackTranscriber:
                 num_channels=1,
             )
             self._speech_stream = self._provider.stream()
-            audio_task = asyncio.create_task(
+            self._audio_task = asyncio.create_task(
                 self._push_audio(self._audio_stream, self._speech_stream)
             )
             async for event in self._speech_stream:
                 await self._handle_event(event)
         finally:
-            if audio_task is not None:
-                audio_task.cancel()
-                with contextlib.suppress(BaseException):
-                    await audio_task
-            await self._close_resources()
+            self._closing = True
+            try:
+                await self._close_resources()
+            finally:
+                self._run_done.set()
 
     async def aclose(self) -> None:
-        """Stop the current provider and audio stream, idempotently."""
-        if self._closing:
-            return
+        """Fence new audio and await the shared local shutdown outcome.
+
+        This does not revoke audio already admitted to the SDK or certify that
+        a remote provider has stopped processing previously transmitted audio.
+        """
         self._closing = True
-        await self._close_resources()
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(self._stop())
+        await _await_shutdown(self._close_task)
+
+    async def _stop(self) -> None:
+        """Join SDK closure and any transcript publication already in progress."""
+        try:
+            await self._close_resources()
+        except BaseException:
+            # A failed SDK close may leave the event iterator waiting forever.
+            if self._run_task is not None and not self._run_done.is_set():
+                self._run_task.cancel()
+            raise
+        finally:
+            if self._run_task is not None:
+                await self._run_done.wait()
 
     async def _close_resources(self) -> None:
-        """Close provider resources once, even when task cancellation races."""
-        async with self._resource_lock:
-            if self._resources_closed:
-                return
-            self._resources_closed = True
-            speech_stream = self._speech_stream
-            audio_stream = self._audio_stream
-            provider = self._provider
-            self._speech_stream = None
-            self._audio_stream = None
-            self._provider = None
-            await self._close_resource(speech_stream, "speech stream")
-            await self._close_resource(audio_stream, "audio stream")
-            await self._close_resource(provider, "OpenAI provider")
+        """Share cleanup between run-finally and explicit shutdown callers."""
+        if self._resource_close_task is None:
+            self._resource_close_task = asyncio.create_task(self._shutdown_resources())
+        await _await_shutdown(self._resource_close_task)
 
-    @staticmethod
-    async def _close_resource(resource: object | None, label: str) -> None:
-        """Close one SDK resource while preserving shutdown progress."""
-        if resource is None:
-            return
-        try:
-            await resource.aclose()
-        except asyncio.CancelledError:
-            logger.debug("cancelled while closing %s", label)
-        except Exception:
-            logger.exception("failed to close %s", label)
+    async def _shutdown_resources(self) -> None:
+        """Close the SDK immediately, then join the cancelled audio pump."""
+        errors: list[BaseException] = []
+        if self._audio_task is not None:
+            self._audio_task.cancel()
+        # Do not let the SDK drain queued audio behind a slow input finalizer.
+        # Neither end_input() nor flush() belongs in this stop path.
+        for resource, label in (
+            (self._speech_stream, "speech stream"),
+            (self._audio_stream, "audio stream"),
+            (self._provider, "OpenAI provider"),
+        ):
+            if resource is None:
+                continue
+            try:
+                await resource.aclose()
+            except (Exception, asyncio.CancelledError) as error:
+                logger.exception("failed to close %s", label)
+                errors.append(error)
+        if self._audio_task is not None:
+            await asyncio.gather(self._audio_task, return_exceptions=True)
+        if errors:
+            raise BaseExceptionGroup("live transcription shutdown failed", errors)
+        self._speech_stream = None
+        self._audio_stream = None
+        self._provider = None
 
     async def _push_audio(
         self,
@@ -323,7 +363,11 @@ class TrackTranscriber:
         speech_stream: stt.RecognizeStream,
     ) -> None:
         """Forward decoded LiveKit frames to the provider."""
+        if self._closing:
+            return
         async for audio_event in audio_stream:
+            if self._closing:
+                return
             speech_stream.push_frame(audio_event.frame)
 
     async def _handle_event(self, event: stt.SpeechEvent) -> None:
@@ -401,6 +445,7 @@ class LiveTranscriber:
         self._lifecycle_lock = asyncio.Lock()
         self._reconnecting = False
         self._closed = False
+        self._close_task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
         """Register room callbacks for track and connection lifecycle."""
@@ -421,10 +466,14 @@ class LiveTranscriber:
                     self.on_track_subscribed(track, publication, participant)
 
     async def aclose(self) -> None:
-        """Cancel all streams and detach every room callback."""
-        if self._closed:
-            return
+        """Share and await shutdown, including failures, across all callers."""
         self._closed = True
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(self._close_all())
+        await _await_shutdown(self._close_task)
+
+    async def _close_all(self) -> None:
+        """Detach room callbacks and join all local lifecycle work."""
         room = self.ctx.room
         room.off("track_subscribed", self.on_track_subscribed)
         room.off("track_unsubscribed", self.on_track_unsubscribed)
@@ -432,11 +481,18 @@ class LiveTranscriber:
         room.off("participant_disconnected", self.on_participant_disconnected)
         room.off("reconnecting", self.on_reconnecting)
         room.off("reconnected", self.on_reconnected)
-        await asyncio.gather(
+        session_results = await asyncio.gather(
             *(self._stop_session(key) for key in list(self._sessions)),
             return_exceptions=True,
         )
-        await asyncio.gather(*self._tasks, return_exceptions=True)
+        lifecycle_results = await asyncio.gather(*self._tasks, return_exceptions=True)
+        errors = [
+            result
+            for result in (*session_results, *lifecycle_results)
+            if isinstance(result, BaseException)
+        ]
+        if errors:
+            raise BaseExceptionGroup("live transcriber shutdown failed", errors)
 
     def on_track_subscribed(
         self,
@@ -557,6 +613,8 @@ class LiveTranscriber:
                 except Exception:
                     logger.exception("failed to publish provider error gap")
         finally:
+            # Retain a failed stop so a later subscription cannot reopen it.
+            await session.aclose()
             if self._sessions.get(key) is session:
                 self._sessions.pop(key, None)
                 self._session_tasks.pop(key, None)
@@ -598,7 +656,7 @@ class LiveTranscriber:
             await self._publisher.publish_gap(reason)
 
     async def _stop_session(self, key: tuple[str, str]) -> None:
-        """Cancel and await one track task, if present."""
+        """Stop and await one track task, if present."""
         async with self._lifecycle_lock:
             await self._stop_session_unlocked(key)
 
@@ -608,7 +666,7 @@ class LiveTranscriber:
         expected_track: rtc.Track | None = None,
         expected_participant: rtc.RemoteParticipant | None = None,
     ) -> bool:
-        """Cancel one track task while the lifecycle lock is held."""
+        """Join one track stop before allowing replacement under the lock."""
         session = self._sessions.get(key)
         if expected_track is not None and (
             session is None or session.track is not expected_track
@@ -618,18 +676,19 @@ class LiveTranscriber:
             session is None or session.participant is not expected_participant
         ):
             return False
-        session = self._sessions.pop(key, None)
-        task = self._session_tasks.pop(key, None)
+        task = self._session_tasks.get(key)
         if session is None and task is None:
             return False
-        if task is not None:
-            task.cancel()
         try:
             if session is not None:
                 await session.aclose()
         finally:
             if task is not None:
+                task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
+        if self._sessions.get(key) is session:
+            self._sessions.pop(key, None)
+            self._session_tasks.pop(key, None)
         return True
 
     async def _handle_reconnecting(self) -> None:

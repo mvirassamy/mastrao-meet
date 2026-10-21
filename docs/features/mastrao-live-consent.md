@@ -52,7 +52,7 @@ environment. Disabling the endpoints does not erase existing Core decisions.
 `capture_authorized` always remains false. Before exposing the notice and
 choice in the product, bind a live attempt grant to verified RTC observations,
 the immutable mode and current Core consent. Enforce it before provider stream
-creation, stop further audio and drain/close the stream on withdrawal, then
+creation, stop further audio and cancel/close the stream on withdrawal, then
 prove that no queued frame or reconnect escapes the stop barrier. Journal
 admission is not provider permission. Notice approval and full timeline/roster
 qualification remain required before mode activation and transcript reuse.
@@ -66,3 +66,42 @@ they cover hosts, pending guests, exact retries, conflicts, CSRF, closure and
 malformed responses. The peer simulates Core's response, not its real ledger or
 RLS. Core's own PostgreSQL tests remain the evidence for those boundaries.
 No provider, SFU, object storage, real meeting or deployed environment is used.
+
+## Worker shutdown prerequisite
+
+The worker stop barrier is local to one track leg. It must stop feeding new
+frames, cancel audio input and SDK work without flushing buffered audio, and
+wait for resource cleanup before reporting success. Concurrent callers must
+observe the same outcome. Cancelling a caller must not abandon cleanup, and
+failed cleanup must remain visible instead of permitting a safe-stop claim
+or an automatic replacement stream.
+
+This strengthens existing track shutdown. The consent routes above do not yet
+invoke this barrier, and the worker still needs Core's live attempt authority
+before mode activation. No API, UI, flag, endpoint configuration, provider or
+deployed environment is activated by this prerequisite. Audio already sent to
+the provider cannot be recalled by local task cancellation.
+
+The relevant installed SDK is LiveKit Agents/OpenAI 1.8.3. Its immediate
+`RecognizeStream.aclose()` cancels the recognition task, while `end_input()`
+calls `flush()`. Shutdown therefore must not use `end_input()` to drain input.
+The public STT lifecycle is described in the
+[LiveKit reference](https://docs.livekit.io/reference/python/livekit/agents/stt/index.html);
+local tests must also exercise the locked SDK because current documentation
+alone does not prove version-specific cancellation or remote processing.
+
+The local stop tests cover concurrent calls, cancellation during cleanup,
+late frames and starts, pending final publication, failed close and refused
+replacement. One test runs the real installed OpenAI stream against a synthetic
+socket with queued audio and a blocked sender/input finalizer. It verifies
+local task termination and no extra send or reconnect. The SDK pool suppresses
+some socket-close errors, so this proves no stronger remote guarantee than the
+SDK exposes. If cleanup blocks, shutdown stays pending; no maximum stop latency
+is promised by this slice.
+
+A final still unread inside the SDK buffer is not covered by the publication
+barrier. SDK closure can discard such an event while an earlier final is
+blocked in publication. This also occurs in the baseline worker; the present
+change preserves an engaged publication but does not implement exhaustive
+collection. Resolve this in the final-event collector and prove buffered-final
+coverage before qualifying durable transcript reuse or activating the modes.
