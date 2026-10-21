@@ -98,3 +98,10 @@ local task termination and no extra send or reconnect. The SDK pool suppresses
 some socket-close errors, so this proves no stronger remote guarantee than the
 SDK exposes. If cleanup blocks, shutdown stays pending; no maximum stop latency
 is promised by this slice.
+
+A final still unread inside the SDK buffer is not covered by the publication
+barrier. SDK closure can discard such an event while an earlier final is
+blocked in publication. This also occurs in the baseline worker; the present
+change preserves an engaged publication but does not implement exhaustive
+collection. Resolve this in the final-event collector and prove buffered-final
+coverage before qualifying durable transcript reuse or activating the modes.
