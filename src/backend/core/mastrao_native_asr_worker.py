@@ -29,6 +29,56 @@ logger = logging.getLogger(__name__)
 READY_QUEUE = "mastrao-native-asr-ready"
 RETRY_QUEUE = "mastrao-native-asr-retry"
 DISPATCH_LOCK = 0x4D415352
+SAFE_CORE_ERROR_CODES = {
+    "invalid_assertion",
+    "resource_unavailable",
+    "runtime_busy",
+    "service_unavailable",
+}
+SAFE_OUTCOMES = {
+    "retry",
+    "unknown",
+    "rejected",
+    "failed",
+    "failed_pre_egress",
+}
+
+
+def _error_kind(error):
+    if isinstance(error, RecordingContractRefused):
+        return "contract_refused"
+    if isinstance(error, requests.RequestException):
+        return "request_error"
+    if isinstance(error, ValueError):
+        return "invalid_value"
+    if isinstance(error, TypeError):
+        return "invalid_type"
+    if isinstance(error, KeyError):
+        return "missing_field"
+    return "io_error"
+
+
+def _bounded_status(value):
+    # Status metadata must reject bool, even though bool subclasses int.
+    # pylint: disable-next=unidiomatic-typecheck
+    return value if type(value) is int and 100 <= value <= 599 else None
+
+
+def _closed_string(value, allowed):
+    return value if isinstance(value, str) and value in allowed else None
+
+
+def _diagnostic_fields(error):
+    refusal_status = None
+    if isinstance(error, RecordingContractRefused):
+        refusal_status = _bounded_status(getattr(error, "status", None))
+    return (
+        _error_kind(error),
+        refusal_status,
+        _bounded_status(getattr(error, "core_http_status", None)),
+        _closed_string(getattr(error, "core_error_code", None), SAFE_CORE_ERROR_CODES),
+        _closed_string(getattr(error, "outcome", None), SAFE_OUTCOMES),
+    )
 
 
 def _capacity_limits():
@@ -166,15 +216,21 @@ def process_native_asr_source(capture_start_id, dispatch_ref):
     intent = _claim(capture_start_id, dispatch_ref)
     if intent is None:
         return False
+    stage = "ack" if intent.asr_receipt is not None else "prepare"
     try:
         receipt = intent.asr_receipt
         if receipt is None:
             prepared, audio = prepare_native_asr(intent)
+            stage = "verify_claim_after_prepare"
             _fresh(intent)
+            stage = "gateway"
             result = transcribe_native_asr(prepared, audio)
+            stage = "verify_claim_after_gateway"
             _fresh(intent)
+            stage = "result"
             receipt = upload_native_asr_result(intent, prepared, result)
             # The gateway cache cannot be released before durable receipt commit.
+            stage = "persist_receipt"
             if (
                 _owned(intent)
                 .filter(asr_receipt__isnull=True)
@@ -182,8 +238,11 @@ def process_native_asr_source(capture_start_id, dispatch_ref):
                 != 1
             ):
                 raise RecordingContractRefused(status=503)
+        stage = "verify_claim_before_ack"
         _fresh(intent)
+        stage = "ack"
         ack_native_asr(receipt)
+        stage = "finish"
         return _finish(intent, True)
     except (
         RecordingContractRefused,
@@ -194,7 +253,25 @@ def process_native_asr_source(capture_start_id, dispatch_ref):
         OSError,
     ) as error:
         _finish(intent, False, error)
-        logger.warning("Native ASR delivery failed; durable recovery state retained")
+        (
+            error_kind,
+            refusal_status,
+            core_http_status,
+            core_error_code,
+            outcome,
+        ) = _diagnostic_fields(error)
+        logger.warning(
+            "native_asr_delivery_failed stage=%s capture_ref=%s "
+            "error_kind=%s refusal_status=%s core_http_status=%s "
+            "core_error_code=%s outcome=%s",
+            stage,
+            intent.capture_ref,
+            error_kind,
+            refusal_status,
+            core_http_status,
+            core_error_code,
+            outcome,
+        )
         return False
 
 
