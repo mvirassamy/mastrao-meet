@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 
 import aiohttp
 
+CONTROL_VERSION = 2
 MAX_BODY_BYTES = 16_384
 MAX_CAPABILITY_BYTES = 8192
 REQUEST_TIMEOUT_SECONDS = 5
@@ -23,6 +24,9 @@ PREPARE_RETRY_SECONDS = 1
 PREPARE_TIMEOUT_SECONDS = 12
 LEASE_SECONDS = 15
 RENEW_SECONDS = 5
+PCM_SAMPLE_RATE = 24_000
+ROTATION_SECONDS = 540
+MAX_SAFE_SAMPLE = 2**53 - 1
 _REFERENCE = re.compile(r"^[A-Za-z0-9_-]{16,160}$")
 _RESPONSE_FIELDS = {
     "version",
@@ -36,6 +40,8 @@ _RESPONSE_FIELDS = {
     "start_authorized",
     "send_authorized",
     "replayed",
+    "leg_ref",
+    "audio_start_sample",
 }
 
 
@@ -54,6 +60,13 @@ class ControlResponseLost(ControlUnavailable):
 def _reference(value: object) -> str:
     if not isinstance(value, str) or not _REFERENCE.fullmatch(value):
         raise ControlError("invalid control reference")
+    return value
+
+
+def audio_sample(value: object) -> int:
+    """Require a nonnegative sample position preserved exactly by JSON clients."""
+    if type(value) is not int or not 0 <= value <= MAX_SAFE_SAMPLE:
+        raise ControlError("invalid audio sample position")
     return value
 
 
@@ -140,7 +153,7 @@ class LiveControlClient:
         configured = os.getenv("LIVE_TRANSCRIPT_CONTROL_URL", "")
         if (
             type(value["version"]) is not int
-            or value["version"] != 1
+            or value["version"] != CONTROL_VERSION
             or not isinstance(value["url"], str)
             or value["url"] != configured
             or not _internal_endpoint(configured)
@@ -240,6 +253,13 @@ class LiveSendAuthority:
         self._claim_can_ack_stop = False
         self._preparing = False
         self.fenced = False
+        self.leg_ref = ""
+        self.audio_start_sample = 0
+        self.rotation_deadline = 0.0
+        self._send_lock = asyncio.Lock()
+        self._rotation_pending = False
+        self._cleanup_leg: str | None = None
+        self._cleanup_start = 0
 
     def can_send(self) -> bool:
         """Check on every frame and immediately before a provider connection."""
@@ -249,8 +269,20 @@ class LiveSendAuthority:
         """Permanently revoke local admission, including a late renew response."""
         self.fenced = True
 
+    def can_send_leg(self, leg_ref: str) -> bool:
+        """Never let a later leg's lease reauthorize an older socket."""
+        return leg_ref == self.leg_ref and self.can_send()
+
     def _body(self, action: str) -> dict[str, object]:
-        return {"version": 1, "action": action, **self.binding, **self.source}
+        body = {
+            "version": CONTROL_VERSION,
+            "action": action,
+            **self.binding,
+            **self.source,
+        }
+        if action != "prepare":
+            body["leg_ref"] = self.leg_ref
+        return body
 
     async def claim(self) -> bool:
         """Prepare and make one claim; ambiguous/replayed starts are never retried."""
@@ -261,15 +293,16 @@ class LiveSendAuthority:
         if prepared is None:
             return False
         if (
-            set(prepared) != {"version", "source_ref", "admission_ref"}
+            set(prepared) != {"version", "source_ref", "admission_ref", "leg_ref"}
             or type(prepared["version"]) is not int
-            or prepared["version"] != 1
+            or prepared["version"] != CONTROL_VERSION
         ):
             raise ControlError("invalid prepare response")
         self.source = {
             "source_ref": _reference(prepared["source_ref"]),
             "admission_ref": _reference(prepared["admission_ref"]),
         }
+        self.leg_ref = _reference(prepared["leg_ref"])
         if self.fenced:
             return False
         self.claim_sent = True
@@ -283,6 +316,7 @@ class LiveSendAuthority:
         # A received incoherent body/binding/lease raises before this point:
         # merely sending a claim cannot justify an ACK from run-finally.
         self._claim_can_ack_stop = True
+        self.rotation_deadline = time.monotonic() + ROTATION_SECONDS
         return response["start_authorized"] is True and self.can_send()
 
     async def _prepare(self) -> dict[str, object] | None:
@@ -303,11 +337,39 @@ class LiveSendAuthority:
         return None
 
     async def _send(self, action: str) -> dict[str, object]:
+        async with self._send_lock:
+            if action == "renew" and not self.can_send():
+                self.fence()
+                raise ControlError("live renewal lease expired")
+            return await self._exchange(action)
+
+    async def _exchange(
+        self, action: str, *, next_leg_ref: str | None = None, end_sample: int = 0
+    ) -> dict[str, object]:
+        body = self._body(action)
+        expected_leg = self.leg_ref
+        expected_start = self.audio_start_sample
+        if action == "rotate":
+            body.update(next_leg_ref=next_leg_ref, audio_end_sample=end_sample)
+            expected_leg = next_leg_ref
+            expected_start = end_sample
+        elif action == "stopped" and self._cleanup_leg is not None:
+            body["leg_ref"] = self._cleanup_leg
+            expected_leg = self._cleanup_leg
+            expected_start = self._cleanup_start
         started = time.monotonic()
+        lease_deadline = self.deadline
         wall_started = time.time()
-        response = await self.client.post(self._body(action))
+        response = await self.client.post(body)
         elapsed = time.monotonic() - started
-        self._validate_response(response, action)
+        self._validate_response(response, action, expected_leg, expected_start)
+        if (
+            action in {"renew", "rotate"}
+            and not self.fenced
+            and started + elapsed >= lease_deadline
+        ):
+            self.fence()
+            raise ControlError("live command outlived its lease")
         if response["send_authorized"]:
             expires = response["lease_expires_at"]
             if type(expires) is not int or not 0 < expires <= 2**53 - 1:
@@ -323,17 +385,24 @@ class LiveSendAuthority:
             self.fence()
         return response
 
-    def _validate_response(self, response: dict[str, object], action: str) -> None:
+    def _validate_response(
+        self,
+        response: dict[str, object],
+        action: str,
+        leg_ref: str,
+        start_sample: int,
+    ) -> None:
         expected = {
             **self.source,
             "attempt_ref": self.binding["attempt_ref"],
             "worker_instance_ref": self.binding["worker_instance_ref"],
             "action": action,
+            "leg_ref": leg_ref,
         }
         if (
             set(response) != _RESPONSE_FIELDS
             or type(response["version"]) is not int
-            or response["version"] != 1
+            or response["version"] != CONTROL_VERSION
             or any(response[key] != value for key, value in expected.items())
             or any(
                 type(response[key]) is not bool
@@ -341,6 +410,8 @@ class LiveSendAuthority:
             )
         ):
             raise ControlError("invalid send response binding")
+        if audio_sample(response["audio_start_sample"]) != start_sample:
+            raise ControlError("unexpected leg audio start")
         active = response["state"] == "active"
         if response["state"] not in {"active", "stop_requested", "stopped"}:
             raise ControlError("invalid send response state")
@@ -355,8 +426,53 @@ class LiveSendAuthority:
             raise ControlError("inconsistent stopped response")
         if action == "stopped" and response["state"] != "stopped":
             raise ControlError("stop acknowledgement refused")
-        if response["start_authorized"] and (action != "claim" or response["replayed"]):
+        if response["start_authorized"] and (
+            action not in {"claim", "rotate"} or response["replayed"]
+        ):
             raise ControlError("replayed or renewed start is forbidden")
+
+    async def rotate(self, next_leg_ref: str, end_sample: int) -> None:
+        """Request one successor only after local drain, publication and close."""
+        try:
+            _reference(next_leg_ref)
+            audio_sample(end_sample)
+        except ControlError:
+            self.fence()
+            raise
+        if (
+            self._rotation_pending
+            or not self.can_send()
+            or next_leg_ref == self.leg_ref
+            or end_sample < self.audio_start_sample
+        ):
+            self.fence()
+            raise ControlError("live rotation is not authorized")
+        self._rotation_pending = True
+        try:
+            async with self._send_lock:
+                if not self.can_send():
+                    raise ControlError("live rotation lease expired")
+                try:
+                    response = await self._exchange(
+                        "rotate", next_leg_ref=next_leg_ref, end_sample=end_sample
+                    )
+                except (ControlResponseLost, TimeoutError, asyncio.CancelledError):
+                    self._cleanup_leg = next_leg_ref
+                    self._cleanup_start = end_sample
+                    raise
+                if not response["start_authorized"] or not self.can_send():
+                    # A coherent successor receipt permits its cleanup, never reopening.
+                    self._cleanup_leg = next_leg_ref
+                    self._cleanup_start = end_sample
+                    raise ControlError("live rotation start refused")
+                self.leg_ref = next_leg_ref
+                self.audio_start_sample = end_sample
+                self.rotation_deadline = time.monotonic() + ROTATION_SECONDS
+        except BaseException:
+            self.fence()
+            raise
+        finally:
+            self._rotation_pending = False
 
     async def renew_until_fenced(self) -> None:
         """Stop on any refusal, loss or malformed response; never reopen a source."""
