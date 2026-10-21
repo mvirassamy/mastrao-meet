@@ -2,15 +2,17 @@ import { useTranslation } from 'react-i18next'
 import { WarningIcon } from '@/icons'
 import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
-import type { NoteStatus } from '../model/PersonalNotesController'
 import type { PersonalNotesContextValue } from '../hooks/usePersonalNotes'
 
 type Translate = ReturnType<typeof useTranslation>['t']
 type Tone = 'saved' | 'busy' | 'problem'
 
 /** Short label and tone shown in the editor footer. */
-function statusLine(status: NoteStatus, t: Translate): [string, Tone] {
-  switch (status) {
+function statusLine(
+  notes: PersonalNotesContextValue,
+  t: Translate
+): [string, Tone] {
+  switch (notes.status) {
     case 'loading':
       return [t('loading', { defaultValue: 'Chargement des notes…' }), 'busy']
     case 'ready':
@@ -20,23 +22,41 @@ function statusLine(status: NoteStatus, t: Translate): [string, Tone] {
       return [t('saving', { defaultValue: 'Enregistrement…' }), 'busy']
     case 'error':
     case 'unauthorized':
+      if (!notes.hasUnsavedChanges) {
+        return [
+          t('loadFailed', { defaultValue: 'Notes non chargées' }),
+          'problem',
+        ]
+      }
+      return [t('notSaved', { defaultValue: 'Non enregistré' }), 'problem']
     case 'conflict':
       return [t('notSaved', { defaultValue: 'Non enregistré' }), 'problem']
   }
 }
 
 /** Explanation of a problem that needs the user, shown above the text. */
-function problemMessage(status: NoteStatus, t: Translate) {
-  switch (status) {
+function problemMessage(notes: PersonalNotesContextValue, t: Translate) {
+  switch (notes.status) {
     case 'error':
+      if (!notes.hasUnsavedChanges) {
+        return t('loadError', {
+          defaultValue: 'Impossible de charger les notes. Réessayez.',
+        })
+      }
       return t('saveError', {
         defaultValue:
           'Notes non enregistrées. Votre brouillon est conservé ici.',
       })
     case 'unauthorized':
-      return t('sessionExpired', {
+      if (!notes.hasUnsavedChanges) {
+        return t('accessError', {
+          defaultValue:
+            'Impossible d’accéder aux notes. Vérifiez votre session et vos droits d’accès, puis réessayez.',
+        })
+      }
+      return t('accessErrorWithDraft', {
         defaultValue:
-          'Accès aux notes expiré. Reconnectez-vous pour enregistrer votre brouillon.',
+          'Impossible d’accéder aux notes. Votre brouillon est conservé ici. Vérifiez votre session et vos droits d’accès, puis réessayez.',
       })
     case 'conflict':
       return t('conflict', {
@@ -67,7 +87,7 @@ export function NoteSaveStatus({
   notes: PersonalNotesContextValue
 }) {
   const { t } = useTranslation('personalNotes', { useSuspense: false })
-  const [label, tone] = statusLine(notes.status, t)
+  const [label, tone] = statusLine(notes, t)
   return (
     <span
       role="status"
@@ -93,10 +113,10 @@ export function NoteSaveStatus({
   )
 }
 
-/** Problems keep the draft editable; their actions sit right above it. */
+/** Failed loads keep editing disabled; existing drafts remain editable. */
 export function NoteSaveAlert({ notes }: { notes: PersonalNotesContextValue }) {
   const { t } = useTranslation('personalNotes', { useSuspense: false })
-  const problem = problemMessage(notes.status, t)
+  const problem = problemMessage(notes, t)
   const canRetry = notes.status === 'error' || notes.status === 'unauthorized'
   if (!problem && !notes.conflict) return null
   return (
