@@ -5,7 +5,7 @@ import { css } from '@/styled-system/css'
 import type { PersonalNotesContextValue } from '../hooks/usePersonalNotes'
 
 type Translate = ReturnType<typeof useTranslation>['t']
-type Tone = 'saved' | 'busy' | 'problem'
+type Tone = 'saved' | 'temporary' | 'busy' | 'problem'
 
 /** Short label and tone shown in the editor footer. */
 function statusLine(
@@ -16,6 +16,12 @@ function statusLine(
     case 'loading':
       return [t('loading', { defaultValue: 'Chargement des notes…' }), 'busy']
     case 'ready':
+      if (notes.isGuest) {
+        return [
+          t('temporary', { defaultValue: 'Notes temporaires' }),
+          'temporary',
+        ]
+      }
       return [t('saved', { defaultValue: 'Enregistré' }), 'saved']
     case 'pending':
     case 'saving':
@@ -76,6 +82,7 @@ const inlineAction = css({ paddingX: '0!', minHeight: 'auto!' })
 
 const dotColors: Record<Tone, string> = {
   saved: 'var(--success-foreground)',
+  temporary: 'var(--muted-foreground)',
   busy: 'var(--input)',
   problem: 'var(--call-attention-badge)',
 }

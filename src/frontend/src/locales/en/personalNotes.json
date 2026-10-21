@@ -4,6 +4,8 @@
   "placeholder": "Write down your ideas during the meeting…",
   "loading": "Loading notes…",
   "saved": "Saved",
+  "temporary": "Temporary notes",
+  "guestNotice": "Temporary notes — copy them before leaving. To find your notes after meetings, take them while signed in.",
   "notSaved": "Not saved",
   "saving": "Saving…",
   "saveError": "Notes not saved. Your draft is kept here.",

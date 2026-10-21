@@ -9,8 +9,12 @@ import fr from '@/locales/fr/personalNotes.json'
 import nl from '@/locales/nl/personalNotes.json'
 import { NOTE_REQUEST_TIMEOUT } from '../api/personalNotesApi'
 
+const auth = vi.hoisted(() => ({
+  user: { id: 'authenticated-account' } as { id: string } | undefined,
+}))
+
 vi.mock('@/features/auth/api/useUser', () => ({
-  useUser: () => ({ user: { id: 'authenticated-account' } }),
+  useUser: () => ({ user: auth.user }),
 }))
 
 const endpoint = '/meetings/history/meeting/personal-note/'
@@ -45,6 +49,7 @@ async function advance(milliseconds = 0) {
 }
 
 beforeEach(async () => {
+  auth.user = { id: 'authenticated-account' }
   vi.useFakeTimers()
   await i18n.init({
     lng: 'fr',
@@ -282,6 +287,74 @@ describe('history notes load feedback through the real API and controller', () =
     ).toEqual(['GET', 'PUT', 'GET'])
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('status').textContent).toBe(fr.saved)
+    expect(screen.queryByText(fr.guestNotice)).toBeNull()
+  })
+
+  it.each([
+    ['fr', fr],
+    ['en', en],
+    ['de', de],
+    ['nl', nl],
+  ] as const)(
+    'explains temporary guest notes in %s without a sign-in action or blocking editing',
+    async (language, translations) => {
+      auth.user = undefined
+      i18n.addResourceBundle(language, 'personalNotes', translations)
+      await i18n.changeLanguage(language)
+      const updated = { ...saved, content: 'Guest draft', revision: 2 }
+      const fetch = vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValueOnce(response(saved))
+        .mockResolvedValueOnce(response(updated))
+      vi.stubGlobal('fetch', fetch)
+      mountNotes()
+      await advance()
+
+      const editor = screen.getByRole('textbox') as HTMLTextAreaElement
+      const notice = screen.getByText(translations.guestNotice)
+      expect(editor.disabled).toBe(false)
+      expect(editor.getAttribute('aria-describedby')?.split(' ')).toContain(
+        notice.id
+      )
+      expect(screen.getByRole('status').textContent).toBe(
+        translations.temporary
+      )
+      expect(screen.queryByRole('link')).toBeNull()
+      expect(screen.queryByRole('button')).toBeNull()
+
+      fireEvent.change(editor, { target: { value: updated.content } })
+      await advance(800)
+      expect(editor.value).toBe(updated.content)
+      expect(fetch.mock.calls[1][1]).toMatchObject({ method: 'PUT' })
+      expect(screen.getByRole('status').textContent).toBe(
+        translations.temporary
+      )
+      expect(screen.queryByRole('alert')).toBeNull()
+    }
+  )
+
+  it('keeps guest save failures visible alongside the temporary-notes notice', async () => {
+    auth.user = undefined
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValueOnce(response(saved))
+        .mockResolvedValueOnce(response({}, 500))
+    )
+    mountNotes()
+    await advance()
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Unsaved guest draft' },
+    })
+    await advance(800)
+
+    expect(screen.getByRole('status').textContent).toBe(fr.notSaved)
+    expect(screen.getByRole('alert').textContent).toContain(fr.saveError)
+    expect(screen.getByText(fr.guestNotice)).toBeTruthy()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(
+      'Unsaved guest draft'
+    )
   })
 
   it.each([
