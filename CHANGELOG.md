@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-21: Add session-bound live consent offer and decision routes to Core,
+  with explicit guest CSRF checks and closed-room withdrawal. Keep media and
+  provider dispatch unchanged; this bridge alone authorizes no audio capture.
+
 - 2026-10-21: Run CI on develop_modes and its pull requests, keeping candidate
   publication restricted to develop while the demo branch stays separate.
 
