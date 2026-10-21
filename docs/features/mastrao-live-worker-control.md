@@ -38,7 +38,10 @@ fail closed; no automatic audio repair or replay starts.
 ## Stop and quality limits
 
 The worker fences frame delivery at the lease deadline independently from
-network renewal. Refusal, expiry or control loss closes the local stream.
+network renewal. It also checks at each SDK socket write, drops queued
+appends/commits after expiry and cancels writes awaiting I/O. Bytes already
+handed to the network cannot be recalled. Refusal, expiry or control loss closes
+the local stream.
 Consent withdrawal is observed through renewal; this polling path does not
 promise instantaneous remote revocation. Its remaining permission is bounded
 by the existing lease, never extended locally after a failed renewal.

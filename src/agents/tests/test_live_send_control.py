@@ -12,6 +12,7 @@ from aiohttp import web
 
 from live_send_control import (
     ControlError,
+    ControlResponseLost,
     ControlUnavailable,
     LiveControlClient,
     LiveSendAuthority,
@@ -342,6 +343,18 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.redirect_hits, 0)
         self.assertEqual(len(self.observed), 1)
 
+    async def test_explicit_http_refusal_is_not_a_transport_lost_response(self):
+        """Do not classify an explicit gateway status as an ambiguous wire loss."""
+        self.status = 503
+        with self.assertRaises(ControlUnavailable) as refused:
+            await self.client.post({"version": 1})
+        self.assertNotIsInstance(refused.exception, ControlResponseLost)
+        self.raw = b"invalid-json"
+        self.status = 200
+        with self.assertRaises(ControlError) as malformed:
+            await self.client.post({"version": 1})
+        self.assertNotIsInstance(malformed.exception, ControlResponseLost)
+
     async def test_body_and_transport_time_are_bounded(self):
         """Abort oversized bodies and held responses; neither request is retried."""
         self.raw = b"x" * 16_385
@@ -350,7 +363,7 @@ class GatewayTransportTests(unittest.IsolatedAsyncioTestCase):
         self.wait = asyncio.Event()
         try:
             with patch("live_send_control.REQUEST_TIMEOUT_SECONDS", 0.02):
-                with self.assertRaises(ControlError):
+                with self.assertRaises(ControlResponseLost):
                     await self.client.post({"version": 1})
         finally:
             self.wait.set()

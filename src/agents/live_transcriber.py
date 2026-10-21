@@ -401,6 +401,8 @@ class TrackTranscriber:
         self._closing = True
         if self._authority is not None:
             self._authority.fence()
+            if self._provider is not None:
+                self._provider.fence_audio()
         if self._audio_task is not None and not self._audio_task.cancelling():
             self._audio_task.cancel()
 

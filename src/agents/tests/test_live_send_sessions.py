@@ -13,7 +13,7 @@ from livekit.agents import LanguageCode, stt
 from test_live_send_control import Gateway, authority
 from test_live_transcriber_stop import AudioSource, CloseGate, SpeechSource, reached
 
-from live_send_control import ControlUnavailable
+from live_send_control import ControlError, ControlResponseLost, ControlUnavailable
 from live_transcriber import LiveTranscriber, TrackTranscriber
 
 
@@ -43,6 +43,7 @@ class ControlledSessionTests(unittest.IsolatedAsyncioTestCase):
         self.audio = AudioSource()
         self.speech = SpeechSource()
         self.provider = CloseGate()
+        self.provider.fence_audio = MagicMock()
         self.provider.stream = MagicMock(return_value=self.speech)
         self.factory = self.enterContext(
             patch("live_transcriber.AuthorizedOpenAI", return_value=self.provider)
@@ -258,6 +259,126 @@ class ControlledSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [body["action"] for body in self.gateway.requests],
             ["prepare", "claim", "stopped"],
+        )
+
+    async def test_transport_lost_claim_can_ack_exact_owner_without_reclaim(self):
+        """A lost HTTP response permits cleanup, without authorizing an opening."""
+        self.gateway.errors["claim"] = ControlResponseLost("synthetic response lost")
+        with self.assertRaises(ControlResponseLost):
+            await self.track.run()
+        await self.track.run()
+        self.factory.assert_not_called()
+        self.audio_factory.assert_not_called()
+        self.assertFalse(await self.lease.claim())
+        self.assertEqual(
+            [body["action"] for body in self.gateway.requests],
+            ["prepare", "claim", "stopped"],
+        )
+        claim = self.gateway.requests[1]
+        stopped = self.gateway.requests[2]
+        self.assertEqual(stopped, {**claim, "action": "stopped"})
+
+    async def test_cancelled_claim_can_ack_exact_owner_without_reclaim(self):
+        """Cancellation while waiting for claim leaves an ambiguous exact owner."""
+        self.gateway.release["claim"].clear()
+        run = self.spawn(self.track.run())
+        await reached(self.gateway.entered["claim"])
+        run.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await run
+        self.factory.assert_not_called()
+        self.audio_factory.assert_not_called()
+        self.assertFalse(await self.lease.claim())
+        self.assertEqual(
+            [body["action"] for body in self.gateway.requests],
+            ["prepare", "claim", "stopped"],
+        )
+        self.assertEqual(
+            self.gateway.requests[2], {**self.gateway.requests[1], "action": "stopped"}
+        )
+
+    async def test_explicit_claim_http_refusal_never_acknowledges_stopped(self):
+        """A temporary HTTP refusal is distinct from a transport-lost response."""
+        self.gateway.errors["claim"] = ControlUnavailable("synthetic HTTP refusal")
+        with self.assertRaises(ControlUnavailable):
+            await self.track.run()
+        self.factory.assert_not_called()
+        self.audio_factory.assert_not_called()
+        self.assertFalse(await self.lease.claim())
+        self.assertEqual(
+            [body["action"] for body in self.gateway.requests], ["prepare", "claim"]
+        )
+
+    async def test_wrong_claim_owner_never_opens_or_acknowledges_stopped(self):
+        """A received claim for another owner cannot justify this worker's ACK."""
+        self.gateway.responses["claim"] = {
+            "worker_instance_ref": "different_worker_reference_001"
+        }
+        with self.assertRaises(ControlError):
+            await self.track.run()
+        await self.track.aclose()
+        await self.track.run()
+        self.factory.assert_not_called()
+        self.audio_factory.assert_not_called()
+        self.assertEqual(self.speech.pushed, [])
+        self.assertEqual(
+            [body["action"] for body in self.gateway.requests], ["prepare", "claim"]
+        )
+        self.assertFalse(self.lease.can_send())
+        self.assertFalse(await self.lease.claim())
+
+    async def test_incoherent_claim_receipts_never_open_or_acknowledge_stopped(self):
+        """Exercise run-finally for malformed bindings, states, flags and leases."""
+        invalid_receipts = [
+            {"source_ref": "different_source_reference_001"},
+            {"admission_ref": "different_admission_reference_001"},
+            {"attempt_ref": "different_attempt_reference_001"},
+            {"action": "renew"},
+            {"version": True},
+            {"unexpected": True},
+            {"state": "unknown"},
+            {"send_authorized": 1},
+            {"start_authorized": 1},
+            {"replayed": 0},
+            {"replayed": True},
+            {"state": "stop_requested"},
+            {"lease_expires_at": True},
+            {"lease_expires_at": int(time.time()) - 1},
+        ]
+        for receipt in invalid_receipts:
+            with self.subTest(receipt=receipt):
+                gateway = Gateway()
+                gateway.responses["claim"] = receipt
+                lease = authority(gateway)
+                track = TrackTranscriber(
+                    track=object(),
+                    participant=self.track.participant,
+                    track_sid="TR_track",
+                    publisher=self.publisher,
+                    vad=object(),
+                    authority=lease,
+                )
+                with self.assertRaises(ControlError):
+                    await track.run()
+                await track.aclose()
+                await track.run()
+                self.factory.assert_not_called()
+                self.audio_factory.assert_not_called()
+                self.assertEqual(
+                    [body["action"] for body in gateway.requests], ["prepare", "claim"]
+                )
+                self.assertFalse(lease.can_send())
+                self.assertFalse(await lease.claim())
+
+    async def test_malformed_claim_body_never_acknowledges_stopped(self):
+        """A received body rejected by the HTTP parser is not a lost response."""
+        self.gateway.errors["claim"] = ControlError("invalid control JSON")
+        with self.assertRaises(ControlError):
+            await self.track.run()
+        self.factory.assert_not_called()
+        self.audio_factory.assert_not_called()
+        self.assertEqual(
+            [body["action"] for body in self.gateway.requests], ["prepare", "claim"]
         )
 
     async def test_withdrawal_closes_and_joins_before_stopped_ack(self):

@@ -61,11 +61,16 @@ never participant display names or attributes.
    Every `push_frame` rechecks authority, and an independent watchdog checks
    expiry even while renewal I/O or its cancellation cleanup is blocked.
 4. Expiry, refusal, transport loss or malformed continuation response fences
-   admission synchronously. Cancel/close the SDK and join the existing local
+   admission and the SDK socket synchronously. Queued appends/commits are
+   discarded before reaching the socket; pending write tasks are cancelled.
+   Bytes already handed to the network cannot be recalled. Close the SDK and
+   join the existing local
    audio and ordered publication barriers. Do not flush queued audio or call
    `end_input`. Join control I/O after audio closes. Only successful local
    shutdown/delivery can send `stopped`; SDK close or publication failure
-   prevents ACK. A failed/ambiguous ACK is not silently retried.
+   prevents ACK. A received incoherent claim also forbids ACK; only a coherent
+   receipt or an unknown transport outcome can justify exact-owner cleanup.
+   A failed/ambiguous ACK is not silently retried.
 5. Retain the local epoch tombstone for this job, including after reconnect,
    unsubscribe or failure. No second provider is opened under the same epoch.
    A later job still depends on Core's permanently sealed source ownership.

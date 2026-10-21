@@ -47,6 +47,10 @@ class ControlUnavailable(ControlError):
     """Allow bounded preparation retries, never ambiguous claim retries."""
 
 
+class ControlResponseLost(ControlUnavailable):
+    """Retain an unknown command outcome after interrupted HTTP transport."""
+
+
 def _reference(value: object) -> str:
     if not isinstance(value, str) or not _REFERENCE.fullmatch(value):
         raise ControlError("invalid control reference")
@@ -196,7 +200,7 @@ class LiveControlClient:
                             raise ControlError("live control response too large")
                     return _json_object(bytes(raw))
         except (aiohttp.ClientError, TimeoutError) as error:
-            raise ControlUnavailable("live control transport failed") from error
+            raise ControlResponseLost("live control transport failed") from error
 
 
 class LiveSendAuthority:
@@ -233,6 +237,7 @@ class LiveSendAuthority:
         self.source: dict[str, str] = {}
         self.deadline = 0.0
         self.claim_sent = False
+        self._claim_can_ack_stop = False
         self._preparing = False
         self.fenced = False
 
@@ -268,7 +273,16 @@ class LiveSendAuthority:
         if self.fenced:
             return False
         self.claim_sent = True
-        response = await self._send("claim")
+        try:
+            response = await self._send("claim")
+        except (ControlResponseLost, TimeoutError, asyncio.CancelledError):
+            # The exact attempt may have committed. Cleanup may ACK its owner,
+            # but an ambiguous claim must never be retried or open a provider.
+            self._claim_can_ack_stop = True
+            raise
+        # A received incoherent body/binding/lease raises before this point:
+        # merely sending a claim cannot justify an ACK from run-finally.
+        self._claim_can_ack_stop = True
         return response["start_authorized"] is True and self.can_send()
 
     async def _prepare(self) -> dict[str, object] | None:
@@ -361,5 +375,5 @@ class LiveSendAuthority:
     async def stopped(self) -> None:
         """Acknowledge only after the caller completed local close and delivery."""
         self.fence()
-        if self.claim_sent:
+        if self._claim_can_ack_stop:
             await self._send("stopped")

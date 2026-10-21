@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-22: Fence queued live SDK writes at the socket and cancel pending
+  writes before cleanup. Require a coherent claim or an unknown transport
+  outcome before acknowledging stop; block unattributed subtitle dispatches
+  from bypassing controlled-worker convergence.
+
 - 2026-10-22: Bind controlled live transcription to server RTC microphone
   facts and Core consent, claim one provider opening and enforce expiring
   send authority in the worker. Acknowledge stop after local cleanup; keep

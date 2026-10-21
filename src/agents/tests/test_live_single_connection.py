@@ -1,11 +1,13 @@
 """Execute pinned SDK retry/rotation loops with synthetic websocket transport."""
 
 import asyncio
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
+from livekit import rtc
 from livekit.plugins import openai
 from openai import AsyncOpenAI
 from test_live_audio_timing import ProtocolSocket, completed
@@ -103,6 +105,59 @@ class SingleConnectionSDKTests(unittest.IsolatedAsyncioTestCase):
         )
         self.publisher.publish_segment.assert_awaited_once()
         self.assertFalse(self.gateway.entered["stopped"].is_set())
+
+    async def test_queued_sdk_audio_never_sends_after_expiry_fence(self):
+        """Fence the real SDK sender with an admitted, ready queue of PCM frames."""
+        await self.start_track()
+        admitted = []
+
+        async def observe_send(message):
+            if message["type"] == "input_audio_buffer.append":
+                admitted.append(self.lease.can_send())
+
+        self.socket.send_json.side_effect = observe_send
+        for _ in range(20):
+            self.audio.frames.put_nowait(rtc.AudioFrame.create(24000, 1, 1200))
+        async with asyncio.timeout(2):
+            for _ in range(20):
+                await self.audio.delivered.get()
+        self.assertEqual(admitted, [])
+        self.lease.deadline = time.monotonic() - 1
+        await self.track.aclose()
+        await self.run
+        self.assertEqual(admitted.count(False), 0)
+        self.connector.assert_awaited_once()
+
+    async def test_fence_cancels_socket_write_before_held_io_can_resume(self):
+        """Cancel the real SDK writer while its synthetic append awaits I/O."""
+        await self.start_track()
+        entered = asyncio.Event()
+        cancelled = asyncio.Event()
+        release = asyncio.Event()
+        writes = []
+
+        async def held_send(message):
+            if message["type"] != "input_audio_buffer.append":
+                return
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+            writes.append(message)
+
+        self.socket.send_json.side_effect = held_send
+        self.audio.frames.put_nowait(rtc.AudioFrame.create(24000, 1, 1200))
+        await reached(entered)
+        self.track.fence_audio()
+        await reached(cancelled)
+        release.set()
+        await self.track.aclose()
+        await self.run
+        self.assertEqual(writes, [])
+        self.connector.assert_awaited_once()
+        self.socket.close.assert_awaited_once()
 
     async def test_real_sdk_transport_failure_has_zero_retry_or_second_socket(self):
         """max_retry=0 also disables the separate outer API retry loop."""
