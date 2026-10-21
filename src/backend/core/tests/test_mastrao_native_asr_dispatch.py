@@ -872,6 +872,7 @@ def test_queue_metrics_view_excludes_unverified_epochs(asr_intent, boundary):
 
 
 def test_queue_metrics_migration_recovers_existing_high_attempt_source(asr_intent):
+    latest_migrations = MigrationExecutor(connection).loader.graph.leaf_nodes("core")
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
         asr_attempts=8
     )
@@ -892,7 +893,7 @@ def test_queue_metrics_migration_recovers_existing_high_attempt_source(asr_inten
         MigrationExecutor(connection).migrate(previous)
         assert queue_metrics() == {"ready": (0, 0, 0), "retry": (0, 0, 0)}
     finally:
-        MigrationExecutor(connection).migrate(current)
+        MigrationExecutor(connection).migrate(latest_migrations)
 
 
 def test_sustained_ready_backlog_still_dispatches_retry(asr_intent, settings):
