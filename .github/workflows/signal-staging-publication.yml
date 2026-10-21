@@ -1,0 +1,16 @@
+name: Signal Meet staging publication
+
+on:
+  workflow_run:
+    workflows: [meet Workflow]
+    types: [completed]
+    branches: [develop]
+
+permissions: {}
+
+jobs:
+  signal:
+    if: vars.MEET_DEPLOYMENTS_SIGNAL_ENABLED == 'true'
+    uses: mvirassamy/mastrao-deployments/.github/workflows/signal-meet-publication.yml@f96996753a5a321728c5c32a82d9dc108016a92b
+    secrets:
+      MEET_DEPLOYMENTS_SIGNAL_APP_PRIVATE_KEY: ${{ secrets.MEET_DEPLOYMENTS_SIGNAL_APP_PRIVATE_KEY }}

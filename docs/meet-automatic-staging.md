@@ -5,6 +5,35 @@ Argo CD delivery path. It does not install an Application, change a writer,
 enable an automatic trigger, run a migration or deploy Meet. The cross-repository
 work is tracked in [Deployments #64](https://github.com/mvirassamy/mastrao-deployments/issues/64).
 
+## Prepared publication signal
+
+`.github/workflows/signal-staging-publication.yml` runs on completion of
+`meet Workflow` on `develop`, this repository's protected default branch. Its
+only job calls a dedicated Deployments reusable workflow at an immutable SHA
+with empty `GITHUB_TOKEN` permissions and one explicitly named Signal secret.
+No application code or receipt is executed with that identity.
+
+The hook stays skipped unless repository variable
+`MEET_DEPLOYMENTS_SIGNAL_ENABLED` is exactly `true`. The called workflow also
+requires canonical repository, protected `develop`, completed successful run
+and original `push` event. It sends only the validated run/attempt to the
+existing selection receiver on protected Deployments `main`. That receiver
+independently authenticates the three image receipts and still requires its own
+`MEET_STAGING_PREPARATION_ENABLED` guard. Missing first selection remains blocked
+for explicit owner review of native images and the two agents' convergence.
+
+Merge the Deployments implementation first and update this caller's SHA to the
+reviewed resulting `main` commit after any squash or rebase. Before a separately
+approved activation, confirm private reusable-workflow access and the existing
+Signal App's Actions-only access to Deployments. The called job uses Meet's
+`meet-staging-delivery-signal` environment, restricted to protected `develop`,
+with public `MEET_DEPLOYMENTS_SIGNAL_APP_ID` and private
+`MEET_DEPLOYMENTS_SIGNAL_APP_PRIVATE_KEY` references. No key, environment,
+permission or repository setting is provisioned by this source change.
+See the [Deployments Signal procedure](https://github.com/mvirassamy/mastrao-deployments/blob/main/docs/meet-publication-signal.md)
+for the separate activation prerequisites. Both guards remain closed here.
+This hook does not activate Argo or prove automatic delivery.
+
 ## First delivery scope
 
 The first useful release must prove a two-party meeting: authenticated entry,
