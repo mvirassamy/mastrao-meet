@@ -9,14 +9,13 @@ import math
 import os
 import time
 import uuid
+from collections import deque
 from collections.abc import Awaitable
 from dataclasses import dataclass
 
 from livekit import rtc
 from livekit.agents import JobContext, stt
 from livekit.plugins import openai
-
-from tasks import done_callback
 
 logger = logging.getLogger("transcriber.live")
 
@@ -26,6 +25,7 @@ SCHEMA_VERSION = 1
 MODEL = "gpt-live-transcribe"
 # Retain identities for one track leg up to the canonical transcript item cap.
 MAX_ITEMS_PER_TRACK = 100_000
+MAX_PENDING_EVENTS_PER_TRACK = 256
 
 
 async def _await_shutdown(completion: asyncio.Task[None]) -> None:
@@ -118,6 +118,19 @@ def _language(data: stt.SpeechData) -> str | None:
     """Return the detected language without serializing SDK internals."""
     language = str(data.language)
     return language or None
+
+
+def _has_transcript(event: stt.SpeechEvent) -> bool:
+    """Identify events that need space in the publication queue."""
+    return bool(
+        event.type
+        in (
+            stt.SpeechEventType.INTERIM_TRANSCRIPT,
+            stt.SpeechEventType.FINAL_TRANSCRIPT,
+        )
+        and event.alternatives
+        and event.alternatives[0].text.strip()
+    )
 
 
 @dataclass(frozen=True)
@@ -268,12 +281,30 @@ class TrackTranscriber:
         self._audio_stream: rtc.AudioStream | None = None
         self._provider: openai.STT | None = None
         self._audio_task: asyncio.Task[None] | None = None
+        self._reader_task: asyncio.Task[None] | None = None
+        self._publication_task: asyncio.Task[None] | None = None
+        self._delivery_close_task: asyncio.Task[None] | None = None
+        self._pending_events: deque[stt.SpeechEvent] = deque()
+        self._events_ready = asyncio.Event()
+        self._speech_read_done = False
+        self._incomplete_reasons: list[str] = []
         self._run_task: asyncio.Task[None] | None = None
         self._run_done = asyncio.Event()
         self._resource_close_task: asyncio.Task[None] | None = None
         self._close_task: asyncio.Task[None] | None = None
         self._closing = False
         self._items: dict[str, _ItemState] = {}
+
+    @property
+    def incomplete_reasons(self) -> tuple[str, ...]:
+        """Expose local delivery uncertainty even if publishing a gap fails."""
+        return tuple(self._incomplete_reasons)
+
+    def _mark_incomplete(self, reason: str) -> None:
+        """Retain uncertainty without claiming durable transcript collection."""
+        if reason not in self._incomplete_reasons:
+            self._incomplete_reasons.append(reason)
+            logger.warning("incomplete transcription for %s: %s", self.leg_id, reason)
 
     async def run(self) -> None:
         """Pump one LiveKit audio track into one OpenAI realtime stream."""
@@ -291,20 +322,98 @@ class TrackTranscriber:
             self._audio_task = asyncio.create_task(
                 self._push_audio(self._audio_stream, self._speech_stream)
             )
-            async for event in self._speech_stream:
-                await self._handle_event(event)
+            self._reader_task = asyncio.create_task(
+                self._read_speech(self._speech_stream)
+            )
+            self._reader_task.add_done_callback(self._on_speech_read_done)
+            self._publication_task = asyncio.create_task(self._publish_events())
+            await asyncio.wait(
+                (self._reader_task, self._publication_task),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
         finally:
             self._closing = True
             try:
                 await self._close_resources()
             finally:
-                self._run_done.set()
+                try:
+                    await self._finish_delivery()
+                finally:
+                    self._run_done.set()
+
+    async def _read_speech(self, speech_stream: stt.RecognizeStream) -> None:
+        """Consume SDK events independently of ordered room publication."""
+        async for event in speech_stream:
+            if not _has_transcript(event):
+                continue
+            if len(self._pending_events) >= MAX_PENDING_EVENTS_PER_TRACK:
+                self._mark_incomplete("publication-capacity-exceeded")
+                raise RuntimeError("live transcription publication capacity exceeded")
+            self._pending_events.append(event)
+            self._events_ready.set()
+
+    def _on_speech_read_done(self, _: asyncio.Task[None]) -> None:
+        """Wake publication even if the reader was cancelled before starting."""
+        self._speech_read_done = True
+        self._events_ready.set()
+
+    async def _publish_events(self) -> None:
+        """Publish the bounded accepted queue in SDK order, including at stop."""
+        while True:
+            await self._events_ready.wait()
+            while self._pending_events:
+                await self._handle_event(self._pending_events.popleft())
+            if self._speech_read_done:
+                return
+            self._events_ready.clear()
+
+    async def _finish_delivery(self) -> None:
+        """Join accepted publications despite cancellation of the run waiter."""
+        if self._delivery_close_task is None:
+            self._delivery_close_task = asyncio.create_task(self._drain_delivery())
+        await _await_shutdown(self._delivery_close_task)
+
+    async def _drain_delivery(self) -> None:
+        """Report losses after draining what remains publicly readable."""
+        errors: list[BaseException] = []
+        for task, reason in (
+            (self._reader_task, "speech-consumption-failed"),
+            (self._publication_task, "publication-failed"),
+        ):
+            if task is None:
+                continue
+            result = (await asyncio.gather(task, return_exceptions=True))[0]
+            if isinstance(result, BaseException):
+                if (
+                    task is self._reader_task
+                    and task.cancelled()
+                    and "sdk-close-failed" in self._incomplete_reasons
+                ):
+                    # The failed SDK close is already retained by _close_resources.
+                    continue
+                self._mark_incomplete(reason)
+                errors.append(result)
+        for reason in self._incomplete_reasons:
+            try:
+                await self._publisher.publish_gap(reason)
+            except Exception as error:
+                logger.error(
+                    "failed to publish transcription gap: %s (%s)",
+                    reason,
+                    type(error).__name__,
+                )
+                errors.append(error)
+        if errors:
+            raise BaseExceptionGroup("live transcription delivery incomplete", errors)
 
     async def aclose(self) -> None:
         """Fence new audio and await the shared local shutdown outcome.
 
         This does not revoke audio already admitted to the SDK or certify that
         a remote provider has stopped processing previously transmitted audio.
+        Completion joins local delivery; incomplete_reasons and gap events
+        describe uncertainty at the SDK iterator boundary. Delivery failures
+        are retained for every caller, including when reporting a gap fails.
         """
         self._closing = True
         if self._close_task is None:
@@ -313,16 +422,19 @@ class TrackTranscriber:
 
     async def _stop(self) -> None:
         """Join SDK closure and any transcript publication already in progress."""
+        errors: list[BaseException] = []
         try:
             await self._close_resources()
-        except BaseException:
-            # A failed SDK close may leave the event iterator waiting forever.
-            if self._run_task is not None and not self._run_done.is_set():
-                self._run_task.cancel()
-            raise
-        finally:
-            if self._run_task is not None:
-                await self._run_done.wait()
+        except BaseException as error:
+            errors.append(error)
+        if self._run_task is not None:
+            await self._run_done.wait()
+        try:
+            await self._finish_delivery()
+        except BaseException as error:
+            errors.append(error)
+        if errors:
+            raise BaseExceptionGroup("live transcription stop incomplete", errors)
 
     async def _close_resources(self) -> None:
         """Share cleanup between run-finally and explicit shutdown callers."""
@@ -335,6 +447,11 @@ class TrackTranscriber:
         errors: list[BaseException] = []
         if self._audio_task is not None:
             self._audio_task.cancel()
+        if self._reader_task is not None and not self._reader_task.done():
+            # SDK 1.8.3 aclose() closes its public iterator too. There is no
+            # public stop-sender-then-drain operation or unread-final count.
+            # Keep reading concurrently, but do not certify exhaustive recovery.
+            self._mark_incomplete("sdk-close-final-drain-unconfirmed")
         # Do not let the SDK drain queued audio behind a slow input finalizer.
         # Neither end_input() nor flush() belongs in this stop path.
         for resource, label in (
@@ -347,11 +464,14 @@ class TrackTranscriber:
             try:
                 await resource.aclose()
             except (Exception, asyncio.CancelledError) as error:
-                logger.exception("failed to close %s", label)
+                logger.error("failed to close %s (%s)", label, type(error).__name__)
                 errors.append(error)
         if self._audio_task is not None:
             await asyncio.gather(self._audio_task, return_exceptions=True)
         if errors:
+            self._mark_incomplete("sdk-close-failed")
+            if self._reader_task is not None:
+                self._reader_task.cancel()
             raise BaseExceptionGroup("live transcription shutdown failed", errors)
         self._speech_stream = None
         self._audio_stream = None
@@ -372,16 +492,9 @@ class TrackTranscriber:
 
     async def _handle_event(self, event: stt.SpeechEvent) -> None:
         """Publish transcript-bearing events and ignore lifecycle events."""
-        if event.type not in (
-            stt.SpeechEventType.INTERIM_TRANSCRIPT,
-            stt.SpeechEventType.FINAL_TRANSCRIPT,
-        ):
-            return
-        if not event.alternatives:
+        if not _has_transcript(event):
             return
         data = event.alternatives[0]
-        if not data.text.strip():
-            return
         # Without a provider request_id, replay/correction identity is unknown.
         # Keep those events independent rather than guessing from their text.
         item_id = event.request_id or uuid.uuid4().hex
@@ -527,10 +640,9 @@ class LiveTranscriber:
         if self._closed:
             return
         logger.warning(
-            "track subscription failed for %s/%s: %s",
+            "track subscription failed for %s/%s",
             participant.identity,
             track_sid,
-            error,
         )
         self._spawn(self._publish_gap("track-subscription-failed"))
 
@@ -589,13 +701,7 @@ class LiveTranscriber:
         task = asyncio.create_task(self._run_session(key, session))
         self._session_tasks[key] = task
         self._session_task_set.add(task)
-        task.add_done_callback(
-            done_callback(
-                logger,
-                self._session_task_set,
-                f"run live transcription for {participant_identity}/{track_sid}",
-            )
-        )
+        task.add_done_callback(self._on_task_done)
 
     async def _run_session(
         self, key: tuple[str, str], session: TrackTranscriber
@@ -605,13 +711,20 @@ class LiveTranscriber:
             await session.run()
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.exception("live transcription failed for %s/%s", *key)
+        except Exception as error:
+            logger.error(
+                "live transcription failed for %s/%s (%s)",
+                *key,
+                type(error).__name__,
+            )
             if not self._closed:
                 try:
                     await self._publisher.publish_gap("provider-error")
-                except Exception:
-                    logger.exception("failed to publish provider error gap")
+                except Exception as gap_error:
+                    logger.error(
+                        "failed to publish provider error gap (%s)",
+                        type(gap_error).__name__,
+                    )
         finally:
             # Retain a failed stop so a later subscription cannot reopen it.
             await session.aclose()
@@ -722,9 +835,19 @@ class LiveTranscriber:
         """Schedule room callback work and retain it for clean shutdown."""
         task = asyncio.create_task(awaitable)
         self._tasks.add(task)
-        task.add_done_callback(
-            done_callback(logger, self._tasks, "live transcription lifecycle work")
-        )
+        task.add_done_callback(self._on_task_done)
+
+    def _on_task_done(self, task: asyncio.Task) -> None:
+        """Retire background work without logging sensitive upstream exceptions."""
+        self._session_task_set.discard(task)
+        self._tasks.discard(task)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logger.error(
+                "live transcription background work failed (%s)", type(error).__name__
+            )
 
     @staticmethod
     def _is_audio(track: rtc.Track) -> bool:

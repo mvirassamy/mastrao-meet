@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-21: Collect live SDK events independently of blocked subtitle
+  publication, drain the bounded accepted queue during shutdown and share
+  delivery failures across stop callers. Report overflow and uncertain unread
+  SDK finals explicitly; no audio flush, retry or mode activation is added.
+
 - 2026-10-21: Fence new live audio during track shutdown and await the same
   local cleanup for concurrent callers. Surface failed cleanup before restart;
   keep consent wiring and provider-side guarantees separate. Finals unread

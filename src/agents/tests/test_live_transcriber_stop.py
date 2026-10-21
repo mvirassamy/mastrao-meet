@@ -155,7 +155,9 @@ class LiveTranscriptionStopTests(unittest.IsolatedAsyncioTestCase):
         self.speech = SpeechSource()
         self.provider = CloseGate()
         self.provider.stream = MagicMock(return_value=self.speech)
-        self.publisher = SimpleNamespace(publish_segment=AsyncMock())
+        self.publisher = SimpleNamespace(
+            publish_segment=AsyncMock(), publish_gap=AsyncMock()
+        )
         self.track = TrackTranscriber(
             track=object(),
             participant=SimpleNamespace(identity="alice"),
@@ -435,6 +437,51 @@ class LiveTranscriptionStopTests(unittest.IsolatedAsyncioTestCase):
             for _ in range(2):
                 with self.assertRaises(ExceptionGroup):
                     await manager.aclose()
+
+    async def test_failed_sdk_close_cancels_reader_and_drains_accepted_finals(self):
+        """An SDK iterator left open on failure cannot hold the stop forever."""
+        publishing, release = asyncio.Event(), asyncio.Event()
+        self.releases.append(release)
+        published = []
+
+        async def publish(event):
+            if event.item_id == "a":
+                publishing.set()
+                await release.wait()
+            published.append(event.item_id)
+
+        self.publisher.publish_segment.side_effect = publish
+        for item_id in ("a", "b"):
+            self.speech.events.put_nowait(
+                stt.SpeechEvent(
+                    type=stt.SpeechEventType.FINAL_TRANSCRIPT,
+                    request_id=item_id,
+                    alternatives=[stt.SpeechData(language="fr", text=item_id)],
+                )
+            )
+        run = await self.start_track()
+        await reached(publishing)
+        self.speech.close_error = RuntimeError("private SDK failure")
+        with self.assertLogs("transcriber.live", level="WARNING") as logs:
+            first = self.spawn(self.track.aclose())
+            await reached(self.provider.closed)
+            second = await self.concurrent_close(self.track.aclose)
+            self.assertFalse(first.done())
+            self.assertFalse(second.done())
+            release.set()
+            async with asyncio.timeout(2):
+                results = await asyncio.gather(
+                    run, first, second, return_exceptions=True
+                )
+        for result in results:
+            self.assertIsInstance(result, ExceptionGroup)
+        self.assertIs(results[1], results[2])
+        self.assertEqual(published, ["a", "b"])
+        self.assertTrue(self.track._reader_task.cancelled())
+        self.assertTrue(self.track._publication_task.done())
+        self.provider.stream.assert_called_once()
+        self.publisher.publish_gap.assert_any_await("sdk-close-failed")
+        self.assertNotIn("private SDK failure", "\n".join(logs.output))
 
     async def test_real_sdk_cancels_sender_with_buffered_audio_before_return(self):
         """Execute SDK 1.8.3 closure, with audio queued behind a blocked send."""
