@@ -12,11 +12,13 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
 from livekit import api
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from core import models, utils
+from core.mastrao_live_worker_control import live_control_metadata
+from core.mastrao_recording_contract import RecordingContractRefused
 from core.tasks.subtitle import SUBTITLE_CONTROL_QUEUE
 
 from .subtitle_control import (
@@ -135,17 +137,48 @@ def _is_room_dispatch(dispatch, room_sid):
     return metadata is None or metadata.get("roomSid") == room_sid
 
 
-def _dispatch_metadata_json(room_sid, generation, provider):
-    return json.dumps(
-        {
-            "roomSid": room_sid,
-            "generation": generation,
-            "provider": provider,
-            "agentName": settings.ROOM_SUBTITLE_AGENT_NAME,
-        },
-        separators=(",", ":"),
-        sort_keys=True,
+def _dispatch_metadata_json(room_sid, generation, provider, live_control=None):
+    metadata = {
+        "roomSid": room_sid,
+        "generation": generation,
+        "provider": provider,
+        "agentName": settings.ROOM_SUBTITLE_AGENT_NAME,
+    }
+    if live_control is not None:
+        metadata["liveControl"] = live_control
+    return json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+
+
+def _has_live_control(dispatch, expected):
+    existing = (_dispatch_metadata(dispatch) or {}).get("liveControl")
+    if not isinstance(existing, dict) or set(existing) != {
+        "version",
+        "url",
+        "capability",
+    }:
+        return False
+    if not isinstance(existing["version"], int) or isinstance(
+        existing["version"], bool
+    ):
+        return False
+    return (
+        existing["version"] == 1
+        and existing["url"] == expected["url"]
+        and isinstance(existing["capability"], str)
+        and bool(existing["capability"])
     )
+
+
+async def _live_control_for_dispatch(room_sid, generation, provider):
+    """Build private control outside the event loop, retaining an opaque failure."""
+    try:
+        return await sync_to_async(live_control_metadata)(
+            room_sid, generation, provider
+        )
+    except RecordingContractRefused as error:
+        raise SubtitleReconciliationAmbiguous(
+            "Live subtitle control is unavailable."
+        ) from error
 
 
 async def _list_dispatches(client, room_name, *, not_found_is_empty=False):
@@ -251,6 +284,7 @@ async def _canonical_current_dispatch(  # noqa: PLR0913, PLR0917  # pylint: disa
     generation,
     provider,
     dispatches,
+    live_control=None,
 ):
     """Adopt one legacy dispatch or deterministically remove duplicates."""
 
@@ -279,6 +313,12 @@ async def _canonical_current_dispatch(  # noqa: PLR0913, PLR0917  # pylint: disa
     ]
     if not candidates:
         return None
+    if live_control is not None:
+        for dispatch in candidates:
+            if not _has_live_control(dispatch, live_control):
+                raise SubtitleReconciliationAmbiguous(
+                    "LiveKit subtitle dispatch requires scoped live control."
+                )
     candidates.sort(key=_dispatch_sort_key)
     winner = candidates[0]
     for duplicate in candidates[1:]:
@@ -302,7 +342,7 @@ async def _canonical_current_dispatch(  # noqa: PLR0913, PLR0917  # pylint: disa
     return winner
 
 
-async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements,too-many-branches
+async def _reconcile_provider_unlocked(  # noqa: PLR0912, PLR0915  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-return-statements,too-many-branches
     room_name,
     room_sid,
     desired_state,
@@ -362,6 +402,8 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-
                 had_dispatches=bool(targeted),
             )
 
+        live_control = await _live_control_for_dispatch(room_sid, generation, provider)
+
         lower_generations = _lower_generation_dispatches(
             targeted,
             room_sid,
@@ -387,6 +429,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-
             generation,
             provider,
             targeted,
+            live_control=live_control,
         )
         if canonical is not None:
             return _ProviderResult(
@@ -404,6 +447,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-
                             room_sid,
                             generation,
                             provider,
+                            live_control,
                         ),
                     )
                 ),
@@ -430,6 +474,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-
                         generation,
                         provider,
                         confirmed,
+                        live_control=live_control,
                     )
                     if canonical is None:
                         raise SubtitleReconciliationAmbiguous(
@@ -462,6 +507,7 @@ async def _reconcile_provider_unlocked(  # noqa: PLR0912  # pylint: disable=too-
             generation,
             provider,
             confirmed,
+            live_control=live_control,
         )
         if canonical is None:
             raise SubtitleReconciliationAmbiguous(

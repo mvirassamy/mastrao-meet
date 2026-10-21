@@ -208,6 +208,11 @@ def _commit_grant(request, grant, compact_grant, *, retain_oidc_user=False):
                 grant_ref=grant["grant_ref"]
             ).first()
             if existing is not None and retain_oidc_user:
+                if existing.organization_external_id not in (
+                    None,
+                    grant["organization_external_id"],
+                ):
+                    raise HostHandoffRefused()
                 if (
                     existing.room_binding_id != binding.pk
                     or existing.identity_id != identity.pk
@@ -221,6 +226,7 @@ def _commit_grant(request, grant, compact_grant, *, retain_oidc_user=False):
             created = models.MastraoHostGrant.objects.create(
                 handoff_ref=grant["handoff_ref"],
                 grant_ref=grant["grant_ref"],
+                organization_external_id=grant["organization_external_id"],
                 grant_digest=compact_digest(compact_grant),
                 credential_digest=grant["credential_digest"],
                 meeting_ref=grant["meeting_ref"],

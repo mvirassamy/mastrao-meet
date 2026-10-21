@@ -1135,3 +1135,32 @@ def test_concurrent_host_handoff_has_one_local_winner():
     assert models.MastraoHostGrant.objects.count() == 1
     assert models.MastraoHostIdentity.objects.count() == 1
     assert models.ResourceAccess.objects.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(
+    APPLICATION_BASE_URL="https://meet.mastrao.test",
+    MASTRAO_MEETING_INTEGRATION_CONFIGURED=True,
+    MASTRAO_PLATFORM_ORIGIN="https://platform.mastrao.test",
+)
+def test_verified_host_grant_persists_organization_at_handoff(client, handoff_signing):
+    """Persist tenant provenance from the real verified grant without recording."""
+    binding = _room_binding()
+    compact = _signed_host_grant(handoff_signing, "organization_0123456789")
+    verified = verify_host_grant(compact)
+    with mock.patch(
+        "core.mastrao_host_handoff._redeem", return_value=(verified, compact)
+    ):
+        response = client.post(
+            reverse("consume_mastrao_host_handoff"),
+            data="host_handoff=first.payload.signature",
+            content_type="application/x-www-form-urlencoded",
+            HTTP_ORIGIN="https://platform.mastrao.test",
+            HTTP_SEC_FETCH_SITE="cross-site",
+        )
+    assert response.status_code == 303
+    grant = models.MastraoHostGrant.objects.get()
+    assert grant.room_binding_id == binding.pk
+    assert grant.organization_external_id == verified["organization_external_id"]
+    assert grant.organization_external_id == "organization_0123456789"
+    assert not models.MastraoRecordingBinding.objects.exists()

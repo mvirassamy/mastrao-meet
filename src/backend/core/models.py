@@ -832,6 +832,8 @@ class MastraoHostGrant(BaseModel):
 
     handoff_ref = models.CharField(max_length=160, unique=True)
     grant_ref = models.CharField(max_length=160, unique=True)
+    # Verified at handoff; old grants stay unknown rather than borrowing recording policy.
+    organization_external_id = models.CharField(max_length=160, null=True, blank=True)
     grant_digest = models.CharField(max_length=64)
     credential_digest = models.CharField(max_length=64)
     meeting_ref = models.CharField(max_length=160)
