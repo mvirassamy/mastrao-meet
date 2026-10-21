@@ -5,10 +5,12 @@ on:
     branches:
       - develop
       - main
+      - develop_modes
   pull_request:
     branches:
       - develop
       - main
+      - develop_modes
   workflow_dispatch:
     inputs:
       source_sha:

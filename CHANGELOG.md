@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-21: Run CI on develop_modes and its pull requests, keeping candidate
+  publication restricted to develop while the demo branch stays separate.
+
 - 2026-10-21: Mark live audio timing uncertain, separate from UI receipt.
 
 - 2026-10-21: Keep LIVE item revisions monotonic within each track leg,

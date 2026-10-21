@@ -102,6 +102,7 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             ({"SOURCE_REPOSITORY": "someone/mastrao-meet"}, False),
             ({"SOURCE_EVENT_NAME": "pull_request"}, False),
             ({"SOURCE_REF": "refs/heads/main"}, False),
+            ({"SOURCE_REF": "refs/heads/develop_modes"}, False),
             ({"SOURCE_REF_PROTECTED": "false"}, False),
             ({"SOURCE_SHA": ""}, False),
             ({"SOURCE_SHA": "invalid"}, False),
