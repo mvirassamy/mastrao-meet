@@ -5,6 +5,57 @@ Argo CD delivery path. It does not install an Application, change a writer,
 enable an automatic trigger, run a migration or deploy Meet. The cross-repository
 work is tracked in [Deployments #64](https://github.com/mvirassamy/mastrao-deployments/issues/64).
 
+## Prepared publication signal
+
+`.github/workflows/signal-staging-publication.yml` runs on completion of
+`meet Workflow` on `develop`, this repository's protected default branch. Its
+four-step job validates the completed run/attempt, obtains the existing Signal
+App's short-lived token and dispatches the existing private Deployments receiver.
+`GITHUB_TOKEN` permissions are empty. It checks out no application code, executes
+no artifact and restores no cache.
+
+The hook stays skipped unless repository variable
+`MEET_DEPLOYMENTS_SIGNAL_ENABLED` is exactly `true`. Its job also requires the
+canonical source repository, protected `develop`, a completed successful run and
+original `push` event. Only the validated run/attempt is sent to
+`prepare-meet-staging.yml` on protected Deployments `main`. That receiver
+independently authenticates the three image receipts and still requires its own
+`MEET_STAGING_PREPARATION_ENABLED` guard. Missing first selection remains blocked
+for explicit owner review of native images and the two agents' convergence.
+
+Meet is public and Deployments is private. GitHub does not allow a public caller
+to use a private reusable workflow, so this job lives directly in Meet. No
+repository visibility or reusable-workflow sharing change is needed. The
+privileged promotion logic remains in Deployments.
+
+Before a separately approved activation, install this hook on protected
+`develop` and confirm the existing Signal App's Actions-only access to Deployments.
+The job uses Meet's `meet-staging-delivery-signal` environment, restricted to
+`develop` with no tags, with public `MEET_DEPLOYMENTS_SIGNAL_APP_ID` and private
+`MEET_DEPLOYMENTS_SIGNAL_APP_PRIVATE_KEY` references. The Signal guard must be a
+repository variable because job conditions run before environment variables are
+available. No key, environment, permission or repository setting is provisioned
+by this source change.
+See the [Deployments Signal procedure](https://github.com/mvirassamy/mastrao-deployments/blob/main/docs/meet-publication-signal.md)
+for the separate activation prerequisites. Both guards remain closed here.
+This hook does not activate Argo or prove automatic delivery.
+
+### Public dispatch diagnostics
+
+The Signal run's native Actions `display_title` exposes the exact source run and
+attempt as `Meet staging signal source <run>/<attempt>`. After GitHub accepts the
+fixed dispatch, its job summary records only those public identifiers, the Signal
+run/attempt/code SHA and the fixed receiver. It records `DISPATCH_ACCEPTED`, a null
+receiver run ID and false deployment/automatic-delivery claims. A failed dispatch
+emits no accepted summary. No artifact, new permission or secret is added.
+
+The summary is a human diagnostic. A later authenticated automatic-delivery
+projection must read the successful Signal/receiver Actions runs, require an
+unambiguous source pair and the existing Signal App actor, then join the exact
+PR/Policy/Merge commit to Argo's automated operation and release qualification.
+Deployments prepares its matching receiver run title separately. A title or
+summary alone cannot prove this chain or replace native/API evidence.
+
 ## First delivery scope
 
 The first useful release must prove a two-party meeting: authenticated entry,

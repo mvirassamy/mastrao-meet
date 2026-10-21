@@ -1,0 +1,91 @@
+name: Signal Meet staging publication
+run-name: Meet staging signal source ${{ github.event.workflow_run.id }}/${{ github.event.workflow_run.run_attempt }}
+
+on:
+  workflow_run:
+    workflows: [meet Workflow]
+    types: [completed]
+    branches: [develop]
+
+permissions: {}
+
+# Meet is public; the private Deployments receiver is reached by authenticated
+# dispatch, never by a cross-repository private reusable workflow.
+jobs:
+  signal:
+    if: >-
+      github.repository == 'mvirassamy/mastrao-meet' &&
+      github.event_name == 'workflow_run' &&
+      github.ref == 'refs/heads/develop' &&
+      github.ref_protected &&
+      github.event.action == 'completed' &&
+      github.event.workflow_run.name == 'meet Workflow' &&
+      github.event.workflow_run.status == 'completed' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'develop' &&
+      github.event.workflow_run.head_repository.full_name == 'mvirassamy/mastrao-meet' &&
+      github.event.workflow_run.event == 'push' &&
+      vars.MEET_DEPLOYMENTS_SIGNAL_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: meet-staging-delivery-signal
+    timeout-minutes: 5
+    env:
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.19.0
+      - name: Validate exact completed attempt before issuing a token
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          for (const value of [process.env.RUN_ID, process.env.RUN_ATTEMPT, process.env.GITHUB_RUN_ID, process.env.GITHUB_RUN_ATTEMPT]) {
+            if (!/^[1-9][0-9]*$/.test(value ?? '') || !Number.isSafeInteger(Number(value))) {
+              throw new Error('meet_completed_attempt_invalid');
+            }
+          }
+          if (!/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA ?? '')) throw new Error('meet_completed_attempt_invalid');
+          writeFileSync(join(process.env.RUNNER_TEMP, 'meet-promotion-dispatch.json'), JSON.stringify({
+            ref: 'main',
+            inputs: { operation: 'propose', run_id: process.env.RUN_ID, run_attempt: process.env.RUN_ATTEMPT },
+          }), { flag: 'wx', mode: 0o600 });
+          NODE
+      - name: Issue existing Signal identity for Deployments Actions only
+        id: signal-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          app-id: ${{ vars.MEET_DEPLOYMENTS_SIGNAL_APP_ID }}
+          private-key: ${{ secrets.MEET_DEPLOYMENTS_SIGNAL_APP_PRIVATE_KEY }}
+          owner: mvirassamy
+          repositories: mastrao-deployments
+          permission-actions: write
+      - name: Dispatch existing Meet selection workflow on protected main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.signal-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST \
+            repos/mvirassamy/mastrao-deployments/actions/workflows/prepare-meet-staging.yml/dispatches \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            --input "$RUNNER_TEMP/meet-promotion-dispatch.json" \
+            --silent
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const report = {
+            schemaVersion: 1,
+            kind: 'meet-staging-dispatch',
+            status: 'DISPATCH_ACCEPTED',
+            source: { repository: 'mvirassamy/mastrao-meet', runId: Number(process.env.RUN_ID), runAttempt: Number(process.env.RUN_ATTEMPT) },
+            signal: { runId: Number(process.env.GITHUB_RUN_ID), runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), codeSha: process.env.GITHUB_SHA },
+            receiver: { repository: 'mvirassamy/mastrao-deployments', workflow: 'prepare-meet-staging.yml', ref: 'main', operation: 'propose', runId: null },
+            deploymentApplied: false,
+            automaticMeetDeliveryProven: false,
+          };
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, '```json\n' + JSON.stringify(report, null, 2) + '\n```\n');
+          NODE
