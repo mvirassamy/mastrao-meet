@@ -195,7 +195,7 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
+    await screen.findByText('failure.unconfirmed')
     expect(
       (
         screen.getByRole('button', {
@@ -203,11 +203,7 @@ describe('private assistant connected flow', () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true)
-    expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'command.retry' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('Budget à confirmer.')
     expect(writes()).toHaveLength(2)
     expect(writes()[0][1]?.body).toBe(writes()[1][1]?.body)
@@ -224,11 +220,10 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
-    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
+    await screen.findByText('failure.unconfirmed')
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('Budget à confirmer.')
-    expect(screen.queryByText('command.unconfirmed')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
+    expect(screen.queryByText('failure.unconfirmed')).toBeNull()
     expect(writes()).toHaveLength(1)
   })
   it('rereads a conflict and requires explicit resubmission at the new thread version', async () => {
@@ -243,7 +238,9 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.conflict')
+    await screen.findByText('failure.conflict')
+    // The conversation was read again: nothing is left to retry.
+    expect(screen.queryByRole('button', { name: 'failure.retry' })).toBeNull()
     expect(writes()).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'ask' }))
     await screen.findByText('Budget à confirmer.')
@@ -458,7 +455,7 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.rejected')
+    await screen.findByText('failure.rejected')
     fireEvent.change(screen.getByRole('textbox', { name: 'question' }), {
       target: { value: 'Quelle échéance ?' },
     })
@@ -487,7 +484,9 @@ describe('private assistant connected flow', () => {
       within(dialog).getByRole('button', { name: 'delete.confirm' })
     )
     await within(dialog).findByText('command.unconfirmed')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'refresh' }))
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'command.retry' })
+    )
     await screen.findByText('empty')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(writes()).toHaveLength(1)
@@ -600,12 +599,12 @@ describe('terminal unknown assistant requests', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
+    await screen.findByText('failure.unconfirmed')
     expectSendingDisabled(true)
-    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('result.unknown')
     await waitFor(() => expectSendingDisabled(false))
-    expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'failure.retry' })).toBeNull()
     expect(writes()).toHaveLength(1)
     await chooseShortcut('short-summary')
     await screen.findByText('Budget à confirmer.')
@@ -617,7 +616,7 @@ describe('terminal unknown assistant requests', () => {
     expect(commands[1].expected_thread_version).toBe(2)
   })
 
-  it('keeps an uncertain local send blocking when reread finds only another terminal unknown command', async () => {
+  it('replays the same uncertain send when reread finds only another terminal unknown command', async () => {
     let sent = false
     api.mockImplementation(async (_path, options) => {
       if (options?.method === 'POST') {
@@ -630,13 +629,13 @@ describe('terminal unknown assistant requests', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
-    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
+    await screen.findByText('failure.unconfirmed')
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('result.unknown')
-    await screen.findByRole('button', { name: 'command.retry' })
+    await waitFor(() => expect(writes()).toHaveLength(2))
+    expect(writes()[1][1]?.body).toBe(writes()[0][1]?.body)
+    await screen.findByText('failure.unconfirmed')
     expectSendingDisabled(true)
-    fireEvent.click(screen.getByRole('button', { name: 'ask' }))
-    expect(writes()).toHaveLength(1)
   })
 })
 

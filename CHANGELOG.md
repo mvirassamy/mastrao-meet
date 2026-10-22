@@ -2,6 +2,9 @@
 
 - 2026-10-22: Gather the meeting assistant shortcuts in a "Shortcuts" menu of
   the composer, with 3D icons and a one-line hint for each shortcut.
+  Show a request that did not go through as an assistant reply with a single
+  "Try again", which rereads the conversation and replays the same request
+  only if it never landed.
 
 - 2026-10-22: Keep expired or replayed OIDC callbacks rejected while offering
   a clean login restart. Identify the active account when a meeting is

@@ -108,5 +108,11 @@
     "description": "Vos questions et réponses sur cette réunion seront effacées. La synthèse, le dossier et vos notes sont conservés.",
     "cancel": "Annuler",
     "confirm": "Effacer"
+  },
+  "failure": {
+    "unconfirmed": "Je n’ai pas pu terminer ma réponse.",
+    "conflict": "La conversation a changé dans un autre onglet. Je l’ai actualisée.",
+    "rejected": "Je n’ai pas pu traiter cette demande. Reformulez-la.",
+    "retry": "Réessayer"
   }
 }

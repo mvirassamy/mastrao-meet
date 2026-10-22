@@ -108,5 +108,11 @@
     "description": "Your questions and answers about this meeting will be cleared. The summary, the matter and your notes are kept.",
     "cancel": "Cancel",
     "confirm": "Clear"
+  },
+  "failure": {
+    "unconfirmed": "I couldn’t finish my answer.",
+    "conflict": "The conversation changed in another tab. I refreshed it.",
+    "rejected": "I couldn’t process this request. Rephrase it.",
+    "retry": "Try again"
   }
 }
