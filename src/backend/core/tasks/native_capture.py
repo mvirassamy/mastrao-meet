@@ -3,6 +3,17 @@
 from core.tasks._task import task
 
 
+@task(name="core.process_native_track_observations", queue="mastrao-native-admission")
+def process_native_track_observations(observation_id):
+    """Export metadata for one publication independently of capture admission."""
+
+    from core.mastrao_native_track_observations import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        reconcile_native_track_observations,
+    )
+
+    return reconcile_native_track_observations(limit=1, observation_id=observation_id)
+
+
 @task(name="core.process_native_admissions", queue="mastrao-native-admission")
 def process_native_admissions(connection_id):
     """Reconcile one durable native admission without waiting behind ASR work."""

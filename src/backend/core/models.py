@@ -1037,12 +1037,28 @@ class MastraoRtcObservation(BaseModel):
     track_type = models.PositiveSmallIntegerField(null=True, blank=True)
     track_source = models.PositiveSmallIntegerField(null=True, blank=True)
 
+    # Delivery state only; acknowledgements never change the verified event facts.
+    native_observation_acknowledged_at = models.DateTimeField(null=True, blank=True)
+    native_observation_claim = models.UUIDField(null=True, blank=True)
+    native_observation_claim_until = models.DateTimeField(null=True, blank=True)
+    native_observation_next_at = models.DateTimeField(default=timezone.now)
+
     class Meta:
         db_table = "meet_mastrao_rtc_observation"
         indexes = [
             models.Index(
                 fields=["room_binding", "room_sid", "participant_sid"],
                 name="mastrao_rtc_participant_idx",
+            ),
+            models.Index(
+                fields=["native_observation_next_at", "id"],
+                name="mastrao_rtc_obs_delivery_idx",
+                condition=models.Q(
+                    event_type="track_published",
+                    track_type=0,  # LiveKit AUDIO
+                    track_source=2,  # LiveKit MICROPHONE
+                    native_observation_acknowledged_at__isnull=True,
+                ),
             ),
         ]
 

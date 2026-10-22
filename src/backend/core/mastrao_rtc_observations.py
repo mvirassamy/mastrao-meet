@@ -15,6 +15,7 @@ from django.db import transaction
 
 from core import models
 from core.mastrao_native_admission import wake_native_admissions
+from core.mastrao_native_track_observations import wake_native_track_observation
 from core.mastrao_rtc_correlation import correlate_verified_observation
 
 PARTICIPANT_EVENTS = frozenset({"participant_joined", "participant_left"})
@@ -49,7 +50,7 @@ def _facts(event):
     # Documented UUIDs and older EV-prefixed IDs are both opaque server keys.
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", event.id):
         raise InvalidRtcObservation("Invalid event reference")
-    if event.created_at <= 0:
+    if not 0 < event.created_at <= 9_007_199_254_740_991:
         raise InvalidRtcObservation("Missing server event time")
     facts = {
         "event_id": event.id,
@@ -119,6 +120,8 @@ def _persist_observation(event, verified_body, room_id):
         room_binding=binding, payload_digest=digest, **facts
     )
     correlate_verified_observation(observation)
+    if observation.event_type == "track_published":
+        transaction.on_commit(lambda: wake_native_track_observation(observation.pk))
     if observation.event_type == "room_finished":
         return
     connection = models.MastraoRtcConnection.objects.get(
