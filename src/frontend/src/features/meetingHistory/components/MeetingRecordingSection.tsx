@@ -130,7 +130,10 @@ export const MeetingRecordingSection = ({
       )}
       <div
         className={recordingNotes({
-          underButton: Boolean(availableAction && access),
+          // Only a neighbouring action on the right leaves room for the
+          // date to extend under it; alone, the section keeps its width.
+          underNeighbour:
+            Boolean(availableAction && access) && align === 'start',
         })}
       >
         {/* The button already says the video is available. */}
@@ -206,10 +209,10 @@ const recordingSection = cva({
 })
 
 /**
- * Notes under the download button. From the `sm` breakpoint they take no
- * width of their own: the date reads on one line, aligned on the button's
- * edge, and may extend under the neighbouring action instead of pushing it
- * away.
+ * Notes under the download button. From the `sm` breakpoint, when another
+ * action sits on the right, they take no width of their own: the date reads
+ * on one line, aligned on the button's edge, and extends under that action
+ * instead of pushing it away.
  */
 const recordingNotes = cva({
   base: {
@@ -219,8 +222,7 @@ const recordingNotes = cva({
     gap: '0.25rem',
   },
   variants: {
-    // Without a button, the status message keeps its own width.
-    underButton: {
+    underNeighbour: {
       true: { sm: { width: 0, minWidth: '100%', whiteSpace: 'nowrap' } },
       false: {},
     },

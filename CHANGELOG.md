@@ -4,6 +4,13 @@
   settings, and distinguish an internal transcription suspension from missing
   audio while preserving available results. Alert thresholds never pause ASR.
 
+- 2026-10-22: Make the meeting assistant readable: a step-by-step loader until
+  the transcript is ready, answers without systematic warnings, time-only
+  source chips, the follow-up e-mail as a card to copy or open in the mail
+  app, and "Clear the conversation" in a menu.
+  Keep the video retention date under its button from overlapping the meeting
+  time when the assistant is docked.
+
 - 2026-10-21: Preserve the failed native ASR delivery stage and bounded public
   Core diagnostics in private-safe worker logs without changing retry state.
 

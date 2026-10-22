@@ -102,6 +102,28 @@ describe('recording history UI', () => {
     ).toBeTruthy()
     expect(document.querySelector('video')).toBeNull()
   })
+  it('lets the video date extend under a neighbouring action only', () => {
+    const dateNotes = () =>
+      screen.getByText(/recording.retainedUntil/).parentElement!.className
+    const view = render(
+      <MeetingRecordingSection
+        recording={normalizeMeetingRecording(available)}
+        timeZone="UTC"
+        align="start"
+      />
+    )
+    expect(dateNotes()).toContain('sm:w_0')
+    // Alone at the end of the header, the date keeps its own width so it
+    // cannot run over the meeting time on its left.
+    view.rerender(
+      <MeetingRecordingSection
+        recording={normalizeMeetingRecording(available)}
+        timeZone="UTC"
+        align="end"
+      />
+    )
+    expect(dateNotes()).not.toContain('sm:w_0')
+  })
 
   it('removes the action when retention expires on an open page', async () => {
     vi.useFakeTimers()

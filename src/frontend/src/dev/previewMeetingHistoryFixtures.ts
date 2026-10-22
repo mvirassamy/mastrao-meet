@@ -329,6 +329,26 @@ const previewAssistantThread = (meetingId: string) => ({
         publication_state: 'private_proposal',
       },
     },
+    {
+      command_id: 'command_preview_0003',
+      operation: 'email_draft',
+      question: null,
+      state: 'completed',
+      created_at: Math.floor(Date.now() / 1000) - 240,
+      coverage: previewCoverage,
+      result: {
+        state: 'answered',
+        text: 'Voici un brouillon de mail de suivi.',
+        rationale_category: 'supported',
+        citations: [previewCitation(meetingId, 'segment_preview_0003', 42_000)],
+        actions: [],
+        email_draft: {
+          subject: 'Suivi du point hebdomadaire',
+          body: 'Bonjour,\n\nMerci pour cet échange. Voici les points à retenir :\n\n- La livraison est maintenue au vendredi.\n- Camille prépare la liste des testeurs.\n- Karim teste l’accès mobile avant vendredi.\n\nBonne journée,',
+        },
+        publication_state: 'private_proposal',
+      },
+    },
   ],
 })
 
