@@ -186,6 +186,31 @@ remains an explicit activation qualification limit: rejection terminates the
 source without rotate/retry, padding, replay or manufactured silence. No arbitrary
 100-ms threshold is introduced from historical community reports.
 
+## Observed RTC room closure
+
+Meet persists an authenticated, exact-body-verified `room_finished` before
+acknowledging its webhook. The room-only fact has no participant or track;
+migration 0059 permits its empty participant fields in Django model state.
+Participant and track observations still require participant SID and identity.
+The migration adds no columns or data rewrite and does not change SQL nullability.
+
+Under the existing room-binding lock, closure ends only connections and track
+epochs for the exact binding and physical room SID. Late join/publish/unpublish
+facts remain durable and inherit the closed state; they cannot reopen that SID.
+A different room SID under the same binding remains separate. The existing
+provenance checks then refuse prepare/claim/renew/rotate for closed epochs,
+even if subtitle control has not yet processed its own OFF transition.
+Room-only ingestion does not create a fake connection or wake native admissions.
+The signed control envelope, generation checks and delivery/stopped rules remain
+in force; this change grants no additional audio send or final delivery right.
+
+This is a closure observation, not a sealed roster, terminal media boundary,
+provider drain receipt or common meeting clock. Missing webhooks remain unknown.
+It does not qualify a live source for complete summaries or activate a mode.
+For an application rollback, stop room-only ingestion and retain its facts;
+legacy model validators cannot resave participant-free rows. No SQL rewrite is
+required by this migration.
+
 ## Offline validation
 
 From the repository root:

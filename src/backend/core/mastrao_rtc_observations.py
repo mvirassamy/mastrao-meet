@@ -1,7 +1,7 @@
 """Durable intake after LiveKit's signature AND exact-body hash verification.
 
-This inbox records facts, including late leave/unpublish events. Arrival order
-does not establish media order, and a webhook timestamp is not an audio clock.
+This inbox records facts, including room closure and late leave/unpublish events.
+Arrival order does not establish media order; a webhook time is not an audio clock.
 Public token markers remain untrusted hints for the next correlation step.
 No names, arbitrary attributes, bearer tokens or raw payloads are retained.
 """
@@ -19,7 +19,7 @@ from core.mastrao_rtc_correlation import correlate_verified_observation
 
 PARTICIPANT_EVENTS = frozenset({"participant_joined", "participant_left"})
 TRACK_EVENTS = frozenset({"track_published", "track_unpublished"})
-OBSERVED_EVENTS = PARTICIPANT_EVENTS | TRACK_EVENTS
+OBSERVED_EVENTS = PARTICIPANT_EVENTS | TRACK_EVENTS | {"room_finished"}
 MEDIA_BINDING_ATTRIBUTE = "mastrao.media_token_binding_ref"
 
 
@@ -46,12 +46,9 @@ def _sid(value, prefix):
 
 
 def _facts(event):
-    participant = event.participant
     # Documented UUIDs and older EV-prefixed IDs are both opaque server keys.
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", event.id):
         raise InvalidRtcObservation("Invalid event reference")
-    if not participant.identity or len(participant.identity) > 255:
-        raise InvalidRtcObservation("Invalid RTC identity")
     if event.created_at <= 0:
         raise InvalidRtcObservation("Missing server event time")
     facts = {
@@ -59,12 +56,20 @@ def _facts(event):
         "event_type": event.event,
         "event_time_seconds": event.created_at,
         "room_sid": _sid(event.room.sid, "RM"),
-        "participant_sid": _sid(participant.sid, "PA"),
-        "rtc_identity": participant.identity,
-        "token_binding_ref": _uuid_or_none(
+    }
+    if event.event == "room_finished":
+        facts.update(participant_sid="", rtc_identity="", token_binding_ref=None)
+        return facts
+    participant = event.participant
+    if not participant.identity or len(participant.identity) > 255:
+        raise InvalidRtcObservation("Invalid RTC identity")
+    facts.update(
+        participant_sid=_sid(participant.sid, "PA"),
+        rtc_identity=participant.identity,
+        token_binding_ref=_uuid_or_none(
             participant.attributes.get(MEDIA_BINDING_ATTRIBUTE)
         ),
-    }
+    )
     if event.event in TRACK_EVENTS:
         if not event.HasField("track"):
             raise InvalidRtcObservation("Missing published track")
@@ -114,6 +119,8 @@ def _persist_observation(event, verified_body, room_id):
         room_binding=binding, payload_digest=digest, **facts
     )
     correlate_verified_observation(observation)
+    if observation.event_type == "room_finished":
+        return
     connection = models.MastraoRtcConnection.objects.get(
         room_binding=binding,
         room_sid=observation.room_sid,

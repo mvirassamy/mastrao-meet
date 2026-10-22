@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-22: Retain verified RTC room closure before acknowledgement and
+  close only that room SID's connection/track epochs, including late facts.
+  Preserve participant validation, exact cleanup and unverified media coverage.
+
 - 2026-10-22: Use the official Ubuntu archive for CI media dependencies
   after repeated slow Azure mirror downloads, keeping package verification.
   Update the runner mirror list for backend, summary and browser tests.
