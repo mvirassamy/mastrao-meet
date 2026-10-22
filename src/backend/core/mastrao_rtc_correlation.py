@@ -99,15 +99,41 @@ def _update_track(connection, observation):
     epoch.save()
 
 
+def _close_room_epochs(observation):
+    """Close only the observed physical room; this does not seal its roster."""
+    now = timezone.now()
+    models.MastraoRtcConnection.objects.filter(
+        room_binding_id=observation.room_binding_id,
+        room_sid=observation.room_sid,
+        ended=False,
+    ).update(ended=True, updated_at=now)
+    models.MastraoRtcTrackEpoch.objects.filter(
+        connection__room_binding_id=observation.room_binding_id,
+        connection__room_sid=observation.room_sid,
+        ended=False,
+    ).update(ended=True, updated_at=now)
+
+
 def correlate_verified_observation(observation):
     """Project facts atomically inside the room-locked ingestion transaction."""
+    if observation.event_type == "room_finished":
+        _close_room_epochs(observation)
+        return
     connection, _ = models.MastraoRtcConnection.objects.get_or_create(
         room_binding_id=observation.room_binding_id,
         room_sid=observation.room_sid,
         participant_sid=observation.participant_sid,
     )
     _correlate_join(connection)
-    connection.ended = connection.ended or observation.event_type == "participant_left"
+    connection.ended = (
+        connection.ended
+        or observation.event_type == "participant_left"
+        or models.MastraoRtcObservation.objects.filter(
+            room_binding_id=observation.room_binding_id,
+            room_sid=observation.room_sid,
+            event_type="room_finished",
+        ).exists()
+    )
     connection.save()
     _update_track(connection, observation)
     if connection.ended:

@@ -1028,8 +1028,8 @@ class MastraoRtcObservation(BaseModel):
     event_type = models.CharField(max_length=32)
     event_time_seconds = models.PositiveBigIntegerField()
     room_sid = models.CharField(max_length=128)
-    participant_sid = models.CharField(max_length=128)
-    rtc_identity = models.CharField(max_length=255)
+    participant_sid = models.CharField(max_length=128, blank=True)
+    rtc_identity = models.CharField(max_length=255, blank=True)
     # A public hint, deliberately not a grant/capture FK or authorization result.
     token_binding_ref = models.UUIDField(null=True, blank=True)
     track_sid = models.CharField(max_length=128, blank=True)
@@ -1047,6 +1047,19 @@ class MastraoRtcObservation(BaseModel):
 
     def __str__(self):
         return f"Mastrao RTC observation {self.event_id}"
+
+    def clean(self):
+        """Only room closure is a fact without a participant."""
+        super().clean()
+        if self.event_type == "room_finished":
+            return
+        errors = {}
+        if not self.participant_sid:
+            errors["participant_sid"] = "This event requires a participant SID."
+        if not self.rtc_identity:
+            errors["rtc_identity"] = "This event requires an RTC identity."
+        if errors:
+            raise ValidationError(errors)
 
 
 class MastraoRtcConnection(BaseModel):
