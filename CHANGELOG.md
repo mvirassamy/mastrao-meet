@@ -5,6 +5,7 @@
   Show a request that did not go through as an assistant reply with a single
   "Try again", which rereads the conversation and replays the same request
   only if it never landed.
+  Open the conversation on its last message and follow new ones.
 
 - 2026-10-22: Keep expired or replayed OIDC callbacks rejected while offering
   a clean login restart. Identify the active account when a meeting is

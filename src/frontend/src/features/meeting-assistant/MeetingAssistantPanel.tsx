@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowUpIcon,
@@ -232,6 +232,12 @@ export function MeetingAssistantPanel({
   const { t } = useTranslation('meetingAssistant')
   const ready = readiness === 'ready'
   const disabled = !ready || loading || pending || error || !canSend
+  // The conversation opens on its last message and follows new ones.
+  const end = useRef<HTMLDivElement>(null)
+  const shownTurns = loading ? 0 : turns.length
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: 'end' })
+  }, [shownTurns, pending])
   return (
     <section
       id="meeting-assistant"
@@ -423,6 +429,7 @@ export function MeetingAssistantPanel({
               </p>
             )}
             {children}
+            <div ref={end} />
           </>
         ) : (
           <div className={css({ margin: 'auto 0' })}>

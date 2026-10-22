@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
 import {
@@ -23,8 +24,14 @@ export function AssistantFailure({
   onRetry: () => void
 }) {
   const { t } = useTranslation('meetingAssistant')
+  const row = useRef<HTMLDivElement>(null)
+  // It appears under the last message, so it brings itself into view.
+  useEffect(() => {
+    row.current?.scrollIntoView?.({ block: 'end' })
+  }, [error])
   return (
     <div
+      ref={row}
       role="alert"
       className={css({
         display: 'flex',
