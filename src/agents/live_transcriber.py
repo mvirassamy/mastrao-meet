@@ -18,9 +18,15 @@ from livekit.agents import JobContext, stt
 from livekit.plugins import openai
 
 from live_continuation import ContinuationInput, continue_legs
+from live_delivery_codec import MAX_LEG_SAMPLES
 from live_durable_publisher import DurablePublisher
 from live_input_drain import InputDrainError
-from live_send_control import LiveControlClient, LiveSendAuthority
+from live_send_control import (
+    MAX_SAFE_SAMPLE,
+    PCM_SAMPLE_RATE,
+    LiveControlClient,
+    LiveSendAuthority,
+)
 from live_single_connection import AuthorizedOpenAI
 
 logger = logging.getLogger("transcriber.live")
@@ -174,6 +180,7 @@ class _ItemState:
     revision: int = 0
     end_time: int | None = None
     final_content: _FinalContent | None = None
+    durable_timing: dict[str, object] | None = None
 
 
 def _transcription_times(
@@ -289,6 +296,7 @@ class TrackTranscriber:
         self._control_join_task: asyncio.Task[None] | None = None
         self._authority_finish_task: asyncio.Task[None] | None = None
         self.leg_id = uuid.uuid4().hex
+        self._leg_audio_start_sample = 0
         self._speech_stream: stt.RecognizeStream | None = None
         self._audio_stream: rtc.AudioStream | None = None
         self._provider: openai.STT | None = None
@@ -447,6 +455,7 @@ class TrackTranscriber:
         if self._closing or not authority.can_send_leg(leg_ref):
             raise InputDrainError("live-continuation-open-not-authorized")
         self.leg_id = leg_ref
+        self._leg_audio_start_sample = authority.audio_start_sample
         self._provider = AuthorizedOpenAI(
             can_send=lambda: authority.can_send_leg(leg_ref),
             reconnect_refused=lambda: self._mark_incomplete(
@@ -783,17 +792,21 @@ class TrackTranscriber:
         if item is None:
             item = _ItemState(start_time=received_at)
         start_time, end_time = _transcription_times(event, item, received_at)
+        timing = item.durable_timing
+        if final and self._durable is not None and timing is None:
+            timing = await self._final_buffer_timing(event.request_id)
         revision = item.revision + 1
         next_item = _ItemState(
             revision=revision,
             start_time=start_time,
             end_time=end_time,
             final_content=final_content,
+            durable_timing=timing,
         )
         if final and self._durable is not None:
             # Controlled finals require the provider's actual item identity.
             await self._durable.publish_final(
-                event.request_id, revision, data.text, data.language
+                event.request_id, revision, data.text, data.language, timing=timing
             )
             # Retain the durable revision before the fallible UI effect.
             self._items[item_id] = next_item
@@ -811,6 +824,27 @@ class TrackTranscriber:
             )
         )
         self._items[item_id] = next_item
+
+    async def _final_buffer_timing(self, item_id: str) -> dict[str, object]:
+        """Translate proved commit bounds only within this immutable source leg."""
+        provider = self._provider
+        if provider is None:
+            # Physical shutdown may finish before accepted text publication.
+            return {"state": "unavailable"}
+        window = await provider.input_window(item_id)
+        if window is None:
+            return {"state": "unavailable"}
+        offset = self._leg_audio_start_sample
+        start = offset + window[0]
+        end = offset + window[1]
+        if not offset <= start < end <= min(MAX_SAFE_SAMPLE, offset + MAX_LEG_SAMPLES):
+            return {"state": "unavailable"}
+        return {
+            "state": "source_buffer",
+            "sample_rate": PCM_SAMPLE_RATE,
+            "start_sample": start,
+            "end_sample": end,
+        }
 
 
 class LiveTranscriber:

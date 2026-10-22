@@ -57,6 +57,26 @@ def _matches(pattern, value):
     return isinstance(value, str) and pattern.fullmatch(value) is not None
 
 
+def _canonical_timing(value):
+    """Keep committed buffer bounds in their source PCM clock, never meeting time."""
+    if not isinstance(value, dict):
+        raise ValueError
+    if value == {"state": "unavailable"}:
+        return {"state": "unavailable"}
+    fields = ("state", "sample_rate", "start_sample", "end_sample")
+    if (
+        set(value) != set(fields)
+        or value["state"] != "source_buffer"
+        or not _integer(value["sample_rate"], 24000, 24000)
+        or not _integer(value["start_sample"], 0, 2**53 - 1)
+        or not _integer(value["end_sample"], 1, 2**53 - 1)
+        or value["end_sample"] <= value["start_sample"]
+        or value["end_sample"] - value["start_sample"] > 540 * 24000
+    ):
+        raise ValueError
+    return {name: value[name] for name in fields}
+
+
 def _valid_final(event):
     text = event["text"]
     language = event["language"]
@@ -69,7 +89,6 @@ def _valid_final(event):
             language is None
             or _matches(re.compile(r"[a-z]{2}(?:-[A-Z]{2})?"), language)
         )
-        and event["timing"] == {"state": "unavailable"}
     ):
         return False
     # Zod's string bound counts UTF-16 code units, including surrogate pairs.
@@ -95,8 +114,8 @@ def _valid_payload(event):
 def canonical_delivery_event(value, command):
     """Validate one bound event and serialize in the shared schema field order.
 
-    The pinned SDK does not attest a meeting-relative origin. Active workers
-    therefore cannot assert audio timing here. Never normalize provider text.
+    Buffer bounds describe the input committed on one physical provider leg.
+    They do not attest speech timing or a meeting origin. Never normalize text.
     """
     try:
         if not isinstance(value, dict):
@@ -118,6 +137,8 @@ def canonical_delivery_event(value, command):
         ):
             raise ValueError
         event = {name: value[name] for name in fields}
+        if kind == "final":
+            event["timing"] = _canonical_timing(event["timing"])
         raw = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode()
         if len(raw) > MAX_EVENT_BYTES:
             raise ValueError

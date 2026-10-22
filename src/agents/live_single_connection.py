@@ -64,16 +64,19 @@ class _AuthorizedSocket:
                     self.drain.fence()
                     return
                 kind = message["type"]
+                commit = None
                 if kind == "input_audio_buffer.commit":
                     if self.drain.expected_samples is not None and not tail_commit:
                         return
-                    self.drain.committing()
+                    commit = self.drain.committing()
                 await self._socket.send_json(message)
                 if kind == "input_audio_buffer.append":
                     samples = (
                         len(base64.b64decode(message["audio"], validate=True)) // 2
                     )
                     self.drain.appended(samples)
+                if commit is not None:
+                    self.drain.commit_sent(commit)
         except BaseException:
             if not self._fenced:
                 self.drain.fail("live-input-socket-write-failed")
@@ -217,6 +220,16 @@ class AuthorizedOpenAI(openai.STT):
         self._socket.drain.seal(expected_samples)
         if not already_sealed:
             stream.end_input()
+
+    async def input_window(self, item_id: str) -> tuple[int, int] | None:
+        """Bound final provenance waits without guessing when an ACK is missing."""
+        if self._socket is None:
+            return None
+        try:
+            async with asyncio.timeout(DRAIN_TIMEOUT_SECONDS):
+                return await self._socket.drain.input_window(item_id)
+        except TimeoutError:
+            return None
 
     async def drain_input(self) -> frozenset[str]:
         """Share a bounded, retained drain outcome between all callers."""

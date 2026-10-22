@@ -314,3 +314,55 @@ def test_durable_text_is_filtered_from_captured_request(settings):
         scrub_mastrao_handoff_credentials(event, None)["request"]["data"]["event"]
         == "[Filtered]"
     )
+
+
+def test_signs_source_buffer_in_shared_field_order_without_claiming_meeting_time(
+    client, gateway
+):
+    timing = {
+        "state": "source_buffer",
+        "sample_rate": 24000,
+        "start_sample": 12960000,
+        "end_sample": 12962400,
+    }
+    body = delivery(gateway, timing=dict(reversed(list(timing.items()))))
+    result = receipt_for(body)
+    with mock.patch(POST, return_value=result) as post:
+        response = invoke(client, gateway, body)
+    assert response.status_code == 200
+    event = post.call_args.kwargs["body"]["event"]
+    assert event["timing"] == timing
+    assert list(event["timing"]) == list(timing)
+    assert response.json()["incomplete"] is True
+    assert response.json()["meeting_coverage"] == "unverified"
+    assert canonical_delivery_event(event, body)[1] == result["event_digest"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"sample_rate": 48000},
+        {"sample_rate": True},
+        {"start_sample": -1},
+        {"start_sample": True},
+        {"end_sample": 0},
+        {"end_sample": 1.5},
+        {"end_sample": 2**53},
+        {"end_sample": 540 * 24000 + 1},
+        {"meeting_origin_ms": 100},
+        {"speech_start_ms": 0},
+        {"state": "meeting_relative_ms"},
+    ],
+)
+def test_invalid_source_buffer_never_reaches_core(client, gateway, changes):
+    timing = {
+        "state": "source_buffer",
+        "sample_rate": 24000,
+        "start_sample": 0,
+        "end_sample": 2400,
+        **changes,
+    }
+    with mock.patch(POST) as post:
+        response = invoke(client, gateway, delivery(gateway, timing=timing))
+    assert response.status_code == 400
+    post.assert_not_called()

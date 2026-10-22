@@ -140,6 +140,89 @@ class SDKInputDrainTests(unittest.IsolatedAsyncioTestCase):
         self.socket.feed(committed("tail"))
         self.assertEqual(await drain, frozenset({"tail"}))
 
+    async def test_buffer_bounds_follow_commit_chain_not_ack_or_final_order(self):
+        """Real SDK appends bind two distinct input windows through reordered ACKs."""
+        self.push(1, 6)
+        first_commit_samples = 2400
+        await eventually(lambda: len(self.socket.samples) == first_commit_samples)
+        await self.provider._socket.send_json({"type": "input_audio_buffer.commit"})
+        await self.socket.commit_requests.get()
+        self.push(6, 8)
+        self.provider.seal_input(self.stream, 3360)
+        drain = self.spawn(self.provider.drain_input())
+        await self.socket.commit_requests.get()
+        self.socket.feed(completed("two", "second"), committed("two", "one"))
+        await eventually(lambda: self.finals == ["two"])
+        second = self.spawn(self.provider.input_window("two"))
+        await asyncio.sleep(0)
+        self.assertFalse(second.done())
+        self.socket.feed(committed("one"), completed("one", ""))
+        self.assertEqual(await second, (2400, 3360))
+        self.assertEqual(await self.provider.input_window("one"), (0, 2400))
+        self.assertEqual(await drain, frozenset({"two"}))
+        self.assertEqual(self.socket.chunks, [1200, 1200, 960])
+        self.connector.assert_awaited_once()
+
+    async def test_client_vad_keeps_silence_inside_the_committed_buffer(self):
+        """The input window includes quiet PCM and does not claim speech onset."""
+        self.stream.push_frame(numbered_frame(0, 1200))
+        self.stream.push_frame(numbered_frame(7, 1200))
+        self.provider.seal_input(self.stream, 2400)
+        drain = self.spawn(self.provider.drain_input())
+        await self.socket.commit_requests.get()
+        self.socket.complete_commit(1, text="speech after silence")
+        self.assertEqual(await drain, frozenset({"item-1"}))
+        self.assertEqual(await self.provider.input_window("item-1"), (0, 2400))
+        self.assertEqual(self.socket.samples, [0] * 1200 + [7] * 1200)
+
+    async def test_unknown_buffer_bounds_timeout_without_fabricated_evidence(self):
+        """An unacknowledged real final gets no received-time or count fallback."""
+        self.push(1, 6)
+        first_commit_samples = 2400
+        await eventually(lambda: len(self.socket.samples) == first_commit_samples)
+        await self.provider._socket.send_json({"type": "input_audio_buffer.commit"})
+        self.socket.feed(completed("unknown", "final before missing ACK"))
+        await eventually(lambda: self.finals == ["unknown"])
+        with patch("live_single_connection.DRAIN_TIMEOUT_SECONDS", 0.01):
+            self.assertIsNone(await self.provider.input_window("unknown"))
+        self.assertTrue(self.allowed)
+        self.connector.assert_awaited_once()
+
+    async def test_early_ack_and_final_wait_for_underlying_commit_send_success(self):
+        """Real receive can race a held send without certifying its reserved window."""
+        self.push(1, 6)
+        expected_samples = 2400
+        await eventually(lambda: len(self.socket.samples) == expected_samples)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def held_send(message):
+            await self.socket.send(message)
+            if message["type"] == "input_audio_buffer.commit":
+                self.socket.complete_commit(1)
+                entered.set()
+                await release.wait()
+
+        self.socket.send_json.side_effect = held_send
+        commit = self.spawn(
+            self.provider._socket.send_json({"type": "input_audio_buffer.commit"})
+        )
+        try:
+            await entered.wait()
+            await eventually(lambda: self.finals == ["item-1"])
+            proof = self.spawn(self.provider.input_window("item-1"))
+            self.provider.seal_input(self.stream, expected_samples)
+            drain = self.spawn(self.provider.drain_input())
+            await asyncio.sleep(0)
+            self.assertFalse(proof.done())
+            self.assertFalse(drain.done())
+            release.set()
+            await commit
+            self.assertEqual(await proof, (0, expected_samples))
+            self.assertEqual(await drain, frozenset({"item-1"}))
+        finally:
+            release.set()
+
     async def test_one_sample_tail_after_recent_commit_is_sent_exactly_once(self):
         """Synthetic acceptance proves framing, not the real provider's minimum."""
         await self.assert_tiny_tail(1)

@@ -7,6 +7,8 @@ from collections.abc import Callable
 
 from live_delivery_codec import (
     MAX_EVENTS_PER_SOURCE,
+    MAX_LEG_SAMPLES,
+    canonical_timing,
     event_digest,
     validate_receipt,
     validated_language,
@@ -46,19 +48,35 @@ class DurablePublisher:
         }
 
     async def publish_final(
-        self, item_ref: str, revision: int, text: str, language: object
+        self,
+        item_ref: str,
+        revision: int,
+        text: str,
+        language: object,
+        *,
+        timing: dict[str, object] | None = None,
     ) -> None:
         """Confirm exact provider identity/content before the caller reports success."""
         try:
             async with self._lock:
                 self._require_open()
+                if timing is None:
+                    timing = {"state": "unavailable"}
+                timing = canonical_timing(timing)
+                if timing["state"] == "source_buffer":
+                    leg_start = self._authority.audio_start_sample
+                    if (
+                        timing["start_sample"] < leg_start
+                        or timing["end_sample"] > leg_start + MAX_LEG_SAMPLES
+                    ):
+                        raise ControlError("delivery timing outside current leg")
                 event = self._event(
                     kind="final",
                     item_ref=item_ref,
                     revision=revision,
                     text=text,
                     language=validated_language(language),
-                    timing={"state": "unavailable"},
+                    timing=timing,
                 )
                 identity = (self._authority.leg_ref, item_ref, revision)
                 previous = self._finals.get(identity)

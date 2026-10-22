@@ -1,5 +1,15 @@
 # Changelog
 
+- 2026-10-22: Use the official Ubuntu archive for CI media dependencies
+  after repeated slow Azure mirror downloads, keeping package verification.
+  Update the runner mirror list for backend, summary and browser tests.
+
+- 2026-10-22: Preserve accepted live finals queued behind UI publication
+  during shutdown, including cancelled stop waiters.
+
+- 2026-10-22: Preserve exact source PCM buffer evidence for durable live
+  finals without treating input buffer bounds as speech or meeting timing.
+
 - 2026-10-22: Reject live delivery receipts that erase known incompleteness
   or count a gap as a final event; retain valid empty-source closure.
 
