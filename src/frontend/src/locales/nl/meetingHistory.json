@@ -9,6 +9,8 @@
     "loading": "Vergadering laden…",
     "notFound": {
       "description": "Deze vergadering bestaat niet of u hebt er geen toegang meer toe.",
+      "descriptionWithAccount": "Deze vergadering bestaat niet, is niet meer toegankelijk of hoort bij een ander account. U bent aangemeld als {{email}}.",
+      "switch": "Van account wisselen",
       "title": "Vergadering niet gevonden"
     }
   },

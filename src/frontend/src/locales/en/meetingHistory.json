@@ -9,6 +9,8 @@
     "loading": "Loading meeting…",
     "notFound": {
       "description": "This meeting does not exist or you no longer have access to it.",
+      "descriptionWithAccount": "This meeting does not exist, is no longer accessible, or belongs to another account. You are signed in as {{email}}.",
+      "switch": "Switch account",
       "title": "Meeting not found"
     }
   },
