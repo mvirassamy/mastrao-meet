@@ -232,6 +232,64 @@ def test_gap_and_terminal_count_receive_exact_durable_ack(client, gateway, kind)
         assert invoke(client, gateway, body).status_code == 200
 
 
+@pytest.mark.parametrize("reason", ["track_unpublished", "meeting_ended"])
+@pytest.mark.parametrize("final_count", [0, 1])
+def test_normal_end_cannot_clear_a_prior_final_or_gap(
+    client, gateway, reason, final_count
+):
+    body = delivery(gateway)
+    body["event"] = {
+        "version": 2,
+        "source_ref": body["source_ref"],
+        "leg_ref": body["leg_ref"],
+        "sequence": 2,
+        "kind": "end",
+        "reason": reason,
+        "final_event_count": final_count,
+    }
+    result = receipt_for(body)
+    result.update(state="ended", final_event_count=final_count, incomplete=False)
+    with mock.patch(POST, return_value=result):
+        assert invoke(client, gateway, body).status_code == 503
+
+
+@pytest.mark.parametrize("sequence", [1, 2, 9])
+def test_gap_receipt_cannot_count_the_gap_as_a_final(client, gateway, sequence):
+    body = delivery(gateway)
+    body["event"] = {
+        "version": 2,
+        "source_ref": body["source_ref"],
+        "leg_ref": body["leg_ref"],
+        "sequence": sequence,
+        "kind": "gap",
+        "reason": "capture_incomplete",
+    }
+    result = receipt_for(body)
+    result["final_event_count"] = sequence
+    with mock.patch(POST, return_value=result):
+        assert invoke(client, gateway, body).status_code == 503
+
+
+@pytest.mark.parametrize("reason", ["track_unpublished", "meeting_ended"])
+def test_empty_normal_end_preserves_valid_non_incomplete_receipt(
+    client, gateway, reason
+):
+    body = delivery(gateway)
+    body["event"] = {
+        "version": 2,
+        "source_ref": body["source_ref"],
+        "leg_ref": body["leg_ref"],
+        "sequence": 1,
+        "kind": "end",
+        "reason": reason,
+        "final_event_count": 0,
+    }
+    result = receipt_for(body)
+    result.update(state="ended", final_event_count=0, incomplete=False)
+    with mock.patch(POST, return_value=result):
+        assert invoke(client, gateway, body).status_code == 200
+
+
 def test_delivery_still_requires_room_scoped_machine_capability(client, gateway):
     with mock.patch(POST) as post:
         assert (

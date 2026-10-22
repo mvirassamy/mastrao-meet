@@ -130,6 +130,9 @@ def validate_delivery_receipt(result, event, digest):
     """A receipt acknowledges only the exact ordered event, never audio authority."""
     if not isinstance(result, dict) or set(result) != RECEIPT_FIELDS:
         raise RecordingContractRefused(status=503)
+    final_limit = event["sequence"]
+    if event["kind"] != "final":
+        final_limit -= 1
     if (
         not _integer(result["version"], 2, 2)
         or any(result[name] != event[name] for name in ("source_ref", "leg_ref"))
@@ -142,7 +145,7 @@ def validate_delivery_receipt(result, event, digest):
         or not _integer(
             result["final_event_count"],
             1 if event["kind"] == "final" else 0,
-            event["sequence"],
+            final_limit,
         )
         or type(result["incomplete"]) is not bool
         or result["meeting_coverage"] != "unverified"
@@ -153,7 +156,10 @@ def validate_delivery_receipt(result, event, digest):
         or (event["kind"] in {"final", "gap"} and not result["incomplete"])
         or (
             event["kind"] == "end"
-            and event["reason"] in {"provider_failed", "capture_incomplete"}
+            and (
+                event["sequence"] > 1
+                or event["reason"] in {"provider_failed", "capture_incomplete"}
+            )
             and not result["incomplete"]
         )
     ):

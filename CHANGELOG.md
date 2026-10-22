@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-22: Reject live delivery receipts that erase known incompleteness
+  or count a gap as a final event; retain valid empty-source closure.
+
 - 2026-10-22: Deliver controlled live finals to Core's verified private
   journal with exact connection ownership and durable acknowledgements.
   Keep interim subtitles volatile and uncertain coverage explicit.
