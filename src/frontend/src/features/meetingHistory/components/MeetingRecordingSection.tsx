@@ -15,8 +15,9 @@ export const MeetingRecordingSection = ({
   recording: MeetingRecording
   timeZone?: string
   /**
-   * Edge the notes follow from the `sm` breakpoint: 'end' when the section
-   * closes the header, 'start' when another action sits on its right.
+   * Edge the notes follow once the header lays its actions beside the title:
+   * 'end' when the section closes the header, 'start' when another action
+   * sits on its right.
    */
   align?: 'start' | 'end'
 }) => {
@@ -203,16 +204,22 @@ const recordingSection = cva({
   variants: {
     align: {
       start: {},
-      end: { sm: { alignItems: 'flex-end', textAlign: 'right' } },
+      // Same width as the header row of the meeting detail.
+      end: {
+        '@container meeting-detail (min-width: 46rem)': {
+          alignItems: 'flex-end',
+          textAlign: 'right',
+        },
+      },
     },
   },
 })
 
 /**
- * Notes under the download button. From the `sm` breakpoint, when another
- * action sits on the right, they take no width of their own: the date reads
- * on one line, aligned on the button's edge, and extends under that action
- * instead of pushing it away.
+ * Notes under the download button. When another action sits on the right,
+ * they take no width of their own: the date reads on one line, aligned on
+ * the button's edge, and extends under that action instead of pushing it
+ * away.
  */
 const recordingNotes = cva({
   base: {
@@ -223,7 +230,7 @@ const recordingNotes = cva({
   },
   variants: {
     underNeighbour: {
-      true: { sm: { width: 0, minWidth: '100%', whiteSpace: 'nowrap' } },
+      true: { width: 0, minWidth: '100%', whiteSpace: 'nowrap' },
       false: {},
     },
   },

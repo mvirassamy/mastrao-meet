@@ -344,14 +344,27 @@ const MeetingDetailContent = ({
     </>
   )
   return (
-    <div className={css({ minWidth: 0 })}>
+    // The header follows the width the page actually gets, which a docked
+    // assistant or a tablet screen narrows, rather than the screen width.
+    <div
+      className={css({
+        minWidth: 0,
+        containerType: 'inline-size',
+        containerName: 'meeting-detail',
+      })}
+    >
       <header
         className={`${detailHeader} ${css({
           display: 'flex',
-          flexDirection: { base: 'column', sm: 'row' },
+          flexDirection: 'column',
           alignItems: 'flex-start',
           justifyContent: 'space-between',
           gap: '1rem',
+          // Below this width the title keeps the full line and the actions
+          // move under it.
+          '@container meeting-detail (min-width: 46rem)': {
+            flexDirection: 'row',
+          },
         })}`}
       >
         <div className={css({ minWidth: 0 })}>
@@ -408,10 +421,13 @@ const MeetingDetailContent = ({
           className={css({
             display: 'flex',
             // Both actions stay on one line; the video date sits under them.
-            flexWrap: { base: 'wrap', sm: 'nowrap' },
+            flexWrap: 'wrap',
             alignItems: 'flex-start',
             gap: '0.5rem',
             flexShrink: 0,
+            '@container meeting-detail (min-width: 46rem)': {
+              flexWrap: 'nowrap',
+            },
           })}
         >
           {/* A meeting without a recording shows nothing about video. */}

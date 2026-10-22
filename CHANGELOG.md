@@ -7,6 +7,14 @@
   only if it never landed.
   Open the conversation on its last message and follow new ones.
 
+- 2026-10-22: Lay the meeting detail header out from the width the page
+  actually gets: on tablets, or beside the docked assistant, the title keeps
+  its line and the video and assistant buttons move under it.
+
+- 2026-10-22: Show a meeting's dossier as a pill under its date in history.
+  Its menu opens the dossier in a new tab or changes it; an unfiled meeting
+  shows a grey "Classer dans un dossier" pill. Drop "dans Platform".
+
 - 2026-10-22: Keep expired or replayed OIDC callbacks rejected while offering
   a clean login restart. Identify the active account when a meeting is
   inaccessible and allow switching accounts.

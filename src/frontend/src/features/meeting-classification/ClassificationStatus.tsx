@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { ClassificationActions } from './ClassificationActions'
+import { FiledPill, UnfiledPill } from './ClassificationPill'
 import type { MeetingClassification } from './classificationApi'
 import type { MatterDestination } from './ClassificationDialog'
 
-export const DOSSIER_ICON = '/assets/illustrations/dossier.webp'
+export { DOSSIER_ICON } from './ClassificationPill'
 
 const line = css({
   display: 'flex',
@@ -13,12 +13,12 @@ const line = css({
   flexWrap: 'wrap',
   columnGap: '0.75rem',
   rowGap: '0.25rem',
-  marginTop: '0.625rem',
+  marginTop: '0.75rem',
   fontSize: '0.8125rem',
   color: 'muted-foreground',
 })
 
-/** The meeting's dossier as one quiet line under the date. */
+/** The meeting's dossier as a pill under the date. */
 export function ClassificationStatus({
   classification,
   matter,
@@ -47,43 +47,28 @@ export function ClassificationStatus({
     return (
       <div role="alert" className={line}>
         <p>{t('classification.unavailable')}</p>
-        <Button
-          size="xs"
-          variant="link"
-          className={css({ paddingX: '0!', minHeight: 'auto!' })}
-          onPress={onRetry}
-        >
+        <Button size="sm" variant="outline" onPress={onRetry}>
           {t('error.retry')}
         </Button>
       </div>
     )
-  let label = t('classification.unclassified')
-  if (classification.matter_ref) label = t('classification.filed')
-  if (matter)
-    label = t('classification.current', { name: matter.display_label })
-  return (
-    <div className={line}>
-      <span
-        className={css({
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.375rem',
-          color: matter ? 'var(--heading-foreground)' : 'muted-foreground',
-          fontWeight: matter ? 500 : 400,
-        })}
-      >
-        <img
-          src={DOSSIER_ICON}
-          alt=""
-          aria-hidden="true"
-          width={18}
-          height={18}
+  if (!classification.matter_ref)
+    return (
+      <div className={line}>
+        <UnfiledPill
+          canClassify={classification.can_classify}
+          onClassify={onOpen}
         />
-        <span role="status">{label}</span>
-      </span>
-      <ClassificationActions
-        canClassify={classification.can_classify}
+      </div>
+    )
+  const name = matter?.display_label ?? t('classification.filed')
+  return (
+    <div role="status" className={line}>
+      <FiledPill
+        name={name}
+        accessibleName={t('classification.current', { name })}
         matterUrl={matterUrl}
+        canClassify={classification.can_classify}
         onClassify={onOpen}
       />
     </div>
