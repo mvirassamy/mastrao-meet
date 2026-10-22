@@ -157,7 +157,11 @@
     },
     "partial": "This transcript is incomplete. Parts of the meeting may be missing.",
     "speakers_one": "{{count}} speaker",
-    "speakers_other": "{{count}} speakers"
+    "speakers_other": "{{count}} speakers",
+    "temporarilySuspended": {
+      "title": "Transcription temporarily suspended by Mastrao",
+      "description": "Increasing your alert threshold does not resume transcription."
+    }
   },
   "untitled": "Untitled meeting",
   "recording": {

@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-22: Link organization administrators to Platform usage and budget
+  settings, and distinguish an internal transcription suspension from missing
+  audio while preserving available results. Alert thresholds never pause ASR.
+
 - 2026-10-21: Preserve the failed native ASR delivery stage and bounded public
   Core diagnostics in private-safe worker logs without changing retry state.
 

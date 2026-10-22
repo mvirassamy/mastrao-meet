@@ -44,11 +44,8 @@ import { MeetingPersonalNotesSection } from './MeetingPersonalNotesSection'
 import { detailHeader } from './meetingDetailLayout'
 import { MeetingResultTabs } from './MeetingResultTabs'
 import { MeetingResultOverview } from './MeetingResultOverview'
-import {
-  MeetingContentSection,
-  SummaryBody,
-  TranscriptBody,
-} from './MeetingResultSections'
+import { MeetingContentSection, SummaryBody } from './MeetingResultSections'
+import { MeetingTranscriptSection } from './MeetingTranscriptSection'
 import {
   contentSectionLook,
   summaryView,
@@ -446,12 +443,7 @@ const MeetingDetailContent = ({
           </MeetingContentSection>
         }
         transcript={
-          <MeetingContentSection
-            kind="transcript"
-            statusKey={`status.transcript.${meeting.transcript.status}`}
-          >
-            <TranscriptBody transcript={meeting.transcript} />
-          </MeetingContentSection>
+          <MeetingTranscriptSection transcript={meeting.transcript} />
         }
         notes={
           <MeetingPersonalNotesSection

@@ -41,6 +41,7 @@ from core.mastrao_room_adapter import ensure_mastrao_room
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_speaker_evidence_adapter import capture_mastrao_speaker_evidence
 from core.mastrao_transcription_adapter import transcribe_mastrao_recording
+from core.mastrao_usage_budget import usage_budget
 from core.roomkit import viewsets as roomkit_viewsets
 
 # - Main endpoints
@@ -164,6 +165,7 @@ urlpatterns = [
             [
                 *router.urls,
                 *oidc_urls,
+                path("usage-budget/", usage_budget, name="mastrao_usage_budget"),
                 path(
                     "rooms/<str:room_ref>/personal-note/",
                     room_personal_note,

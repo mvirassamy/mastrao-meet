@@ -156,7 +156,11 @@
     },
     "partial": "Dieses Transkript ist unvollständig. Teile der Besprechung können fehlen.",
     "speakers_one": "{{count}} Sprecher",
-    "speakers_other": "{{count}} Sprechende"
+    "speakers_other": "{{count}} Sprechende",
+    "temporarilySuspended": {
+      "title": "Transkription von Mastrao vorübergehend ausgesetzt",
+      "description": "Ein höherer Warnschwellenwert setzt die Transkription nicht fort."
+    }
   },
   "untitled": "Besprechung ohne Titel",
   "recording": {
