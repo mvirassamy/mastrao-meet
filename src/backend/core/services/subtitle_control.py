@@ -106,9 +106,16 @@ def _apply_locked_cas(
             "Subtitle control state changed before this transition was applied."
         )
 
-    desired_state_changed = (
-        "desired_state" in changes and changes["desired_state"] != control.desired_state
-    )
+    desired_state = changes.get("desired_state", control.desired_state)
+    desired_state_changed = desired_state != control.desired_state
+    if (
+        control.desired_state == RoomSubtitleControl.DesiredState.ON
+        and desired_state == RoomSubtitleControl.DesiredState.OFF
+    ):
+        # Retain the exact stopped intent, independently of later OFF updates.
+        control.draining_generation = control.control_generation
+    elif desired_state == RoomSubtitleControl.DesiredState.ON:
+        control.draining_generation = None
     for field, value in changes.items():
         setattr(control, field, value)
     control.state_version += 1
@@ -211,7 +218,8 @@ def compare_and_set_subtitle_control(
 
     Every accepted transition increments ``state_version`` while holding the
     row lock. ``control_generation`` changes only when the desired state
-    changes or the caller explicitly marks a new intent.
+    changes or the caller explicitly marks a new intent. ON -> OFF retains
+    the previous generation for delivery; a new ON clears it.
     """
 
     _check_room_sid(room_sid)
