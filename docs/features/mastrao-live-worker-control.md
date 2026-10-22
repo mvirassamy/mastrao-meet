@@ -26,14 +26,15 @@ participant bearer, receipt-signing key or transcript. The worker accepts only
 the explicitly configured endpoint and validates bounded responses.
 
 Requests carry version, action (`prepare`, `claim`, `renew`, `rotate`,
-`stopped`), actual room/participant/track SIDs, a stable attempt reference and a
+`stopped`, `deliver`), actual room/participant/track SIDs, a stable attempt reference and a
 worker-instance reference. All actions except prepare also carry source,
 admission and leg refs. Only rotate adds the successor leg and cumulative PCM
-end position.
+end position. Deliver adds a version 2 final, gap or end event; its source and
+leg must match the command. It returns a durable receipt, never send authority.
 The capability is scoped to the room and subtitle-control generation.
 
 Prepare returns version 2, source, admission and the initial leg reference. The
-other operations return Core's exact send-authority response. Meet signs the
+send operations return Core's exact send-authority response. Meet signs the
 Core calls and never mirrors consent decisions. Lost or ambiguous responses
 fail closed; no automatic audio repair or replay starts.
 
@@ -54,10 +55,11 @@ results use the bounded delivery queue already implemented.
 The source cannot be reopened after expiry, stop or an unexpected
 reconnection. This can create an explicit incomplete transcript. Planned
 handoffs drain the SDK and accepted publications before opening a successor.
-This path does not certify complete coverage, a common meeting clock,
-durable final delivery or
-eligibility for automatic summary reuse. Those remain separate qualification
-and integration work. Tests use synthetic media and transports only.
+Final events use the existing Core journal and verified private objects before
+publication succeeds. A receipt confirms the exact digest and sequence; it
+does not certify exhaustive SDK capture, a common meeting clock, complete
+coverage or automatic summary eligibility. Tests use synthetic media and
+transports only.
 
 The pinned OpenAI plugin rotates its realtime connection after ten minutes.
 Each connection still refuses a second acquisition. Planned continuation uses
@@ -69,7 +71,9 @@ to hide a gap. This inactive path still requires real quality qualification.
 ## Configuration boundaries
 
 `MASTRAO_LIVE_WORKER_CONTROL_ENABLED` defaults to false. The backend control URL,
-Core prepare endpoint and Core send endpoint default to empty strings. The
+Core prepare, send and delivery endpoints default to empty strings. The new
+`MASTRAO_CORE_LIVE_DELIVERY_ENDPOINT` must point exactly to
+`/internal/v1/meetings/transcripts/live/append` on the private Core. The
 worker must have an exact matching `LIVE_TRANSCRIPT_CONTROL_URL`. This document
 does not enable or supply any of those values. The control endpoint belongs to
 `/internal/v1/meetings/transcripts/live/control`, outside public API routing.

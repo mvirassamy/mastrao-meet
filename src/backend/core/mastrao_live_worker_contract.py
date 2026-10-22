@@ -71,6 +71,7 @@ def worker_command(body):
         "renew",
         "stopped",
         "rotate",
+        "deliver",
     }:
         raise RecordingContractRefused(status=400)
     fields = REQUEST_FIELDS
@@ -78,6 +79,8 @@ def worker_command(body):
         fields = fields | {"source_ref", "admission_ref", "leg_ref"}
     if action == "rotate":
         fields = fields | {"next_leg_ref", "audio_end_sample"}
+    if action == "deliver":
+        fields = fields | {"event"}
     if (
         set(body) != fields
         or type(body["version"]) is not int

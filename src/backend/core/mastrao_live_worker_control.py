@@ -22,6 +22,11 @@ from django.views.decorators.http import require_POST
 
 from core import models
 from core.mastrao_core_http import post_core_json, validate_core_endpoint
+from core.mastrao_live_delivery_contract import (
+    DELIVERY_PATH,
+    DELIVERY_TYPE,
+    MAX_DELIVERY_BODY_BYTES,
+)
 from core.mastrao_live_track_provenance import trusted_live_track
 from core.mastrao_live_worker_contract import (
     CONTROL_PATH,
@@ -36,6 +41,7 @@ from core.mastrao_live_worker_contract import (
     validate_send,
     worker_command,
 )
+from core.mastrao_live_worker_delivery import deliver_worker_event
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
 
 CAPABILITY_SALT = "mastrao.live-worker-control.v2"
@@ -136,6 +142,11 @@ def live_control_metadata(room_sid, generation, provider):
     validate_core_endpoint(
         settings.MASTRAO_CORE_LIVE_SEND_ENDPOINT, SEND_PATH, RecordingContractRefused
     )
+    validate_core_endpoint(
+        settings.MASTRAO_CORE_LIVE_DELIVERY_ENDPOINT,
+        DELIVERY_PATH,
+        RecordingContractRefused,
+    )
     now = int(time.time())
     scope = {
         "version": CONTROL_VERSION,
@@ -188,11 +199,16 @@ def _capability_scope(capability, command):
         room_sid=scope["room_sid"],
     ).first()
     if control is None or (
-        command["action"] != "stopped"
+        command["action"] not in {"stopped", "deliver"}
         and not _active_control(control, scope["generation"])
     ):
         raise RecordingContractRefused()
-    if command["action"] != "stopped":
+    if (
+        command["action"] == "deliver"
+        and control.control_generation != scope["generation"]
+    ):
+        raise RecordingContractRefused()
+    if command["action"] not in {"stopped", "deliver"}:
         _control_url()
     return scope
 
@@ -215,6 +231,8 @@ def execute_worker_command(capability, body):
     command = worker_command(body)
     scope = _capability_scope(capability, command)
     facts = trusted_live_track(scope, command)
+    if command["action"] == "deliver":
+        return deliver_worker_event(command, facts, _envelope(DELIVERY_TYPE))
     if command["action"] == "prepare":
         assertion = {
             **_envelope(PREPARE_TYPE),
@@ -298,7 +316,7 @@ def live_worker_control(request):
             or request.content_type != "application/json"
         ):
             raise RecordingContractRefused()
-        if len(request.body) > 8192:
+        if len(request.body) > MAX_DELIVERY_BODY_BYTES:
             raise RecordingContractRefused(status=400)
         body = json.loads(request.body, object_pairs_hook=_unique_json_fields)
         result = execute_worker_command(authorization[7:], body)

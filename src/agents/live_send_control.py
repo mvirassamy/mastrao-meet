@@ -215,6 +215,14 @@ class LiveControlClient:
         except (aiohttp.ClientError, TimeoutError) as error:
             raise ControlResponseLost("live control transport failed") from error
 
+    async def deliver(
+        self, binding: dict[str, str], event: dict[str, object]
+    ) -> dict[str, object]:
+        """Deliver once through the existing endpoint and capability."""
+        return await self.post(
+            {"version": CONTROL_VERSION, "action": "deliver", **binding, "event": event}
+        )
+
 
 class LiveSendAuthority:
     """Retain one immutable RTC attempt and a conservative continuation deadline."""

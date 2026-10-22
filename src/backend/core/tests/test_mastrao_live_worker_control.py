@@ -20,6 +20,7 @@ from livekit import api
 
 from core import models
 from core.factories import RoomFactory
+from core.mastrao_live_delivery_contract import DELIVERY_PATH
 from core.mastrao_live_track_provenance import epoch_references
 from core.mastrao_live_worker_contract import (
     CONTROL_PATH,
@@ -65,6 +66,9 @@ def gateway(settings, host, receipt, client):
         "http://cabinet-core:3911" + PREPARE_PATH
     )
     settings.MASTRAO_CORE_LIVE_SEND_ENDPOINT = "http://cabinet-core:3911" + SEND_PATH
+    settings.MASTRAO_CORE_LIVE_DELIVERY_ENDPOINT = (
+        "http://cabinet-core:3911" + DELIVERY_PATH
+    )
     settings.ROOM_SUBTITLE_ENABLED = True
     private, jwk = _jwk_pair()
     settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = jwk["private"]
