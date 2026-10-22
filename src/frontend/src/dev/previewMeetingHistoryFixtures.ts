@@ -352,16 +352,28 @@ const previewAssistantThread = (meetingId: string) => ({
   ],
 })
 
-/** Not filed yet, and the preview user may file it. */
-const previewClassification = (meetingId: string) => ({
-  version: 1,
-  meeting_ref: meetingId,
-  matter_ref: null,
-  matter_display_label: null,
-  matter_path: null,
-  classification_version: 0,
-  can_classify: true,
-})
+/** The main preview meeting is filed; the others wait to be filed. */
+const previewClassification = (meetingId: string) => {
+  if (meetingId === 'preview-meeting-available')
+    return {
+      version: 1,
+      meeting_ref: meetingId,
+      matter_ref: 'matter_preview0123456789',
+      matter_display_label: 'Succession Martin',
+      matter_path: '/orgs/preview/matters/matter_preview0123456789',
+      classification_version: 1,
+      can_classify: true,
+    }
+  return {
+    version: 1,
+    meeting_ref: meetingId,
+    matter_ref: null,
+    matter_display_label: null,
+    matter_path: null,
+    classification_version: 0,
+    can_classify: true,
+  }
+}
 
 /** PREVIEW ONLY — answers the provisional history endpoints locally. */
 export const previewMeetingHistoryResponse = (
