@@ -9,6 +9,8 @@
     "loading": "Chargement de la réunion…",
     "notFound": {
       "description": "Cette réunion n’existe pas ou vous n’y avez plus accès.",
+      "descriptionWithAccount": "Cette réunion n’existe pas, n’est plus accessible ou appartient à un autre compte. Vous êtes connecté avec {{email}}.",
+      "switch": "Changer de compte",
       "title": "Réunion introuvable"
     }
   },

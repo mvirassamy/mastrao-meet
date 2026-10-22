@@ -31,6 +31,7 @@ export const MeetingHistoryMeetingPage = ({
           key={`${user.id}:${meetingId}`}
           meetingId={meetingId}
           identityKey={user.id}
+          accountEmail={user.email}
           timeZone={user.timezone}
         />
       </MeetWorkspaceShell>

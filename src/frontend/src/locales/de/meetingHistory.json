@@ -9,6 +9,8 @@
     "loading": "Besprechung wird geladen…",
     "notFound": {
       "description": "Diese Besprechung existiert nicht oder Sie haben keinen Zugriff mehr darauf.",
+      "descriptionWithAccount": "Diese Besprechung existiert nicht, ist nicht mehr zugänglich oder gehört zu einem anderen Konto. Sie sind als {{email}} angemeldet.",
+      "switch": "Konto wechseln",
       "title": "Besprechung nicht gefunden"
     }
   },

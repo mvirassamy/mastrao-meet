@@ -13,6 +13,7 @@ import {
 import { ApiError } from '@/api/ApiError'
 import { useConfig } from '@/api/useConfig'
 import { Button } from '@/primitives'
+import { logout } from '@/features/auth/utils/logout'
 import { classificationMatterUrl } from '@/features/meeting-classification/classificationMatterUrl'
 import { ClassificationDialog } from '@/features/meeting-classification/ClassificationDialog'
 import { ClassificationStatus } from '@/features/meeting-classification/ClassificationStatus'
@@ -65,10 +66,12 @@ export const MeetingHistoryDetailView = ({
   meetingId,
   timeZone,
   identityKey,
+  accountEmail,
 }: {
   meetingId: string
   timeZone?: string
   identityKey?: string
+  accountEmail?: string
 }) => {
   const { t } = useTranslation('meetingHistory')
   const query = useMeetingHistoryDetail(meetingId)
@@ -147,11 +150,23 @@ export const MeetingHistoryDetailView = ({
             : '/assets/illustrations/reunion-detail-erreur.webp'
         }
         title={t(notFound ? 'detail.notFound.title' : 'detail.error.title')}
-        description={t(
-          notFound ? 'detail.notFound.description' : 'detail.error.description'
-        )}
+        description={
+          notFound && accountEmail
+            ? t('detail.notFound.descriptionWithAccount', {
+                email: accountEmail,
+              })
+            : t(
+                notFound
+                  ? 'detail.notFound.description'
+                  : 'detail.error.description'
+              )
+        }
         action={
-          notFound ? undefined : (
+          notFound && accountEmail ? (
+            <Button variant="secondary" onPress={() => void logout()}>
+              {t('detail.notFound.switch')}
+            </Button>
+          ) : notFound ? undefined : (
             <Button
               variant="secondary"
               icon={<RetryIcon aria-hidden="true" />}

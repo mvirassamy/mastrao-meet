@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-22: Keep expired or replayed OIDC callbacks rejected while offering
+  a clean login restart. Identify the active account when a meeting is
+  inaccessible and allow switching accounts.
+
 - 2026-10-22: Link organization administrators to Platform usage and budget
   settings, and distinguish an internal transcription suspension from missing
   audio while preserving available results. Alert thresholds never pause ASR.
