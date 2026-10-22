@@ -36,6 +36,7 @@ MB = 1024 * KB
 GB = 1024 * MB
 
 MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
+    "event",  # Durable live envelopes contain transcript text.
     "host_handoff",
     "host_grant",
     "guest_invitation",
@@ -542,6 +543,9 @@ class Base(Configuration):
     )
     MASTRAO_CORE_LIVE_SEND_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_LIVE_SEND_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_LIVE_DELIVERY_ENDPOINT = values.Value(
+        "", environ_name="MASTRAO_CORE_LIVE_DELIVERY_ENDPOINT", environ_prefix=None
     )
     MASTRAO_RECORDING_REGION_REF = values.Value(
         "", environ_name="MASTRAO_RECORDING_REGION_REF", environ_prefix=None

@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-22: Deliver controlled live finals to Core's verified private
+  journal with exact connection ownership and durable acknowledgements.
+  Keep interim subtitles volatile and uncertain coverage explicit.
+
 - 2026-10-22: Bind planned live connection handoffs to exact Core leg
   identities and cumulative PCM boundaries. Reject old controlled jobs and
   malformed rotation receipts; preserve terminal stop and demo isolation.

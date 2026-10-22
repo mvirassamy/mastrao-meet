@@ -106,7 +106,7 @@ def trusted_live_track(scope, command):
     organization = grant.organization_external_id
     if not isinstance(organization, str) or not EXTERNAL_ID.fullmatch(organization):
         raise RecordingContractRefused()
-    if command["action"] != "stopped":
+    if command["action"] not in {"stopped", "deliver"}:
         _assert_live_epoch(epoch, binding, issued, grant)
     kind = "host"
     participant_ref = None
