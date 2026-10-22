@@ -16,6 +16,7 @@ from core.mastrao_native_admission import reconcile_native_admissions
 from core.mastrao_native_asr_worker import schedule_native_asr
 from core.mastrao_native_capture_drain import reconcile_native_captures
 from core.mastrao_native_source_transfer import schedule_native_source_transfer
+from core.mastrao_native_track_observations import reconcile_native_track_observations
 from core.mastrao_recording_adapter import (
     _exact_provider_egress,
     fail_stale_starting_provider_egress,
@@ -97,7 +98,8 @@ def reconcile_mastrao_recording(binding):
 def reconcile_native_recordings(limit=20):
     """Advance native audio without invoking or waiting for video finalization."""
     return (
-        reconcile_native_captures(limit=limit)
+        reconcile_native_track_observations(limit=limit)
+        + reconcile_native_captures(limit=limit)
         + reconcile_native_admissions(limit=limit)
         + schedule_native_source_transfer(limit=limit)
         + schedule_native_asr(limit=limit)

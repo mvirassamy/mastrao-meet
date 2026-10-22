@@ -578,6 +578,11 @@ class Base(Configuration):
     MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT", environ_prefix=None
     )
+    MASTRAO_CORE_NATIVE_TRACK_OBSERVATION_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_NATIVE_TRACK_OBSERVATION_ENDPOINT",
+        environ_prefix=None,
+    )
     MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED = values.BooleanValue(
         False,
         environ_name="MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED",

@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-22: Deliver every verified microphone publication as durable metadata
+  to Core, including ended or unmatched tracks. Retry independently of capture
+  admission and video closure, with fenced claims and exact acknowledgements.
+
 - 2026-10-22: Preserve the exact stopped subtitle generation for durable
   final delivery, clear it on restart and keep all new audio sends fenced.
 
