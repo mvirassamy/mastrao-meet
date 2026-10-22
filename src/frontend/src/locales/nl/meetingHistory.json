@@ -156,7 +156,11 @@
     },
     "partial": "Deze transcriptie is onvolledig. Delen van de vergadering kunnen ontbreken.",
     "speakers_one": "{{count}} spreker",
-    "speakers_other": "{{count}} sprekers"
+    "speakers_other": "{{count}} sprekers",
+    "temporarilySuspended": {
+      "title": "Transcriptie tijdelijk onderbroken door Mastrao",
+      "description": "Een hogere waarschuwingsdrempel hervat de transcriptie niet."
+    }
   },
   "untitled": "Vergadering zonder titel",
   "recording": {

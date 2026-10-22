@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-22: Link organization administrators to Platform usage and budget
+  settings, and distinguish an internal transcription suspension from missing
+  audio while preserving available results. Alert thresholds never pause ASR.
+
 - 2026-10-22: Make the meeting assistant readable: a step-by-step loader until
   the transcript is ready, answers without systematic warnings, time-only
   source chips, the follow-up e-mail as a card to copy or open in the mail

@@ -45,11 +45,14 @@ const unavailableLook = (status: MeetingContentStatus): SectionStateLook => {
 export const MeetingContentSection = ({
   kind,
   statusKey,
+  statusLabel,
   children,
 }: {
   kind: MeetingContentKind
   /** Translation key of the status announced for the section. */
   statusKey: string
+  /** A specific processing state can refine the announced status. */
+  statusLabel?: string
   children: ReactNode
 }) => {
   const { t } = useTranslation('meetingHistory')
@@ -72,7 +75,7 @@ export const MeetingContentSection = ({
         aria-atomic="true"
         className={css({ srOnly: true })}
       >
-        {t(statusKey)}
+        {statusLabel ?? t(statusKey)}
       </span>
       {children}
     </section>

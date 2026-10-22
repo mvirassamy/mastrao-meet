@@ -157,7 +157,11 @@
     },
     "partial": "Cette transcription est incomplète. Des passages de la réunion peuvent manquer.",
     "speakers_one": "{{count}} intervenant",
-    "speakers_other": "{{count}} intervenants"
+    "speakers_other": "{{count}} intervenants",
+    "temporarilySuspended": {
+      "title": "Transcription temporairement suspendue côté Mastrao",
+      "description": "Augmenter votre seuil d’alerte utilisateur ne réactive pas la transcription."
+    }
   },
   "untitled": "Réunion sans titre",
   "recording": {

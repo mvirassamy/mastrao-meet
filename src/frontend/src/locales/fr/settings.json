@@ -7,6 +7,11 @@
     "authentication": "Authentification",
     "nameError": "Votre Nom ne peut pas être vide"
   },
+  "usageBudget": {
+    "link": "Usage et budget de l’organisation",
+    "opensInNewTab": "S’ouvre dans un nouvel onglet",
+    "unavailable": "Usage et budget indisponible pour le moment."
+  },
   "preferences": {
     "title": "Préférences",
     "idleDisconnectModal": {
