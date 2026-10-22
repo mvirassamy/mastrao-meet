@@ -56,6 +56,7 @@ export function MeetingAssistant({
       <MeetingAssistantPanel
         readiness={readiness}
         turns={flow.turns.map((turn) => assistantTurnView(turn, t))}
+        arrivedTurnId={flow.arrivedCommandId}
         loading={reading}
         pending={flow.pending}
         error={query.isError}

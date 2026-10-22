@@ -88,6 +88,15 @@ describe('private meeting assistant presentation', () => {
     render(<MeetingAssistantPanel {...panelProps} readiness="unavailable" />)
     expect(screen.getByText('unavailable.title')).toBeTruthy()
   })
+  it('writes out only the answer that just arrived', () => {
+    const { rerender } = render(
+      <AssistantResult result={result} arrived onOpenCitation={vi.fn()} />
+    )
+    // Each word is its own element, fading in one after the other.
+    expect(screen.getByText('originale').tagName).toBe('SPAN')
+    rerender(<AssistantResult result={result} onOpenCitation={vi.fn()} />)
+    expect(screen.getByText('Réponse originale').tagName).toBe('P')
+  })
   it('opens a citation only on click and adds no warning to a full answer', () => {
     const open = vi.fn()
     render(<AssistantResult result={result} onOpenCitation={open} />)
