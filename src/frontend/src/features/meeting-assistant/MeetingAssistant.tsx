@@ -1,9 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog } from '@/primitives'
-import {
-  MeetingAssistantPanel,
-  type MeetingAssistantAction,
-} from './MeetingAssistantPanel'
+import { MeetingAssistantPanel } from './MeetingAssistantPanel'
+import type { MeetingAssistantAction } from './AssistantShortcuts'
 import { AssistantCitationDialog } from './AssistantCitationDialog'
 import type { AssistantReadiness } from './assistantReadiness'
 import { assistantTurnView } from './assistantView'

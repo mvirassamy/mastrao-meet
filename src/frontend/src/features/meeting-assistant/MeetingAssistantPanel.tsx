@@ -4,34 +4,25 @@ import {
   ArrowUpIcon,
   CloseIcon,
   DeleteIcon,
-  ListIcon,
   LockIcon,
-  MailIcon,
   MoreHorizontalIcon,
-  SparklesIcon,
 } from '@/icons'
 import { Button, Menu, MenuList, TextArea } from '@/primitives'
 import { ASSISTANT_ICON } from '@/features/meetingHistory/components/meetingContent'
 import { css } from '@/styled-system/css'
 import { AssistantResult, type AssistantResultView } from './AssistantResult'
 import { AssistantNotReady } from './AssistantNotReady'
+import {
+  AssistantShortcuts,
+  type MeetingAssistantAction,
+} from './AssistantShortcuts'
 import type { AssistantReadiness } from './assistantReadiness'
 
-export type MeetingAssistantAction =
-  | 'short-summary'
-  | 'actions'
-  | 'follow-up-email'
 export type AssistantTurnView = {
   id: string
   question: string
   result: AssistantResultView
 }
-
-const ACTION_ICONS = {
-  'short-summary': SparklesIcon,
-  actions: ListIcon,
-  'follow-up-email': MailIcon,
-} as const
 
 function PrivacyLine() {
   const { t } = useTranslation('meetingAssistant')
@@ -171,30 +162,6 @@ function Composer({
         }}
       />
       <div
-        role="group"
-        aria-label={t('actions.title')}
-        className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' })}
-      >
-        {(['short-summary', 'actions', 'follow-up-email'] as const).map(
-          (action) => {
-            const Icon = ACTION_ICONS[action]
-            return (
-              <Button
-                key={action}
-                variant="outline"
-                size="xs"
-                isDisabled={disabled}
-                onPress={() => onAction(action)}
-                className={css({ borderRadius: 'full!' })}
-              >
-                <Icon aria-hidden="true" />
-                {t(`actions.${action}`)}
-              </Button>
-            )
-          }
-        )}
-      </div>
-      <div
         className={css({
           display: 'flex',
           alignItems: 'center',
@@ -202,11 +169,7 @@ function Composer({
           gap: '0.5rem',
         })}
       >
-        <span
-          className={css({ fontSize: '0.75rem', color: 'muted-foreground' })}
-        >
-          {t('scope')}
-        </span>
+        <AssistantShortcuts disabled={disabled} onAction={onAction} />
         <Button
           type="submit"
           size="icon-sm"

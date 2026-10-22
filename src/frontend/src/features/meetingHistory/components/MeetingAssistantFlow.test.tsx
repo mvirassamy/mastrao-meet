@@ -126,6 +126,17 @@ async function openClearConfirmation() {
   fireEvent.click(screen.getByRole('button', { name: 'options' }))
   fireEvent.click(await screen.findByRole('menuitem', { name: 'delete.open' }))
 }
+/** Sends a ready-made request from the composer's shortcuts menu. */
+async function chooseShortcut(action: string) {
+  // jsdom has no CSS.escape, which the open menu uses to focus its items.
+  vi.stubGlobal('CSS', { escape: (value: string) => value })
+  fireEvent.click(screen.getByRole('button', { name: 'actions.title' }))
+  fireEvent.click(
+    await screen.findByRole('menuitem', {
+      name: new RegExp(`^actions\\.${action}`),
+    })
+  )
+}
 async function ask() {
   await screen.findByText('empty')
   fireEvent.change(screen.getByRole('textbox', { name: 'question' }), {
@@ -266,17 +277,17 @@ describe('private assistant connected flow', () => {
         expect(
           (
             screen.getByRole('button', {
-              name: `actions.${name}`,
+              name: 'actions.title',
             }) as HTMLButtonElement
           ).disabled
         ).toBe(false)
       )
-      fireEvent.click(screen.getByRole('button', { name: `actions.${name}` }))
+      await chooseShortcut(name)
       await waitFor(() =>
         expect(
           (
             screen.getByRole('button', {
-              name: `actions.${name}`,
+              name: 'actions.title',
             }) as HTMLButtonElement
           ).disabled
         ).toBe(false)
@@ -337,7 +348,7 @@ describe('private assistant connected flow', () => {
     expect(
       (
         screen.getByRole('button', {
-          name: 'actions.short-summary',
+          name: 'actions.title',
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true)
@@ -485,13 +496,13 @@ describe('private assistant connected flow', () => {
 
 describe('terminal unknown assistant requests', () => {
   it.each([
-    { button: 'ask', operation: 'question' },
-    { button: 'actions.short-summary', operation: 'summary' },
-    { button: 'actions.actions', operation: 'actions' },
-    { button: 'actions.follow-up-email', operation: 'email_draft' },
+    { shortcut: null, operation: 'question' },
+    { shortcut: 'short-summary', operation: 'summary' },
+    { shortcut: 'actions', operation: 'actions' },
+    { shortcut: 'follow-up-email', operation: 'email_draft' },
   ])(
     'allows a new explicit $operation after reading and reopening unknown',
-    async ({ button, operation }) => {
+    async ({ shortcut, operation }) => {
       const unknown: MeetingAssistantTurn = {
         ...turn(),
         state: 'unknown',
@@ -512,7 +523,7 @@ describe('terminal unknown assistant requests', () => {
         expect(
           (
             screen.getByRole('button', {
-              name: 'actions.short-summary',
+              name: 'actions.title',
             }) as HTMLButtonElement
           ).disabled
         ).toBe(false)
@@ -526,7 +537,8 @@ describe('terminal unknown assistant requests', () => {
       })
       await waitFor(() => expectSendingDisabled(false))
       expect(writes()).toHaveLength(0)
-      fireEvent.click(screen.getByRole('button', { name: button }))
+      if (shortcut) await chooseShortcut(shortcut)
+      else fireEvent.click(screen.getByRole('button', { name: 'ask' }))
       await waitFor(() => expectSendingDisabled(true))
       expect(writes()).toHaveLength(1)
       const command = JSON.parse(String(writes()[0][1]?.body))
@@ -595,9 +607,7 @@ describe('terminal unknown assistant requests', () => {
     await waitFor(() => expectSendingDisabled(false))
     expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
     expect(writes()).toHaveLength(1)
-    fireEvent.click(
-      screen.getByRole('button', { name: 'actions.short-summary' })
-    )
+    await chooseShortcut('short-summary')
     await screen.findByText('Budget à confirmer.')
     const commands = writes().map(([, options]) =>
       JSON.parse(String(options?.body))
@@ -631,12 +641,7 @@ describe('terminal unknown assistant requests', () => {
 })
 
 function expectSendingDisabled(disabled: boolean) {
-  for (const name of [
-    'ask',
-    'actions.short-summary',
-    'actions.actions',
-    'actions.follow-up-email',
-  ])
+  for (const name of ['ask', 'actions.title'])
     expect(
       (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
     ).toBe(disabled)

@@ -2,7 +2,6 @@
   "title": "Ask about this meeting",
   "close": "Close the assistant",
   "privacy": "Visible only to you",
-  "scope": "This meeting only",
   "options": "Conversation options",
   "loading": "Loading the conversation…",
   "pending": "The assistant is preparing its answer…",
@@ -35,7 +34,12 @@
     "title": "Shortcuts",
     "short-summary": "Short summary",
     "actions": "Extract actions",
-    "follow-up-email": "Follow-up email"
+    "follow-up-email": "Follow-up email",
+    "hint": {
+      "short-summary": "The essentials in a few lines",
+      "actions": "Who does what, and when",
+      "follow-up-email": "A draft ready to copy"
+    }
   },
   "result": {
     "unavailable": "This answer can no longer be viewed.",

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-22: Gather the meeting assistant shortcuts in a "Shortcuts" menu of
+  the composer, with 3D icons and a one-line hint for each shortcut.
+
 - 2026-10-22: Keep expired or replayed OIDC callbacks rejected while offering
   a clean login restart. Identify the active account when a meeting is
   inaccessible and allow switching accounts.
