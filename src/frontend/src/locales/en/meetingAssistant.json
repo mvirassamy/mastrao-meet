@@ -25,11 +25,7 @@
     "ended": "Meeting ended",
     "transcribing": "Transcription in progress",
     "ready": "Assistant available",
-    "state": {
-      "done": "done",
-      "current": "in progress",
-      "waiting": "upcoming"
-    }
+    "upcoming": ", upcoming"
   },
   "unavailable": {
     "title": "Assistant unavailable",

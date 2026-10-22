@@ -25,11 +25,7 @@
     "ended": "Réunion terminée",
     "transcribing": "Transcription en cours",
     "ready": "Assistant disponible",
-    "state": {
-      "done": "terminé",
-      "current": "en cours",
-      "waiting": "à venir"
-    }
+    "upcoming": ", à venir"
   },
   "unavailable": {
     "title": "Assistant indisponible",

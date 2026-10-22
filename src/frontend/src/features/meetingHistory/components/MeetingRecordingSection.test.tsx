@@ -100,6 +100,7 @@ describe('recording history UI', () => {
     expect(
       screen.getByText(/recording.retainedUntil: November 1, 2099/)
     ).toBeTruthy()
+    expect(document.querySelector('video')).toBeNull()
   })
   it('lets the video date extend under a neighbouring action only', () => {
     const dateNotes = () =>
@@ -122,7 +123,6 @@ describe('recording history UI', () => {
       />
     )
     expect(dateNotes()).not.toContain('sm:w_0')
-    expect(document.querySelector('video')).toBeNull()
   })
 
   it('removes the action when retention expires on an open page', async () => {

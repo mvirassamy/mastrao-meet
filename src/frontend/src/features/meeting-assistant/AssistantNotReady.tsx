@@ -85,9 +85,13 @@ function AssistantPreparing() {
                 {step.state === 'current' && <span />}
               </span>
               {t(`preparing.${step.key}`)}
-              <span className={css({ srOnly: true })}>
-                {t(`preparing.state.${step.state}`)}
-              </span>
+              {/* The other labels already say their state; this one would
+                  read as done without its mark. */}
+              {step.state === 'waiting' && (
+                <span className={css({ srOnly: true })}>
+                  {t('preparing.upcoming')}
+                </span>
+              )}
             </li>
           ))}
         </ol>
