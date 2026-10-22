@@ -314,7 +314,7 @@ jobs:
         run: |
           sudo sed -i \
             's|http://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            /etc/apt/sources.list.d/ubuntu.sources
+            /etc/apt/apt-mirrors.txt
           sudo apt-get update
           sudo apt-get install -y ffmpeg gettext
 
@@ -357,7 +357,7 @@ jobs:
         run: |
           sudo sed -i \
             's|http://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            /etc/apt/sources.list.d/ubuntu.sources
+            /etc/apt/apt-mirrors.txt
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
@@ -398,7 +398,11 @@ jobs:
 
       - name: Install Chromium for the isolated media probe test
         timeout-minutes: 5
-        run: cd src/frontend/ && npx playwright install --with-deps chromium
+        run: |
+          sudo sed -i \
+            's|http://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            /etc/apt/apt-mirrors.txt
+          cd src/frontend/ && npx playwright install --with-deps chromium
 
       - name: Verify the media probe with local synthetic WebRTC peers
         timeout-minutes: 1

@@ -2,6 +2,7 @@
 
 - 2026-10-22: Use the official Ubuntu archive for CI media dependencies
   after repeated slow Azure mirror downloads, keeping package verification.
+  Update the runner mirror list for backend, summary and browser tests.
 
 - 2026-10-22: Preserve accepted live finals queued behind UI publication
   during shutdown, including cancelled stop waiters.
