@@ -206,6 +206,10 @@ def _capability_scope(capability, command):
     if (
         command["action"] == "deliver"
         and control.control_generation != scope["generation"]
+        and not (
+            control.desired_state == models.RoomSubtitleControl.DesiredState.OFF
+            and control.draining_generation == scope["generation"]
+        )
     ):
         raise RecordingContractRefused()
     if command["action"] not in {"stopped", "deliver"}:

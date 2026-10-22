@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-22: Preserve the exact stopped subtitle generation for durable
+  final delivery, clear it on restart and keep all new audio sends fenced.
+
 - 2026-10-22: Retain verified RTC room closure before acknowledgement and
   close only that room SID's connection/track epochs, including late facts.
   Preserve participant validation, exact cleanup and unverified media coverage.

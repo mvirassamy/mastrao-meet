@@ -571,6 +571,7 @@ class RoomSubtitleControl(BaseModel):
     agent_name = models.CharField(max_length=128, blank=True, null=True)
     session_id = models.CharField(max_length=128, blank=True, null=True)
     control_generation = models.PositiveBigIntegerField(default=0)
+    draining_generation = models.PositiveBigIntegerField(blank=True, null=True)
     state_version = models.PositiveBigIntegerField(default=0)
     public_state = models.CharField(
         max_length=16,

@@ -149,6 +149,27 @@ for each leg. Unexpected internal rotation still emits
 never weakens this guard. SDK changes require source review and new execution
 proof before the pin can change.
 
+## Delivery after subtitle stop
+
+The subtitle CAS retains the exact running control generation on `ON -> OFF`
+in the technical `draining_generation` field (migration 0060). Later OFF updates,
+including a subsequent `room_finished`, preserve it. A new ON clears it. Existing
+OFF rows remain null; the migration does not infer a previous running generation.
+The field is not part of the public snapshot or a caller-controlled CAS update.
+
+While OFF, a still-valid capability for that generation can deliver final, gap
+and end events through the same RTC binding. Core continues to check the exact
+source, admission, attempt, worker owner, leg, consent and retention. A refusal
+stays terminal for that publication. No new lease, provider connection, audio
+flush, retranscription or retry is granted. Prepare, claim, renew and rotate
+still require the active generation; stopped cleanup keeps its existing checks.
+
+This saves already accepted results that would otherwise be rejected solely by
+the ON/OFF generation change. It does not recover unread provider finals, prove
+provider drain, preserve results past capability/authority expiry, or establish
+complete meeting coverage. Deploying code that reads this field requires the
+additive migration first; this branch does not apply it to any environment.
+
 ## Evidence and qualification limits
 
 Persistent tests execute the installed SDK send/VAD/receive/retry machinery with
