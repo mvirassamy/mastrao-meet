@@ -43,10 +43,21 @@ payloads are filtered from error reporting.
 
 ## Qualification and synthesis
 
-The pinned SDK does not attest a common meeting clock. Active workers therefore
-send `timing: {state: "unavailable"}`. The journal retains sticky incomplete
-state and `meeting_coverage: "unverified"`. These values are deliberate; receive
-time and cumulative PCM position cannot establish meeting-wide coverage.
+The pinned SDK does not attest a common meeting clock. Controlled finals carry
+the enclosing committed input buffer as `timing: {state: "source_buffer",
+sample_rate: 24000, start_sample, end_sample}`. The worker derives these exclusive
+bounds from successful PCM writes, issued commits and acknowledged item order;
+source offsets continue across legs. These are buffer bounds, not precise speech
+or word timing. A final arriving before its ACK waits for that evidence within
+a bounded timeout. If timing evidence remains unavailable, retain the received
+final and its exact text with unavailable timing. This does not clear any
+terminal transport error, bypass drain, authorize rotation or claim completeness.
+
+The gateway orders the four timing fields before hashing; Core checks the buffer
+against the recorded leg at both reservation and confirmation. Unlocated events
+retain `timing: {state: "unavailable"}`. The journal keeps sticky incomplete state
+and `meeting_coverage: "unverified"` for either timing state. Receive time and
+cumulative PCM position cannot establish meeting-wide coverage.
 
 This slice persists the finals. It does not assemble/select an eligible V2
 meeting transcript or wire the journal into automatic summaries. That next slice
@@ -64,7 +75,8 @@ private append path above. It is validated before controlled job dispatch.
 No environment value is supplied or activated by this change.
 
 Before any future deployment, drain older controlled v2 jobs: they share the
-control protocol number but do not deliver durable finals. Deploy matching
+control protocol number, but earlier generations either lack durable finals or
+do not retain committed source-buffer evidence. Deploy matching
 Core, gateway and worker code together. Rollback first stops controlled dispatch
 and awaits cleanup; do not adopt an older worker or promote partial journals
 as complete transcripts. Existing additive journal migrations remain intact.

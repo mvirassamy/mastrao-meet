@@ -2,12 +2,22 @@
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 
 MAX_DRAIN_ITEMS = 100_000
 
 
 class InputDrainError(RuntimeError):
     """Prevent rotation when a provider boundary cannot be proved complete."""
+
+
+@dataclass
+class CommitWindow:
+    """One issued commit's local PCM bounds, confirmed only after its send."""
+
+    start_sample: int
+    end_sample: int
+    sent: bool = False
 
 
 class InputDrain:
@@ -21,6 +31,10 @@ class InputDrain:
         self.expected_samples: int | None = None
         self._acks: dict[str, str | None] = {}
         self._completed: dict[str, bool] = {}
+        self._commit_windows: list[CommitWindow] = []
+        self._successors: dict[str | None, str] = {}
+        self._item_windows: dict[str, CommitWindow] = {}
+        self._last_ack: str | None = None
         self._error: InputDrainError | None = None
         self._failed = failed
         self._fenced = False
@@ -73,13 +87,51 @@ class InputDrain:
             self.fail("live-input-appended-count-mismatch")
         self._changed.set()
 
-    def committing(self) -> None:
+    def committing(self) -> CommitWindow:
         """Reserve ACK accounting before I/O can yield to the receive task."""
+        window = CommitWindow(self.committed_samples, self.appended_samples)
         self.commits += 1
         self.committed_samples = self.appended_samples
         if self.commits > MAX_DRAIN_ITEMS:
             self.fail("live-input-commit-capacity-exceeded")
         self.check()
+        self._commit_windows.append(window)
+        return window
+
+    def commit_sent(self, window: CommitWindow) -> None:
+        """Confirm the reserved interval only after the underlying send returns."""
+        window.sent = True
+        self._changed.set()
+
+    def _resolve_ack_chain(self) -> None:
+        """Pair the rooted item chain with commit FIFO, never receive order."""
+        while self._last_ack in self._successors:
+            item = self._successors[self._last_ack]
+            if item in self._item_windows:
+                self.fail("live-input-ack-chain-inconsistent")
+                return
+            ordinal = len(self._item_windows)
+            self._item_windows[item] = self._commit_windows[ordinal]
+            self._last_ack = item
+
+    def _observe_ack(self, item_id: str, previous: object) -> None:
+        """Retain a unique predecessor chain while permitting reordered ACKs."""
+        if previous is not None and (not isinstance(previous, str) or not previous):
+            self.fail("live-input-ack-predecessor-invalid")
+            self.check()
+        if item_id in self._acks and self._acks[item_id] != previous:
+            self.fail("live-input-ack-identity-changed")
+            self.check()
+        successor = self._successors.get(previous)
+        if successor is not None and successor != item_id:
+            self.fail("live-input-ack-chain-inconsistent")
+            self.check()
+        self._acks[item_id] = previous
+        self._successors[previous] = item_id
+        if len(self._acks) > self.commits:
+            self.fail("live-input-unexpected-commit-ack")
+        self.check()
+        self._resolve_ack_chain()
 
     def observe(self, data: dict[str, object]) -> None:
         """Observe raw events without replacing the SDK's receive dispatch."""
@@ -97,15 +149,7 @@ class InputDrain:
             self.fail("live-input-item-identity-missing")
             self.check()
         if kind == "input_audio_buffer.committed":
-            previous = data.get("previous_item_id")
-            if previous is not None and (not isinstance(previous, str) or not previous):
-                self.fail("live-input-ack-predecessor-invalid")
-            elif item_id in self._acks and self._acks[item_id] != previous:
-                self.fail("live-input-ack-identity-changed")
-            else:
-                self._acks[item_id] = previous
-            if len(self._acks) > self.commits:
-                self.fail("live-input-unexpected-commit-ack")
+            self._observe_ack(item_id, data.get("previous_item_id"))
         else:
             transcript = data.get("transcript")
             if not isinstance(transcript, str):
@@ -117,6 +161,21 @@ class InputDrain:
         self._changed.set()
         self.check()
 
+    async def input_window(self, item_id: str) -> tuple[int, int] | None:
+        """Wait for a real completed item, its ACK chain and successful commit."""
+        while True:
+            if self._error is not None:
+                return None
+            window = self._item_windows.get(item_id)
+            if window is not None and window.sent and item_id in self._completed:
+                if window.end_sample <= window.start_sample:
+                    return None
+                return window.start_sample, window.end_sample
+            if self._fenced:
+                return None
+            self._changed.clear()
+            await self._changed.wait()
+
     async def wait_appended(self) -> None:
         """Wait through held I/O and the SDK's partial 50-ms tail."""
         await self._wait(lambda: self.appended_samples == self.expected_samples)
@@ -127,25 +186,12 @@ class InputDrain:
             lambda: (
                 len(self._acks) == self.commits
                 and self._acks.keys() <= self._completed.keys()
+                and all(window.sent for window in self._commit_windows)
             )
         )
         if self._completed.keys() != self._acks.keys():
             raise InputDrainError("live-input-unacknowledged-final")
-        # ACK order need not match final arrival order. Validate the predecessor
-        # chain as a set, without assuming the server echoes client event IDs.
-        successors: dict[str | None, str] = {}
-        for item, previous in self._acks.items():
-            if previous in successors:
-                raise InputDrainError("live-input-ack-chain-inconsistent")
-            successors[previous] = item
-        predecessor = None
-        visited = set()
-        while predecessor in successors:
-            predecessor = successors[predecessor]
-            if predecessor in visited:
-                raise InputDrainError("live-input-ack-chain-inconsistent")
-            visited.add(predecessor)
-        if visited != self._acks.keys():
+        if self._item_windows.keys() != self._acks.keys():
             raise InputDrainError("live-input-ack-chain-inconsistent")
         return frozenset(key for key, nonempty in self._completed.items() if nonempty)
 

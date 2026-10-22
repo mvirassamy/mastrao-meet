@@ -6,12 +6,18 @@ import hashlib
 import json
 import re
 
-from live_send_control import MAX_SAFE_SAMPLE, ControlError
+from live_send_control import (
+    MAX_SAFE_SAMPLE,
+    PCM_SAMPLE_RATE,
+    ROTATION_SECONDS,
+    ControlError,
+)
 
 MAX_EVENTS_PER_SOURCE = 100_000
 MAX_EVENT_BYTES = 32 * 1024
 MAX_TEXT_UNITS = 4000
 DELIVERY_VERSION = 2
+MAX_LEG_SAMPLES = PCM_SAMPLE_RATE * ROTATION_SECONDS
 _REFERENCE = re.compile(r"^[A-Za-z0-9_-]{16,160}$")
 _ITEM = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
 _LANGUAGE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
@@ -57,6 +63,25 @@ def _matches(pattern: re.Pattern[str], value: object) -> bool:
     return isinstance(value, str) and pattern.fullmatch(value) is not None
 
 
+def canonical_timing(value: object) -> dict[str, object]:
+    """Order enclosing source PCM evidence without certifying a meeting clock."""
+    if value == {"state": "unavailable"}:
+        return {"state": "unavailable"}
+    fields = ("state", "sample_rate", "start_sample", "end_sample")
+    if (
+        not isinstance(value, dict)
+        or set(value) != set(fields)
+        or value["state"] != "source_buffer"
+        or type(value["sample_rate"]) is not int
+        or value["sample_rate"] != PCM_SAMPLE_RATE
+        or not _integer(value["start_sample"], 0, MAX_SAFE_SAMPLE)
+        or not _integer(value["end_sample"], 0, MAX_SAFE_SAMPLE)
+        or not 0 < value["end_sample"] - value["start_sample"] <= MAX_LEG_SAMPLES
+    ):
+        raise ControlError("invalid delivery audio timing")
+    return {key: value[key] for key in fields}
+
+
 def _fields(kind: object) -> tuple[str, ...]:
     if kind == "final":
         return ("kind", "item_ref", "revision", "text", "language", "timing")
@@ -86,9 +111,12 @@ def event_bytes(event: dict[str, object]) -> bytes:
     ):
         raise ControlError("invalid delivery event binding")
     _validate_content(event)
+    ordered = {key: event[key] for key in fields}
+    if event["kind"] == "final":
+        ordered["timing"] = canonical_timing(event["timing"])
     try:
         encoded = json.dumps(
-            {key: event[key] for key in fields},
+            ordered,
             ensure_ascii=False,
             separators=(",", ":"),
             allow_nan=False,
@@ -115,7 +143,6 @@ def _validate_content(event: dict[str, object]) -> None:
                 event["language"] is not None
                 and not _matches(_LANGUAGE, event["language"])
             )
-            or event["timing"] != {"state": "unavailable"}
         ):
             raise ControlError("invalid delivery final")
         return

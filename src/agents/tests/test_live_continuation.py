@@ -136,6 +136,83 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.ticks.put_nowait(None)
         await asyncio.wait_for(self.rotation_timers.get(), 2)
 
+    async def test_queued_final_survives_physical_close(self):
+        """A distinct accepted item still publishes after its provider is cleared."""
+        await self.assert_queued_final_survives_close(cancel_waiter=False)
+
+    async def test_queued_final_survives_cancelled_stop_waiter(self):
+        """Cancelling one stop waiter does not abandon accepted text delivery."""
+        await self.assert_queued_final_survives_close(cancel_waiter=True)
+
+    async def assert_queued_final_survives_close(self, *, cancel_waiter):
+        """Hold item A's UI publication while item B waits for durable delivery."""
+        socket = self.sockets[0]
+        socket.auto_complete = False
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def held_ui(event):
+            if event.item_id == "a":
+                entered.set()
+                await release.wait()
+            self.published.append((event.leg_id, event.item_id, event.revision))
+
+        self.publisher.publish_segment.side_effect = held_ui
+        close = None
+        first_buffer_end, second_buffer_end = 2400, 4800
+        try:
+            await self.feed(1, 6)
+            await eventually(lambda: len(socket.samples) == first_buffer_end)
+            await self.providers[0]._socket.send_json(
+                {"type": "input_audio_buffer.commit"}
+            )
+            socket.feed(committed("a"), completed("a", "first accepted final"))
+            await asyncio.wait_for(entered.wait(), 2)
+            await self.feed(6, 11)
+            await eventually(lambda: len(socket.samples) == second_buffer_end)
+            await self.providers[0]._socket.send_json(
+                {"type": "input_audio_buffer.commit"}
+            )
+            socket.feed(committed("b", "a"), completed("b", "second accepted final"))
+            await eventually(lambda: len(self.track._pending_events) == 1)
+            self.assertEqual(
+                await self.providers[0].input_window("b"),
+                (first_buffer_end, second_buffer_end),
+            )
+            close = asyncio.create_task(self.track.aclose())
+            await eventually(lambda: self.track._provider is None)
+            self.assertTrue(socket.closed)
+            if cancel_waiter:
+                close.cancel()
+            release.set()
+            outcomes = await asyncio.wait_for(
+                asyncio.gather(self.run, close, return_exceptions=True), 2
+            )
+            self.assertIsNone(outcomes[0])
+            if cancel_waiter:
+                self.assertIsInstance(outcomes[1], asyncio.CancelledError)
+            else:
+                self.assertIsNone(outcomes[1])
+            finals = [
+                body["event"]
+                for body in self.gateway.requests
+                if body["action"] == "deliver" and body["event"]["kind"] == "final"
+            ]
+            self.assertEqual([event["item_ref"] for event in finals], ["a", "b"])
+            self.assertEqual(
+                [event["text"] for event in finals],
+                ["first accepted final", "second accepted final"],
+            )
+            self.assertEqual(finals[1]["timing"], {"state": "unavailable"})
+            self.assertEqual([item for _, item, _ in self.published], ["a", "b"])
+            self.assertTrue(self.gateway.entered["stopped"].is_set())
+            self.assertFalse(self.gateway.entered["rotate"].is_set())
+            self.assertFalse(self.lease.can_send())
+            self.assertEqual(self.factory.call_count, 1)
+        finally:
+            release.set()
+            if close is not None:
+                await asyncio.gather(close, return_exceptions=True)
+
     async def test_multiple_540_second_rotations_preserve_exact_socket_pcm_and_leg_ids(
         self,
     ):
@@ -180,8 +257,17 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([e["item_ref"] for e in events[:3]], ["item-1"] * 3)
         self.assertEqual([e["leg_ref"] for e in events[:3]], self.factory_leg_refs[:3])
         self.assertEqual([e["revision"] for e in events[:3]], [1, 1, 1])
-        self.assertTrue(
-            all(e["timing"] == {"state": "unavailable"} for e in events[:3])
+        self.assertEqual(
+            [e["timing"] for e in events[:3]],
+            [
+                {
+                    "state": "source_buffer",
+                    "sample_rate": 24000,
+                    "start_sample": start,
+                    "end_sample": end,
+                }
+                for start, end in ((0, 3360), (3360, 7200), (7200, 11520))
+            ],
         )
         self.assertEqual(events[-1]["final_event_count"], 3)
         self.assertEqual(events[-1]["reason"], "capture_incomplete")
@@ -310,7 +396,79 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(event["revision"], 2)
         self.assertEqual(event["text"], text)
         self.assertIsNone(event["language"])
-        self.assertEqual(event["timing"], {"state": "unavailable"})
+        self.assertEqual(
+            event["timing"],
+            {
+                "state": "source_buffer",
+                "sample_rate": 24000,
+                "start_sample": 0,
+                "end_sample": 3360,
+            },
+        )
+
+    async def test_real_final_waits_for_ack_before_durable_buffer_publication(self):
+        """A completed SDK final can precede the ACK that identifies its PCM."""
+        socket = self.sockets[0]
+        socket.auto_complete = False
+        await self.feed(1, 8)
+        self.ticks.put_nowait(None)
+        await socket.commit_requests.get()
+        socket.feed(completed("item-1", "final before ACK"))
+        await eventually(lambda: "item-1" in self.providers[0]._socket.drain._completed)
+        self.assertFalse(self.gateway.entered["deliver"].is_set())
+        socket.feed(committed("item-1"))
+        await asyncio.wait_for(self.rotation_timers.get(), 2)
+        events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["timing"],
+            {
+                "state": "source_buffer",
+                "sample_rate": 24000,
+                "start_sample": 0,
+                "end_sample": 3360,
+            },
+        )
+
+    async def test_missing_ack_leaves_final_unavailable_without_receipt_fallback(self):
+        """Unknown provenance preserves the final and never mints a PCM window."""
+        socket = self.sockets[0]
+        socket.auto_complete = False
+        await self.feed(1, 6)
+        expected_samples = 2400
+        await eventually(lambda: len(socket.samples) == expected_samples)
+        await self.providers[0]._socket.send_json({"type": "input_audio_buffer.commit"})
+        with patch("live_single_connection.DRAIN_TIMEOUT_SECONDS", 0.01):
+            socket.feed(completed("unacknowledged", "exact final without ACK"))
+            await eventually(self.gateway.entered["deliver"].is_set)
+        events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
+        self.assertEqual(events[0]["text"], "exact final without ACK")
+        self.assertEqual(events[0]["timing"], {"state": "unavailable"})
+        self.assertEqual(socket.commit_count, 1)
+        self.assertEqual(self.connector.await_count, 1)
+
+    async def test_corrections_reuse_the_same_committed_buffer_without_another_send(
+        self,
+    ):
+        """Provider text revisions do not move the source window or resend PCM."""
+        socket = self.sockets[0]
+        socket.auto_complete = False
+        await self.feed(1, 6)
+        expected_samples = 2400
+        await eventually(lambda: len(socket.samples) == expected_samples)
+        await self.providers[0]._socket.send_json({"type": "input_audio_buffer.commit"})
+        socket.feed(committed("item"), completed("item", "first"))
+        await eventually(lambda: len(self.published) == 1)
+        socket.feed(completed("item", "corrected"))
+        expected_revisions = 2
+        await eventually(lambda: len(self.published) == expected_revisions)
+        events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
+        self.assertEqual([e["revision"] for e in events], [1, 2])
+        self.assertEqual([e["text"] for e in events], ["first", "corrected"])
+        self.assertEqual(events[0]["timing"], events[1]["timing"])
+        self.assertEqual(events[0]["timing"]["state"], "source_buffer")
+        self.assertEqual(socket.commit_count, 1)
+        self.assertEqual(len(socket.samples), expected_samples)
 
     async def test_lost_rotate_response_is_terminal_and_cannot_open_or_retry(self):
         """Only the exact unknown successor may be cleaned up after transport loss."""
