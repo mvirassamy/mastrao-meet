@@ -36,6 +36,7 @@ MB = 1024 * KB
 GB = 1024 * MB
 
 MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
+    "host_invitation",
     "host_handoff",
     "host_grant",
     "guest_invitation",
@@ -88,6 +89,7 @@ MASTRAO_BASE_CONTRACT_SETTINGS = (
     "MASTRAO_ROOM_RECEIPT_KEY_ID",
     "MASTRAO_PLATFORM_ORIGIN",
     "MASTRAO_CORE_REDEMPTION_ENDPOINT",
+    "MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT",
     "MASTRAO_CORE_GUEST_REDEMPTION_ENDPOINT",
     "MASTRAO_CORE_GUEST_DECISION_ENDPOINT",
     "MASTRAO_CORE_GUEST_CONFIRM_ENDPOINT",
@@ -588,6 +590,11 @@ class Base(Configuration):
     )
     MASTRAO_CORE_REDEMPTION_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_REDEMPTION_ENDPOINT", environ_prefix=None
+    )
+    MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT",
+        environ_prefix=None,
     )
     MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS = values.FloatValue(
         5.0,

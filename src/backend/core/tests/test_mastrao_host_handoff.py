@@ -325,6 +325,7 @@ def test_sentry_scrubs_host_handoff_credentials():
     event = {
         "request": {
             "data": {
+                "host_invitation": "host-invitation-secret",
                 "host_handoff": "header.payload.signature",
                 "host_grant": "grant.payload.signature",
                 "close_assertion": "close.payload.signature",
@@ -338,6 +339,7 @@ def test_sentry_scrubs_host_handoff_credentials():
     scrubbed = scrub_mastrao_handoff_credentials(event, {})
 
     assert scrubbed["request"]["data"] == {
+        "host_invitation": "[Filtered]",
         "host_handoff": "[Filtered]",
         "host_grant": "[Filtered]",
         "close_assertion": "[Filtered]",

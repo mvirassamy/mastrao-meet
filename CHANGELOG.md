@@ -1009,6 +1009,9 @@ and this project adheres to
 
 ### Added
 
+- 🔐(all) exchange fragment-safe durable host invitations for the existing
+  short host handoff and session-bound grant
+
 - 🔒️(ci) scope the Meet OIDC staging plan to the web API #32
 
 - ⚗️(agent) durably mirror shadow microphone batches to isolated

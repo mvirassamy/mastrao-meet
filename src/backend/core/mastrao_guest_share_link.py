@@ -9,6 +9,10 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from core.mastrao_browser_handoff import (
+    browser_handoff_headers,
+    is_same_origin_handoff,
+)
 from core.mastrao_guest_contract import (
     EXTERNAL_ID,
     GuestHandoffRefused,
@@ -21,8 +25,6 @@ from core.mastrao_guest_handoff import (
     GUEST_RETRY_COOKIE,
     _commit_grant,
     _post_core,
-    _safe_headers,
-    _same_origin,
 )
 
 SHARE_REF = re.compile(r"^share_[A-Za-z0-9_-]{32}$")
@@ -33,11 +35,11 @@ REDEMPTION_ID = re.compile(r"^redemption_[a-f0-9]{32}$")
 @require_POST
 def consume_guest_share_link(request):
     """The locator grants only a bounded lobby session, never media or host rights."""
-    headers = _safe_headers()
+    headers = browser_handoff_headers()
     try:
         if (
             not settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
-            or not _same_origin(request)
+            or not is_same_origin_handoff(request)
             or request.content_type != "application/json"
             or len(request.body) > 18_432
         ):

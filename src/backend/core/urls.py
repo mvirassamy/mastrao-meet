@@ -16,6 +16,10 @@ from core.mastrao_guest_handoff import (
 from core.mastrao_guest_invitation_share import create_guest_invitation_share
 from core.mastrao_guest_share_link import consume_guest_share_link
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
+from core.mastrao_host_invitation import (
+    establish_mastrao_host_invitation_session,
+    exchange_mastrao_host_invitation,
+)
 from core.mastrao_host_recovery import recover_meeting_host
 from core.mastrao_meeting_assistant import meeting_assistant, meeting_assistant_citation
 from core.mastrao_meeting_classification import meeting_classification, meeting_matters
@@ -113,6 +117,16 @@ urlpatterns = [
         "handoff/host/",
         consume_mastrao_host_handoff,
         name="consume_mastrao_host_handoff",
+    ),
+    path(
+        "handoff/host/invitation/session/",
+        establish_mastrao_host_invitation_session,
+        name="establish_mastrao_host_invitation_session",
+    ),
+    path(
+        "handoff/host/invitation/",
+        exchange_mastrao_host_invitation,
+        name="exchange_mastrao_host_invitation",
     ),
     path(
         "internal/mastrao/rooms/ensure/",
