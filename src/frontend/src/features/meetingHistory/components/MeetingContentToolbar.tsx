@@ -1,12 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckIcon, CopyIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
-
-type CopyState = 'idle' | 'copied' | 'failed'
-
-const COPY_FEEDBACK_MS = 2000
+import { useClipboardCopy } from './useClipboardCopy'
 
 /**
  * Quiet line above a summary or a transcript: a short note on the left and
@@ -20,22 +17,7 @@ export function MeetingContentToolbar({
   copyText: string
 }) {
   const { t } = useTranslation('meetingHistory')
-  const [copy, setCopy] = useState<CopyState>('idle')
-
-  useEffect(() => {
-    if (copy === 'idle') return
-    const timeout = window.setTimeout(() => setCopy('idle'), COPY_FEEDBACK_MS)
-    return () => window.clearTimeout(timeout)
-  }, [copy])
-
-  async function copyContent() {
-    try {
-      await navigator.clipboard.writeText(copyText)
-      setCopy('copied')
-    } catch {
-      setCopy('failed')
-    }
-  }
+  const { copy, copyText: copyToClipboard } = useClipboardCopy()
 
   return (
     <div
@@ -71,7 +53,7 @@ export function MeetingContentToolbar({
             <CopyIcon aria-hidden="true" />
           )
         }
-        onPress={() => void copyContent()}
+        onPress={() => void copyToClipboard(copyText)}
       >
         {t(`content.${copy === 'idle' ? 'copy' : copy}`)}
       </Button>

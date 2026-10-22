@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog } from '@/primitives'
-import { css } from '@/styled-system/css'
 import {
   MeetingAssistantPanel,
   type MeetingAssistantAction,
 } from './MeetingAssistantPanel'
 import { AssistantCitationDialog } from './AssistantCitationDialog'
+import type { AssistantReadiness } from './assistantReadiness'
 import { assistantTurnView } from './assistantView'
 import { useAssistantCitation } from './useAssistantCitation'
 import { useMeetingAssistant } from './useMeetingAssistant'
@@ -13,14 +13,21 @@ import { useMeetingAssistant } from './useMeetingAssistant'
 export function MeetingAssistant({
   meetingId,
   identityKey,
+  readiness,
   onClose,
 }: {
   meetingId: string
   identityKey: string
+  readiness: AssistantReadiness
   onClose: () => void
 }) {
   const { t } = useTranslation('meetingAssistant')
-  const flow = useMeetingAssistant(meetingId, identityKey)
+  const flow = useMeetingAssistant(
+    meetingId,
+    identityKey,
+    // Read once processed, so an existing conversation stays clearable.
+    readiness !== 'preparing'
+  )
   const { query } = flow
   const citation = useAssistantCitation(query.dataUpdatedAt)
   const reading =
@@ -48,6 +55,7 @@ export function MeetingAssistant({
   return (
     <>
       <MeetingAssistantPanel
+        readiness={readiness}
         turns={flow.turns.map((turn) => assistantTurnView(turn, t))}
         loading={reading}
         pending={flow.pending}
@@ -60,9 +68,22 @@ export function MeetingAssistant({
         onAsk={(question) => flow.send('question', question)}
         onAction={action}
         onOpenCitation={openCitation}
+        onClear={flow.requestDelete}
+        canClear={flow.canDelete}
         onClose={onClose}
       >
         {flow.error && <p role="alert">{t(`command.${flow.error}`)}</p>}
+        {/* An unconfirmed command or a turn still processing is settled by
+            reading the conversation again. */}
+        {(flow.error || flow.hasProcessingTurn) && !query.isError && (
+          <Button
+            variant="secondary"
+            isDisabled={flow.pending || query.isFetching}
+            onPress={flow.refresh}
+          >
+            {t('refresh')}
+          </Button>
+        )}
         {flow.retryCommand && !query.isError && (
           <Button
             variant="secondary"
@@ -72,33 +93,14 @@ export function MeetingAssistant({
             {t('command.retry')}
           </Button>
         )}
-        {!reading && !query.isError && (
-          <div
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.5rem',
-            })}
+        {!reading && !query.isError && query.hasNextPage && (
+          <Button
+            variant="ghost"
+            isDisabled={query.isFetching || flow.pending}
+            onPress={() => void query.fetchNextPage()}
           >
-            {query.hasNextPage && (
-              <Button
-                variant="ghost"
-                isDisabled={query.isFetching || flow.pending}
-                onPress={() => void query.fetchNextPage()}
-              >
-                {t('older')}
-              </Button>
-            )}
-            {flow.turns.length > 0 && (
-              <Button
-                variant="ghost"
-                isDisabled={query.isFetching || flow.pending || !flow.canDelete}
-                onPress={flow.requestDelete}
-              >
-                {t('delete.open')}
-              </Button>
-            )}
-          </div>
+            {t('older')}
+          </Button>
         )}
       </MeetingAssistantPanel>
       <AssistantCitationDialog
@@ -126,7 +128,7 @@ export function MeetingAssistant({
               isDisabled={flow.pending || query.isFetching}
               onPress={flow.refresh}
             >
-              {t('retry')}
+              {t('refresh')}
             </Button>
             {flow.retryCommand && (
               <Button

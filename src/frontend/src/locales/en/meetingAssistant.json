@@ -1,41 +1,69 @@
 {
   "title": "Ask about this meeting",
   "close": "Close the assistant",
-  "scope": "This meeting only. Your conversation is private; personal notes and other folders are not used.",
-  "scopeShort": "Private thread · this meeting only",
-  "loading": "Loading your private conversation…",
-  "pending": "Reading sources and preparing the result…",
-  "error": "The conversation or request could not be confirmed. Reload the conversation before retrying.",
-  "retry": "Reload conversation",
-  "empty": "Ask a question about what was discussed in this meeting.",
+  "privacy": "Visible only to you",
+  "scope": "This meeting only",
+  "options": "Conversation options",
+  "loading": "Loading the conversation…",
+  "pending": "The assistant is preparing its answer…",
+  "error": "The conversation could not be loaded.",
+  "retry": "Try again",
+  "refresh": "Refresh",
+  "empty": "A question about the meeting?",
+  "emptyHint": "Ask a question or pick a shortcut.",
   "history": "Your private conversation",
   "question": "Your question about this meeting",
-  "placeholder": "Ask a question about this meeting…",
-  "ask": "Ask question",
+  "ask": "Ask the question",
+  "placeholder": {
+    "ready": "Ask a question about this meeting…",
+    "preparing": "Available once the meeting is processed…",
+    "unavailable": "Assistant unavailable for this meeting"
+  },
+  "preparing": {
+    "title": "The assistant is getting ready",
+    "description": "It can answer as soon as the transcript is ready.",
+    "ended": "Meeting ended",
+    "transcribing": "Transcription in progress",
+    "ready": "Assistant available",
+    "state": {
+      "done": "done",
+      "current": "in progress",
+      "waiting": "upcoming"
+    }
+  },
+  "unavailable": {
+    "title": "Assistant unavailable",
+    "description": "The assistant answers from the transcript, which is not available for this meeting."
+  },
   "actions": {
-    "title": "Prepare a proposal",
+    "title": "Shortcuts",
     "short-summary": "Short summary",
     "actions": "Extract actions",
-    "follow-up-email": "Draft follow-up email"
+    "follow-up-email": "Follow-up email"
   },
   "result": {
-    "unavailable": "This result is no longer readable under current permissions and source versions.",
-    "abstention": "The available sources do not support an answer with sufficient confidence.",
-    "coverage": "Source coverage limitations",
-    "edit": "Edit proposal",
+    "unavailable": "This answer can no longer be viewed.",
+    "abstention": "The meeting does not allow a confident answer.",
+    "failure": "The answer could not be prepared. Ask the question again.",
+    "processing": "Answer in preparation…",
+    "unknown": "This answer did not complete. Ask the question again.",
+    "refusal": "This request is outside the scope of the meeting.",
     "sources": "Source passages",
-    "proposal": "Proposal for review. No publication, task or communication is triggered. Edits remain in this view.",
-    "copy": "Copy proposal",
-    "copied": "Proposal copied.",
-    "failed": "Copy failed. You can select and copy the text.",
-    "failure": "Generation failed for a technical reason. This does not mean evidence is absent.",
-    "processing": "This request is still processing. Reload the conversation to check its current state.",
-    "unknown": "The outcome of this request remains unknown. A new question or proposal will create a separate request without retrying this one.",
-    "refusal": "This request cannot be processed within the authorized scope.",
-    "subject": "Subject",
-    "owner": "Owner",
-    "due": "Due date",
-    "unspecified": "To be specified"
+    "openSource": "Open the cited passage · {{label}}",
+    "brief": "Meeting notes",
+    "due": "Due: {{date}}"
+  },
+  "email": {
+    "label": "Follow-up email",
+    "copy": "Copy",
+    "copied": "Copied",
+    "failed": "Copy failed",
+    "open": "Open in my email app"
+  },
+  "limit": {
+    "partial_sources": "Part of the meeting was not transcribed.",
+    "published_only": "Answer based on the published notes only.",
+    "absent": "No passage of the meeting could be read."
   },
   "source": {
     "title": "Cited passage",
@@ -43,12 +71,6 @@
     "error": "This passage cannot be opened. Permissions or the source may have changed.",
     "close": "Close",
     "version": "Version {{version}}",
-    "kind": {
-      "provider_run": "Transcript",
-      "reviewed_revision": "Reviewed transcript",
-      "native_epoch": "Native transcript",
-      "published_brief": "Published brief"
-    },
     "status": {
       "transcript": "Transcribed speech",
       "published_summary": "Published summary",
@@ -63,50 +85,28 @@
     }
   },
   "operation": {
-    "question": "Meeting question",
+    "question": "Question about the meeting",
     "summary": "Short summary",
-    "actions": "Proposed actions",
-    "email_draft": "Follow-up email draft"
-  },
-  "coverage": {
-    "state": {
-      "full": "Usable sources are available.",
-      "partial": "Sources are partial; information may be missing.",
-      "absent": "No usable source is available."
-    },
-    "source": {
-      "reference_transcript": "Reference transcript.",
-      "partial_sources": "Partially available sources.",
-      "published_only": "Published material only.",
-      "absent": "No accessible source."
-    },
-    "selection": {
-      "complete": "All available passages were provided.",
-      "relevant_passages": "Relevant passages selected; coverage is not exhaustive.",
-      "distributed_passages": "Passages sampled across the meeting; coverage is not exhaustive.",
-      "none": "No passage selected."
-    },
-    "omitted_one": "{{count}} passage omitted.",
-    "omitted_other": "{{count}} passages omitted.",
-    "unknown": "Source coverage could not be established."
+    "actions": "Extract actions",
+    "email_draft": "Follow-up email"
   },
   "prompt": {
     "summary": "Produce a short summary of this meeting, citing the available sources.",
     "actions": "Extract the proposed actions from this meeting. Include owners and deadlines only when established.",
-    "email_draft": "Prepare a follow-up email draft for this meeting with references to cited evidence, without inventing recipients."
+    "email_draft": "Prepare a follow-up email draft for this meeting, without inventing recipients and without mentioning sources in the email."
   },
   "command": {
-    "unconfirmed": "The outcome of this request is not confirmed. Read the thread again before retrying.",
-    "conflict": "The thread changed in another session. Check the displayed state before confirming a new request.",
-    "rejected": "The request was rejected. Check its content before trying again.",
-    "retry": "Retry the same request"
+    "unconfirmed": "Your request could not be confirmed.",
+    "conflict": "The conversation changed in another tab. It has just been refreshed.",
+    "rejected": "This request could not be sent. Rephrase it.",
+    "retry": "Try again"
   },
   "older": "Read earlier exchanges",
   "delete": {
-    "open": "Delete my private thread",
-    "title": "Delete your conversation?",
-    "description": "This deletes your private thread for this meeting. The summary, folder and personal notes are kept.",
+    "open": "Clear the conversation",
+    "title": "Clear the conversation?",
+    "description": "Your questions and answers about this meeting will be cleared. The summary, the matter and your notes are kept.",
     "cancel": "Cancel",
-    "confirm": "Delete thread"
+    "confirm": "Clear"
   }
 }

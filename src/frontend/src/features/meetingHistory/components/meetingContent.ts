@@ -11,6 +11,8 @@ export const NOTES_ICON = '/assets/illustrations/section-notes.webp'
 
 export const VIDEO_ICON = '/assets/illustrations/section-video.webp'
 
+export const ASSISTANT_ICON = '/assets/illustrations/assistant.webp'
+
 /** Where a summary or transcript stands, as the interface groups it. */
 export type ContentPhase = 'ready' | 'partial' | 'pending' | 'failed' | 'absent'
 

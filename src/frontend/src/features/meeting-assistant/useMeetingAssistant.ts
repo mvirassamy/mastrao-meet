@@ -14,11 +14,17 @@ import type {
   MeetingAssistantThread,
 } from './types'
 
-export function useMeetingAssistant(meetingId: string, identityKey: string) {
+/** The private conversation of one meeting, read once the meeting is ready. */
+export function useMeetingAssistant(
+  meetingId: string,
+  identityKey: string,
+  enabled: boolean
+) {
   const client = useQueryClient()
   const queryKey = ['meeting-assistant', identityKey, meetingId]
   const query = useInfiniteQuery({
     queryKey,
+    enabled,
     queryFn: ({ signal, pageParam }) =>
       readAssistantThread(meetingId, pageParam, signal),
     initialPageParam: null as string | null,
@@ -208,6 +214,7 @@ export function useMeetingAssistant(meetingId: string, identityKey: string) {
     error,
     canSend,
     canDelete,
+    hasProcessingTurn,
     retryCommand,
     confirmDelete,
     refresh: () => void refresh(),

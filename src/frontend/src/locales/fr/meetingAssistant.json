@@ -1,41 +1,69 @@
 {
   "title": "Interroger cette réunion",
   "close": "Fermer l’assistant",
-  "scope": "Cette réunion uniquement. Votre fil est privé ; les notes personnelles et les autres dossiers ne sont pas utilisés.",
-  "scopeShort": "Fil privé · cette réunion uniquement",
-  "loading": "Chargement de votre fil privé…",
-  "pending": "Lecture des sources et préparation du résultat…",
-  "error": "Le fil ou la demande n’a pas pu être confirmé. Rechargez le fil avant de reprendre.",
-  "retry": "Relire le fil",
-  "empty": "Posez une question sur ce qui a été évoqué dans cette réunion.",
+  "privacy": "Visible par vous seul",
+  "scope": "Cette réunion uniquement",
+  "options": "Options de la conversation",
+  "loading": "Chargement de la conversation…",
+  "pending": "L’assistant prépare sa réponse…",
+  "error": "La conversation n’a pas pu être chargée.",
+  "retry": "Réessayer",
+  "refresh": "Actualiser",
+  "empty": "Une question sur la réunion ?",
+  "emptyHint": "Posez une question ou choisissez un raccourci.",
   "history": "Votre conversation privée",
   "question": "Votre question sur cette réunion",
-  "placeholder": "Posez une question sur cette réunion…",
   "ask": "Poser la question",
+  "placeholder": {
+    "ready": "Posez une question sur cette réunion…",
+    "preparing": "Disponible dès que la réunion est traitée…",
+    "unavailable": "Assistant indisponible pour cette réunion"
+  },
+  "preparing": {
+    "title": "L’assistant se prépare",
+    "description": "Il pourra répondre dès que la transcription sera prête.",
+    "ended": "Réunion terminée",
+    "transcribing": "Transcription en cours",
+    "ready": "Assistant disponible",
+    "state": {
+      "done": "terminé",
+      "current": "en cours",
+      "waiting": "à venir"
+    }
+  },
+  "unavailable": {
+    "title": "Assistant indisponible",
+    "description": "L’assistant répond à partir de la transcription, qui n’est pas disponible pour cette réunion."
+  },
   "actions": {
-    "title": "Préparer une proposition",
+    "title": "Raccourcis",
     "short-summary": "Synthèse courte",
     "actions": "Extraire les actions",
-    "follow-up-email": "Préparer le mail de suivi"
+    "follow-up-email": "Mail de suivi"
   },
   "result": {
-    "unavailable": "Ce résultat n’est plus consultable sous les droits et versions actuels.",
-    "abstention": "Les sources disponibles ne permettent pas de répondre avec suffisamment de certitude.",
-    "coverage": "Limites des sources utilisées",
-    "edit": "Modifier la proposition",
+    "unavailable": "Cette réponse n’est plus consultable.",
+    "abstention": "La réunion ne permet pas de répondre avec certitude.",
+    "failure": "La réponse n’a pas pu être préparée. Posez à nouveau la question.",
+    "processing": "Réponse en cours de préparation…",
+    "unknown": "Cette réponse n’a pas abouti. Posez à nouveau la question.",
+    "refusal": "Cette demande sort du cadre de la réunion.",
     "sources": "Passages sources",
-    "proposal": "Proposition à relire. Aucune publication, tâche ou communication n’est déclenchée. Les modifications restent dans cette vue.",
-    "copy": "Copier la proposition",
-    "copied": "Proposition copiée.",
-    "failed": "La copie n’a pas abouti. Vous pouvez sélectionner et copier le texte.",
-    "failure": "La génération a échoué pour une raison technique. Ce n’est pas une absence de preuve.",
-    "processing": "Cette demande est encore en cours. Relisez le fil pour retrouver son état actuel.",
-    "unknown": "L’issue de cette demande reste inconnue. Une nouvelle question ou proposition créera une demande distincte, sans relancer celle-ci.",
-    "refusal": "Cette demande ne peut pas être traitée dans le périmètre autorisé.",
-    "subject": "Objet",
-    "owner": "Responsable",
-    "due": "Échéance",
-    "unspecified": "À préciser"
+    "openSource": "Ouvrir le passage cité · {{label}}",
+    "brief": "Compte rendu",
+    "due": "Échéance : {{date}}"
+  },
+  "email": {
+    "label": "Mail de suivi",
+    "copy": "Copier",
+    "copied": "Copié",
+    "failed": "Copie impossible",
+    "open": "Ouvrir dans ma messagerie"
+  },
+  "limit": {
+    "partial_sources": "Une partie de la réunion n’a pas été transcrite.",
+    "published_only": "Réponse fondée sur le compte rendu publié uniquement.",
+    "absent": "Aucun passage de la réunion n’a pu être lu."
   },
   "source": {
     "title": "Passage cité",
@@ -43,12 +71,6 @@
     "error": "Ce passage ne peut pas être ouvert. Les droits ou la source ont peut-être changé.",
     "close": "Fermer",
     "version": "Version {{version}}",
-    "kind": {
-      "provider_run": "Transcription",
-      "reviewed_revision": "Transcription revue",
-      "native_epoch": "Transcription native",
-      "published_brief": "Compte rendu publié"
-    },
     "status": {
       "transcript": "Parole transcrite",
       "published_summary": "Synthèse publiée",
@@ -65,48 +87,26 @@
   "operation": {
     "question": "Question sur la réunion",
     "summary": "Synthèse courte",
-    "actions": "Actions proposées",
-    "email_draft": "Brouillon de mail de suivi"
-  },
-  "coverage": {
-    "state": {
-      "full": "Sources exploitables disponibles.",
-      "partial": "Les sources sont partielles ; des éléments peuvent manquer.",
-      "absent": "Aucune source exploitable disponible."
-    },
-    "source": {
-      "reference_transcript": "Transcription de référence.",
-      "partial_sources": "Sources partiellement disponibles.",
-      "published_only": "Éléments publiés uniquement.",
-      "absent": "Aucune source accessible."
-    },
-    "selection": {
-      "complete": "Tous les passages disponibles ont été fournis.",
-      "relevant_passages": "Sélection de passages pertinents ; couverture non exhaustive.",
-      "distributed_passages": "Sélection répartie dans la réunion ; couverture non exhaustive.",
-      "none": "Aucun passage sélectionné."
-    },
-    "omitted_one": "{{count}} passage non inclus.",
-    "omitted_other": "{{count}} passages non inclus.",
-    "unknown": "La couverture des sources n’a pas pu être établie."
+    "actions": "Extraire les actions",
+    "email_draft": "Mail de suivi"
   },
   "prompt": {
     "summary": "Produis une synthèse courte de cette réunion, en citant les sources disponibles.",
     "actions": "Extrais les actions proposées dans cette réunion. Indique le responsable et l’échéance uniquement lorsqu’ils sont établis.",
-    "email_draft": "Prépare un brouillon de mail de suivi de cette réunion avec les références aux éléments cités, sans inventer de destinataire."
+    "email_draft": "Prépare un brouillon de mail de suivi de cette réunion, sans inventer de destinataire et sans mention des sources dans le mail."
   },
   "command": {
-    "unconfirmed": "L’issue de la demande n’est pas confirmée. Relisez le fil avant toute nouvelle tentative.",
-    "conflict": "Le fil a changé dans une autre session. Vérifiez l’état affiché avant de confirmer une nouvelle demande.",
-    "rejected": "La demande a été refusée. Vérifiez son contenu avant de réessayer.",
-    "retry": "Réessayer la même demande"
+    "unconfirmed": "Votre demande n’a pas pu être confirmée.",
+    "conflict": "La conversation a changé dans un autre onglet. Elle vient d’être actualisée.",
+    "rejected": "Cette demande n’a pas pu être envoyée. Reformulez-la.",
+    "retry": "Réessayer"
   },
   "older": "Lire les échanges précédents",
   "delete": {
-    "open": "Supprimer mon fil privé",
-    "title": "Supprimer votre conversation ?",
-    "description": "Cette action supprime votre fil privé sur cette réunion. La synthèse, le dossier et vos notes personnelles sont conservés.",
+    "open": "Effacer la conversation",
+    "title": "Effacer la conversation ?",
+    "description": "Vos questions et réponses sur cette réunion seront effacées. La synthèse, le dossier et vos notes sont conservés.",
     "cancel": "Annuler",
-    "confirm": "Supprimer le fil"
+    "confirm": "Effacer"
   }
 }
