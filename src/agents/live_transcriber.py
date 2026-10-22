@@ -18,6 +18,7 @@ from livekit.agents import JobContext, stt
 from livekit.plugins import openai
 
 from live_continuation import ContinuationInput, continue_legs
+from live_durable_publisher import DurablePublisher
 from live_input_drain import InputDrainError
 from live_send_control import LiveControlClient, LiveSendAuthority
 from live_single_connection import AuthorizedOpenAI
@@ -283,6 +284,7 @@ class TrackTranscriber:
         self._publisher = publisher
         self._vad = vad
         self._authority = authority
+        self._durable: DurablePublisher | None = None
         self._control_tasks: list[asyncio.Task[None]] = []
         self._control_join_task: asyncio.Task[None] | None = None
         self._authority_finish_task: asyncio.Task[None] | None = None
@@ -332,6 +334,9 @@ class TrackTranscriber:
             if self._authority is not None:
                 if not await self._authority.claim() or self._closing:
                     return
+                self._durable = DurablePublisher(
+                    self._authority, self._fail_durable_delivery
+                )
                 self._open_authorized_leg()
                 self._control_tasks = [
                     asyncio.create_task(
@@ -410,6 +415,11 @@ class TrackTranscriber:
         if self._continuation_error is None:
             self._continuation_error = InputDrainError(reason)
         self._mark_incomplete(reason)
+        self.fence_audio()
+
+    def _fail_durable_delivery(self) -> None:
+        """Fence in the failing delivery task, before deferred supervision."""
+        self._mark_incomplete("durable-delivery-failed")
         self.fence_audio()
 
     async def _capture_authorized_audio(self) -> None:
@@ -531,6 +541,8 @@ class TrackTranscriber:
                 continue
             if len(self._pending_events) >= MAX_PENDING_EVENTS_PER_TRACK:
                 self._mark_incomplete("publication-capacity-exceeded")
+                if self._authority is not None:
+                    self.fence_audio()
                 raise RuntimeError("live transcription publication capacity exceeded")
             self._pending_events.append(event)
             self._events_ready.set()
@@ -542,6 +554,16 @@ class TrackTranscriber:
 
     async def _publish_events(self) -> None:
         """Publish the bounded accepted queue in SDK order, including at stop."""
+        try:
+            await self._publish_pending_events()
+        except BaseException:
+            if self._authority is not None:
+                self._mark_incomplete("publication-failed")
+                self.fence_audio()
+            raise
+
+    async def _publish_pending_events(self) -> None:
+        """A final becomes rotation-ready only after durable and UI publication."""
         while True:
             await self._events_ready.wait()
             while self._pending_events:
@@ -591,6 +613,11 @@ class TrackTranscriber:
                 if isinstance(result, InputDrainError):
                     self._mark_incomplete(str(result))
                 errors.append(result)
+        if self._durable is not None:
+            try:
+                await self._durable.finish(self._durable_gap_reason())
+            except BaseException as error:
+                errors.append(error)
         for reason in self._incomplete_reasons:
             try:
                 await self._publisher.publish_gap(reason)
@@ -603,6 +630,19 @@ class TrackTranscriber:
                 errors.append(error)
         if errors:
             raise BaseExceptionGroup("live transcription delivery incomplete", errors)
+
+    def _durable_gap_reason(self) -> str | None:
+        """Describe known loss separately from the unproved SDK close drain."""
+        reasons = set(self._incomplete_reasons) - {"sdk-close-final-drain-unconfirmed"}
+        if not reasons:
+            return None
+        if "live-send-authority-lost" in reasons:
+            return "connection_lost"
+        if reasons & {"publication-failed", "publication-capacity-exceeded"}:
+            return "delivery_failed"
+        if "speech-consumption-failed" in reasons:
+            return "provider_failed"
+        return "capture_incomplete"
 
     async def aclose(self) -> None:
         """Fence new audio and await the shared local shutdown outcome.
@@ -744,6 +784,19 @@ class TrackTranscriber:
             item = _ItemState(start_time=received_at)
         start_time, end_time = _transcription_times(event, item, received_at)
         revision = item.revision + 1
+        next_item = _ItemState(
+            revision=revision,
+            start_time=start_time,
+            end_time=end_time,
+            final_content=final_content,
+        )
+        if final and self._durable is not None:
+            # Controlled finals require the provider's actual item identity.
+            await self._durable.publish_final(
+                event.request_id, revision, data.text, data.language
+            )
+            # Retain the durable revision before the fallible UI effect.
+            self._items[item_id] = next_item
         await self._publisher.publish_segment(
             TranscriptionEvent(
                 participant_identity=self.participant_identity,
@@ -757,12 +810,7 @@ class TrackTranscriber:
                 end_time=end_time,
             )
         )
-        self._items[item_id] = _ItemState(
-            revision=revision,
-            start_time=start_time,
-            end_time=end_time,
-            final_content=final_content,
-        )
+        self._items[item_id] = next_item
 
 
 class LiveTranscriber:

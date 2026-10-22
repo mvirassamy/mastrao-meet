@@ -14,13 +14,20 @@ from live_continuation_fixtures import (
     eventually,
     numbered_frame,
 )
+from livekit.agents import stt
 from livekit.plugins import openai
 from openai import AsyncOpenAI
 from test_live_audio_timing import completed
 from test_live_send_control import Gateway, authority
+from test_live_transcriber import speech_event
 from test_live_transcriber_stop import AudioSource
 
-from live_send_control import CONTROL_VERSION, ROTATION_SECONDS, ControlResponseLost
+from live_send_control import (
+    CONTROL_VERSION,
+    ROTATION_SECONDS,
+    ControlError,
+    ControlResponseLost,
+)
 from live_single_connection import AuthorizedOpenAI
 from live_transcriber import TrackTranscriber
 
@@ -161,12 +168,30 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(provider._can_send())
             self.assertTrue(self.sockets[index].closed)
         self.assertTrue(self.providers[-1]._can_send())
+        await self.track.aclose()
+        await self.run
+        events = [
+            body["event"]
+            for body in self.gateway.requests
+            if body["action"] == "deliver"
+        ]
+        self.assertEqual([e["sequence"] for e in events], [1, 2, 3, 4])
+        self.assertEqual([e["kind"] for e in events], ["final"] * 3 + ["end"])
+        self.assertEqual([e["item_ref"] for e in events[:3]], ["item-1"] * 3)
+        self.assertEqual([e["leg_ref"] for e in events[:3]], self.factory_leg_refs[:3])
+        self.assertEqual([e["revision"] for e in events[:3]], [1, 1, 1])
+        self.assertTrue(
+            all(e["timing"] == {"state": "unavailable"} for e in events[:3])
+        )
+        self.assertEqual(events[-1]["final_event_count"], 3)
+        self.assertEqual(events[-1]["reason"], "capture_incomplete")
 
     async def test_tail_ack_final_publication_and_socket_close_all_precede_rotate(self):
         """Capture new unsent PCM while every old-leg barrier is held in turn."""
         socket = self.sockets[0]
         socket.auto_complete = False
         socket.close_release.clear()
+        self.gateway.release["deliver"].clear()
         publishing, release = asyncio.Event(), asyncio.Event()
 
         async def publish(event):
@@ -186,6 +211,13 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(socket.close_entered.is_set())
         socket.feed(completed("tail", "synthetic tail"))
         try:
+            await asyncio.wait_for(self.gateway.entered["deliver"].wait(), 2)
+            self.assertEqual(self.track._published_items, set())
+            self.publisher.publish_segment.assert_not_awaited()
+            self.assertFalse(socket.close_entered.is_set())
+            self.assertFalse(self.gateway.entered["rotate"].is_set())
+            self.assertEqual(self.factory.call_count, 1)
+            self.gateway.release["deliver"].set()
             await asyncio.wait_for(publishing.wait(), 2)
             self.assertFalse(socket.close_entered.is_set())
             self.assertFalse(self.gateway.entered["rotate"].is_set())
@@ -205,8 +237,80 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
                 self.sockets[1].samples, [n for n in range(8, 16) for _ in range(480)]
             )
         finally:
+            self.gateway.release["deliver"].set()
             release.set()
             socket.close_release.set()
+
+    async def assert_terminal_delivery_failure(self):
+        """Use the real SDK drain to prove uncertainty cannot open another socket."""
+        await self.feed(1, 8)
+        self.ticks.put_nowait(None)
+        results = await asyncio.wait_for(
+            asyncio.gather(self.run, return_exceptions=True), 2
+        )
+        self.assertIsInstance(results[0], BaseExceptionGroup)
+        self.assertFalse(self.lease.can_send())
+        self.assertTrue(self.providers[0]._audio_fenced)
+        self.assertEqual(self.factory.call_count, 1)
+        self.assertEqual(self.connector.await_count, 1)
+        self.assertEqual(self.track._published_items, set())
+        self.publisher.publish_segment.assert_not_awaited()
+        self.assertFalse(self.gateway.entered["rotate"].is_set())
+        self.assertFalse(self.gateway.entered["stopped"].is_set())
+        deliveries = [b for b in self.gateway.requests if b["action"] == "deliver"]
+        self.assertEqual([b["event"]["kind"] for b in deliveries], ["final"])
+        stops = await asyncio.gather(
+            self.track.aclose(), self.track.aclose(), return_exceptions=True
+        )
+        self.assertIsInstance(stops[0], BaseExceptionGroup)
+        self.assertIs(stops[0], stops[1])
+
+    async def test_lost_durable_receipt_never_rotates_retries_or_acknowledges_stopped(
+        self,
+    ):
+        """A committed event with a lost receipt remains terminal and unterminated."""
+        self.gateway.errors["deliver"] = ControlResponseLost("fixture lost receipt")
+        await self.assert_terminal_delivery_failure()
+
+    async def test_refused_durable_receipt_never_rotates_or_acknowledges_stopped(self):
+        """An authority refusal does not permit a second provider connection."""
+        self.gateway.errors["deliver"] = ControlError("fixture refused receipt")
+        await self.assert_terminal_delivery_failure()
+
+    async def test_unconfirmed_durable_receipt_cannot_release_rotation_barrier(self):
+        """A coherent-looking receipt still needs the exact confirmed sequence."""
+        self.gateway.responses["deliver"] = {"confirmed_sequence": 0}
+        await self.assert_terminal_delivery_failure()
+
+    async def test_sdk_interims_remain_ui_only_and_final_keeps_exact_unicode(self):
+        """Real SDK delta events consume neither durable sequence nor final count."""
+        self.sockets[0].feed(
+            {
+                "type": "conversation.item.input_audio_transcription.delta",
+                "item_id": "item-1",
+                "delta": "provisional",
+            }
+        )
+        await eventually(lambda: self.publisher.publish_segment.await_count == 1)
+        self.assertFalse(self.gateway.entered["deliver"].is_set())
+        self.sockets[0].auto_complete = False
+        await self.feed(1, 8)
+        self.ticks.put_nowait(None)
+        await self.sockets[0].commit_requests.get()
+        text = "  e\u0301 é 😀\n\t  "
+        raw_final = completed("item-1", text)
+        raw_final["languages"] = [{"code": "not-a-language"}]
+        self.sockets[0].feed(committed("item-1"), raw_final)
+        await asyncio.wait_for(self.rotation_timers.get(), 2)
+        deliveries = [b for b in self.gateway.requests if b["action"] == "deliver"]
+        self.assertEqual(len(deliveries), 1)
+        event = deliveries[0]["event"]
+        self.assertEqual(event["kind"], "final")
+        self.assertEqual(event["sequence"], 1)
+        self.assertEqual(event["revision"], 2)
+        self.assertEqual(event["text"], text)
+        self.assertIsNone(event["language"])
+        self.assertEqual(event["timing"], {"state": "unavailable"})
 
     async def test_lost_rotate_response_is_terminal_and_cannot_open_or_retry(self):
         """Only the exact unknown successor may be cleaned up after transport loss."""
@@ -265,6 +369,10 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("audio-consumption-failed", self.track.incomplete_reasons)
         self.assertFalse(self.gateway.entered["rotate"].is_set())
         self.assertEqual(self.factory.call_count, 1)
+        events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
+        self.assertEqual([e["kind"] for e in events], ["gap", "end"])
+        self.assertEqual(events[-1]["final_event_count"], 0)
+        self.assertEqual(events[-1]["reason"], "capture_incomplete")
 
     async def test_lease_loss_while_draining_never_commits_more_or_rotates(self):
         """The existing independent watcher still hard-fences a planned drain."""
@@ -298,6 +406,20 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(results[0], results[1])
         self.assertFalse(self.gateway.entered["rotate"].is_set())
         self.assertEqual(self.factory.call_count, 1)
+        events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
+        self.assertEqual([e["kind"] for e in events], ["final", "gap", "end"])
+        self.assertEqual(events[-1]["final_event_count"], 1)
+        self.assertEqual(events[-1]["reason"], "capture_incomplete")
+        # Retrying UI handling cannot write or renumber the acknowledged final.
+        count = len(events)
+        await self.track._handle_event(
+            speech_event(
+                stt.SpeechEventType.FINAL_TRANSCRIPT, "synthetic final", "item-1"
+            )
+        )
+        self.assertEqual(
+            len([b for b in self.gateway.requests if b["action"] == "deliver"]), count
+        )
 
     async def test_empty_final_allows_rotation_without_inventing_a_publication(self):
         """A terminal empty transcript resolves the ACK but emits no SDK final."""

@@ -17,7 +17,8 @@ The worker plans rotation at 540 seconds, before the pinned SDK's 600-second
 limit. It retains one RTC reader and queues only newly captured, unsent PCM in
 a bounded volatile buffer. The old connection must drain its admitted PCM,
 commit the remaining tail, receive all expected acknowledgements and finals,
-finish publication and close successfully before requesting the next leg.
+finish durable Core acknowledgement and subtitle publication, then close
+successfully before requesting the next leg.
 During this drain the old lease must remain valid; loss of authority fences
 writes immediately without flushing. Failures remain explicit and terminal.
 
@@ -57,9 +58,10 @@ persistent complete worker/authority tests required for this feature.
 Sample positions in Core are authenticated worker assertions, not proof of
 provider billing, semantic transcript quality, meeting-wide coverage or remote
 provider termination. Local websocket ACK/final observations establish only the
-reported transport boundary. The complete durable Core final publisher and
-summary source qualification remain separate work. No billed savings or real
-ASR quality result is claimed by synthetic tests.
+reported transport boundary. The [durable publisher](mastrao-live-final-delivery.md)
+retains finals in Core with explicit unavailable timing. Common-clock,
+coverage and summary-source qualification remain separate work. No billed
+savings or real ASR quality result is claimed by synthetic tests.
 
 An unexpected SDK reconnect, missing ACK/final, drain timeout, queue overflow,
 failed publication/close or control loss leaves an explicit incomplete outcome.
@@ -75,6 +77,8 @@ operator procedure. Drain existing controlled version 1 jobs before an eventual
 version 2 deployment; they cannot be adopted by the new dispatch reconciler.
 No fabricated leg history is backfilled for old active sources. Jobs without
 `liveControl` keep their existing product path.
+The durable-final addition also requires draining earlier controlled v2 jobs
+that did not publish to Core before deploying matching binaries.
 
 Stop controlled dispatches and wait for successful cleanup before reverting
 binaries. Do not replace a controlled worker with one that ignores its metadata.

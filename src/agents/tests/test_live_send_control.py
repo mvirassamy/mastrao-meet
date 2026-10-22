@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 from aiohttp import web
 
+from live_delivery_codec import event_digest
 from live_send_control import (
     ControlError,
     ControlResponseLost,
@@ -33,7 +34,7 @@ class Gateway:
         self.requests = []
         self.entered = {
             action: asyncio.Event()
-            for action in ("prepare", "claim", "renew", "rotate", "stopped")
+            for action in ("prepare", "claim", "renew", "rotate", "stopped", "deliver")
         }
         self.release = {action: asyncio.Event() for action in self.entered}
         for gate in self.release.values():
@@ -42,6 +43,11 @@ class Gateway:
         self.errors = {}
         self.before_stopped = None
         self.audio_start = 0
+        self.final_count = 0
+
+    async def deliver(self, binding, event):
+        """Exercise the production client request builder against synthetic Core."""
+        return await LiveControlClient.deliver(self, binding, event)
 
     async def post(self, body):
         """Hold or corrupt individual actions without fabricating extra fields."""
@@ -51,7 +57,23 @@ class Gateway:
         await self.release[action].wait()
         if action in self.errors:
             raise self.errors[action]
-        if action == "prepare":
+        if action == "deliver":
+            event = body["event"]
+            if event["kind"] == "final":
+                self.final_count += 1
+            result = {
+                "version": 2,
+                "source_ref": event["source_ref"],
+                "leg_ref": event["leg_ref"],
+                "sequence": event["sequence"],
+                "event_digest": event_digest(event),
+                "state": "ended" if event["kind"] == "end" else "collecting",
+                "confirmed_sequence": event["sequence"],
+                "final_event_count": self.final_count,
+                "incomplete": True,
+                "meeting_coverage": "unverified",
+            }
+        elif action == "prepare":
             result = {
                 "version": 2,
                 "source_ref": SOURCE,
