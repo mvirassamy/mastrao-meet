@@ -18,7 +18,7 @@ import { ClassificationDialog } from '@/features/meeting-classification/Classifi
 import { ClassificationStatus } from '@/features/meeting-classification/ClassificationStatus'
 import { useMeetingClassification } from '@/features/meeting-classification/useMeetingClassification'
 import { MeetingAssistant } from '@/features/meeting-assistant/MeetingAssistant'
-import { ASSISTANT_ICON } from '@/features/meeting-assistant/MeetingAssistantPanel'
+import { assistantReadiness } from '@/features/meeting-assistant/assistantReadiness'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryDetail } from '../api/types'
@@ -39,6 +39,7 @@ import {
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistoryDetailSkeleton } from './MeetingHistoryDetailSkeleton'
 import { MeetingAssistantDrawer } from './MeetingAssistantDrawer'
+import { ASSISTANT_ICON } from './meetingContent'
 import { MeetingRecordingSection } from './MeetingRecordingSection'
 import { MeetingPersonalNotesSection } from './MeetingPersonalNotesSection'
 import { detailHeader } from './meetingDetailLayout'
@@ -225,6 +226,7 @@ export const MeetingHistoryDetailView = ({
       key={`${identityKey}:${detail.id}`}
       meetingId={detail.id}
       identityKey={identityKey}
+      readiness={assistantReadiness(detail.transcriptStatus)}
       onClose={closeAssistant}
     />
   )
