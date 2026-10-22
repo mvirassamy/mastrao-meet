@@ -7,6 +7,7 @@ import {
   sendAssistantCommand,
   deleteAssistantThread,
 } from './assistantApi'
+import type { AssistantCommandError } from './AssistantFailure'
 import type {
   MeetingAssistantDeleteRequest,
   MeetingAssistantOperation,
@@ -34,10 +35,7 @@ export function useMeetingAssistant(
     gcTime: 0,
   })
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState<
-    'unconfirmed' | 'conflict' | 'rejected' | null
-  >(null)
-  const [retryCommand, setRetryCommand] = useState(false)
+  const [error, setError] = useState<AssistantCommandError | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const active = useRef(true)
   const busy = useRef(false)
@@ -70,11 +68,11 @@ export function useMeetingAssistant(
   function replaceThread(value: MeetingAssistantThread) {
     client.setQueryData(queryKey, { pages: [value], pageParams: [null] })
   }
-  async function refresh() {
-    if (busy.current) return
-    setRetryCommand(false)
+  /** Reads the conversation again; true while a command is still unsettled. */
+  async function reread() {
+    if (busy.current) return false
     const result = await query.refetch()
-    if (!active.current || result.isError) return
+    if (!active.current || result.isError) return false
     const pages = result.data?.pages ?? []
     if (
       deleteCommand.current &&
@@ -84,7 +82,9 @@ export function useMeetingAssistant(
       deleteCommand.current = null
       setConfirmDelete(false)
       setError(null)
-    } else if (
+      return false
+    }
+    if (
       sendCommand.current &&
       pages.some((page) =>
         page.turns.some(
@@ -94,9 +94,17 @@ export function useMeetingAssistant(
     ) {
       sendCommand.current = null
       setError(null)
-    } else if (sendCommand.current || deleteCommand.current) {
-      setRetryCommand(true)
-    } else setError(null)
+      return false
+    }
+    if (sendCommand.current || deleteCommand.current) return true
+    setError(null)
+    return false
+  }
+  /** Replays an unconfirmed command only once a reread shows it never landed. */
+  async function retry() {
+    if (!(await reread())) return
+    if (sendCommand.current) await submitSend()
+    else if (deleteCommand.current) await remove()
   }
   async function send(operation: MeetingAssistantOperation, question: string) {
     if (!canSend || busy.current || !thread || !question.trim()) return
@@ -115,7 +123,6 @@ export function useMeetingAssistant(
     if (!command || busy.current) return
     busy.current = true
     setPending(true)
-    setRetryCommand(false)
     setError(null)
     const controller = new AbortController()
     request.current = controller
@@ -169,7 +176,6 @@ export function useMeetingAssistant(
     const command = deleteCommand.current
     busy.current = true
     setPending(true)
-    setRetryCommand(false)
     setError(null)
     const controller = new AbortController()
     request.current = controller
@@ -215,15 +221,11 @@ export function useMeetingAssistant(
     canSend,
     canDelete,
     hasProcessingTurn,
-    retryCommand,
     confirmDelete,
-    refresh: () => void refresh(),
+    refresh: () => void reread(),
     send: (operation: MeetingAssistantOperation, question: string) =>
       void send(operation, question),
-    retry: () => {
-      if (sendCommand.current) void submitSend()
-      else if (deleteCommand.current) void remove()
-    },
+    retry: () => void retry(),
     requestDelete: () => setConfirmDelete(true),
     cancelDelete: () => {
       if (!pending) setConfirmDelete(false)

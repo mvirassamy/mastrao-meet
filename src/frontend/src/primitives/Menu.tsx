@@ -25,7 +25,7 @@ export const Menu = ({
 }: {
   children: [trigger: ReactNode, menu: ReactNode]
   variant?: 'dark' | 'light'
-  placement?: 'bottom' | 'top' | 'left' | 'right'
+  placement?: 'bottom' | 'top' | 'top start' | 'left' | 'right'
   density?: MenuDensity
 }) => {
   const [trigger, menu] = children

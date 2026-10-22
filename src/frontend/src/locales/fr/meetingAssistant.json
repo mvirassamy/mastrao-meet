@@ -2,7 +2,6 @@
   "title": "Interroger cette réunion",
   "close": "Fermer l’assistant",
   "privacy": "Visible par vous seul",
-  "scope": "Cette réunion uniquement",
   "options": "Options de la conversation",
   "loading": "Chargement de la conversation…",
   "pending": "L’assistant prépare sa réponse…",
@@ -35,7 +34,12 @@
     "title": "Raccourcis",
     "short-summary": "Synthèse courte",
     "actions": "Extraire les actions",
-    "follow-up-email": "Mail de suivi"
+    "follow-up-email": "Mail de suivi",
+    "hint": {
+      "short-summary": "L’essentiel en quelques lignes",
+      "actions": "Qui fait quoi, et quand",
+      "follow-up-email": "Un brouillon prêt à copier"
+    }
   },
   "result": {
     "unavailable": "Cette réponse n’est plus consultable.",
@@ -104,5 +108,11 @@
     "description": "Vos questions et réponses sur cette réunion seront effacées. La synthèse, le dossier et vos notes sont conservés.",
     "cancel": "Annuler",
     "confirm": "Effacer"
+  },
+  "failure": {
+    "unconfirmed": "Je n’ai pas pu terminer ma réponse.",
+    "conflict": "La conversation a changé dans un autre onglet. Je l’ai actualisée.",
+    "rejected": "Je n’ai pas pu traiter cette demande. Reformulez-la.",
+    "retry": "Réessayer"
   }
 }

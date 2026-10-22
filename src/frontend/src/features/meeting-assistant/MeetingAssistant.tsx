@@ -1,9 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog } from '@/primitives'
-import {
-  MeetingAssistantPanel,
-  type MeetingAssistantAction,
-} from './MeetingAssistantPanel'
+import { MeetingAssistantPanel } from './MeetingAssistantPanel'
+import type { MeetingAssistantAction } from './AssistantShortcuts'
+import { AssistantFailure } from './AssistantFailure'
 import { AssistantCitationDialog } from './AssistantCitationDialog'
 import type { AssistantReadiness } from './assistantReadiness'
 import { assistantTurnView } from './assistantView'
@@ -72,25 +71,23 @@ export function MeetingAssistant({
         canClear={flow.canDelete}
         onClose={onClose}
       >
-        {flow.error && <p role="alert">{t(`command.${flow.error}`)}</p>}
-        {/* An unconfirmed command or a turn still processing is settled by
-            reading the conversation again. */}
-        {(flow.error || flow.hasProcessingTurn) && !query.isError && (
+        {flow.error && (
+          <AssistantFailure
+            error={flow.error}
+            disabled={flow.pending || query.isFetching}
+            onRetry={flow.retry}
+          />
+        )}
+        {/* A turn still processing is settled by reading the conversation
+            again. */}
+        {flow.hasProcessingTurn && !flow.error && !query.isError && (
           <Button
-            variant="secondary"
+            variant="ghost"
+            size="sm"
             isDisabled={flow.pending || query.isFetching}
             onPress={flow.refresh}
           >
             {t('refresh')}
-          </Button>
-        )}
-        {flow.retryCommand && !query.isError && (
-          <Button
-            variant="secondary"
-            isDisabled={flow.pending || query.isFetching}
-            onPress={flow.retry}
-          >
-            {t('command.retry')}
           </Button>
         )}
         {!reading && !query.isError && query.hasNextPage && (
@@ -126,19 +123,10 @@ export function MeetingAssistant({
             <Button
               variant="secondary"
               isDisabled={flow.pending || query.isFetching}
-              onPress={flow.refresh}
+              onPress={flow.retry}
             >
-              {t('refresh')}
+              {t('command.retry')}
             </Button>
-            {flow.retryCommand && (
-              <Button
-                variant="secondary"
-                isDisabled={flow.pending || query.isFetching}
-                onPress={flow.retry}
-              >
-                {t('command.retry')}
-              </Button>
-            )}
           </>
         )}
         <Button

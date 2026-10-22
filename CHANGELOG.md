@@ -1,5 +1,16 @@
 # Changelog
 
+- 2026-10-22: Gather the meeting assistant shortcuts in a "Shortcuts" menu of
+  the composer, with 3D icons and a one-line hint for each shortcut.
+  Show a request that did not go through as an assistant reply with a single
+  "Try again", which rereads the conversation and replays the same request
+  only if it never landed.
+  Open the conversation on its last message and follow new ones.
+
+- 2026-10-22: Lay the meeting detail header out from the width the page
+  actually gets: on tablets, or beside the docked assistant, the title keeps
+  its line and the video and assistant buttons move under it.
+
 - 2026-10-22: Show a meeting's dossier as a pill under its date in history.
   Its menu opens the dossier in a new tab or changes it; an unfiled meeting
   shows a grey "Classer dans un dossier" pill. Drop "dans Platform".

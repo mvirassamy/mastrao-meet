@@ -15,7 +15,10 @@ import {
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 const result: AssistantResultView = {
   id: 'turn-a',
   outcome: 'answer',
@@ -40,7 +43,7 @@ const panelProps = {
 }
 
 describe('private meeting assistant presentation', () => {
-  it('does not send a question or action until explicitly requested', () => {
+  it('does not send a question or action until explicitly requested', async () => {
     const onAsk = vi.fn()
     const onAction = vi.fn()
     render(
@@ -57,8 +60,11 @@ describe('private meeting assistant presentation', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'ask' }))
     expect(onAsk).toHaveBeenCalledWith('Quel budget ?')
+    // jsdom has no CSS.escape, which the open menu uses to focus its items.
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+    fireEvent.click(screen.getByRole('button', { name: 'actions.title' }))
     fireEvent.click(
-      screen.getByRole('button', { name: 'actions.follow-up-email' })
+      await screen.findByRole('menuitem', { name: /^actions\.follow-up-email/ })
     )
     expect(onAction).toHaveBeenCalledWith('follow-up-email')
   })
@@ -73,7 +79,7 @@ describe('private meeting assistant presentation', () => {
     expect(
       (
         screen.getByRole('button', {
-          name: 'actions.short-summary',
+          name: 'actions.title',
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true)

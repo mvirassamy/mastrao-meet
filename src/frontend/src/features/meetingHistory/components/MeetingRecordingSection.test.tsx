@@ -112,7 +112,7 @@ describe('recording history UI', () => {
         align="start"
       />
     )
-    expect(dateNotes()).toContain('sm:w_0')
+    expect(dateNotes()).toContain('w_0')
     // Alone at the end of the header, the date keeps its own width so it
     // cannot run over the meeting time on its left.
     view.rerender(
@@ -122,7 +122,7 @@ describe('recording history UI', () => {
         align="end"
       />
     )
-    expect(dateNotes()).not.toContain('sm:w_0')
+    expect(dateNotes()).not.toContain('w_0')
   })
 
   it('removes the action when retention expires on an open page', async () => {
