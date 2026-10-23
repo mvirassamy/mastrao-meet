@@ -461,16 +461,22 @@ def test_callback_consumes_state_and_forwards_nonce_and_pkce(monkeypatch):
     assert authenticate.call_args.kwargs["code_verifier"] == "v" * 64
 
 
-def test_callback_rejects_unknown_or_replayed_state():
-    """Unknown state and a second use of consumed state both fail closed."""
-    with pytest.raises(SuspiciousOperation, match="state not found"):
-        OIDCAuthenticationCallbackView.as_view()(callback_request("unknown-state"))
+@pytest.mark.parametrize("state", ["unknown-state", "known-state"])
+def test_callback_rejects_unknown_or_replayed_state_with_recovery(state, monkeypatch):
+    """An invalid one-time state stays rejected and offers a clean login restart."""
+    request = callback_request(state)
+    if state == "known-state":
+        del request.session["oidc_states"][state]
+        request.session.save()
+    authenticate = mock.Mock()
+    monkeypatch.setattr("mozilla_django_oidc.views.auth.authenticate", authenticate)
 
-    request = callback_request()
-    del request.session["oidc_states"]["known-state"]
-    request.session.save()
-    with pytest.raises(SuspiciousOperation, match="state not found"):
-        OIDCAuthenticationCallbackView.as_view()(request)
+    response = OIDCAuthenticationCallbackView.as_view()(request)
+
+    assert response.status_code == 400
+    assert response["Cache-Control"] == "no-store"
+    assert b"Relancer la connexion" in response.content
+    authenticate.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -524,8 +530,12 @@ def test_callback_userinfo_rate_limit_is_recoverable_without_authentication(
     assert token_exchange.call_args.args[0]["code_verifier"] == "v" * 64
     assert userinfo.call_count == 1
     login.assert_not_called()
-    with pytest.raises(SuspiciousOperation, match="state not found"):
-        callback(request)
+    replay = callback(request)
+    assert replay.status_code == 400
+    assert replay["Cache-Control"] == "no-store"
+    assert b"Relancer la connexion" in replay.content
+    assert userinfo.call_count == 1
+    login.assert_not_called()
 
 
 @pytest.mark.parametrize("status", [401, 403, 500, 503])

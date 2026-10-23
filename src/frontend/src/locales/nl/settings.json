@@ -7,6 +7,11 @@
     "authentication": "Authenticatie",
     "nameError": "Uw naam mag niet leeg zijn"
   },
+  "usageBudget": {
+    "link": "Gebruik en budget van de organisatie",
+    "opensInNewTab": "Opent in een nieuw tabblad",
+    "unavailable": "Gebruik en budget is momenteel niet beschikbaar."
+  },
   "preferences": {
     "title": "Voorkeuren",
     "idleDisconnectModal": {

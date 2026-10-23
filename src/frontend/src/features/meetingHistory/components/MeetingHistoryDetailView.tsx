@@ -13,12 +13,13 @@ import {
 import { ApiError } from '@/api/ApiError'
 import { useConfig } from '@/api/useConfig'
 import { Button } from '@/primitives'
+import { logout } from '@/features/auth/utils/logout'
 import { classificationMatterUrl } from '@/features/meeting-classification/classificationMatterUrl'
 import { ClassificationDialog } from '@/features/meeting-classification/ClassificationDialog'
 import { ClassificationStatus } from '@/features/meeting-classification/ClassificationStatus'
 import { useMeetingClassification } from '@/features/meeting-classification/useMeetingClassification'
 import { MeetingAssistant } from '@/features/meeting-assistant/MeetingAssistant'
-import { ASSISTANT_ICON } from '@/features/meeting-assistant/MeetingAssistantPanel'
+import { assistantReadiness } from '@/features/meeting-assistant/assistantReadiness'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { css } from '@/styled-system/css'
 import type { MeetingHistoryDetail } from '../api/types'
@@ -39,16 +40,14 @@ import {
 import { MeetingHistoryStatePanel } from './MeetingHistoryStatePanel'
 import { MeetingHistoryDetailSkeleton } from './MeetingHistoryDetailSkeleton'
 import { MeetingAssistantDrawer } from './MeetingAssistantDrawer'
+import { ASSISTANT_ICON } from './meetingContent'
 import { MeetingRecordingSection } from './MeetingRecordingSection'
 import { MeetingPersonalNotesSection } from './MeetingPersonalNotesSection'
 import { detailHeader } from './meetingDetailLayout'
 import { MeetingResultTabs } from './MeetingResultTabs'
 import { MeetingResultOverview } from './MeetingResultOverview'
-import {
-  MeetingContentSection,
-  SummaryBody,
-  TranscriptBody,
-} from './MeetingResultSections'
+import { MeetingContentSection, SummaryBody } from './MeetingResultSections'
+import { MeetingTranscriptSection } from './MeetingTranscriptSection'
 import {
   contentSectionLook,
   summaryView,
@@ -67,10 +66,12 @@ export const MeetingHistoryDetailView = ({
   meetingId,
   timeZone,
   identityKey,
+  accountEmail,
 }: {
   meetingId: string
   timeZone?: string
   identityKey?: string
+  accountEmail?: string
 }) => {
   const { t } = useTranslation('meetingHistory')
   const query = useMeetingHistoryDetail(meetingId)
@@ -149,11 +150,23 @@ export const MeetingHistoryDetailView = ({
             : '/assets/illustrations/reunion-detail-erreur.webp'
         }
         title={t(notFound ? 'detail.notFound.title' : 'detail.error.title')}
-        description={t(
-          notFound ? 'detail.notFound.description' : 'detail.error.description'
-        )}
+        description={
+          notFound && accountEmail
+            ? t('detail.notFound.descriptionWithAccount', {
+                email: accountEmail,
+              })
+            : t(
+                notFound
+                  ? 'detail.notFound.description'
+                  : 'detail.error.description'
+              )
+        }
         action={
-          notFound ? undefined : (
+          notFound && accountEmail ? (
+            <Button variant="secondary" onPress={() => void logout()}>
+              {t('detail.notFound.switch')}
+            </Button>
+          ) : notFound ? undefined : (
             <Button
               variant="secondary"
               icon={<RetryIcon aria-hidden="true" />}
@@ -225,6 +238,7 @@ export const MeetingHistoryDetailView = ({
       key={`${identityKey}:${detail.id}`}
       meetingId={detail.id}
       identityKey={identityKey}
+      readiness={assistantReadiness(detail.transcriptStatus)}
       onClose={closeAssistant}
     />
   )
@@ -330,14 +344,27 @@ const MeetingDetailContent = ({
     </>
   )
   return (
-    <div className={css({ minWidth: 0 })}>
+    // The header follows the width the page actually gets, which a docked
+    // assistant or a tablet screen narrows, rather than the screen width.
+    <div
+      className={css({
+        minWidth: 0,
+        containerType: 'inline-size',
+        containerName: 'meeting-detail',
+      })}
+    >
       <header
         className={`${detailHeader} ${css({
           display: 'flex',
-          flexDirection: { base: 'column', sm: 'row' },
+          flexDirection: 'column',
           alignItems: 'flex-start',
           justifyContent: 'space-between',
           gap: '1rem',
+          // Below this width the title keeps the full line and the actions
+          // move under it.
+          '@container meeting-detail (min-width: 46rem)': {
+            flexDirection: 'row',
+          },
         })}`}
       >
         <div className={css({ minWidth: 0 })}>
@@ -394,10 +421,13 @@ const MeetingDetailContent = ({
           className={css({
             display: 'flex',
             // Both actions stay on one line; the video date sits under them.
-            flexWrap: { base: 'wrap', sm: 'nowrap' },
+            flexWrap: 'wrap',
             alignItems: 'flex-start',
             gap: '0.5rem',
             flexShrink: 0,
+            '@container meeting-detail (min-width: 46rem)': {
+              flexWrap: 'nowrap',
+            },
           })}
         >
           {/* A meeting without a recording shows nothing about video. */}
@@ -446,16 +476,12 @@ const MeetingDetailContent = ({
           </MeetingContentSection>
         }
         transcript={
-          <MeetingContentSection
-            kind="transcript"
-            statusKey={`status.transcript.${meeting.transcript.status}`}
-          >
-            <TranscriptBody transcript={meeting.transcript} />
-          </MeetingContentSection>
+          <MeetingTranscriptSection transcript={meeting.transcript} />
         }
         notes={
           <MeetingPersonalNotesSection
             inTab
+            meetingRef={meeting.id}
             endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
           />
         }

@@ -2,10 +2,9 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircleIcon, ErrorIcon, MinusCircleIcon, TimeIcon } from '@/icons'
 import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import { css } from '@/styled-system/css'
-import type { MeetingRecordingStatus } from '../api/types'
-import { STATUS_COLORS } from './meetingContent'
+import { STATUS_COLORS, type RecordedStatus } from './meetingContent'
 
-const recordingTone = (status: MeetingRecordingStatus) => {
+const recordingTone = (status: RecordedStatus) => {
   switch (status) {
     case 'available':
       return { Icon: CheckCircleIcon, color: STATUS_COLORS.ready }
@@ -15,7 +14,6 @@ const recordingTone = (status: MeetingRecordingStatus) => {
     case 'failed':
       return { Icon: ErrorIcon, color: STATUS_COLORS.failed }
     case 'expired':
-    case 'absent':
       return { Icon: MinusCircleIcon, color: STATUS_COLORS.absent, muted: true }
   }
 }
@@ -24,7 +22,7 @@ const recordingTone = (status: MeetingRecordingStatus) => {
 export const MeetingRecordingStatusIcon = ({
   status,
 }: {
-  status: MeetingRecordingStatus
+  status: RecordedStatus
 }) => {
   const { t } = useTranslation('meetingHistory')
   const { Icon, color, muted } = recordingTone(status)

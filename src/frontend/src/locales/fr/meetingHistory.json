@@ -9,6 +9,8 @@
     "loading": "Chargement de la réunion…",
     "notFound": {
       "description": "Cette réunion n’existe pas ou vous n’y avez plus accès.",
+      "descriptionWithAccount": "Cette réunion n’existe pas, n’est plus accessible ou appartient à un autre compte. Vous êtes connecté avec {{email}}.",
+      "switch": "Changer de compte",
       "title": "Réunion introuvable"
     }
   },
@@ -157,7 +159,11 @@
     },
     "partial": "Cette transcription est incomplète. Des passages de la réunion peuvent manquer.",
     "speakers_one": "{{count}} intervenant",
-    "speakers_other": "{{count}} intervenants"
+    "speakers_other": "{{count}} intervenants",
+    "temporarilySuspended": {
+      "title": "Transcription temporairement suspendue côté Mastrao",
+      "description": "Augmenter votre seuil d’alerte utilisateur ne réactive pas la transcription."
+    }
   },
   "untitled": "Réunion sans titre",
   "recording": {
@@ -192,11 +198,12 @@
     "created": "Le dossier « {{name}} » a été créé. Le classement reste à confirmer ; reprenez sans créer un autre dossier.",
     "conflict": "Le classement a changé dans une autre session. Vérifiez son état avant de confirmer à nouveau.",
     "failed": "Le classement n’a pas pu être confirmé. Vous pouvez reprendre la même demande.",
-    "unclassified": "Non classée",
+    "unclassified": "Pas encore classée",
     "loadingCurrent": "Vérification du classement…",
     "unavailable": "Classement indisponible pour le moment.",
     "current": "Dossier : {{name}}",
-    "openMatter": "Ouvrir le dossier dans Platform",
+    "openMatter": "Ouvrir le dossier",
+    "changeMatter": "Changer de dossier",
     "filed": "Classée dans un dossier",
     "back": "Retour",
     "close": "Fermer",

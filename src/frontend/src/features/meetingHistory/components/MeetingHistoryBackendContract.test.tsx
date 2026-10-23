@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
+import { logout } from '@/features/auth/utils/logout'
 import {
   fetchMeetingHistoryDetail,
   fetchMeetingHistoryPage,
@@ -24,12 +25,14 @@ vi.mock('@/features/rooms/livekit/hooks/useMediaQuery', () => ({
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, values?: { email?: string }) =>
+      values?.email ? `${key}:${values.email}` : key,
     i18n: { language: 'fr', resolvedLanguage: 'fr' },
   }),
 }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
 vi.mock('../api/loginRedirect', () => ({ redirectToLogin: vi.fn() }))
+vi.mock('@/features/auth/utils/logout', () => ({ logout: vi.fn() }))
 vi.mock('wouter', () => ({
   Link: ({ children }: { children: React.ReactNode }) => (
     <a href="#">{children}</a>
@@ -136,6 +139,26 @@ describe('Meet history backend contract', () => {
     renderWithClient(<MeetingHistoryDetailView meetingId="meeting_01" />)
     await waitFor(() => expect(redirectToLogin).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('detail.notFound.title')).toBeNull()
+  })
+
+  it('identifies the active account when a meeting is inaccessible', async () => {
+    fetchApiMock.mockRejectedValue(new ApiError(404, {}))
+    renderWithClient(
+      <MeetingHistoryDetailView
+        meetingId="meeting_01"
+        accountEmail="viewer@example.test"
+      />
+    )
+
+    expect(
+      await screen.findByText(
+        'detail.notFound.descriptionWithAccount:viewer@example.test'
+      )
+    ).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'detail.notFound.switch' })
+    )
+    expect(logout).toHaveBeenCalledTimes(1)
   })
 
   it('offers a manual retry after a 503 on the summary request', async () => {

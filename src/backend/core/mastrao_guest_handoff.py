@@ -7,7 +7,6 @@ import secrets
 import threading
 import time
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlparse
 
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
@@ -20,6 +19,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from core import models
+from core.mastrao_browser_handoff import (
+    browser_handoff_headers,
+    is_same_origin_handoff,
+)
 from core.mastrao_core_http import post_core_json
 from core.mastrao_guest_contract import (
     GuestHandoffRefused,
@@ -53,38 +56,6 @@ COMPACT_JWS = re.compile(
     r"^[A-Za-z0-9_-]{1,4096}\.[A-Za-z0-9_-]{1,12288}\.[A-Za-z0-9_-]{1,4096}$"
 )
 _GUEST_VERIFY_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_GUEST_VERIFICATIONS)
-
-
-def _safe_headers():
-    return {
-        "Cache-Control": "private, no-store",
-        "Referrer-Policy": "no-referrer",
-        "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "frame-ancestors 'none'",
-    }
-
-
-def _same_origin(request):
-    origin = request.headers.get("origin")
-    if (
-        request.headers.get("sec-fetch-site") not in {"same-origin", "same-site"}
-        or not origin
-    ):
-        return False
-    if not isinstance(settings.APPLICATION_BASE_URL, str):
-        return False
-    parsed = urlparse(origin)
-    expected = urlparse(settings.APPLICATION_BASE_URL)
-    return (
-        parsed.scheme in {"http", "https"}
-        and not parsed.username
-        and not parsed.password
-        and parsed.path in {"", "/"}
-        and not parsed.query
-        and not parsed.fragment
-        and parsed.scheme == expected.scheme
-        and parsed.netloc == expected.netloc
-    )
 
 
 def _post_core(setting_name, expected_path, body, expected_field=None):
@@ -241,9 +212,9 @@ def _commit_grant(request, grant, compact_grant):
 def establish_mastrao_guest_session(request):
     """Establish a stable guest nonce without replacing a signed-in account."""
 
-    headers = _safe_headers()
+    headers = browser_handoff_headers()
     try:
-        if not _same_origin(request):
+        if not is_same_origin_handoff(request):
             raise GuestHandoffRefused()
         if request.content_type != "application/json":
             raise GuestHandoffRefused()
@@ -288,9 +259,12 @@ def establish_mastrao_guest_session(request):
 def consume_mastrao_guest_invitation(request):
     """Redeem only after the guest explicitly submits the fragment capability."""
 
-    headers = _safe_headers()
+    headers = browser_handoff_headers()
     try:
-        if not _same_origin(request) or request.content_type != "application/json":
+        if (
+            not is_same_origin_handoff(request)
+            or request.content_type != "application/json"
+        ):
             raise GuestHandoffRefused()
         declared = request.headers.get("content-length")
         if (

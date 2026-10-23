@@ -33,7 +33,10 @@ vi.mock('@/api/useConfig', () => ({
 vi.mock('./MeetingPersonalNotesSection', () => ({
   MeetingPersonalNotesSection: () => <p>private notes unchanged</p>,
 }))
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('meeting classification entry points', () => {
   it('offers one classification entry under the date while transcription runs', async () => {
@@ -135,19 +138,18 @@ describe('meeting classification entry points', () => {
         <MeetingHistoryDetailView meetingId={meetingId} identityKey="user-a" />
       </QueryClientProvider>
     )
-    expect(
-      await screen.findByText('classification.current: Dossier restauré')
-    ).toBeTruthy()
-    expectFolderLinks(
+    expect(await screen.findByText('Dossier restauré')).toBeTruthy()
+    await expectFolderLinks(
       'https://platform.example/orgs/server-tenant/matters/matter_0123456789abcdef'
     )
+    await openFolderMenu()
     expect(
-      screen.queryByRole('button', { name: 'classification.title' })
+      screen.queryByRole('menuitem', { name: 'classification.changeMatter' })
     ).toBeNull()
   })
   it('replaces the folder projection when canonical classification changes', async () => {
     const { client, updateClassification } = await renderFiledMeeting()
-    expectFolderLinks(
+    await expectFolderLinks(
       'https://platform.example/orgs/server-tenant/matters/matter_0123456789abcdef'
     )
     updateClassification({
@@ -159,15 +161,11 @@ describe('meeting classification entry points', () => {
     await act(() =>
       client.invalidateQueries({ queryKey: ['meeting-classification'] })
     )
-    expect(
-      await screen.findByText('classification.current: Dossier suivant')
-    ).toBeTruthy()
-    expectFolderLinks(
+    expect(await screen.findByText('Dossier suivant')).toBeTruthy()
+    await expectFolderLinks(
       'https://platform.example/orgs/server-tenant/matters/matter_other0123456789'
     )
-    expect(
-      screen.queryByText('classification.current: Dossier initial')
-    ).toBeNull()
+    expect(screen.queryByText('Dossier initial')).toBeNull()
   })
   it('withdraws folder details and filing controls after a denied reread', async () => {
     const { client, denyAccess } = await renderFiledMeeting()
@@ -179,11 +177,9 @@ describe('meeting classification entry points', () => {
     expect(
       screen.queryByRole('link', { name: 'classification.openMatter' })
     ).toBeNull()
+    expect(screen.queryByText('Dossier initial')).toBeNull()
     expect(
-      screen.queryByText('classification.current: Dossier initial')
-    ).toBeNull()
-    expect(
-      screen.queryByRole('button', { name: 'classification.title' })
+      screen.queryByRole('menuitem', { name: 'classification.changeMatter' })
     ).toBeNull()
   })
   it('removes the previous folder when the canonical meeting is no longer filed', async () => {
@@ -197,13 +193,11 @@ describe('meeting classification entry points', () => {
     await act(() =>
       client.invalidateQueries({ queryKey: ['meeting-classification'] })
     )
-    await screen.findByText('classification.unclassified')
+    await screen.findByRole('button', { name: 'classification.title' })
     expect(
       screen.queryByRole('link', { name: 'classification.openMatter' })
     ).toBeNull()
-    expect(
-      screen.queryByText('classification.current: Dossier initial')
-    ).toBeNull()
+    expect(screen.queryByText('Dossier initial')).toBeNull()
   })
   it('withholds the previous link while current rights are being reread', async () => {
     const { client, deferReread } = await renderFiledMeeting()
@@ -222,10 +216,8 @@ describe('meeting classification entry points', () => {
       resolve()
       await refresh
     })
-    await waitFor(() =>
-      expectFolderLinks(
-        'https://platform.example/orgs/server-tenant/matters/matter_0123456789abcdef'
-      )
+    await expectFolderLinks(
+      'https://platform.example/orgs/server-tenant/matters/matter_0123456789abcdef'
     )
   })
   it('withdraws the link when folder read rights are revoked but meeting access remains', async () => {
@@ -243,7 +235,7 @@ describe('meeting classification entry points', () => {
       screen.queryByRole('link', { name: 'classification.openMatter' })
     ).toBeNull()
     expect(
-      screen.queryByRole('button', { name: 'classification.title' })
+      screen.queryByRole('menuitem', { name: 'classification.changeMatter' })
     ).toBeNull()
     expect(screen.getByText('private notes unchanged')).toBeTruthy()
   })
@@ -251,14 +243,15 @@ describe('meeting classification entry points', () => {
     const { unmount } = await renderFiledMeeting()
     unmount()
     await renderFiledMeeting()
-    expectFolderLinks(
+    await expectFolderLinks(
       'https://platform.example/orgs/server-tenant/matters/matter_0123456789abcdef'
     )
   })
   it('uses the new canonical destination from a successful filing receipt', async () => {
     await renderFiledMeeting()
+    await openFolderMenu()
     fireEvent.click(
-      screen.getByRole('button', { name: 'classification.title' })
+      screen.getByRole('menuitem', { name: 'classification.changeMatter' })
     )
     fireEvent.click(
       await screen.findByRole('option', { name: /Dossier suivant/ })
@@ -268,8 +261,8 @@ describe('meeting classification entry points', () => {
       screen.getByRole('button', { name: 'classification.classifyHere' })
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    await screen.findByText('classification.current: Dossier suivant')
-    expectFolderLinks(
+    await screen.findByText('Dossier suivant')
+    await expectFolderLinks(
       'https://platform.example/orgs/server-tenant/matters/matter_other0123456789'
     )
   })
@@ -332,12 +325,10 @@ async function renderFiledMeeting() {
       <MeetingHistoryDetailView meetingId={meetingId} identityKey="user-a" />
     </QueryClientProvider>
   )
-  await screen.findByText('classification.current: Dossier initial')
-  await waitFor(() =>
-    expect(
-      screen.getAllByRole('button', { name: 'classification.title' })
-    ).toHaveLength(1)
-  )
+  await screen.findByText('Dossier initial')
+  await screen.findByRole('button', {
+    name: 'classification.current: Dossier initial',
+  })
   return {
     ...view,
     client,
@@ -357,8 +348,19 @@ async function renderFiledMeeting() {
   }
 }
 
-function expectFolderLinks(url: string) {
-  const links = screen.getAllByRole('link', {
+async function openFolderMenu() {
+  // jsdom has no CSS.escape, which the open menu uses to focus its items.
+  vi.stubGlobal('CSS', { escape: (value: string) => value })
+  fireEvent.click(
+    await screen.findByRole('button', { name: /^classification\.current: / })
+  )
+  return screen.findByRole('menu')
+}
+
+/** The folder menu offers exactly one link, opened in a new tab. */
+async function expectFolderLinks(url: string) {
+  const menu = await openFolderMenu()
+  const links = screen.getAllByRole('menuitem', {
     name: 'classification.openMatter',
   })
   expect(links).toHaveLength(1)
@@ -367,4 +369,6 @@ function expectFolderLinks(url: string) {
     expect(link.getAttribute('target')).toBe('_blank')
     expect(link.getAttribute('rel')).toContain('noopener')
   }
+  fireEvent.keyDown(menu, { key: 'Escape' })
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
 }

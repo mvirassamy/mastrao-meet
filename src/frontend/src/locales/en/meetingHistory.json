@@ -9,6 +9,8 @@
     "loading": "Loading meeting…",
     "notFound": {
       "description": "This meeting does not exist or you no longer have access to it.",
+      "descriptionWithAccount": "This meeting does not exist, is no longer accessible, or belongs to another account. You are signed in as {{email}}.",
+      "switch": "Switch account",
       "title": "Meeting not found"
     }
   },
@@ -157,7 +159,11 @@
     },
     "partial": "This transcript is incomplete. Parts of the meeting may be missing.",
     "speakers_one": "{{count}} speaker",
-    "speakers_other": "{{count}} speakers"
+    "speakers_other": "{{count}} speakers",
+    "temporarilySuspended": {
+      "title": "Transcription temporarily suspended by Mastrao",
+      "description": "Increasing your alert threshold does not resume transcription."
+    }
   },
   "untitled": "Untitled meeting",
   "recording": {
@@ -192,11 +198,12 @@
     "created": "Folder “{{name}}” was created. Filing still needs confirmation; resume without creating another folder.",
     "conflict": "Filing changed in another session. Check its state before confirming again.",
     "failed": "Filing could not be confirmed. You can retry the same request.",
-    "unclassified": "Not filed",
+    "unclassified": "Not filed yet",
     "loadingCurrent": "Checking filing…",
     "unavailable": "Filing is currently unavailable.",
     "current": "Folder: {{name}}",
-    "openMatter": "Open folder in Platform",
+    "openMatter": "Open the folder",
+    "changeMatter": "Change folder",
     "filed": "Filed in a folder",
     "back": "Back",
     "close": "Close",

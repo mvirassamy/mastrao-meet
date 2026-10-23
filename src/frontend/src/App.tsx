@@ -21,16 +21,18 @@ function App() {
   useTitle(import.meta.env.VITE_APP_TITLE ?? '')
 
   const isSDKContext = useIsSdkContext()
-  const isGuestLanding = window.location.pathname === '/guest'
+  const isInvitationLanding = ['/guest', '/host'].includes(
+    window.location.pathname
+  )
   useApplyA11yFonts()
 
   return (
     <QueryClientProvider client={queryClient}>
-      {!isSDKContext && !isGuestLanding && <AppInitialization />}
+      {!isSDKContext && !isInvitationLanding && <AppInitialization />}
       <Suspense fallback={null}>
         <I18nProvider locale={i18n.language}>
           <GuardedRouter>
-            <Layout bare={isGuestLanding}>
+            <Layout bare={isInvitationLanding}>
               <Switch>
                 {Object.entries(routes).map(([, route], i) => (
                   <Route

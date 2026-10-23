@@ -22,6 +22,9 @@ export interface PersonalNotesState {
   hasLoaded: boolean
   hasUnsavedChanges: boolean
   conflict: PersonalNote | null
+  confirmedRevision: number | null
+  editVersion: number
+  isMutationLocked: boolean
 }
 
 interface UnconfirmedWrite {
@@ -43,6 +46,9 @@ export class PersonalNotesController {
     hasLoaded: false,
     hasUnsavedChanges: false,
     conflict: null,
+    confirmedRevision: null,
+    editVersion: 0,
+    isMutationLocked: false,
   }
   private listeners = new Set<() => void>()
   private baseline: PersonalNote | null = null
@@ -80,12 +86,16 @@ export class PersonalNotesController {
   }
 
   setContent = (value: string) => {
-    if (!this.active || !this.baseline) return
+    if (!this.active || !this.baseline || this.state.isMutationLocked) return
     // Keep in-progress IME text visible; validate the whole edit on commit.
     const edit = this.composing
       ? { content: value, length: Array.from(value).length, wasRejected: false }
       : applyNoteEdit(value, this.compositionStartContent ?? this.state.content)
-    this.update(edit)
+    this.update({
+      ...edit,
+      editVersion:
+        this.state.editVersion + Number(edit.content !== this.state.content),
+    })
     if (this.isBlocked()) return
     if (!this.operation) {
       this.update({
@@ -96,6 +106,7 @@ export class PersonalNotesController {
   }
 
   setComposing = (composing: boolean) => {
+    if (this.state.isMutationLocked) return
     if (this.composing === composing) return
     this.composing = composing
     if (composing) {
@@ -110,6 +121,7 @@ export class PersonalNotesController {
   /** Resolves only after all edits made during an in-flight save are confirmed. */
   flush = (): Promise<boolean> => {
     this.clearTimer()
+    if (this.state.isMutationLocked) return Promise.resolve(false)
     if (this.operation) return this.operation
     if (!this.active || !this.baseline || this.composing || this.isBlocked()) {
       return Promise.resolve(false)
@@ -119,6 +131,7 @@ export class PersonalNotesController {
 
   /** Always re-reads before retrying a write with an uncertain outcome. */
   retry = (): Promise<boolean> => {
+    if (this.state.isMutationLocked) return Promise.resolve(false)
     if (this.operation) return this.operation
     if (!this.active) return Promise.resolve(false)
     if (this.state.conflict) return Promise.resolve(false)
@@ -139,7 +152,8 @@ export class PersonalNotesController {
   }
 
   loadSavedVersion = () => {
-    if (!this.state.conflict || this.operation) return
+    if (!this.state.conflict || this.operation || this.state.isMutationLocked)
+      return
     const note = this.state.conflict
     this.baseline = note
     this.unconfirmed = null
@@ -150,11 +164,13 @@ export class PersonalNotesController {
       wasRejected: false,
       conflict: null,
       status: 'ready',
+      editVersion: this.state.editVersion + 1,
     })
   }
 
   /** The editor asks for explicit confirmation before invoking this action. */
   keepDraft = (): Promise<boolean> => {
+    if (this.state.isMutationLocked) return Promise.resolve(false)
     if (!this.state.conflict || this.operation) return Promise.resolve(false)
     this.baseline = this.state.conflict
     this.unconfirmed = null
@@ -162,11 +178,67 @@ export class PersonalNotesController {
     return this.flush()
   }
 
+  /** Only a fully acknowledged draft can be used as an enrichment baseline. */
+  getConfirmedSnapshot = (): PersonalNote | null => {
+    if (
+      !this.active ||
+      !this.baseline ||
+      this.operation ||
+      this.composing ||
+      this.state.status !== 'ready' ||
+      this.state.hasUnsavedChanges
+    )
+      return null
+    return { ...this.baseline }
+  }
+
+  /** Synchronous acquisition closes the gap between the last flush and POST. */
+  beginExternalMutation = (expectedRevision: number): boolean => {
+    const note = this.getConfirmedSnapshot()
+    if (!note || note.revision !== expectedRevision) return false
+    this.clearTimer()
+    this.update({ isMutationLocked: true })
+    return true
+  }
+
+  /** Read current authority, never an old command result or an optimistic append. */
+  reconcileExternalMutation = async (
+    minimumRevision: number
+  ): Promise<boolean> => {
+    if (!this.active || !this.state.isMutationLocked) return false
+    const generation = this.generation
+    try {
+      const note = await this.api.read(this.requestController.signal)
+      if (!this.isCurrent(generation)) return false
+      if (
+        note.revision < Math.max(minimumRevision, this.baseline?.revision ?? 0)
+      )
+        return false
+      this.baseline = note
+      this.unconfirmed = null
+      this.dirtySince = null
+      this.update({
+        content: note.content,
+        length: Array.from(note.content).length,
+        wasRejected: false,
+        conflict: null,
+        status: 'ready',
+        isMutationLocked: false,
+      })
+      return true
+    } catch {
+      // Keep the field readable but locked until an authoritative read succeeds.
+      return false
+    }
+  }
+
   private update(patch: Partial<PersonalNotesState>) {
     this.state = { ...this.state, ...patch }
     this.state.hasUnsavedChanges =
+      this.state.isMutationLocked ||
       this.unconfirmed !== null ||
       (this.baseline !== null && this.state.content !== this.baseline.content)
+    this.state.confirmedRevision = this.baseline?.revision ?? null
     this.listeners.forEach((listener) => listener())
   }
 
