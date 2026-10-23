@@ -3,6 +3,13 @@
 - 2026-10-23: Update the backend's Django REST framework to 3.18.3 to fix
   JSON charset handling, token revocation and Accept header vulnerabilities.
 
+- 2026-10-23: Match enrichment authority to the author displayed in history;
+  reject guest notes even when the browser is signed in to an account.
+
+- 2026-10-23: Let authenticated note authors request AI additions after
+  a meeting, review and edit them, append explicitly, and undo the last
+  addition while preserving the original text. Guest notes remain temporary.
+
 - 2026-10-23: Show no video icon in history for a meeting that was never
   recorded; keep it, coloured by state, for a ready, processing, failed or
   expired video.

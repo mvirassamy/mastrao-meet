@@ -56,6 +56,7 @@ export function PersonalNotesProvider({
     <PersonalNotesContext.Provider
       value={{
         ...state,
+        controller,
         endpoint,
         isGuest: identityKey === 'guest',
         flush: controller.flush,
