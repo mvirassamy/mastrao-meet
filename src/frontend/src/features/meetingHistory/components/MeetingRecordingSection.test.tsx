@@ -9,6 +9,7 @@ import { MeetingHistoryDetailView } from './MeetingHistoryDetailView'
 import { MeetingRecordingSection } from './MeetingRecordingSection'
 import { MeetingContentStatusIcons } from './MeetingContentStatusIcon'
 import { MeetingRowLink } from './MeetingRowLink'
+import { SECTION_ICONS, VIDEO_ICON } from './meetingContent'
 
 const config = vi.hoisted(() => ({
   origin: 'https://platform.mastrao.test' as string | undefined,
@@ -290,6 +291,11 @@ describe('recording history UI', () => {
           .querySelector('[data-recording-status]')
           ?.getAttribute('data-recording-status')
       ).toBe(status)
+      expect(
+        Array.from(document.querySelectorAll('img'), (image) =>
+          image.getAttribute('src')
+        )
+      ).toEqual([VIDEO_ICON, SECTION_ICONS.summary, SECTION_ICONS.transcript])
     }
   )
   it('shows no video icon or status for a meeting never recorded', () => {
@@ -314,5 +320,10 @@ describe('recording history UI', () => {
       'status.recording'
     )
     expect(document.querySelector('[data-recording-status]')).toBeNull()
+    expect(
+      Array.from(document.querySelectorAll('img'), (image) =>
+        image.getAttribute('src')
+      )
+    ).toEqual([SECTION_ICONS.summary, SECTION_ICONS.transcript])
   })
 })

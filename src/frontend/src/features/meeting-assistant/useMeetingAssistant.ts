@@ -36,6 +36,8 @@ export function useMeetingAssistant(
   })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<AssistantCommandError | null>(null)
+  // The answer received during this opening, written out as it arrives.
+  const [arrivedCommandId, setArrivedCommandId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const active = useRef(true)
   const busy = useRef(false)
@@ -132,6 +134,7 @@ export function useMeetingAssistant(
       if (!active.current) return
       sendCommand.current = null
       replaceThread(result.thread)
+      setArrivedCommandId(command.command_id)
     } catch (failure) {
       if (!active.current) return
       if (failure instanceof ApiError && failure.statusCode === 409) {
@@ -218,6 +221,7 @@ export function useMeetingAssistant(
     turns,
     pending,
     error,
+    arrivedCommandId,
     canSend,
     canDelete,
     hasProcessingTurn,

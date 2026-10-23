@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { AssistantEmailCard } from './AssistantEmailCard'
+import { TypedText } from './AssistantTyping'
+import { afterTyping, revealIn } from './typingAnimation'
 
 export type AssistantCitationView = { id: string; label: string }
 
@@ -86,22 +88,45 @@ function ActionList({
   )
 }
 
-function Answer({ answer }: { answer: AssistantAnswer }) {
+/** The answer itself; one that just arrived writes its text out. */
+function Answer({
+  answer,
+  arrived,
+}: {
+  answer: AssistantAnswer
+  arrived: boolean
+}) {
+  const reveal = arrived ? revealIn : undefined
   switch (answer.kind) {
     case 'email':
-      return <AssistantEmailCard subject={answer.subject} body={answer.body} />
+      return (
+        <div className={reveal}>
+          <AssistantEmailCard subject={answer.subject} body={answer.body} />
+        </div>
+      )
     case 'actions':
-      return <ActionList actions={answer.actions} />
+      return (
+        <div className={reveal}>
+          <ActionList actions={answer.actions} />
+        </div>
+      )
     case 'text':
-      return <p className={plainText}>{answer.text}</p>
+      return (
+        <p className={plainText}>
+          {arrived ? <TypedText text={answer.text} /> : answer.text}
+        </p>
+      )
   }
 }
 
 export function AssistantResult({
   result,
+  arrived = false,
   onOpenCitation,
 }: {
   result: AssistantResultView
+  /** The answer just received, written out as it arrives. */
+  arrived?: boolean
   onOpenCitation: (id: string) => void
 }) {
   const { t } = useTranslation('meetingAssistant')
@@ -111,6 +136,7 @@ export function AssistantResult({
         {t(`result.${result.outcome}`)}
       </p>
     )
+  const answerText = result.answer.kind === 'text' ? result.answer.text : ''
   return (
     <div
       className={css({
@@ -122,18 +148,20 @@ export function AssistantResult({
         color: 'var(--heading-foreground)',
       })}
     >
-      <Answer answer={result.answer} />
+      <Answer answer={result.answer} arrived={arrived} />
       {result.citations.length > 0 && (
         <ul
           aria-label={t('result.sources')}
-          className={css({
+          // The sources follow once a text answer has written itself out.
+          style={arrived ? afterTyping(answerText) : undefined}
+          className={`${arrived ? revealIn : ''} ${css({
             margin: 0,
             padding: 0,
             listStyle: 'none',
             display: 'flex',
             flexWrap: 'wrap',
             gap: '0.375rem',
-          })}
+          })}`}
         >
           {result.citations.map((citation) => (
             <li key={citation.id}>
