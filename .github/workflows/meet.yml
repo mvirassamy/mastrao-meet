@@ -398,7 +398,9 @@ jobs:
 
       - name: Install Chromium for the isolated media probe test
         timeout-minutes: 5
-        run: cd src/frontend/ && npx playwright install --with-deps chromium
+        run: |
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          cd src/frontend/ && npx playwright install --with-deps chromium
 
       - name: Verify the media probe with local synthetic WebRTC peers
         timeout-minutes: 1
