@@ -120,6 +120,12 @@ function setup(
     switchAuthor: (identity: string) => result.rerender(view(identity)),
   }
 }
+/**
+ * Matches an answer by its whole paragraph: one that just arrived is split
+ * into words that write themselves out.
+ */
+const answer = (text: string) => (_: string, element: Element | null) =>
+  element?.tagName === 'P' && element.textContent === text
 async function openClearConfirmation() {
   // jsdom has no CSS.escape, which the open menu uses to focus its items.
   vi.stubGlobal('CSS', { escape: (value: string) => value })
@@ -166,7 +172,7 @@ describe('private assistant connected flow', () => {
   it('rereads the durable private thread without generating anything on mount', async () => {
     api.mockResolvedValue(thread([turn()], 2))
     setup()
-    expect(await screen.findByText('Budget à confirmer.')).toBeTruthy()
+    expect(await screen.findByText(answer('Budget à confirmer.'))).toBeTruthy()
     expect(writes()).toHaveLength(0)
     expect(api.mock.calls[0][0]).toBe(`${endpoint}?limit=20`)
     expect(api.mock.calls[0][1]?.cache).toBe('no-store')
@@ -204,7 +210,7 @@ describe('private assistant connected flow', () => {
       ).disabled
     ).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     expect(writes()).toHaveLength(2)
     expect(writes()[0][1]?.body).toBe(writes()[1][1]?.body)
   })
@@ -222,7 +228,7 @@ describe('private assistant connected flow', () => {
     await ask()
     await screen.findByText('failure.unconfirmed')
     fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     expect(screen.queryByText('failure.unconfirmed')).toBeNull()
     expect(writes()).toHaveLength(1)
   })
@@ -243,7 +249,7 @@ describe('private assistant connected flow', () => {
     expect(screen.queryByRole('button', { name: 'failure.retry' })).toBeNull()
     expect(writes()).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'ask' }))
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     const commands = writes().map(([, options]) =>
       JSON.parse(String(options?.body))
     )
@@ -318,7 +324,7 @@ describe('private assistant connected flow', () => {
       throw new Error('Unexpected write')
     })
     setup()
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     const source = screen.getByRole('button', {
       name: 'result.openSource',
     })
@@ -337,10 +343,10 @@ describe('private assistant connected flow', () => {
       return thread([turn()], 1)
     })
     const view = setup()
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     denied = true
     view.switchAuthor('author-b')
-    expect(screen.queryByText('Budget à confirmer.')).toBeNull()
+    expect(screen.queryByText(answer('Budget à confirmer.'))).toBeNull()
     await screen.findByText('error')
     expect(
       (
@@ -357,7 +363,7 @@ describe('private assistant connected flow', () => {
       return thread([turn()], 2)
     })
     setup()
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     await openClearConfirmation()
     const dialog = await screen.findByRole('dialog', { name: 'delete.title' })
     expect(writes()).toHaveLength(0)
@@ -397,7 +403,7 @@ describe('private assistant connected flow', () => {
     ).toBe(true)
     ready = true
     fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     expect(writes()).toHaveLength(1)
   })
   it('loads earlier exchanges in chronological order using the private cursor', async () => {
@@ -433,12 +439,12 @@ describe('private assistant connected flow', () => {
       return thread([turn()], 1)
     })
     const firstOpening = setup()
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     denied = true
     firstOpening.unmount()
     setup()
     await screen.findByText('error')
-    expect(screen.queryByText('Budget à confirmer.')).toBeNull()
+    expect(screen.queryByText(answer('Budget à confirmer.'))).toBeNull()
     expect(
       screen.queryByRole('button', { name: 'result.openSource' })
     ).toBeNull()
@@ -460,7 +466,7 @@ describe('private assistant connected flow', () => {
       target: { value: 'Quelle échéance ?' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'ask' }))
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     const commands = writes().map(([, options]) =>
       JSON.parse(String(options?.body))
     )
@@ -477,7 +483,7 @@ describe('private assistant connected flow', () => {
       return deleted ? { ...thread([], 3), deleted: true } : thread([turn()], 2)
     })
     setup()
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     await openClearConfirmation()
     const dialog = await screen.findByRole('dialog', { name: 'delete.title' })
     fireEvent.click(
@@ -545,7 +551,7 @@ describe('terminal unknown assistant requests', () => {
       expect(command.command_id).not.toBe(unknown.command_id)
       expect(command.expected_thread_version).toBe(4)
       finish()
-      await screen.findByText('Budget à confirmer.')
+      await screen.findByText(answer('Budget à confirmer.'))
       expect(writes()).toHaveLength(1)
     }
   )
@@ -574,7 +580,7 @@ describe('terminal unknown assistant requests', () => {
     await waitFor(() => expectSendingDisabled(false))
     expect(writes()).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'ask' }))
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     expect(writes()).toHaveLength(1)
     expect(JSON.parse(String(writes()[0][1]?.body)).command_id).not.toBe(
       previous.command_id
@@ -607,7 +613,7 @@ describe('terminal unknown assistant requests', () => {
     expect(screen.queryByRole('button', { name: 'failure.retry' })).toBeNull()
     expect(writes()).toHaveLength(1)
     await chooseShortcut('short-summary')
-    await screen.findByText('Budget à confirmer.')
+    await screen.findByText(answer('Budget à confirmer.'))
     const commands = writes().map(([, options]) =>
       JSON.parse(String(options?.body))
     )

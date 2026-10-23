@@ -311,12 +311,13 @@ jobs:
         run: uv run python ../../scripts/ci/s3_smoke.py
 
       - name: Install backend system dependencies
+        timeout-minutes: 5
         run: |
-          sudo sed -i \
-            's|http://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            /etc/apt/apt-mirrors.txt
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg gettext
+          # Keep Ubuntu's archive signatures while bypassing the slow Azure mirror.
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${apt_options[@]}" -o APT::Update::Error-Mode=any update
+          sudo apt-get "${apt_options[@]}" install -y ffmpeg gettext
 
       - name: Generate a MO file from strings extracted from the project
         run: uv run python manage.py compilemessages
@@ -354,12 +355,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install ffmpeg
+        timeout-minutes: 5
         run: |
-          sudo sed -i \
-            's|http://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            /etc/apt/apt-mirrors.txt
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          # Keep Ubuntu's archive signatures while bypassing the slow Azure mirror.
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${apt_options[@]}" -o APT::Update::Error-Mode=any update
+          sudo apt-get "${apt_options[@]}" install -y ffmpeg
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -399,9 +401,7 @@ jobs:
       - name: Install Chromium for the isolated media probe test
         timeout-minutes: 5
         run: |
-          sudo sed -i \
-            's|http://azure\.archive\.ubuntu\.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            /etc/apt/apt-mirrors.txt
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
           cd src/frontend/ && npx playwright install --with-deps chromium
 
       - name: Verify the media probe with local synthetic WebRTC peers

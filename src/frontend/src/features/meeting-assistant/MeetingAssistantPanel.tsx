@@ -12,6 +12,7 @@ import { ASSISTANT_ICON } from '@/features/meetingHistory/components/meetingCont
 import { css } from '@/styled-system/css'
 import { AssistantResult, type AssistantResultView } from './AssistantResult'
 import { AssistantNotReady } from './AssistantNotReady'
+import { AssistantTypingDots } from './AssistantTyping'
 import {
   AssistantShortcuts,
   type MeetingAssistantAction,
@@ -201,6 +202,7 @@ const userBubble = css({
 export function MeetingAssistantPanel({
   readiness,
   turns,
+  arrivedTurnId = null,
   loading,
   pending,
   error,
@@ -216,6 +218,8 @@ export function MeetingAssistantPanel({
 }: {
   readiness: AssistantReadiness
   turns: AssistantTurnView[]
+  /** The answer just received, written out as it arrives. */
+  arrivedTurnId?: string | null
   loading: boolean
   pending: boolean
   error: boolean
@@ -409,6 +413,7 @@ export function MeetingAssistantPanel({
                         <AssistantResult
                           key={turn.result.id}
                           result={turn.result}
+                          arrived={turn.id === arrivedTurnId}
                           onOpenCitation={(id) => onOpenCitation(turn.id, id)}
                         />
                       </div>
@@ -417,17 +422,7 @@ export function MeetingAssistantPanel({
                 ))}
               </ol>
             )}
-            {pending && (
-              <p
-                role="status"
-                className={css({
-                  fontSize: '0.8125rem',
-                  color: 'muted-foreground',
-                })}
-              >
-                {t('pending')}
-              </p>
-            )}
+            {pending && <AssistantTypingDots />}
             {children}
             <div ref={end} />
           </>
