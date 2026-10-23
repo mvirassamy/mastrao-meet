@@ -107,21 +107,14 @@ export const MeetingContentStatusIcons = ({
   const recording = recordedStatus(item)
   return (
     <RowOverlayCell linkRef={linkRef}>
+      {/* The video comes first, only for a recorded meeting, so the summary
+          and transcript icons stay aligned on the right of every row. */}
+      {recording && <MeetingRecordingStatusIcon status={recording} />}
       <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
       <MeetingContentStatusIcon
         kind="transcript"
         status={item.transcriptStatus}
       />
-      {/* A meeting never recorded shows no video icon; its empty slot keeps
-          the summary and transcript icons aligned with the other rows. */}
-      {recording ? (
-        <MeetingRecordingStatusIcon status={recording} />
-      ) : (
-        <span
-          aria-hidden="true"
-          className={css({ width: '34px', flexShrink: 0 })}
-        />
-      )}
     </RowOverlayCell>
   )
 }

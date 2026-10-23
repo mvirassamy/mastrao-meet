@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-23: Put the video icon before the summary and transcript icons in
+  history, so they stay aligned on the right when a meeting was not
+  recorded, and keep the participants aligned across rows.
+
 - 2026-10-23: Show no video icon in history for a meeting that was never
   recorded; keep it, coloured by state, for a ready, processing, failed or
   expired video.
