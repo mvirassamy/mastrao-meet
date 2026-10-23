@@ -23,6 +23,8 @@ const createRoom = vi.fn()
 const fetchRoomLifecycle = vi.fn()
 const fetchRoom = vi.fn()
 const navigateTo = vi.fn()
+const connectRoom = vi.fn().mockResolvedValue(undefined)
+let configData: { livekit: { url: string } } | undefined
 let liveKitOnDisconnected: ((reason: number) => void) | undefined
 let liveKitOnConnected: (() => Promise<void>) | undefined
 let liveKitAudio: unknown
@@ -65,13 +67,26 @@ vi.mock('@livekit/components-react', () => ({
     onConnected,
     audio,
     video,
+    connect,
+    token,
+    serverUrl,
+    onError,
   }: {
     children: ReactNode
     onDisconnected?: (reason: number) => void
     onConnected?: () => Promise<void>
     audio?: unknown
     video?: unknown
+    connect?: boolean
+    token?: string
+    serverUrl?: string
+    onError?: (error: Error) => void
   }) => {
+    // Match useLiveKitRoom 2.9.21's connection effect: changing onError
+    // reconnects even when the Room, server and token remain the same.
+    useEffect(() => {
+      if (connect && token && serverUrl) void connectRoom()
+    }, [connect, token, serverUrl, onError])
     liveKitOnDisconnected = onDisconnected
     liveKitOnConnected = onConnected
     liveKitAudio = audio
@@ -124,7 +139,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@/api/useConfig', () => ({
-  useConfig: () => ({ data: undefined }),
+  useConfig: () => ({ data: configData }),
 }))
 
 vi.mock('@/api/queryClient', () => ({
@@ -256,6 +271,7 @@ vi.mock('../api/endMeeting', () => ({
 describe('Conference room lookup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    configData = undefined
     window.sessionStorage.clear()
     fetchRoomLifecycle.mockReset().mockReturnValue(new Promise(() => undefined))
     liveKitOnDisconnected = undefined
@@ -383,6 +399,38 @@ describe('Conference room lookup', () => {
     rerender(<Conference roomId="abc-defg-hij" />)
 
     expect(roomInstances).toEqual([joinedRoom])
+  })
+
+  it('does not reconnect after leaving when device preferences rerender the conference', async () => {
+    configData = { livekit: { url: 'wss://media.invalid' } }
+    const data: ApiRoom = {
+      id: 'room_0123456789abcdef0123456789abcdef',
+      name: 'Synthetic meeting',
+      slug: 'synthetic-meeting',
+      access_level: ApiAccessLevel.RESTRICTED,
+      is_administrable: true,
+      livekit: {
+        url: 'wss://media.invalid',
+        room: 'synthetic-room',
+        token: 'synthetic-token',
+      },
+    }
+    fetchRoom.mockResolvedValue(data)
+    const { rerender } = render(
+      <Conference roomId={data.id} initialRoomData={data} />
+    )
+    await waitFor(() => expect(connectRoom).toHaveBeenCalledOnce())
+
+    await act(async () => liveKitOnDisconnected?.(1))
+    userChoicesStore.audioDeviceId = 'microphone-after-leave'
+    rerender(<Conference roomId={data.id} initialRoomData={data} />)
+
+    expect(navigateTo).toHaveBeenCalledWith(
+      'feedback',
+      { outcome: 'left', roomId: data.id },
+      expect.any(Object)
+    )
+    expect(connectRoom).toHaveBeenCalledOnce()
   })
 
   it.each(['404', '410'])(
