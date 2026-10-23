@@ -2,6 +2,8 @@
 
 - 2026-10-23: Update the backend's Django REST framework to 3.18.3 to fix
   JSON charset handling, token revocation and Accept header vulnerabilities.
+  Bound CI's FFmpeg/gettext installation and use Ubuntu's signed archive
+  directly to avoid the runner's slow Azure mirror.
 
 - 2026-10-23: Match enrichment authority to the author displayed in history;
   reject guest notes even when the browser is signed in to an account.
