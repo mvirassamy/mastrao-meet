@@ -62,6 +62,10 @@ const config: Config = {
       fade: { from: { opacity: 0 }, to: { opacity: 1 } },
       word_in: { from: { opacity: 0 } },
       reveal: { from: { opacity: 0, transform: 'translateY(6px)' } },
+      loading_bar: {
+        from: { transform: 'translateX(-110%)' },
+        to: { transform: 'translateX(310%)' },
+      },
       typing_dot: {
         '0%, 60%, 100%': { transform: 'translateY(0)', opacity: 0.5 },
         '30%': { transform: 'translateY(-4px)', opacity: 1 },

@@ -43,6 +43,28 @@ const panelProps = {
 }
 
 describe('private meeting assistant presentation', () => {
+  it('lets the question be written while the history loads', () => {
+    const onAsk = vi.fn()
+    render(
+      <MeetingAssistantPanel
+        {...panelProps}
+        loading
+        canSend={false}
+        onAsk={onAsk}
+      />
+    )
+    expect(screen.getByRole('status').textContent).toBe('loading')
+    const field = screen.getByLabelText<HTMLTextAreaElement>('question')
+    expect(field.readOnly).toBe(false)
+    fireEvent.change(field, { target: { value: 'Quelle date ?' } })
+    expect(field.value).toBe('Quelle date ?')
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'ask' }).disabled
+    ).toBe(true)
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onAsk).not.toHaveBeenCalled()
+  })
+
   it('does not send a question or action until explicitly requested', async () => {
     const onAsk = vi.fn()
     const onAction = vi.fn()

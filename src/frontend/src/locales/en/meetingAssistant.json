@@ -3,7 +3,7 @@
   "close": "Close the assistant",
   "privacy": "Visible only to you",
   "options": "Conversation options",
-  "loading": "Loading the conversation…",
+  "loading": "Retrieving your conversation…",
   "pending": "The assistant is preparing its answer…",
   "error": "The conversation could not be loaded.",
   "retry": "Try again",
