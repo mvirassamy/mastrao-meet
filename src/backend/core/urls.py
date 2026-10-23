@@ -31,6 +31,7 @@ from core.mastrao_meeting_history import (
 )
 from core.mastrao_native_capture_adapter import start_native_capture
 from core.mastrao_native_capture_stop import stop_native_capture
+from core.mastrao_note_enrichment import personal_note_enrichment
 from core.mastrao_personal_notes import history_personal_note, room_personal_note
 from core.mastrao_recording_access import recording_access, recording_download
 from core.mastrao_recording_adapter import (
@@ -175,6 +176,11 @@ urlpatterns = [
                     "meetings/history/<str:meeting_ref>/personal-note/",
                     history_personal_note,
                     name="mastrao_history_personal_note",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/personal-note/enrichment/",
+                    personal_note_enrichment,
+                    name="mastrao_personal_note_enrichment",
                 ),
                 path("meetings/", meeting_collection, name="mastrao_create_meeting"),
                 path("matters/", meeting_matters, name="mastrao_meeting_matters"),

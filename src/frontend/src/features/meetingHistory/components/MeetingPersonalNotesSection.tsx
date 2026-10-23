@@ -3,6 +3,7 @@ import {
   PersonalNotesEditor,
   PersonalNotesProvider,
   usePersonalNotes,
+  NoteEnrichment,
 } from '@/features/meeting-notes'
 import { useUser } from '@/features/auth/api/useUser'
 import { css } from '@/styled-system/css'
@@ -10,7 +11,13 @@ import { NOTES_ICON } from './meetingContent'
 import { sectionCard, sectionHeader, sectionTitle } from './meetingDetailLayout'
 
 /** In a tab, the tab already shows the title and its 3D icon. */
-function NotesCard({ inTab }: { inTab: boolean }) {
+function NotesCard({
+  inTab,
+  meetingRef,
+}: {
+  inTab: boolean
+  meetingRef?: string
+}) {
   const { t } = useTranslation('personalNotes', { useSuspense: false })
   const title = t('title', { defaultValue: 'Mes notes' })
   return (
@@ -40,6 +47,7 @@ function NotesCard({ inTab }: { inTab: boolean }) {
       )}
       {/* The whole note shows at once, growing with its text. */}
       <PersonalNotesEditor fit="content" />
+      {meetingRef && <NoteEnrichment meetingRef={meetingRef} />}
     </section>
   )
 }
@@ -48,19 +56,22 @@ function NotesCard({ inTab }: { inTab: boolean }) {
 export function MeetingPersonalNotesSection({
   endpoint,
   inTab = false,
+  meetingRef,
 }: {
   endpoint: string
   inTab?: boolean
+  meetingRef?: string
 }) {
   const { user } = useUser()
   const notes = usePersonalNotes()
-  if (notes?.endpoint === endpoint) return <NotesCard inTab={inTab} />
+  if (notes?.endpoint === endpoint)
+    return <NotesCard inTab={inTab} meetingRef={meetingRef} />
   return (
     <PersonalNotesProvider
       endpoint={endpoint}
       identityKey={user?.id ?? 'guest'}
     >
-      <NotesCard inTab={inTab} />
+      <NotesCard inTab={inTab} meetingRef={meetingRef} />
     </PersonalNotesProvider>
   )
 }
