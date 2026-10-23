@@ -104,7 +104,16 @@ const MeetingHistoryRow = ({
           />
         </RowOverlayCell>
       </div>
-      <div className={css({ gridArea: 'status' })}>
+      {/* Room for the three icons on every row, so the participants start at
+          the same place whether or not the meeting was recorded. */}
+      <div
+        className={css({
+          gridArea: 'status',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          minWidth: '7.625rem',
+        })}
+      >
         <MeetingContentStatusIcons item={item} linkRef={linkRef} />
       </div>
       <ChevronRightIcon
