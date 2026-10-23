@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-23: Show the meeting assistant typing (three bouncing dots), then
+  write out the answer that just arrived word by word. Answers already given
+  appear at once, and reduced motion turns the animation off.
+
 - 2026-10-23: Put the video icon before the summary and transcript icons in
   history, so they stay aligned on the right when a meeting was not
   recorded, and keep the participants aligned across rows.
