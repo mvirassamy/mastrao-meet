@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-23: Keep the LiveKit error handler stable when meeting preferences
+  rerender the conference, so a voluntary departure does not request another
+  connection while the feedback page is opening.
+
 - 2026-10-23: Show the meeting assistant typing (three bouncing dots), then
   write out the answer that just arrived word by word. Answers already given
   appear at once, and reduced motion turns the animation off.
