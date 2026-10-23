@@ -260,14 +260,7 @@ describe('recording history UI', () => {
     client.clear()
   })
 
-  it.each([
-    'processing',
-    'available',
-    'expired',
-    'failed',
-    'absent',
-    'unknown',
-  ])(
+  it.each(['processing', 'available', 'expired', 'failed', 'unknown'])(
     'makes the row video status %s accessible through the meeting link',
     (status) => {
       const item = normalizeHistoryPage({
@@ -299,4 +292,27 @@ describe('recording history UI', () => {
       ).toBe(status)
     }
   )
+  it('shows no video icon or status for a meeting never recorded', () => {
+    const item = normalizeHistoryPage({
+      results: [
+        {
+          id: 'm1',
+          title: 'Meeting',
+          started_at: '2026-10-11T10:00:00Z',
+          recording_status: 'absent',
+        },
+      ],
+    }).items[0]
+    const linkRef = createRef<HTMLAnchorElement>()
+    render(
+      <>
+        <MeetingRowLink item={item} linkRef={linkRef} />
+        <MeetingContentStatusIcons item={item} linkRef={linkRef} />
+      </>
+    )
+    expect(screen.getByRole('link').textContent).not.toContain(
+      'status.recording'
+    )
+    expect(document.querySelector('[data-recording-status]')).toBeNull()
+  })
 })
