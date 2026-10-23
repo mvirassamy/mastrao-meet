@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-23: Keep the LiveKit error handler stable when meeting preferences
+  rerender the conference, so a voluntary departure does not request another
+  connection while the feedback page is opening.
+
 - 2026-10-23: Refresh develop reconciliation into develop_modes, keeping
   assistant typing, history alignment, the DRF security update and bounded
   CI installs alongside the existing controlled live work.
