@@ -8,6 +8,7 @@ import {
   MoreHorizontalIcon,
 } from '@/icons'
 import { Button, Menu, MenuList, TextArea } from '@/primitives'
+import { Loader } from '@/primitives/Loader'
 import { ASSISTANT_ICON } from '@/features/meetingHistory/components/meetingContent'
 import { css } from '@/styled-system/css'
 import { AssistantResult, type AssistantResultView } from './AssistantResult'
@@ -92,11 +93,14 @@ function ConversationMenu({
 function Composer({
   readiness,
   disabled,
+  writable,
   onAsk,
   onAction,
 }: {
   readiness: AssistantReadiness
   disabled: boolean
+  /** Whether the question can be written, even before it can be sent. */
+  writable: boolean
   onAsk: (question: string) => void
   onAction: (action: MeetingAssistantAction) => void
 }) {
@@ -146,8 +150,8 @@ function Composer({
         disabled={readiness !== 'ready'}
         // Read-only rather than disabled while an answer is pending, so
         // the field keeps the focus after Enter sends the question.
-        readOnly={disabled}
-        aria-disabled={disabled || undefined}
+        readOnly={!writable}
+        aria-disabled={!writable || undefined}
         fieldSizing="content"
         css={{
           border: 'none',
@@ -198,12 +202,48 @@ const userBubble = css({
   overflowWrap: 'anywhere',
 })
 
+/** A thin line sliding under the header while the conversation is read. */
+const LoadingBar = () => (
+  <div
+    aria-hidden="true"
+    className={css({
+      flexShrink: 0,
+      height: '2px',
+      overflow: 'hidden',
+      backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)',
+    })}
+  >
+    <div
+      className={css({
+        width: '35%',
+        height: '100%',
+        borderRadius: 'full',
+        backgroundColor: 'primary',
+        animation: 'loading_bar 1.3s ease-in-out infinite',
+        _motionReduce: { width: '100%', animation: 'none' },
+      })}
+    />
+  </div>
+)
+
+/** The thread stays clear: one short line while the history arrives. */
+const loadingLine = css({
+  margin: 'auto',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  fontSize: '0.75rem',
+  color: 'muted-foreground',
+  '& [data-loader]': { width: '12px', height: '12px', color: 'primary' },
+})
+
 /** Presentation only: authorized history and commands belong to the API hook. */
 export function MeetingAssistantPanel({
   readiness,
   turns,
   arrivedTurnId = null,
   loading,
+  opening,
   pending,
   error,
   onRetry,
@@ -221,6 +261,8 @@ export function MeetingAssistantPanel({
   /** The answer just received, written out as it arrives. */
   arrivedTurnId?: string | null
   loading: boolean
+  /** The first read of the conversation, when the panel opens. */
+  opening: boolean
   pending: boolean
   error: boolean
   onRetry: () => void
@@ -235,7 +277,11 @@ export function MeetingAssistantPanel({
 }) {
   const { t } = useTranslation('meetingAssistant')
   const ready = readiness === 'ready'
-  const disabled = !ready || loading || pending || error || !canSend
+  const locked = !ready || pending || error
+  const disabled = locked || loading || !canSend
+  // The question can be written while the history first loads; it can be
+  // sent once the conversation, and so its version, is known.
+  const writable = !locked && (opening || canSend)
   // The conversation opens on its last message and follows new ones.
   const end = useRef<HTMLDivElement>(null)
   const shownTurns = loading ? 0 : turns.length
@@ -300,6 +346,7 @@ export function MeetingAssistantPanel({
           <CloseIcon aria-hidden="true" />
         </Button>
       </header>
+      {ready && opening && <LoadingBar />}
       <div
         className={css({
           flex: 1,
@@ -314,7 +361,8 @@ export function MeetingAssistantPanel({
         {readiness === 'ready' ? (
           <>
             {loading && (
-              <p role="status" className={css({ color: 'muted-foreground' })}>
+              <p role="status" className={loadingLine}>
+                <Loader />
                 {t('loading')}
               </p>
             )}
@@ -436,6 +484,7 @@ export function MeetingAssistantPanel({
         <Composer
           readiness={readiness}
           disabled={disabled}
+          writable={writable}
           onAsk={onAsk}
           onAction={onAction}
         />

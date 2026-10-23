@@ -30,6 +30,7 @@ const panelProps = {
   readiness: 'ready' as const,
   turns: [],
   loading: false,
+  opening: false,
   pending: false,
   error: false,
   canSend: true,
@@ -43,6 +44,47 @@ const panelProps = {
 }
 
 describe('private meeting assistant presentation', () => {
+  it('lets the question be written while the history loads', () => {
+    const onAsk = vi.fn()
+    render(
+      <MeetingAssistantPanel
+        {...panelProps}
+        loading
+        opening
+        canSend={false}
+        onAsk={onAsk}
+      />
+    )
+    expect(screen.getByRole('status').textContent).toBe('loading')
+    const field = screen.getByLabelText<HTMLTextAreaElement>('question')
+    expect(field.readOnly).toBe(false)
+    fireEvent.change(field, { target: { value: 'Quelle date ?' } })
+    expect(field.value).toBe('Quelle date ?')
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'ask' }).disabled
+    ).toBe(true)
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onAsk).not.toHaveBeenCalled()
+  })
+
+  it('keeps the field read-only while a later read is in progress', () => {
+    const onAsk = vi.fn()
+    render(
+      <MeetingAssistantPanel
+        {...panelProps}
+        loading
+        opening={false}
+        canSend={false}
+        onAsk={onAsk}
+      />
+    )
+    const field = screen.getByLabelText<HTMLTextAreaElement>('question')
+    expect(field.readOnly).toBe(true)
+    expect(field.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onAsk).not.toHaveBeenCalled()
+  })
+
   it('does not send a question or action until explicitly requested', async () => {
     const onAsk = vi.fn()
     const onAction = vi.fn()
