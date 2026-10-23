@@ -1,5 +1,12 @@
 # Changelog
 
+- 2026-10-23: Match enrichment authority to the author displayed in history;
+  reject guest notes even when the browser is signed in to an account.
+
+- 2026-10-23: Let authenticated note authors request AI additions after
+  a meeting, review and edit them, append explicitly, and undo the last
+  addition while preserving the original text. Guest notes remain temporary.
+
 - 2026-10-22: Gather the meeting assistant shortcuts in a "Shortcuts" menu of
   the composer, with 3D icons and a one-line hint for each shortcut.
   Show a request that did not go through as an assistant reply with a single

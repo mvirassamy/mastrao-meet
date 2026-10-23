@@ -12,6 +12,14 @@ function statusLine(
   notes: PersonalNotesContextValue,
   t: Translate
 ): [string, Tone] {
+  if (notes.isMutationLocked) {
+    return [
+      t('enrichment.verifying', {
+        defaultValue: 'Vérification de l’enregistrement…',
+      }),
+      'busy',
+    ]
+  }
   switch (notes.status) {
     case 'loading':
       return [t('loading', { defaultValue: 'Chargement des notes…' }), 'busy']

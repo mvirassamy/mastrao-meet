@@ -481,6 +481,7 @@ const MeetingDetailContent = ({
         notes={
           <MeetingPersonalNotesSection
             inTab
+            meetingRef={meeting.id}
             endpoint={`/meetings/history/${encodeURIComponent(meeting.id)}/personal-note/`}
           />
         }
