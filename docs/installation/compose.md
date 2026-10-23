@@ -116,7 +116,7 @@ DJANGO_EMAIL_FROM=<your email address>
 
 
 DJANGO_EMAIL_BRAND_NAME=<brand name used in email templates> # e.g. "La Suite Numérique"
-DJANGO_EMAIL_LOGO_IMG=<logo image to use in email templates.> # e.g. "https://meet.yourdomain.tld/assets/logo-suite-numerique.png" 
+DJANGO_EMAIL_LOGO_IMG=<logo image to use in email templates.> # e.g. "https://meet.yourdomain.tld/assets/mastrao-logo.png" 
 ```
 
 ## Step 3: Configure your firewall
