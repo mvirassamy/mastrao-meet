@@ -1,10 +1,5 @@
 # Changelog
 
-- 2026-10-23: Update the backend's Django REST framework to 3.18.3 to fix
-  JSON charset handling, token revocation and Accept header vulnerabilities.
-  Bound CI's FFmpeg/gettext installation and use Ubuntu's signed archive
-  directly to avoid the runner's slow Azure mirror.
-
 - 2026-10-23: Put the video icon before the summary and transcript icons in
   history, so they stay aligned on the right when a meeting was not
   recorded, and keep the participants aligned across rows.
@@ -19,6 +14,11 @@
 - 2026-10-23: Show no video icon in history for a meeting that was never
   recorded; keep it, coloured by state, for a ready, processing, failed or
   expired video.
+
+- 2026-10-23: Update the backend's Django REST framework to 3.18.3 to fix
+  JSON charset handling, token revocation and Accept header vulnerabilities.
+  Bound CI's FFmpeg/gettext installation and use Ubuntu's signed archive
+  directly to avoid the runner's slow Azure mirror.
 
 - 2026-10-22: Gather the meeting assistant shortcuts in a "Shortcuts" menu of
   the composer, with 3D icons and a one-line hint for each shortcut.
