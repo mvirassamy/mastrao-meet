@@ -1,6 +1,6 @@
 # Notes personnelles de réunion
 
-« Mes notes » complète les onglets Messages et Transcription existants. Le document est privé : Core dérive son propriétaire de l'autorité serveur, jamais d'un identifiant envoyé par le navigateur. Les messages, la transcription, la synthèse partagée et les traitements IA ne contiennent pas ces notes.
+« Mes notes » complète les onglets Messages et Transcription existants. Le document est privé : Core dérive son propriétaire de l'autorité serveur, jamais d'un identifiant envoyé par le navigateur. Les messages, la transcription, la synthèse partagée ne contiennent pas ces notes. Seul l’enrichissement manuel demandé par leur auteur utilise la note privée comme contexte ; voir [le parcours dédié](mastrao-note-enrichment.md).
 
 ## Stockage et accès
 

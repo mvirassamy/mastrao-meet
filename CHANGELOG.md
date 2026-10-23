@@ -4,6 +4,13 @@
   history, so they stay aligned on the right when a meeting was not
   recorded, and keep the participants aligned across rows.
 
+- 2026-10-23: Match enrichment authority to the author displayed in history;
+  reject guest notes even when the browser is signed in to an account.
+
+- 2026-10-23: Let authenticated note authors request AI additions after
+  a meeting, review and edit them, append explicitly, and undo the last
+  addition while preserving the original text. Guest notes remain temporary.
+
 - 2026-10-23: Show no video icon in history for a meeting that was never
   recorded; keep it, coloured by state, for a ready, processing, failed or
   expired video.

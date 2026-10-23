@@ -80,6 +80,8 @@ export function PersonalNotesEditor({
         fieldSizing={fit === 'content' ? 'content' : undefined}
         value={notes.content}
         disabled={!notes.hasLoaded}
+        readOnly={notes.isMutationLocked}
+        aria-busy={notes.isMutationLocked}
         placeholder={t('placeholder', {
           defaultValue: 'Notez vos idées pendant la réunion…',
         })}
