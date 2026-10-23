@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <link rel="icon" type="image/png" href="/favicon-32x32.png">
+    <title>{% block title %}{% endblock %} · Mastrao Visio</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #3d485e;
+        background: #fff;
+        font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+      .text {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 12px;
+        padding: 48px clamp(24px, 6vw, 96px);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 28px;
+        color: #08142e;
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .brand img { width: 26px; height: auto; }
+      .code {
+        color: #2d5be3;
+        font-size: 72px;
+        font-weight: 700;
+        letter-spacing: -2px;
+        line-height: 1;
+      }
+      .label {
+        align-self: flex-start;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: #edf2ff;
+        color: #1f46b8;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      h1 { margin: 0; color: #08142e; font-size: 30px; font-weight: 600; line-height: 1.25; }
+      p { margin: 0; max-width: 420px; color: #56637a; font-size: 16px; line-height: 1.55; }
+      .button {
+        display: inline-flex;
+        align-self: flex-start;
+        align-items: center;
+        height: 42px;
+        margin-top: 12px;
+        padding: 0 18px;
+        border-radius: 10px;
+        background: #2d5be3;
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .button:hover { background: #1f46b8; }
+      .button:focus-visible { outline: 2px solid #2d5be3; outline-offset: 3px; }
+      .art {
+        display: grid;
+        place-items: center;
+        padding: 32px;
+        background: #edf2ff url(/assets/home/aquarelle.webp) center / cover;
+      }
+      .art img { width: min(380px, 80%); height: auto; }
+      @media (max-width: 720px) {
+        main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+        .art { order: -1; padding: 24px; }
+        .art img { width: 180px; }
+        .text { justify-content: flex-start; padding-top: 32px; }
+        h1 { font-size: 24px; }
+        .code { font-size: 56px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="text">
+        <div class="brand"><img src="/assets/email/mastrao-icon.png" alt="">Mastrao Visio</div>
+        {% block kicker %}{% endblock %}
+        <h1>{% block heading %}{% endblock %}</h1>
+        <p>{% block message %}{% endblock %}</p>
+        {% block action %}{% endblock %}
+      </section>
+      <div class="art" aria-hidden="true">
+        <img src="{% block illustration %}/assets/illustrations/erreur.webp{% endblock %}" alt="">
+      </div>
+    </main>
+  </body>
+</html>

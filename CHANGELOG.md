@@ -1,5 +1,13 @@
 # Changelog
 
+- 2026-10-23: Give the server-rendered pages (page not found, sign-in
+  expired or temporarily unavailable) the Mastrao look, in French: text and
+  button on the left, illustration on the watercolor on the right. Replace
+  the La Suite favicons with the Mastrao icon, which these pages and the
+  recording download pages now declare, and remove the unused La Suite
+  logos. The Outlook add-in icons and the email logo and brand name
+  examples now use Mastrao too.
+
 - 2026-10-23: Keep the LiveKit error handler stable when meeting preferences
   rerender the conference, so a voluntary departure does not request another
   connection while the feedback page is opening.
