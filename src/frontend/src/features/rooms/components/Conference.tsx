@@ -47,6 +47,13 @@ const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   return isEnding ? null : <InviteDialog mode={mode} />
 }
 
+function reportLiveKitRoomError(error: Error) {
+  reportError('livekit_room_error', error, {
+    path: 'connect_publish',
+    failure: MediaDeviceFailure.getFailure(error) ?? 'not-a-device-error',
+  })
+}
+
 export const Conference = ({
   roomId,
   initialRoomData,
@@ -333,12 +340,7 @@ export const Conference = ({
           className={css({
             backgroundColor: 'background !important',
           })}
-          onError={(e) => {
-            reportError('livekit_room_error', e, {
-              path: 'connect_publish',
-              failure: MediaDeviceFailure.getFailure(e) ?? 'not-a-device-error',
-            })
-          }}
+          onError={reportLiveKitRoomError}
           onConnected={async () => {
             if (!apiConfig) return
             if (
