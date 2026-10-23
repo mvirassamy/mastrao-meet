@@ -1,25 +1,34 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { InformationIcon } from '@/icons'
-import { Button, TextArea } from '@/primitives'
+import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { AssistantEmailCard } from './AssistantEmailCard'
 
 export type AssistantCitationView = { id: string; label: string }
-export type AssistantResultView = {
-  id: string
-  outcome:
-    | 'answer'
-    | 'abstention'
-    | 'refusal'
-    | 'unavailable'
-    | 'failure'
-    | 'processing'
-    | 'unknown'
-  text: string
-  coverage: string[]
-  citations: AssistantCitationView[]
-  editable: boolean
-}
+
+export type AssistantAnswer =
+  | { kind: 'text'; text: string }
+  | { kind: 'actions'; actions: { statement: string; details: string }[] }
+  | { kind: 'email'; subject: string; body: string }
+
+/** Why a turn shows no answer. */
+export type AssistantOutcome =
+  | 'abstention'
+  | 'refusal'
+  | 'unavailable'
+  | 'failure'
+  | 'processing'
+  | 'unknown'
+
+export type AssistantResultView =
+  | {
+      id: string
+      outcome: 'answer'
+      answer: AssistantAnswer
+      citations: AssistantCitationView[]
+      /** A real gap in the sources, read under the answer. */
+      sourceLimit: string | null
+    }
+  | { id: string; outcome: AssistantOutcome }
 
 const mutedLine = css({
   margin: 0,
@@ -28,10 +37,66 @@ const mutedLine = css({
   color: 'muted-foreground',
 })
 
-/** Actions read as links aligned with the answer text. */
-const inlineAction = css({ paddingX: '0!', minHeight: 'auto!' })
+const plainText = css({
+  margin: 0,
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+})
 
-/** Edits stay in this private view and never mutate the official summary. */
+function ActionList({
+  actions,
+}: {
+  actions: Extract<AssistantAnswer, { kind: 'actions' }>['actions']
+}) {
+  return (
+    <ul
+      className={css({
+        margin: 0,
+        padding: 0,
+        listStyle: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.625rem',
+      })}
+    >
+      {actions.map((action) => (
+        <li
+          key={action.statement}
+          className={css({
+            paddingLeft: '0.75rem',
+            borderLeft: '2px solid token(colors.border)',
+            overflowWrap: 'anywhere',
+          })}
+        >
+          {action.statement}
+          {action.details && (
+            <span
+              className={css({
+                display: 'block',
+                fontSize: '0.75rem',
+                color: 'muted-foreground',
+              })}
+            >
+              {action.details}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function Answer({ answer }: { answer: AssistantAnswer }) {
+  switch (answer.kind) {
+    case 'email':
+      return <AssistantEmailCard subject={answer.subject} body={answer.body} />
+    case 'actions':
+      return <ActionList actions={answer.actions} />
+    case 'text':
+      return <p className={plainText}>{answer.text}</p>
+  }
+}
+
 export function AssistantResult({
   result,
   onOpenCitation,
@@ -40,9 +105,7 @@ export function AssistantResult({
   onOpenCitation: (id: string) => void
 }) {
   const { t } = useTranslation('meetingAssistant')
-  if (
-    ['unavailable', 'failure', 'processing', 'unknown'].includes(result.outcome)
-  )
+  if (result.outcome !== 'answer')
     return (
       <p role="status" className={mutedLine}>
         {t(`result.${result.outcome}`)}
@@ -59,25 +122,7 @@ export function AssistantResult({
         color: 'var(--heading-foreground)',
       })}
     >
-      {result.outcome === 'abstention' && (
-        <p role="status">{t('result.abstention')}</p>
-      )}
-      {result.outcome === 'refusal' && (
-        <p role="status">{t('result.refusal')}</p>
-      )}
-      {result.editable ? (
-        <EditableProposal key={result.text} initialText={result.text} />
-      ) : (
-        <p
-          className={css({
-            whiteSpace: 'pre-wrap',
-            overflowWrap: 'anywhere',
-            margin: 0,
-          })}
-        >
-          {result.text}
-        </p>
-      )}
+      <Answer answer={result.answer} />
       {result.citations.length > 0 && (
         <ul
           aria-label={t('result.sources')}
@@ -95,7 +140,12 @@ export function AssistantResult({
               <Button
                 size="xs"
                 variant="secondary"
+                aria-label={t('result.openSource', { label: citation.label })}
                 onPress={() => onOpenCitation(citation.id)}
+                className={css({
+                  borderRadius: 'full!',
+                  fontVariantNumeric: 'tabular-nums',
+                })}
               >
                 {citation.label}
               </Button>
@@ -103,106 +153,17 @@ export function AssistantResult({
           ))}
         </ul>
       )}
-      {result.coverage.length > 0 && (
+      {result.sourceLimit && (
         <p
-          className={`${mutedLine} ${css({
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '0.375rem',
-            fontSize: '0.75rem',
-          })}`}
-        >
-          <InformationIcon
-            size={12}
-            aria-hidden="true"
-            className={css({ flexShrink: 0, marginTop: '0.2rem' })}
-          />
-          <span>
-            <span className={css({ srOnly: true })}>
-              {t('result.coverage')} :{' '}
-            </span>
-            {result.coverage.join(' ')}
-          </span>
-        </p>
-      )}
-    </div>
-  )
-}
-
-function EditableProposal({ initialText }: { initialText: string }) {
-  const { t } = useTranslation('meetingAssistant')
-  const [text, setText] = useState(initialText)
-  const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
-  async function copyText() {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopy('copied')
-    } catch {
-      setCopy('failed')
-    }
-  }
-  return (
-    <div
-      className={css({
-        border: '1px solid token(colors.border)',
-        borderRadius: '12px',
-        overflow: 'hidden',
-      })}
-    >
-      <TextArea
-        aria-label={t('result.edit')}
-        value={text}
-        onChange={(event) => {
-          setText(event.target.value)
-          setCopy('idle')
-        }}
-        fieldSizing="content"
-        css={{
-          border: 'none',
-          borderRadius: 0,
-          resize: 'none',
-          minHeight: '6rem',
-          maxHeight: '24rem',
-          padding: '0.75rem',
-          fontSize: '0.8125rem',
-          lineHeight: '1.6',
-          color: 'var(--heading-foreground)',
-          backgroundColor: 'card',
-        }}
-      />
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.25rem',
-          padding: '0.5rem 0.75rem',
-          borderTop: '1px solid token(colors.border)',
-          backgroundColor: 'muted',
-        })}
-      >
-        <p className={mutedLine}>{t('result.proposal')}</p>
-        <div
           className={css({
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
+            margin: 0,
+            fontSize: '0.75rem',
+            color: 'muted-foreground',
           })}
         >
-          <Button
-            variant="link"
-            size="xs"
-            className={inlineAction}
-            onPress={() => void copyText()}
-          >
-            {t('result.copy')}
-          </Button>
-          {copy !== 'idle' && (
-            <p role="status" className={mutedLine}>
-              {t(`result.${copy}`)}
-            </p>
-          )}
-        </div>
-      </div>
+          {result.sourceLimit}
+        </p>
+      )}
     </div>
   )
 }

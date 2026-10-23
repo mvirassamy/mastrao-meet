@@ -82,6 +82,11 @@ const normalizeProjection = (
     state: record
       ? normalizeContentStatus(record.state)
       : legacyProjectionState(fallbackStatus, kind),
+    ...(kind === 'transcript' &&
+    record?.state === 'transcribing' &&
+    record.processing_state === 'temporarily_suspended'
+      ? { processing_state: 'temporarily_suspended' as const }
+      : {}),
     revision: asRevision(record?.revision),
     digest: asDigest(record?.digest),
     source: sourceDigest

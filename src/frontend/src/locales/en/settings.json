@@ -7,6 +7,11 @@
     "authentication": "Authentication",
     "nameError": "Your name cannot be empty"
   },
+  "usageBudget": {
+    "link": "Organization usage and budget",
+    "opensInNewTab": "Opens in a new tab",
+    "unavailable": "Usage and budget is currently unavailable."
+  },
   "preferences": {
     "title": "Preferences",
     "idleDisconnectModal": {

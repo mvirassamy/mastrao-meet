@@ -329,19 +329,51 @@ const previewAssistantThread = (meetingId: string) => ({
         publication_state: 'private_proposal',
       },
     },
+    {
+      command_id: 'command_preview_0003',
+      operation: 'email_draft',
+      question: null,
+      state: 'completed',
+      created_at: Math.floor(Date.now() / 1000) - 240,
+      coverage: previewCoverage,
+      result: {
+        state: 'answered',
+        text: 'Voici un brouillon de mail de suivi.',
+        rationale_category: 'supported',
+        citations: [previewCitation(meetingId, 'segment_preview_0003', 42_000)],
+        actions: [],
+        email_draft: {
+          subject: 'Suivi du point hebdomadaire',
+          body: 'Bonjour,\n\nMerci pour cet échange. Voici les points à retenir :\n\n- La livraison est maintenue au vendredi.\n- Camille prépare la liste des testeurs.\n- Karim teste l’accès mobile avant vendredi.\n\nBonne journée,',
+        },
+        publication_state: 'private_proposal',
+      },
+    },
   ],
 })
 
-/** Not filed yet, and the preview user may file it. */
-const previewClassification = (meetingId: string) => ({
-  version: 1,
-  meeting_ref: meetingId,
-  matter_ref: null,
-  matter_display_label: null,
-  matter_path: null,
-  classification_version: 0,
-  can_classify: true,
-})
+/** The main preview meeting is filed; the others wait to be filed. */
+const previewClassification = (meetingId: string) => {
+  if (meetingId === 'preview-meeting-available')
+    return {
+      version: 1,
+      meeting_ref: meetingId,
+      matter_ref: 'matter_preview0123456789',
+      matter_display_label: 'Succession Martin',
+      matter_path: '/orgs/preview/matters/matter_preview0123456789',
+      classification_version: 1,
+      can_classify: true,
+    }
+  return {
+    version: 1,
+    meeting_ref: meetingId,
+    matter_ref: null,
+    matter_display_label: null,
+    matter_path: null,
+    classification_version: 0,
+    can_classify: true,
+  }
+}
 
 /** PREVIEW ONLY — answers the provisional history endpoints locally. */
 export const previewMeetingHistoryResponse = (

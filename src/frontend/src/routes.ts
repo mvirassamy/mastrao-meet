@@ -37,6 +37,9 @@ const RoomRoute = lazy(() => import('@/features/rooms/routes/Room'))
 const GuestInvitationRoute = lazy(
   () => import('@/features/rooms/routes/GuestInvitation')
 )
+const HostInvitationRoute = lazy(
+  () => import('@/features/rooms/routes/HostInvitation')
+)
 const FeedbackRoute = lazy(() => import('@/features/rooms/routes/Feedback'))
 const ConnectionTestRoute = lazy(
   () => import('@/features/diagnostics/routes/ConnectionTest')
@@ -50,6 +53,7 @@ export const routes: Record<
   | 'meetingHistoryMeeting'
   | 'room'
   | 'guestInvitation'
+  | 'hostInvitation'
   | 'hostRecovery'
   | 'feedback'
   | 'connectionTest'
@@ -99,6 +103,11 @@ export const routes: Record<
     name: 'guestInvitation',
     path: '/guest',
     Component: GuestInvitationRoute,
+  },
+  hostInvitation: {
+    name: 'hostInvitation',
+    path: '/host',
+    Component: HostInvitationRoute,
   },
   feedback: {
     name: 'feedback',

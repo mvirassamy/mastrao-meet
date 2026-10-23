@@ -50,6 +50,13 @@
     "temporaryError": "Der Dienst ist vorübergehend nicht verfügbar. Sie können es erneut versuchen.",
     "retry": "Erneut versuchen"
   },
+  "hostInvitation": {
+    "title": "An Ihrer Videokonferenz teilnehmen",
+    "loading": "Ihr Host-Link wird geprüft…",
+    "error": "Dieser Host-Link ist nicht mehr verfügbar. Bitten Sie den Organisator um einen neuen Link.",
+    "temporaryError": "Der Dienst ist vorübergehend nicht verfügbar. Sie können es erneut versuchen.",
+    "retry": "Erneut versuchen"
+  },
   "forbidden": {
     "heading": "Zugriff verweigert"
   },

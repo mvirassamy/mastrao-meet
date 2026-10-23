@@ -41,6 +41,7 @@ export type MeetingRecording = {
 export type MeetingContentProjection = {
   version: 1
   state: MeetingContentStatus
+  processing_state?: 'temporarily_suspended'
   revision: number
   digest: string | null
   source: { revision: number; digest: string } | null

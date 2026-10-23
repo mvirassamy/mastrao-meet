@@ -95,7 +95,10 @@ function receipt(
     idempotent_replay: false,
   }
 }
-function setup(identityKey = 'author-a') {
+function setup(
+  identityKey = 'author-a',
+  readiness: 'preparing' | 'ready' | 'unavailable' = 'ready'
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -105,6 +108,7 @@ function setup(identityKey = 'author-a') {
         key={identity}
         meetingId={meetingId}
         identityKey={identity}
+        readiness={readiness}
         onClose={vi.fn()}
       />
     </QueryClientProvider>
@@ -115,6 +119,23 @@ function setup(identityKey = 'author-a') {
     client,
     switchAuthor: (identity: string) => result.rerender(view(identity)),
   }
+}
+async function openClearConfirmation() {
+  // jsdom has no CSS.escape, which the open menu uses to focus its items.
+  vi.stubGlobal('CSS', { escape: (value: string) => value })
+  fireEvent.click(screen.getByRole('button', { name: 'options' }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'delete.open' }))
+}
+/** Sends a ready-made request from the composer's shortcuts menu. */
+async function chooseShortcut(action: string) {
+  // jsdom has no CSS.escape, which the open menu uses to focus its items.
+  vi.stubGlobal('CSS', { escape: (value: string) => value })
+  fireEvent.click(screen.getByRole('button', { name: 'actions.title' }))
+  fireEvent.click(
+    await screen.findByRole('menuitem', {
+      name: new RegExp(`^actions\\.${action}`),
+    })
+  )
 }
 async function ask() {
   await screen.findByText('empty')
@@ -136,7 +157,10 @@ const writes = () =>
 beforeEach(() => {
   api.mockReset()
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('private assistant connected flow', () => {
   it('rereads the durable private thread without generating anything on mount', async () => {
@@ -146,6 +170,20 @@ describe('private assistant connected flow', () => {
     expect(writes()).toHaveLength(0)
     expect(api.mock.calls[0][0]).toBe(`${endpoint}?limit=20`)
     expect(api.mock.calls[0][1]?.cache).toBe('no-store')
+  })
+  it('does not read the conversation before the transcript is ready', () => {
+    api.mockResolvedValue(thread([turn()], 2))
+    setup('author-a', 'preparing')
+    expect(screen.getByText('preparing.title')).toBeTruthy()
+    expect(api).not.toHaveBeenCalled()
+    expectSendingDisabled(true)
+  })
+  it('keeps an existing conversation clearable without a transcript', async () => {
+    api.mockResolvedValue(thread([turn()], 2))
+    setup('author-a', 'unavailable')
+    expect(await screen.findByRole('button', { name: 'options' })).toBeTruthy()
+    expect(screen.getByText('unavailable.title')).toBeTruthy()
+    expectSendingDisabled(true)
   })
   it('retries the identical command after a lost response and an explicit reread', async () => {
     let sends = 0
@@ -157,7 +195,7 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
+    await screen.findByText('failure.unconfirmed')
     expect(
       (
         screen.getByRole('button', {
@@ -165,11 +203,7 @@ describe('private assistant connected flow', () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true)
-    expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'command.retry' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('Budget à confirmer.')
     expect(writes()).toHaveLength(2)
     expect(writes()[0][1]?.body).toBe(writes()[1][1]?.body)
@@ -186,11 +220,10 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    await screen.findByText('failure.unconfirmed')
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('Budget à confirmer.')
-    expect(screen.queryByText('command.unconfirmed')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
+    expect(screen.queryByText('failure.unconfirmed')).toBeNull()
     expect(writes()).toHaveLength(1)
   })
   it('rereads a conflict and requires explicit resubmission at the new thread version', async () => {
@@ -205,7 +238,9 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.conflict')
+    await screen.findByText('failure.conflict')
+    // The conversation was read again: nothing is left to retry.
+    expect(screen.queryByRole('button', { name: 'failure.retry' })).toBeNull()
     expect(writes()).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'ask' }))
     await screen.findByText('Budget à confirmer.')
@@ -239,17 +274,17 @@ describe('private assistant connected flow', () => {
         expect(
           (
             screen.getByRole('button', {
-              name: `actions.${name}`,
+              name: 'actions.title',
             }) as HTMLButtonElement
           ).disabled
         ).toBe(false)
       )
-      fireEvent.click(screen.getByRole('button', { name: `actions.${name}` }))
+      await chooseShortcut(name)
       await waitFor(() =>
         expect(
           (
             screen.getByRole('button', {
-              name: `actions.${name}`,
+              name: 'actions.title',
             }) as HTMLButtonElement
           ).disabled
         ).toBe(false)
@@ -264,11 +299,7 @@ describe('private assistant connected flow', () => {
       writes().map(([, options]) => JSON.parse(String(options?.body)).operation)
     ).toEqual(['summary', 'actions', 'email_draft'])
     expect(
-      (
-        screen.getByRole('textbox', {
-          name: 'result.edit',
-        }) as HTMLTextAreaElement
-      ).value
+      screen.getByRole('region', { name: 'email.label' }).textContent
     ).toContain('Bonjour, voici notre proposition.')
   })
   it('resolves the full citation descriptor and hides changed source versions', async () => {
@@ -289,7 +320,7 @@ describe('private assistant connected flow', () => {
     setup()
     await screen.findByText('Budget à confirmer.')
     const source = screen.getByRole('button', {
-      name: /source.kind.reviewed_revision/,
+      name: 'result.openSource',
     })
     fireEvent.click(source)
     expect(await screen.findByRole('alert')).toHaveProperty(
@@ -314,7 +345,7 @@ describe('private assistant connected flow', () => {
     expect(
       (
         screen.getByRole('button', {
-          name: 'actions.short-summary',
+          name: 'actions.title',
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true)
@@ -327,7 +358,7 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await screen.findByText('Budget à confirmer.')
-    fireEvent.click(screen.getByRole('button', { name: 'delete.open' }))
+    await openClearConfirmation()
     const dialog = await screen.findByRole('dialog', { name: 'delete.title' })
     expect(writes()).toHaveLength(0)
     fireEvent.click(
@@ -365,7 +396,7 @@ describe('private assistant connected flow', () => {
       ).disabled
     ).toBe(true)
     ready = true
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
     await screen.findByText('Budget à confirmer.')
     expect(writes()).toHaveLength(1)
   })
@@ -395,19 +426,22 @@ describe('private assistant connected flow', () => {
     )
     expect(writes()).toHaveLength(0)
   })
-  it('hides already displayed answers when the same author loses access on reread', async () => {
+  it('hides already displayed answers when the same author loses access on reopening', async () => {
     let denied = false
     api.mockImplementation(async () => {
       if (denied) throw new ApiError(403, {})
       return thread([turn()], 1)
     })
-    setup()
+    const firstOpening = setup()
     await screen.findByText('Budget à confirmer.')
     denied = true
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    firstOpening.unmount()
+    setup()
     await screen.findByText('error')
     expect(screen.queryByText('Budget à confirmer.')).toBeNull()
-    expect(screen.queryByRole('button', { name: /source.kind/ })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'result.openSource' })
+    ).toBeNull()
   })
   it('permits correction after a definite validation rejection without replaying invalid content', async () => {
     let rejected = false
@@ -421,7 +455,7 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.rejected')
+    await screen.findByText('failure.rejected')
     fireEvent.change(screen.getByRole('textbox', { name: 'question' }), {
       target: { value: 'Quelle échéance ?' },
     })
@@ -444,13 +478,15 @@ describe('private assistant connected flow', () => {
     })
     setup()
     await screen.findByText('Budget à confirmer.')
-    fireEvent.click(screen.getByRole('button', { name: 'delete.open' }))
+    await openClearConfirmation()
     const dialog = await screen.findByRole('dialog', { name: 'delete.title' })
     fireEvent.click(
       within(dialog).getByRole('button', { name: 'delete.confirm' })
     )
     await within(dialog).findByText('command.unconfirmed')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'retry' }))
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'command.retry' })
+    )
     await screen.findByText('empty')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(writes()).toHaveLength(1)
@@ -459,13 +495,13 @@ describe('private assistant connected flow', () => {
 
 describe('terminal unknown assistant requests', () => {
   it.each([
-    { button: 'ask', operation: 'question' },
-    { button: 'actions.short-summary', operation: 'summary' },
-    { button: 'actions.actions', operation: 'actions' },
-    { button: 'actions.follow-up-email', operation: 'email_draft' },
+    { shortcut: null, operation: 'question' },
+    { shortcut: 'short-summary', operation: 'summary' },
+    { shortcut: 'actions', operation: 'actions' },
+    { shortcut: 'follow-up-email', operation: 'email_draft' },
   ])(
-    'allows a new explicit $operation after reading, refreshing and reopening unknown',
-    async ({ button, operation }) => {
+    'allows a new explicit $operation after reading and reopening unknown',
+    async ({ shortcut, operation }) => {
       const unknown: MeetingAssistantTurn = {
         ...turn(),
         state: 'unknown',
@@ -486,17 +522,7 @@ describe('terminal unknown assistant requests', () => {
         expect(
           (
             screen.getByRole('button', {
-              name: 'actions.short-summary',
-            }) as HTMLButtonElement
-          ).disabled
-        ).toBe(false)
-      )
-      fireEvent.click(screen.getByRole('button', { name: 'retry' }))
-      await waitFor(() =>
-        expect(
-          (
-            screen.getByRole('button', {
-              name: 'actions.short-summary',
+              name: 'actions.title',
             }) as HTMLButtonElement
           ).disabled
         ).toBe(false)
@@ -510,7 +536,8 @@ describe('terminal unknown assistant requests', () => {
       })
       await waitFor(() => expectSendingDisabled(false))
       expect(writes()).toHaveLength(0)
-      fireEvent.click(screen.getByRole('button', { name: button }))
+      if (shortcut) await chooseShortcut(shortcut)
+      else fireEvent.click(screen.getByRole('button', { name: 'ask' }))
       await waitFor(() => expectSendingDisabled(true))
       expect(writes()).toHaveLength(1)
       const command = JSON.parse(String(writes()[0][1]?.body))
@@ -534,12 +561,12 @@ describe('terminal unknown assistant requests', () => {
     setup()
     await screen.findByText('result.processing')
     expectSendingDisabled(true)
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
     await waitFor(() => expect(screen.queryByText('loading')).toBeNull())
     expectSendingDisabled(true)
     expect(writes()).toHaveLength(0)
     state = 'unknown'
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
     await screen.findByText('result.unknown')
     fireEvent.change(screen.getByRole('textbox', { name: 'question' }), {
       target: { value: 'Une autre question' },
@@ -572,16 +599,14 @@ describe('terminal unknown assistant requests', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
+    await screen.findByText('failure.unconfirmed')
     expectSendingDisabled(true)
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('result.unknown')
     await waitFor(() => expectSendingDisabled(false))
-    expect(screen.queryByRole('button', { name: 'command.retry' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'failure.retry' })).toBeNull()
     expect(writes()).toHaveLength(1)
-    fireEvent.click(
-      screen.getByRole('button', { name: 'actions.short-summary' })
-    )
+    await chooseShortcut('short-summary')
     await screen.findByText('Budget à confirmer.')
     const commands = writes().map(([, options]) =>
       JSON.parse(String(options?.body))
@@ -591,7 +616,7 @@ describe('terminal unknown assistant requests', () => {
     expect(commands[1].expected_thread_version).toBe(2)
   })
 
-  it('keeps an uncertain local send blocking when reread finds only another terminal unknown command', async () => {
+  it('replays the same uncertain send when reread finds only another terminal unknown command', async () => {
     let sent = false
     api.mockImplementation(async (_path, options) => {
       if (options?.method === 'POST') {
@@ -604,23 +629,18 @@ describe('terminal unknown assistant requests', () => {
     })
     setup()
     await ask()
-    await screen.findByText('command.unconfirmed')
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    await screen.findByText('failure.unconfirmed')
+    fireEvent.click(screen.getByRole('button', { name: 'failure.retry' }))
     await screen.findByText('result.unknown')
-    await screen.findByRole('button', { name: 'command.retry' })
+    await waitFor(() => expect(writes()).toHaveLength(2))
+    expect(writes()[1][1]?.body).toBe(writes()[0][1]?.body)
+    await screen.findByText('failure.unconfirmed')
     expectSendingDisabled(true)
-    fireEvent.click(screen.getByRole('button', { name: 'ask' }))
-    expect(writes()).toHaveLength(1)
   })
 })
 
 function expectSendingDisabled(disabled: boolean) {
-  for (const name of [
-    'ask',
-    'actions.short-summary',
-    'actions.actions',
-    'actions.follow-up-email',
-  ])
+  for (const name of ['ask', 'actions.title'])
     expect(
       (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
     ).toBe(disabled)

@@ -50,6 +50,13 @@
     "temporaryError": "Le service est momentanément indisponible. Vous pouvez réessayer.",
     "retry": "Réessayer"
   },
+  "hostInvitation": {
+    "title": "Rejoindre votre visioconférence",
+    "loading": "Vérification de votre lien d’hôte…",
+    "error": "Ce lien d’hôte n’est plus disponible. Demandez un nouveau lien à l’organisateur.",
+    "temporaryError": "Le service est momentanément indisponible. Vous pouvez réessayer.",
+    "retry": "Réessayer"
+  },
   "forbidden": {
     "heading": "Accès interdit"
   },

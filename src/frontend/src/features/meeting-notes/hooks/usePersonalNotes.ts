@@ -5,6 +5,7 @@ import type {
 } from '../model/PersonalNotesController'
 
 export interface PersonalNotesContextValue extends PersonalNotesState {
+  controller: PersonalNotesController
   endpoint: string
   isGuest: boolean
   flush: PersonalNotesController['flush']

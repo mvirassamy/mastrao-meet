@@ -1,5 +1,54 @@
 # Changelog
 
+- 2026-10-23: Reconcile develop into develop_modes, preserving browser
+  handoff and note improvements alongside controlled live delivery, final
+  drain and RTC observations. Filter both host invitations and durable
+  live event envelopes from diagnostics; no additional mode is activated.
+
+- 2026-10-23: Match enrichment authority to the author displayed in history;
+  reject guest notes even when the browser is signed in to an account.
+
+- 2026-10-23: Let authenticated note authors request AI additions after
+  a meeting, review and edit them, append explicitly, and undo the last
+  addition while preserving the original text. Guest notes remain temporary.
+
+- 2026-10-23: Show no video icon in history for a meeting that was never
+  recorded; keep it, coloured by state, for a ready, processing, failed or
+  expired video.
+
+- 2026-10-22: Gather the meeting assistant shortcuts in a "Shortcuts" menu of
+  the composer, with 3D icons and a one-line hint for each shortcut.
+  Show a request that did not go through as an assistant reply with a single
+  "Try again", which rereads the conversation and replays the same request
+  only if it never landed.
+  Open the conversation on its last message and follow new ones.
+
+- 2026-10-22: Lay the meeting detail header out from the width the page
+  actually gets: on tablets, or beside the docked assistant, the title keeps
+  its line and the video and assistant buttons move under it.
+
+- 2026-10-22: Show a meeting's dossier as a pill under its date in history.
+  Its menu opens the dossier in a new tab or changes it; an unfiled meeting
+  shows a grey "Classer dans un dossier" pill. Drop "dans Platform".
+
+- 2026-10-22: Keep expired or replayed OIDC callbacks rejected while offering
+  a clean login restart. Identify the active account when a meeting is
+  inaccessible and allow switching accounts.
+
+- 2026-10-22: Link organization administrators to Platform usage and budget
+  settings, and distinguish an internal transcription suspension from missing
+  audio while preserving available results. Alert thresholds never pause ASR.
+
+- 2026-10-22: Make the meeting assistant readable: a step-by-step loader until
+  the transcript is ready, answers without systematic warnings, time-only
+  source chips, the follow-up e-mail as a card to copy or open in the mail
+  app, and "Clear the conversation" in a menu.
+  Keep the video retention date under its button from overlapping the meeting
+  time when the assistant is docked.
+
+- 2026-10-21: Preserve the failed native ASR delivery stage and bounded public
+  Core diagnostics in private-safe worker logs without changing retry state.
+
 - 2026-10-22: Deliver every verified microphone publication as durable metadata
   to Core, including ended or unmatched tracks. Retry independently of capture
   admission and video closure, with fenced claims and exact acknowledgements.
@@ -1076,6 +1125,9 @@ and this project adheres to
 - 🐛(backend) add provider-attempt docstrings for the recording quality gate
 
 ### Added
+
+- 🔐(all) exchange fragment-safe durable host invitations for the existing
+  short host handoff and session-bound grant
 
 - 🔒️(ci) scope the Meet OIDC staging plan to the web API #32
 

@@ -7,6 +7,11 @@
     "authentication": "Authentifizierung",
     "nameError": "Dein Name darf nicht leer sein"
   },
+  "usageBudget": {
+    "link": "Nutzung und Budget der Organisation",
+    "opensInNewTab": "Öffnet in einem neuen Tab",
+    "unavailable": "Nutzung und Budget ist derzeit nicht verfügbar."
+  },
   "preferences": {
     "title": "Einstellungen",
     "idleDisconnectModal": {

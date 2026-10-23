@@ -6,6 +6,7 @@ import { VisualOnlyTooltip } from '@/primitives/VisualOnlyTooltip'
 import type { MeetingContentStatus, MeetingHistoryItem } from '../api/types'
 import {
   contentPhase,
+  recordedStatus,
   SECTION_ICONS,
   STATUS_COLORS,
   type MeetingContentKind,
@@ -102,15 +103,25 @@ export const MeetingContentStatusIcons = ({
 }: {
   item: MeetingHistoryItem
   linkRef: RefObject<HTMLAnchorElement>
-}) => (
-  <RowOverlayCell linkRef={linkRef}>
-    <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
-    <MeetingContentStatusIcon
-      kind="transcript"
-      status={item.transcriptStatus}
-    />
-    {item.recordingProjected === true && (
-      <MeetingRecordingStatusIcon status={item.recordingStatus} />
-    )}
-  </RowOverlayCell>
-)
+}) => {
+  const recording = recordedStatus(item)
+  return (
+    <RowOverlayCell linkRef={linkRef}>
+      <MeetingContentStatusIcon kind="summary" status={item.summaryStatus} />
+      <MeetingContentStatusIcon
+        kind="transcript"
+        status={item.transcriptStatus}
+      />
+      {/* A meeting never recorded shows no video icon; its empty slot keeps
+          the summary and transcript icons aligned with the other rows. */}
+      {recording ? (
+        <MeetingRecordingStatusIcon status={recording} />
+      ) : (
+        <span
+          aria-hidden="true"
+          className={css({ width: '34px', flexShrink: 0 })}
+        />
+      )}
+    </RowOverlayCell>
+  )
+}

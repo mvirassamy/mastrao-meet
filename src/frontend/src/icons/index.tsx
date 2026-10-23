@@ -10,6 +10,7 @@ import {
   ArrowTopRightOnSquareIcon as HeroArrowTopRightOnSquareIcon,
   ArrowUpIcon as HeroArrowUpIcon,
   ArrowsPointingInIcon as HeroArrowsPointingInIcon,
+  ArrowsRightLeftIcon as HeroArrowsRightLeftIcon,
   ArrowsPointingOutIcon as HeroArrowsPointingOutIcon,
   BellIcon as HeroBellIcon,
   BookOpenIcon as HeroBookOpenIcon,
@@ -178,6 +179,7 @@ export const ShareBoxIcon = sized(HeroArrowTopRightOnSquareIcon) // RiShareBoxFi
 export const SearchIcon = sized(HeroMagnifyingGlassIcon)
 export const ShieldCheckIcon = sized(HeroShieldCheckIcon)
 export const SpeakerIcon = sized(HeroSpeakerWaveIcon) // RiSpeakerFill
+export const SwapIcon = sized(HeroArrowsRightLeftIcon)
 export const SpeakIcon = sized(HeroChatBubbleOvalLeftEllipsisIcon) // RiSpeakFill
 export const SparklesIcon = sized(HeroSparklesIcon)
 export const StopCircleIcon = sized(HeroStopCircleIcon) // RiStopCircleFill

@@ -46,6 +46,52 @@ describe('normalizeHistoryPage', () => {
 })
 
 describe('normalizeContentStatus', () => {
+  it('accepts the settled native snapshot after processing at the same revision across repeated polls', () => {
+    const meeting = {
+      id: 'native-meeting',
+      started_at: '2026-10-22T10:00:00Z',
+    }
+    const current = normalizeHistoryDetail({
+      ...meeting,
+      transcript_projection: {
+        version: 1,
+        state: 'transcribing',
+        revision: 1,
+        digest: null,
+        source: null,
+      },
+      transcript: null,
+    })
+    const settled = normalizeHistoryDetail({
+      ...meeting,
+      transcript_projection: {
+        version: 1,
+        state: 'available',
+        revision: 1,
+        digest: 'b'.repeat(64),
+        source: null,
+      },
+      transcript: {
+        segments: [
+          { id: 'epoch-a', start_ms: 0, text: 'First participant' },
+          { id: 'epoch-b', start_ms: 0, text: 'Second participant' },
+        ],
+      },
+    })
+
+    if (!current || !settled) throw new Error('Invalid native snapshot fixture')
+    let merged = mergeHistoryDetail(current, settled)
+    for (let poll = 0; poll < 3; poll += 1) {
+      merged = mergeHistoryDetail(merged, settled)
+    }
+    expect(merged.transcriptStatus).toBe('available')
+    expect(merged.transcript.segments.map((segment) => segment.text)).toEqual([
+      'First participant',
+      'Second participant',
+    ])
+    expect(merged.transcriptProjection.refreshPending).not.toBe(true)
+  })
+
   it('never turns an unknown status into available content', () => {
     expect(normalizeContentStatus('available')).toBe('available')
     expect(normalizeContentStatus(undefined)).toBe('unknown')

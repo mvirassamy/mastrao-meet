@@ -15,8 +15,9 @@ export const MeetingRecordingSection = ({
   recording: MeetingRecording
   timeZone?: string
   /**
-   * Edge the notes follow from the `sm` breakpoint: 'end' when the section
-   * closes the header, 'start' when another action sits on its right.
+   * Edge the notes follow once the header lays its actions beside the title:
+   * 'end' when the section closes the header, 'start' when another action
+   * sits on its right.
    */
   align?: 'start' | 'end'
 }) => {
@@ -130,7 +131,10 @@ export const MeetingRecordingSection = ({
       )}
       <div
         className={recordingNotes({
-          underButton: Boolean(availableAction && access),
+          // Only a neighbouring action on the right leaves room for the
+          // date to extend under it; alone, the section keeps its width.
+          underNeighbour:
+            Boolean(availableAction && access) && align === 'start',
         })}
       >
         {/* The button already says the video is available. */}
@@ -200,15 +204,21 @@ const recordingSection = cva({
   variants: {
     align: {
       start: {},
-      end: { sm: { alignItems: 'flex-end', textAlign: 'right' } },
+      // Same width as the header row of the meeting detail.
+      end: {
+        '@container meeting-detail (min-width: 46rem)': {
+          alignItems: 'flex-end',
+          textAlign: 'right',
+        },
+      },
     },
   },
 })
 
 /**
- * Notes under the download button. From the `sm` breakpoint they take no
- * width of their own: the date reads on one line, aligned on the button's
- * edge, and may extend under the neighbouring action instead of pushing it
+ * Notes under the download button. When another action sits on the right,
+ * they take no width of their own: the date reads on one line, aligned on
+ * the button's edge, and extends under that action instead of pushing it
  * away.
  */
 const recordingNotes = cva({
@@ -219,9 +229,8 @@ const recordingNotes = cva({
     gap: '0.25rem',
   },
   variants: {
-    // Without a button, the status message keeps its own width.
-    underButton: {
-      true: { sm: { width: 0, minWidth: '100%', whiteSpace: 'nowrap' } },
+    underNeighbour: {
+      true: { width: 0, minWidth: '100%', whiteSpace: 'nowrap' },
       false: {},
     },
   },

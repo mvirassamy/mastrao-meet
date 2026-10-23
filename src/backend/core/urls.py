@@ -16,6 +16,10 @@ from core.mastrao_guest_handoff import (
 from core.mastrao_guest_invitation_share import create_guest_invitation_share
 from core.mastrao_guest_share_link import consume_guest_share_link
 from core.mastrao_host_handoff import consume_mastrao_host_handoff
+from core.mastrao_host_invitation import (
+    establish_mastrao_host_invitation_session,
+    exchange_mastrao_host_invitation,
+)
 from core.mastrao_host_recovery import recover_meeting_host
 from core.mastrao_live_worker_control import live_worker_control
 from core.mastrao_meeting_assistant import meeting_assistant, meeting_assistant_citation
@@ -28,6 +32,7 @@ from core.mastrao_meeting_history import (
 )
 from core.mastrao_native_capture_adapter import start_native_capture
 from core.mastrao_native_capture_stop import stop_native_capture
+from core.mastrao_note_enrichment import personal_note_enrichment
 from core.mastrao_personal_notes import history_personal_note, room_personal_note
 from core.mastrao_recording_access import recording_access, recording_download
 from core.mastrao_recording_adapter import (
@@ -38,6 +43,7 @@ from core.mastrao_room_adapter import ensure_mastrao_room
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_speaker_evidence_adapter import capture_mastrao_speaker_evidence
 from core.mastrao_transcription_adapter import transcribe_mastrao_recording
+from core.mastrao_usage_budget import usage_budget
 from core.roomkit import viewsets as roomkit_viewsets
 
 # - Main endpoints
@@ -121,6 +127,16 @@ urlpatterns = [
         name="consume_mastrao_host_handoff",
     ),
     path(
+        "handoff/host/invitation/session/",
+        establish_mastrao_host_invitation_session,
+        name="establish_mastrao_host_invitation_session",
+    ),
+    path(
+        "handoff/host/invitation/",
+        exchange_mastrao_host_invitation,
+        name="exchange_mastrao_host_invitation",
+    ),
+    path(
         "internal/mastrao/rooms/ensure/",
         ensure_mastrao_room,
         name="ensure_mastrao_room",
@@ -156,6 +172,7 @@ urlpatterns = [
             [
                 *router.urls,
                 *oidc_urls,
+                path("usage-budget/", usage_budget, name="mastrao_usage_budget"),
                 path(
                     "rooms/<str:room_ref>/personal-note/",
                     room_personal_note,
@@ -165,6 +182,11 @@ urlpatterns = [
                     "meetings/history/<str:meeting_ref>/personal-note/",
                     history_personal_note,
                     name="mastrao_history_personal_note",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/personal-note/enrichment/",
+                    personal_note_enrichment,
+                    name="mastrao_personal_note_enrichment",
                 ),
                 path("meetings/", meeting_collection, name="mastrao_create_meeting"),
                 path("matters/", meeting_matters, name="mastrao_meeting_matters"),

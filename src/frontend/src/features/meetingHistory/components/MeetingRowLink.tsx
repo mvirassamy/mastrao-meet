@@ -6,6 +6,7 @@ import type { MeetingHistoryItem } from '../api/types'
 import { meetingHistoryDetailPath } from '../paths'
 import { rememberOpenedMeeting } from '../utils/focusReturn'
 import { meetingOriginState } from '../utils/meetingOrigin'
+import { recordedStatus } from './meetingContent'
 
 /**
  * Title link of a meeting row or event: its overlay makes the whole row
@@ -21,6 +22,7 @@ export const MeetingRowLink = ({
   const { t } = useTranslation('meetingHistory')
   const [location] = useLocation()
   const search = useSearch()
+  const recording = recordedStatus(item)
 
   return (
     <Link
@@ -55,9 +57,9 @@ export const MeetingRowLink = ({
       <span className={css({ srOnly: true })}>
         {t(`status.transcript.${item.transcriptStatus}`)}
       </span>
-      {item.recordingProjected === true && (
+      {recording && (
         <span className={css({ srOnly: true })}>
-          {t(`status.recording.${item.recordingStatus}`)}
+          {t(`status.recording.${recording}`)}
         </span>
       )}
     </Link>

@@ -14,6 +14,7 @@ import { MeetUserAvatar } from '@/features/home/components/authenticated/MeetUse
 import { RoomsTab } from './tabs/RoomsTab'
 import { SettingsTabsLayout } from './SettingsTabsLayout'
 import { settingsDialogBodyClass } from './settingsDialogStyles'
+import { UsageBudgetLink } from './UsageBudgetLink'
 
 type AppSettingsDialogProps = Pick<
   AppDialogProps,
@@ -136,6 +137,7 @@ const GeneralSettings = () => {
             </div>
           </>
         )}
+        <UsageBudgetLink />
       </Section>
       <Section title={t('language.heading')}>
         <div className={css({ maxWidth: '20rem' })}>

@@ -320,11 +320,13 @@ def test_valid_handoffs_share_global_capacity(
 
 
 def test_sentry_scrubs_host_handoff_credentials():
-    """Remove host-handoff credentials from structured Sentry request data."""
+    """Filter host credentials and live transcript data in the same request."""
 
     event = {
         "request": {
             "data": {
+                "event": {"text": "synthetic live transcript"},
+                "host_invitation": "host-invitation-secret",
                 "host_handoff": "header.payload.signature",
                 "host_grant": "grant.payload.signature",
                 "close_assertion": "close.payload.signature",
@@ -338,6 +340,8 @@ def test_sentry_scrubs_host_handoff_credentials():
     scrubbed = scrub_mastrao_handoff_credentials(event, {})
 
     assert scrubbed["request"]["data"] == {
+        "event": "[Filtered]",
+        "host_invitation": "[Filtered]",
         "host_handoff": "[Filtered]",
         "host_grant": "[Filtered]",
         "close_assertion": "[Filtered]",
