@@ -1,16 +1,7 @@
-<!doctype html>
-<html lang="fr">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="referrer" content="no-referrer">
-    <title>Connexion expirée — Mastrao Meet</title>
-  </head>
-  <body>
-    <main>
-      <h1>Cette tentative de connexion a expiré</h1>
-      <p>La connexion a déjà été utilisée ou interrompue. Relancez-la pour revenir à Mastrao Meet.</p>
-      <p><a href="{% url 'oidc_authentication_init' %}">Relancer la connexion</a></p>
-    </main>
-  </body>
-</html>
+{% extends "pages/error.html" %}
+{% block title %}Connexion expirée{% endblock %}
+{% block kicker %}<span class="label">Connexion</span>{% endblock %}
+{% block heading %}Votre connexion a expiré{% endblock %}
+{% block message %}Ce lien de connexion a déjà servi ou a été interrompu. Relancez-la, cela ne prend qu’un instant.{% endblock %}
+{% block action %}<a class="button" href="{% url 'oidc_authentication_init' %}">Se reconnecter</a>{% endblock %}
+{% block illustration %}/assets/illustrations/lien-expire.webp{% endblock %}

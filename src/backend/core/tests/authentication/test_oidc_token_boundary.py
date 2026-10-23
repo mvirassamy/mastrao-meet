@@ -475,7 +475,7 @@ def test_callback_rejects_unknown_or_replayed_state_with_recovery(state, monkeyp
 
     assert response.status_code == 400
     assert response["Cache-Control"] == "no-store"
-    assert b"Relancer la connexion" in response.content
+    assert "Se reconnecter".encode() in response.content
     authenticate.assert_not_called()
 
 
@@ -533,7 +533,7 @@ def test_callback_userinfo_rate_limit_is_recoverable_without_authentication(
     replay = callback(request)
     assert replay.status_code == 400
     assert replay["Cache-Control"] == "no-store"
-    assert b"Relancer la connexion" in replay.content
+    assert "Se reconnecter".encode() in replay.content
     assert userinfo.call_count == 1
     login.assert_not_called()
 
