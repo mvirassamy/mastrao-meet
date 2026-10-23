@@ -5,7 +5,8 @@
   button on the left, illustration on the watercolor on the right. Replace
   the La Suite favicons with the Mastrao icon, which these pages and the
   recording download pages now declare, and remove the unused La Suite
-  logos (the email logo examples now point to the Mastrao logo).
+  logos. The Outlook add-in icons and the email logo and brand name
+  examples now use Mastrao too.
 
 - 2026-10-23: Keep the LiveKit error handler stable when meeting preferences
   rerender the conference, so a voluntary departure does not request another

@@ -82,7 +82,7 @@ def _page(title, body):
     return f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="icon" type="image/png" href="/assets/mastrao-logo-icon.png">
+<link rel="icon" type="image/png" href="/favicon-32x32.png">
 <title>{title}</title><style>{PAGE_STYLE}</style></head>
 <body>{body}</body></html>"""
 

@@ -115,7 +115,7 @@ DJANGO_EMAIL_FROM=<your email address>
 #DJANGO_EMAIL_USE_SSL=true # A flag to enable or disable SSL for email sending.
 
 
-DJANGO_EMAIL_BRAND_NAME=<brand name used in email templates> # e.g. "La Suite Numérique"
+DJANGO_EMAIL_BRAND_NAME=<brand name used in email templates> # e.g. "Mastrao Visio"
 DJANGO_EMAIL_LOGO_IMG=<logo image to use in email templates.> # e.g. "https://meet.yourdomain.tld/assets/mastrao-logo.png" 
 ```
 

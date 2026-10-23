@@ -1,6 +1,6 @@
 """Pages rendered by the server carry the Mastrao look and icon."""
 
-MASTRAO_ICON = '<link rel="icon" type="image/png" href="/assets/mastrao-logo-icon.png">'
+MASTRAO_ICON = '<link rel="icon" type="image/png" href="/favicon-32x32.png">'
 
 
 def test_unknown_page_renders_the_mastrao_not_found_page(client):
