@@ -30,6 +30,7 @@ const panelProps = {
   readiness: 'ready' as const,
   turns: [],
   loading: false,
+  opening: false,
   pending: false,
   error: false,
   canSend: true,
@@ -49,6 +50,7 @@ describe('private meeting assistant presentation', () => {
       <MeetingAssistantPanel
         {...panelProps}
         loading
+        opening
         canSend={false}
         onAsk={onAsk}
       />

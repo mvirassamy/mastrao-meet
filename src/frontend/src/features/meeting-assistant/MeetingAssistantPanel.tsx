@@ -243,6 +243,7 @@ export function MeetingAssistantPanel({
   turns,
   arrivedTurnId = null,
   loading,
+  opening,
   pending,
   error,
   onRetry,
@@ -260,6 +261,8 @@ export function MeetingAssistantPanel({
   /** The answer just received, written out as it arrives. */
   arrivedTurnId?: string | null
   loading: boolean
+  /** The first read of the conversation, when the panel opens. */
+  opening: boolean
   pending: boolean
   error: boolean
   onRetry: () => void
@@ -276,9 +279,9 @@ export function MeetingAssistantPanel({
   const ready = readiness === 'ready'
   const locked = !ready || pending || error
   const disabled = locked || loading || !canSend
-  // The question can be written while the history loads; it is sent once
-  // the conversation, and so its version, is known.
-  const writable = !locked && (loading || canSend)
+  // The question can be written while the history first loads; it can be
+  // sent once the conversation, and so its version, is known.
+  const writable = !locked && (opening || canSend)
   // The conversation opens on its last message and follows new ones.
   const end = useRef<HTMLDivElement>(null)
   const shownTurns = loading ? 0 : turns.length
@@ -343,7 +346,7 @@ export function MeetingAssistantPanel({
           <CloseIcon aria-hidden="true" />
         </Button>
       </header>
-      {ready && loading && <LoadingBar />}
+      {ready && opening && <LoadingBar />}
       <div
         className={css({
           flex: 1,

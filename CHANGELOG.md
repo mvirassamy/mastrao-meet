@@ -2,7 +2,8 @@
 
 - 2026-10-23: When the meeting assistant opens, a thin line slides under its
   header and the thread shows "Retrieving your conversation…". The question
-  can already be written; it is sent once the conversation has loaded.
+  can already be written, and it can be sent once the conversation has
+  loaded.
 
 - 2026-10-23: Show the meeting assistant typing (three bouncing dots), then
   write out the answer that just arrived word by word. Answers already given
