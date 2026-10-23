@@ -67,6 +67,24 @@ describe('private meeting assistant presentation', () => {
     expect(onAsk).not.toHaveBeenCalled()
   })
 
+  it('keeps the field read-only while a later read is in progress', () => {
+    const onAsk = vi.fn()
+    render(
+      <MeetingAssistantPanel
+        {...panelProps}
+        loading
+        opening={false}
+        canSend={false}
+        onAsk={onAsk}
+      />
+    )
+    const field = screen.getByLabelText<HTMLTextAreaElement>('question')
+    expect(field.readOnly).toBe(true)
+    expect(field.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onAsk).not.toHaveBeenCalled()
+  })
+
   it('does not send a question or action until explicitly requested', async () => {
     const onAsk = vi.fn()
     const onAction = vi.fn()
