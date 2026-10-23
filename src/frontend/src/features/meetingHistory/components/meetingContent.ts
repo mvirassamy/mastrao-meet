@@ -1,4 +1,8 @@
-import type { MeetingContentStatus } from '../api/types'
+import type {
+  MeetingContentStatus,
+  MeetingHistoryItem,
+  MeetingRecordingStatus,
+} from '../api/types'
 
 export type MeetingContentKind = 'summary' | 'transcript'
 
@@ -12,6 +16,17 @@ export const NOTES_ICON = '/assets/illustrations/section-notes.webp'
 export const VIDEO_ICON = '/assets/illustrations/section-video.webp'
 
 export const ASSISTANT_ICON = '/assets/illustrations/assistant.webp'
+
+/** A recording state worth showing: the meeting was actually recorded. */
+export type RecordedStatus = Exclude<MeetingRecordingStatus, 'absent'>
+
+/** The video state of a row, or null when the meeting was never recorded. */
+export const recordedStatus = (
+  item: MeetingHistoryItem
+): RecordedStatus | null =>
+  item.recordingProjected === true && item.recordingStatus !== 'absent'
+    ? item.recordingStatus
+    : null
 
 /** Where a summary or transcript stands, as the interface groups it. */
 export type ContentPhase = 'ready' | 'partial' | 'pending' | 'failed' | 'absent'

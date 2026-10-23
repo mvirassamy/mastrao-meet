@@ -277,7 +277,7 @@ Document créé dans le worktree local `/root/projects/mastrao-meet-note-enrichm
 ## 13. Suivi d’implémentation locale — 23 octobre 2026
 
 - Analyse et contrats : terminés. Ajouts seuls, commande signée dédiée, proposition privée et un Undo du dernier ajout.
-- Core et gateway : implémentés. Migration locale 040, sources natives et de référence vérifiées sous transaction, génération hors transaction, aucune relance automatique.
+- Core et gateway : implémentés. Migration locale 041, sources natives et de référence vérifiées sous transaction, génération hors transaction, aucune relance automatique.
 - Meet : pont OIDC/CSRF et interface de relecture intégrés. Les notes originales restent gérées par l’éditeur et son autosave existants.
 - Revue backend indépendante : Spec PASS / Standards PASS après correction des refus fournisseur confirmés.
 - Validation statique : types/build Core et gateway, types Platform et lint ciblé PASS sur sources figées.

@@ -22,6 +22,6 @@ Trois passages de revue avec cinq relecteurs : verdicts finaux général, confor
 
 ## Livraison et limites
 
-La migration Core `040-meeting-note-enrichment.sql` doit précéder le déploiement de Core. Platform/Core et la passerelle LLM doivent exposer la nouvelle opération avant l'activation du parcours Meet. Aucun nouveau droit pour les invités, partage, enrichissement automatique ou chantier Mastra.
+La migration Core `041-meeting-note-enrichment.sql` doit précéder le déploiement de Core. Platform/Core et la passerelle LLM doivent exposer la nouvelle opération avant l'activation du parcours Meet. Aucun nouveau droit pour les invités, partage, enrichissement automatique ou chantier Mastra.
 
 Le navigateur de recette utilise une API simulée ; les contrôles PostgreSQL sont exécutés séparément. La qualité de GPT réel et le parcours entièrement connecté OIDC/Core/stockage ne sont pas prouvés par ces tests. Aucun déploiement effectué pour cette recette. Les journaux et captures restent locaux et ne sont pas publiés dans les PR.
