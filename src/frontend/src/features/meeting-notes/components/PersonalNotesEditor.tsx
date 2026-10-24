@@ -124,8 +124,10 @@ export function PersonalNotesEditor({
           _placeholder: { color: 'muted-foreground' },
           _disabled: { color: 'muted-foreground' },
           // A writing surface: the caret shows the focus, a frame would only
-          // box the page. Important: the global focus ring is unlayered.
-          _focusVisible: { outline: 'none!' },
+          // box the page. Same transparent outline as at rest, so the
+          // TextArea transition has nothing to fade on blur. Important: the
+          // global focus ring is unlayered.
+          _focusVisible: { outline: '2px solid transparent!' },
         }}
       />
       <p id={`${id}-limit`} className={css({ srOnly: true })}>
