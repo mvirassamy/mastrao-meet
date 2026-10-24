@@ -9,6 +9,7 @@ import type {
 } from '../api/noteEnrichmentTypes'
 import { validEnrichmentText } from '../api/parseNoteEnrichment'
 import type { NoteEnrichmentView } from '../hooks/useNoteEnrichment'
+import { useFillScrollArea } from '../hooks/useFillScrollArea'
 import {
   approvedItems,
   validApproval,
@@ -48,7 +49,7 @@ function diffRows(
  * Same type, padding and height limit as the note editor, so the note does
  * not move and scrolls inside itself.
  */
-const page = css({
+const pageText = css({
   paddingX: '1.25rem',
   paddingY: '1rem',
   fontSize: '0.875rem',
@@ -193,6 +194,7 @@ export function NoteEnrichmentReview({
   const { controller } = view
   const { t } = useTranslation('personalNotes')
   const id = useId()
+  const page = useFillScrollArea<HTMLDivElement>(true)
   const [composing, setComposing] = useState(false)
   const idle = view.phase === 'idle'
   const approved = approvedItems(view.review)
@@ -213,7 +215,11 @@ export function NoteEnrichmentReview({
       <h3 id={`${id}-title`} className={css({ srOnly: true })}>
         {t('enrichment.review')}
       </h3>
-      <div className={cx(page, notePageScroll)}>
+      <div
+        ref={page.ref}
+        className={cx(pageText, notePageScroll)}
+        style={{ height: page.height }}
+      >
         {diffRows(content, proposal.items).map((row) =>
           row.kind === 'original' ? (
             <p key={`line-${row.line}`} className={originalLine}>
