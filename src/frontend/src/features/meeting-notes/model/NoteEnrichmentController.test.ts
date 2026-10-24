@@ -84,6 +84,57 @@ afterEach(() => {
 })
 
 describe('enrichment and the single autosave authority', () => {
+  it('sends only kept complements, with their edited text, by proposal position', async () => {
+    const item = readyProposal().items[0]
+    const { enrichment, command } = await setup(
+      enrichmentState({
+        state_version: 1,
+        proposal: readyProposal({
+          items: [
+            { ...item, text: '- Premier' },
+            { ...item, text: '- Deuxième' },
+            { ...item, text: '- Troisième' },
+          ],
+        }),
+      })
+    )
+    enrichment.setItemKept(1, false)
+    expect(enrichment.getSnapshot().modified).toBe(false)
+    enrichment.setItemText(2, '- Troisième, corrigé ')
+    expect(enrichment.getSnapshot().modified).toBe(true)
+    enrichment.resetReview()
+    expect(enrichment.getSnapshot()).toMatchObject({
+      modified: false,
+      review: [
+        { text: '- Premier', kept: true },
+        { text: '- Deuxième', kept: true },
+        { text: '- Troisième', kept: true },
+      ],
+    })
+    enrichment.setItemKept(1, false)
+    enrichment.setItemText(2, '- Troisième, corrigé ')
+    await enrichment.apply()
+    expect(command.mock.calls[0][0]).toMatchObject({
+      action: 'apply',
+      items: [
+        { index: 0, text: '- Premier' },
+        { index: 2, text: '- Troisième, corrigé ' },
+      ],
+    })
+  })
+
+  it('does not apply when every complement is refused or one is blank', async () => {
+    const { enrichment, command } = await setup(
+      enrichmentState({ state_version: 1, proposal: readyProposal() })
+    )
+    enrichment.setItemKept(0, false)
+    await enrichment.apply()
+    enrichment.setItemKept(0, true)
+    enrichment.setItemText(0, '   ')
+    await enrichment.apply()
+    expect(command).not.toHaveBeenCalled()
+  })
+
   it('refreshes eligibility again if autosave finishes during a background read', async () => {
     const { notes, enrichment, read, setServer } = await setup()
     const background = deferred<NoteEnrichmentState>()
@@ -123,7 +174,10 @@ describe('enrichment and the single autosave authority', () => {
     const { enrichment, setServer, command } = await setup(
       enrichmentState({ state_version: 1, proposal: readyProposal() })
     )
-    enrichment.setAdditions('My edited additions must remain available to copy')
+    enrichment.setItemText(
+      0,
+      'My edited complement must remain available to copy'
+    )
     setServer(
       enrichmentState({
         state_version: 2,
@@ -131,9 +185,12 @@ describe('enrichment and the single autosave authority', () => {
       })
     )
     await enrichment.refresh()
-    expect(enrichment.getSnapshot().additions).toBe(
-      'My edited additions must remain available to copy'
-    )
+    expect(enrichment.getSnapshot().review).toEqual([
+      {
+        text: 'My edited complement must remain available to copy',
+        kept: true,
+      },
+    ])
     expect(enrichment.getSnapshot().stale).toBe(true)
     await enrichment.apply()
     expect(command).not.toHaveBeenCalled()
@@ -312,7 +369,7 @@ describe('enrichment and the single autosave authority', () => {
       })
       const { notes, enrichment, command, readNote, setServer } =
         await setup(initial)
-      enrichment.setAdditions('Approved additions exactly as typed\n')
+      enrichment.setItemText(0, 'Approved complement exactly as typed\n')
       command.mockRejectedValueOnce(new NoteEnrichmentRequestError())
       await enrichment[action]()
       const firstCommand = command.mock.calls[0][0]
@@ -403,7 +460,13 @@ describe('enrichment and the single autosave authority', () => {
         next.proposal = readyProposal({
           id: 'proposal_new0123456789',
           command_id: 'command_new0123456789',
-          text: 'A new proposal',
+          items: [
+            {
+              after_line: 1,
+              text: 'A new proposal',
+              citation_ids: ['citation_0123456789abcdef'],
+            },
+          ],
         })
       if (outcome === 'applied') {
         next.last_applied = {
@@ -432,7 +495,9 @@ describe('enrichment and the single autosave authority', () => {
       expect(command).toHaveBeenCalledOnce()
       if (outcome === 'replaced') {
         expect(enrichment.getSnapshot().dismissed).toBe(false)
-        expect(enrichment.getSnapshot().additions).toBe('A new proposal')
+        expect(enrichment.getSnapshot().review).toEqual([
+          { text: 'A new proposal', kept: true },
+        ])
       }
       if (outcome === 'applied') {
         expect(notes.getSnapshot().content).toBe(
@@ -453,7 +518,7 @@ describe('enrichment and the single autosave authority', () => {
         proposal: readyProposal(),
       })
       const { enrichment, command, read, setServer } = await setup(initial)
-      enrichment.setAdditions('Edited preview survives failed cancellation')
+      enrichment.setItemText(0, 'Edited preview survives failed cancellation')
       command.mockImplementationOnce(async () => {
         if (outcome === 'read-error')
           read.mockRejectedValueOnce(new NoteEnrichmentRequestError())
@@ -471,7 +536,7 @@ describe('enrichment and the single autosave authority', () => {
         error: 'discard',
         dismissed: false,
       })
-      expect(enrichment.getSnapshot().additions).toBe(
+      expect(enrichment.getSnapshot().review[0].text).toBe(
         'Edited preview survives failed cancellation'
       )
       expect(enrichment.canDiscard()).toBe(true)

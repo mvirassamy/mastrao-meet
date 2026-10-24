@@ -161,6 +161,66 @@ const previewPersonalNote = {
   updated_at: '2026-10-16T09:12:00Z',
 }
 
+/** A fictional AI proposal ready to review; applying it is refused like every preview write. */
+const previewNoteEnrichment = (url: URL) => {
+  const meetingRef = url.pathname.split('/').at(-4) ?? ''
+  return {
+    version: 1,
+    meeting_ref: meetingRef,
+    state_version: 1,
+    eligible: true,
+    reason: null,
+    proposal: {
+      id: 'proposal_apercu_0000000001',
+      command_id: 'command_apercu_0000000001',
+      status: 'ready',
+      base_revision: previewPersonalNote.revision,
+      base_digest: 'a'.repeat(64),
+      items: [
+        {
+          after_line: 2,
+          text: '  → Camille l’envoie avant jeudi.',
+          citation_ids: ['citation_apercu_000000001'],
+        },
+        {
+          after_line: 3,
+          text: '  → Diagnostic amiante et titre de propriété à demander au vendeur.',
+          citation_ids: ['citation_apercu_000000001'],
+        },
+      ],
+      evidence: [
+        {
+          citation: {
+            citation_id: 'citation_apercu_000000001',
+            meeting_ref: meetingRef,
+            source_kind: 'native_epoch',
+            source_ref: 'source_apercu_0000000001',
+            source_version: 1,
+            source_digest: 'b'.repeat(64),
+            segment_id: 'segment_1',
+            start_ms: 754_000,
+            end_ms: 768_000,
+            time_basis: 'source_relative_ms',
+          },
+          text: 'Je vous envoie le calendrier de signature avant jeudi.',
+          speaker: 'Camille',
+          status: 'transcript',
+        },
+      ],
+      coverage: {
+        state: 'partial',
+        source_coverage: 'reference_transcript',
+        selection: 'relevant_passages',
+        total_segments: 24,
+        selected_segments: 6,
+        omitted_segments: 18,
+      },
+    },
+    last_applied: null,
+    receipt: null,
+  }
+}
+
 /** Today's fictional planned slots: one starting soon, one later, one closed. */
 const previewPlannedMeetings = (url: URL) => {
   const nowSeconds = Math.floor(Date.now() / 1000)
@@ -255,6 +315,8 @@ export const preparePreview = () => {
           { detail: 'Aperçu local : aucune action envoyée.' },
           503
         )
+      if (url.pathname.endsWith('/personal-note/enrichment/'))
+        return jsonResponse(previewNoteEnrichment(url))
       if (url.pathname.endsWith('/personal-note/'))
         return jsonResponse(previewPersonalNote)
       if (url.pathname.endsWith('/matters/')) {

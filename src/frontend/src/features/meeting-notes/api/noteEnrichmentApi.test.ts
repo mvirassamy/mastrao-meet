@@ -11,6 +11,11 @@ import {
   meetingRef,
   proposalId,
 } from '../test/enrichmentFixtures'
+import type { EnrichmentItem } from './noteEnrichmentTypes'
+
+/** A ready proposal whose single complement carries the given change. */
+const withItem = (change: Partial<EnrichmentItem>) =>
+  readyProposal({ items: [{ ...readyProposal().items[0], ...change }] })
 
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -43,7 +48,7 @@ describe('private enrichment transport and fixed DTO', () => {
       expected_state_version: 3,
       expected_revision: 1,
       proposal_id: proposalId,
-      additions: 'Texte approuvé',
+      items: [{ index: 0, text: 'Texte approuvé' }],
     }
     await api.command(command, signal)
     expect(fetch.mock.calls[0][0]).toContain(`/api/v1.0${endpoint}enrichment/`)
@@ -64,9 +69,23 @@ describe('private enrichment transport and fixed DTO', () => {
     enrichmentState({ state_version: -1 }),
     enrichmentState({ reason: 'guest' as 'empty_note' }),
     { ...enrichmentState(), content: 'unexpected private text' },
-    enrichmentState({ proposal: readyProposal({ text: 'x'.repeat(8001) }) }),
-    enrichmentState({ proposal: readyProposal({ text: '\u0000' }) }),
-    enrichmentState({ proposal: readyProposal({ text: '\ud800' }) }),
+    enrichmentState({ proposal: withItem({ text: 'x'.repeat(8001) }) }),
+    enrichmentState({ proposal: withItem({ text: '\u0000' }) }),
+    enrichmentState({ proposal: withItem({ text: '\ud800' }) }),
+    enrichmentState({ proposal: withItem({ text: ' ' }) }),
+    enrichmentState({ proposal: withItem({ after_line: 0 }) }),
+    enrichmentState({ proposal: withItem({ citation_ids: [] }) }),
+    enrichmentState({
+      proposal: readyProposal({
+        items: [
+          { ...readyProposal().items[0], text: 'x'.repeat(4000) },
+          { ...readyProposal().items[0], text: 'y'.repeat(4001) },
+        ],
+      }),
+    }),
+    enrichmentState({
+      proposal: { ...readyProposal(), text: 'Ancien format' } as never,
+    }),
     enrichmentState({
       proposal: readyProposal({
         evidence: [
@@ -110,7 +129,7 @@ describe('private enrichment transport and fixed DTO', () => {
 
   it('accepts composed characters and emoji without normalizing the text', async () => {
     const state = enrichmentState({
-      proposal: readyProposal({ text: 'e\u0301 😀' }),
+      proposal: withItem({ text: 'e\u0301 😀' }),
     })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(state)))
     expect(

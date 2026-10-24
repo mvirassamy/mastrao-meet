@@ -6,7 +6,7 @@ Cette fonctionnalité est préparée sur branches locales isolées. Elle n’est
 
 Après la réunion, l’auteur connecté ouvre « Mes notes » et choisit « Enrichir mes notes ». Core vérifie une note enregistrée non vide, la clôture de la réunion et une transcription exploitable. Les notes originales servent à choisir les sujets ; seuls les passages de cette transcription justifient les nouveaux faits.
 
-La proposition reste distincte du document. L’utilisateur peut lire les passages utilisés, modifier les compléments ou abandonner. « Ajouter les compléments » ajoute le texte approuvé après `\n\nCompléments de la réunion\n`, sans réécrire le préfixe original. Les citations concernent la proposition initiale, pas les modifications de l’utilisateur.
+La proposition est une liste de compléments, chacun ancré sous une ligne de la note (`after_line`, profil `meeting_notes_enrichment_fr_v2`). Pendant la revue, « Mes notes » affiche la note comme un diff : les lignes d’origine telles quelles et chaque complément en vert sous sa ligne, avec ✓ / ✕ et un texte modifiable. L’utilisateur peut lire les passages utilisés, garder, refuser ou corriger chaque complément, puis « Enregistrer » ou « Annuler ». « Enregistrer » envoie les compléments gardés par leur position dans la proposition ; Core les insère sous leur ligne sans modifier les lignes d’origine. Les citations concernent la proposition initiale, pas les modifications de l’utilisateur.
 
 « Annuler le dernier enrichissement » restaure la copie exacte précédant le dernier ajout, y compris espaces, accents décomposés et retours de ligne, si la note n’a pas changé depuis. Une modification concurrente produit un conflit plutôt qu’un écrasement. Une nouvelle génération ou son abandon conserve cette possibilité d’annulation jusqu’au prochain ajout accepté.
 
@@ -24,7 +24,7 @@ Le chemin est direct ; il n’ajoute ni Mastra, ni fournisseur alternatif, ni st
 
 ## Contrats et stockage
 
-Meet expose GET/POST `/api/v1.0/meetings/history/{meeting_ref}/personal-note/enrichment/`. Platform expose GET/POST `/api/meet/meetings/history/{meeting_ref}/personal-note/enrichment`. GET construit une lecture privée. POST accepte une des actions `generate`, `apply`, `discard`, `undo` avec identifiant de commande et version d’état attendue ; les actions qui dépendent du texte exigent aussi sa révision.
+Meet expose GET/POST `/api/v1.0/meetings/history/{meeting_ref}/personal-note/enrichment/`. Platform expose GET/POST `/api/meet/meetings/history/{meeting_ref}/personal-note/enrichment`. GET construit une lecture privée. POST accepte une des actions `generate`, `apply`, `discard`, `undo` avec identifiant de commande et version d’état attendue ; les actions qui dépendent du texte exigent aussi sa révision. `apply` porte `items: [{ index, text }]` : les compléments gardés et leur texte approuvé.
 
 La commande signée Core `enrich_meeting_personal_note` rejoint POST `/v1/meetings/personal-notes/enrichment`. Les DTO stricts de référence se trouvent dans `packages/meeting-runtime-contract/src/note-enrichment.ts` côté Platform. L’identité et le texte original ne sont pas des paramètres du navigateur.
 
@@ -36,7 +36,7 @@ Avant l’appel au fournisseur, Core conserve dans la proposition le profil, sa 
 
 ## Limites et erreurs
 
-Les notes simples gardent leur plafond existant de 100 000 caractères. L’enrichissement exige que la note complète tienne dans le budget d’entrée du profil ; il ne la tronque pas silencieusement. Les compléments sont limités à 8 000 unités UTF-16. Le contrat canonique borne aussi la taille totale de la requête.
+Les notes simples gardent leur plafond existant de 100 000 caractères. L’enrichissement exige que la note complète tienne dans le budget d’entrée du profil ; il ne la tronque pas silencieusement. Les compléments sont limités à 32 et à 8 000 unités UTF-16 au total. Le contrat canonique borne aussi la taille totale de la requête.
 
 Une transcription longue peut être sélectionnée : la couverture est affichée. Une transcription native stabilisée reste parfois `partial_sources` ; elle est utilisable avec cet avertissement. Une transcription absente, encore en traitement ou remplacée ne permet pas d’appliquer une proposition obsolète.
 

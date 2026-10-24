@@ -1,6 +1,10 @@
 import { NoteEnrichmentRequestError } from '../api/noteEnrichmentApi'
-import { validEnrichmentText } from '../api/parseNoteEnrichment'
+import {
+  validEnrichmentText,
+  withinEnrichmentBudget,
+} from '../api/parseNoteEnrichment'
 import type {
+  ApprovedEnrichmentItem,
   NoteEnrichmentApi,
   NoteEnrichmentCommand,
   NoteEnrichmentState,
@@ -16,11 +20,17 @@ type Phase =
   | 'applying'
   | 'undoing'
   | 'reconciling'
+/** The user's decision on one proposed complement, at the same position. */
+export interface EnrichmentReviewItem {
+  text: string
+  kept: boolean
+}
 export interface EnrichmentViewState {
   server: NoteEnrichmentState | null
   proposal: EnrichmentProposal | null
   phase: Phase
-  additions: string
+  review: EnrichmentReviewItem[]
+  /** At least one kept text differs from the proposal. */
   modified: boolean
   stale: boolean
   dismissed: boolean
@@ -50,13 +60,37 @@ interface CancellationTarget {
   stateVersion: number
 }
 
+/** Every proposed complement starts kept, with the proposed text. */
+const reviewOf = (
+  proposal: EnrichmentProposal | null
+): EnrichmentReviewItem[] =>
+  (proposal?.items ?? []).map((item) => ({ text: item.text, kept: true }))
+
+/** The kept complements, by proposal position, as the apply command sends them. */
+export function approvedItems(
+  review: readonly EnrichmentReviewItem[]
+): ApprovedEnrichmentItem[] {
+  return review.flatMap((entry, index) =>
+    entry.kept ? [{ index, text: entry.text }] : []
+  )
+}
+
+/** At least one complement, each valid, within the shared budget. */
+export function validApproval(items: readonly ApprovedEnrichmentItem[]) {
+  return (
+    items.length > 0 &&
+    items.every((item) => validEnrichmentText(item.text)) &&
+    withinEnrichmentBudget(items)
+  )
+}
+
 /** Owns the proposal only. The existing notes controller owns every note write. */
 export class NoteEnrichmentController {
   private state: EnrichmentViewState = {
     server: null,
     proposal: null,
     phase: 'loading',
-    additions: '',
+    review: [],
     modified: false,
     stale: false,
     dismissed: false,
@@ -112,11 +146,29 @@ export class NoteEnrichmentController {
     clearTimeout(this.poll)
   }
 
-  setAdditions = (additions: string) => {
+  setItemText = (index: number, text: string) => {
+    this.updateReview(index, { text })
+  }
+
+  setItemKept = (index: number, kept: boolean) => {
+    this.updateReview(index, { kept })
+  }
+
+  /** Back to the proposal as generated: every complement kept, unedited. */
+  resetReview = () => {
     if (!this.active || this.state.phase !== 'idle') return
+    this.update({ review: reviewOf(this.state.proposal), modified: false })
+  }
+
+  private updateReview(index: number, change: Partial<EnrichmentReviewItem>) {
+    if (!this.active || this.state.phase !== 'idle') return
+    const review = this.state.review.map((entry, at) =>
+      at === index ? { ...entry, ...change } : entry
+    )
+    const proposed = this.state.proposal?.items ?? []
     this.update({
-      additions,
-      modified: additions !== this.state.proposal?.text,
+      review,
+      modified: review.some((entry, at) => entry.text !== proposed[at]?.text),
     })
   }
 
@@ -334,8 +386,7 @@ export class NoteEnrichmentController {
       (this.state.stale ||
         this.state.dismissed ||
         this.state.server.proposal?.status !== 'ready' ||
-        !this.state.additions.trim() ||
-        !validEnrichmentText(this.state.additions))
+        !validApproval(approvedItems(this.state.review)))
     )
       return
     const scope = this.scope
@@ -376,7 +427,7 @@ export class NoteEnrichmentController {
     }
     let command: PendingMutation['command']
     if (action === 'apply')
-      command = { ...common, action, additions: this.state.additions }
+      command = { ...common, action, items: approvedItems(this.state.review) }
     else command = { ...common, action }
     const pending: PendingMutation = {
       command,
@@ -573,7 +624,7 @@ export class NoteEnrichmentController {
       this.proposalEditVersion =
         editVersion ?? this.notes.getSnapshot().editVersion
       this.update({
-        additions: server.proposal?.text ?? '',
+        review: reviewOf(server.proposal),
         modified: false,
         stale: false,
         proposal: server.proposal,
@@ -583,7 +634,7 @@ export class NoteEnrichmentController {
       server.proposal?.status === 'ready'
     ) {
       this.update({
-        additions: server.proposal.text,
+        review: reviewOf(server.proposal),
         modified: false,
         proposal: server.proposal,
       })

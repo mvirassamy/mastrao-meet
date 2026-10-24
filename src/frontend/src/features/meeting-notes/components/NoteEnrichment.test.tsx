@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MeetingPersonalNotesSection } from '@/features/meetingHistory/components/MeetingPersonalNotesSection'
 import fr from '@/locales/fr/personalNotes.json'
 import en from '@/locales/en/personalNotes.json'
-import type { NoteEnrichmentCommand } from '../api/noteEnrichmentTypes'
+import type {
+  ApprovedEnrichmentItem,
+  NoteEnrichmentCommand,
+  NoteEnrichmentState,
+} from '../api/noteEnrichmentTypes'
 import {
   deferred,
   enrichmentState,
@@ -29,6 +33,24 @@ function response(value: unknown, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+/** Core's rule: each kept complement on its own line, under its anchor line. */
+function insertApproved(
+  content: string,
+  state: NoteEnrichmentState,
+  items: ApprovedEnrichmentItem[]
+) {
+  const proposed = state.proposal?.items ?? []
+  return content
+    .split('\n')
+    .flatMap((line, at) => [
+      line,
+      ...items
+        .filter((item) => proposed[item.index]?.after_line === at + 1)
+        .map((item) => item.text),
+    ])
+    .join('\n')
 }
 
 function mockBackend() {
@@ -69,7 +91,7 @@ function mockBackend() {
           case 'apply':
             await mutationWait
             note = savedNote(
-              `${note.content}\n\nCompléments de la réunion\n${command.additions}`,
+              insertApproved(note.content, state, command.items),
               note.revision + 1
             )
             state = enrichmentState({
@@ -183,6 +205,17 @@ async function generate() {
   fireEvent.click(screen.getByRole('button', { name: fr.enrichment.generate }))
   await advance()
 }
+/** The note editor; a proposal under review stands in for it. */
+const editor = () =>
+  screen.getByRole('textbox', { name: fr.title }) as HTMLTextAreaElement
+const complement = (number = 1, label = fr.enrichment.item) =>
+  screen.getByRole('textbox', {
+    name: label.replace('{{number}}', String(number)),
+  }) as HTMLTextAreaElement
+const decision = (label: string, number = 1) =>
+  screen.getByRole('button', {
+    name: label.replace('{{number}}', String(number)),
+  })
 
 beforeEach(async () => {
   vi.useFakeTimers()
@@ -201,49 +234,54 @@ afterEach(() => {
 })
 
 describe('history enrichment through real APIs, controller and primitives', () => {
-  it('reviews editable additions beside the untouched original and applies on the server only', async () => {
+  it('shows each complement under its line in place of the editor and inserts it on the server only', async () => {
     const backend = mockBackend()
     const pending = deferred<void>()
     backend.delayMutation(pending.promise)
     mount()
     await advance()
     expect(backend.commands()).toEqual([])
-    const original = screen.getByRole('textbox', {
-      name: fr.title,
-    }) as HTMLTextAreaElement
+    expect(editor().value).toBe(savedNote().content)
     await generate()
-    const preview = screen.getByRole('textbox', {
-      name: fr.enrichment.preview,
-    }) as HTMLTextAreaElement
-    expect(original.value).toBe(savedNote().content)
-    expect(preview.value).toBe(readyProposal().text)
-    expect(screen.getByText(/^Passages analysés : 1 \/ 3\./)).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: fr.title })).toBeNull()
+    const review = screen.getByRole('region', { name: fr.enrichment.review })
+    const lines = [...review.querySelectorAll('p, textarea')].map((element) =>
+      element instanceof HTMLTextAreaElement
+        ? element.value
+        : element.textContent
+    )
+    expect(lines.slice(0, 3)).toEqual([
+      'Original',
+      readyProposal().items[0].text,
+      'avec espaces  ',
+    ])
+    expect(document.activeElement).toBe(complement())
+    expect(screen.queryByText(/Passages analysés/)).toBeNull()
     fireEvent.click(screen.getByText(fr.enrichment.evidence))
     expect(screen.getByText(readyProposal().evidence[0].text)).toBeTruthy()
     expect(screen.queryByRole('link')).toBeNull()
-    fireEvent.change(preview, {
-      target: { value: 'Complément approuvé et corrigé.' },
+    fireEvent.change(complement(), {
+      target: { value: '- Complément approuvé et corrigé.' },
     })
     expect(screen.getByText(fr.enrichment.modified)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: fr.enrichment.apply }))
     await advance()
-    expect(original.readOnly).toBe(true)
-    expect(original.value).toBe(savedNote().content)
+    expect(complement().readOnly).toBe(true)
     expect(screen.queryByText(fr.enrichment.applied)).toBeNull()
     const request = backend
       .commands()
       .find((command) => command.action === 'apply')
     expect(request).toMatchObject({
-      additions: 'Complément approuvé et corrigé.',
+      items: [{ index: 0, text: '- Complément approuvé et corrigé.' }],
       expected_revision: 1,
       proposal_id: proposalId,
     })
     expect(request).not.toHaveProperty('content')
     pending.resolve()
     await advance()
-    expect(original.readOnly).toBe(false)
-    expect(original.value).toBe(
-      `${savedNote().content}\n\nCompléments de la réunion\nComplément approuvé et corrigé.`
+    expect(editor().readOnly).toBe(false)
+    expect(editor().value).toBe(
+      'Original\n- Complément approuvé et corrigé.\navec espaces  '
     )
     expect(screen.getByText(fr.enrichment.applied)).toBeTruthy()
     expect(
@@ -255,11 +293,54 @@ describe('history enrichment through real APIs, controller and primitives', () =
     ).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: fr.enrichment.undo }))
     await advance()
-    expect(original.value).toBe(savedNote().content)
+    expect(editor().value).toBe(savedNote().content)
     expect(screen.getByText(fr.enrichment.undone)).toBeTruthy()
     expect(
       screen.queryByRole('button', { name: fr.enrichment.undo })
     ).toBeNull()
+  })
+
+  it('keeps or refuses each complement and restores the proposal', async () => {
+    const backend = mockBackend()
+    const item = readyProposal().items[0]
+    backend.setState(
+      enrichmentState({
+        state_version: 1,
+        proposal: readyProposal({
+          items: [item, { ...item, after_line: 2, text: '- Relancer Bob.' }],
+        }),
+      })
+    )
+    mount()
+    await advance()
+    expect(screen.getByText('2 compléments proposés')).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: fr.enrichment.revert })
+    ).toBeNull()
+    fireEvent.change(complement(1), { target: { value: '- Texte corrigé.' } })
+    expect(screen.getByText(fr.enrichment.modified)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.revert }))
+    expect(complement(1).value).toBe(item.text)
+    expect(screen.queryByText(fr.enrichment.modified)).toBeNull()
+    const refuse = decision(fr.enrichment.refuse, 1)
+    fireEvent.click(refuse)
+    expect(refuse.getAttribute('aria-pressed')).toBe('true')
+    expect(complement(1).readOnly).toBe(true)
+    expect(screen.getByText('Gardés : 1 · refusés : 1')).toBeTruthy()
+    fireEvent.click(decision(fr.enrichment.refuse, 2))
+    const save = screen.getByRole('button', {
+      name: fr.enrichment.apply,
+    }) as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    fireEvent.click(decision(fr.enrichment.keep, 2))
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.apply }))
+    await advance()
+    expect(
+      backend.commands().find((command) => command.action === 'apply')
+    ).toMatchObject({ items: [{ index: 1, text: '- Relancer Bob.' }] })
+    expect(backend.getNote().content).toBe(
+      'Original\navec espaces  \n- Relancer Bob.'
+    )
   })
 
   it('keeps note-taking editable during generation and rejects the resulting stale proposal', async () => {
@@ -269,9 +350,7 @@ describe('history enrichment through real APIs, controller and primitives', () =
     mount()
     await advance()
     await generate()
-    const original = screen.getByRole('textbox', {
-      name: fr.title,
-    }) as HTMLTextAreaElement
+    const original = editor()
     expect(original.readOnly).toBe(false)
     original.focus()
     fireEvent.change(original, {
@@ -283,12 +362,8 @@ describe('history enrichment through real APIs, controller and primitives', () =
     expect(document.activeElement).toBe(original)
     expect(screen.getByText(fr.enrichment.stale)).toBeTruthy()
     expect(
-      (
-        screen.getByRole('button', {
-          name: fr.enrichment.apply,
-        }) as HTMLButtonElement
-      ).disabled
-    ).toBe(true)
+      screen.queryByRole('region', { name: fr.enrichment.review })
+    ).toBeNull()
     expect(
       backend.commands().filter((request) => request.action === 'apply')
     ).toEqual([])
@@ -318,42 +393,12 @@ describe('history enrichment through real APIs, controller and primitives', () =
       screen.getByRole('button', { name: fr.enrichment.generate })
     )
     expect(
-      screen.queryByRole('textbox', { name: fr.enrichment.preview })
+      screen.queryByRole('region', { name: fr.enrichment.review })
     ).toBeNull()
-    expect(
-      (screen.getByRole('textbox', { name: fr.title }) as HTMLTextAreaElement)
-        .value
-    ).toBe(savedNote().content)
+    expect(editor().value).toBe(savedNote().content)
     expect(backend.commands().map((request) => request.action)).toEqual([
       'generate',
       'discard',
-    ])
-  })
-
-  it('keeps an old proposal from enabling cancellation during regeneration', async () => {
-    const backend = mockBackend()
-    backend.setState(
-      enrichmentState({ state_version: 1, proposal: readyProposal() })
-    )
-    mount()
-    await advance()
-    const pending = deferred<void>()
-    backend.delayGeneration(pending.promise)
-    await generate()
-    expect(
-      screen.queryByRole('button', { name: fr.enrichment.cancel })
-    ).toBeNull()
-    expect(
-      (screen.getByRole('textbox', { name: fr.title }) as HTMLTextAreaElement)
-        .readOnly
-    ).toBe(false)
-    pending.resolve()
-    await advance()
-    expect(
-      screen.getByRole('button', { name: fr.enrichment.cancel })
-    ).toBeTruthy()
-    expect(backend.commands().map((command) => command.action)).toEqual([
-      'generate',
     ])
   })
 
@@ -369,23 +414,21 @@ describe('history enrichment through real APIs, controller and primitives', () =
         screen.getByRole('button', { name: fr.enrichment.cancel })
       )
       await advance()
-      expect(
-        (screen.getByRole('textbox', { name: fr.title }) as HTMLTextAreaElement)
-          .readOnly
-      ).toBe(false)
       expect(screen.queryByText(fr.enrichment.discarding)).toBeNull()
       expect(screen.queryByText(fr.enrichment.cancelled)).toBeNull()
       if (when === 'after') {
+        expect(editor().readOnly).toBe(false)
         expect(screen.getByText(fr.enrichment.proposalRemoved)).toBeTruthy()
         expect(
-          screen.queryByRole('textbox', { name: fr.enrichment.preview })
+          screen.queryByRole('region', { name: fr.enrichment.review })
         ).toBeNull()
       } else {
+        expect(complement().readOnly).toBe(false)
         expect(screen.getByRole('alert').textContent).toBe(
           fr.enrichment.errors.discard
         )
         fireEvent.click(
-          screen.getByRole('button', { name: fr.enrichment.retryCancel })
+          screen.getByRole('button', { name: fr.enrichment.retry })
         )
         await advance()
         expect(screen.getByText(fr.enrichment.cancelled)).toBeTruthy()
@@ -416,32 +459,23 @@ describe('history enrichment through real APIs, controller and primitives', () =
         screen.getByRole('button', { name: fr.enrichment[action] })
       )
       await advance()
-      const original = screen.getByRole('textbox', {
-        name: fr.title,
-      }) as HTMLTextAreaElement
-      expect(original.readOnly).toBe(true)
-      const retry = screen.getByRole('button', {
-        name: fr.enrichment.retryMutation,
-      })
-      expect(
-        document.getElementById(retry.getAttribute('aria-describedby')!)
-          ?.textContent
-      ).toBe(fr.enrichment.retryMutationHelp)
-      fireEvent.click(screen.getByRole('button', { name: fr.enrichment.check }))
-      await advance()
+      // An uncertain apply keeps the proposal under review, read-only.
+      const locked = () => (action === 'apply' ? complement() : editor())
+      expect(locked().readOnly).toBe(true)
+      expect(screen.getByRole('alert').textContent).toBe(
+        fr.enrichment.retryMutationTitle
+      )
       expect(
         backend.commands().filter((command) => command.action === action)
       ).toHaveLength(1)
       const pending = deferred<void>()
       backend.delayMutation(pending.promise)
-      fireEvent.click(
-        screen.getByRole('button', { name: fr.enrichment.retryMutation })
-      )
+      fireEvent.click(screen.getByRole('button', { name: fr.enrichment.retry }))
       await advance()
       expect(
-        screen.queryByRole('button', { name: fr.enrichment.retryMutation })
+        screen.queryByRole('button', { name: fr.enrichment.retry })
       ).toBeNull()
-      expect(original.readOnly).toBe(true)
+      expect(locked().readOnly).toBe(true)
       pending.resolve()
       await advance()
       const commands = backend
@@ -449,8 +483,8 @@ describe('history enrichment through real APIs, controller and primitives', () =
         .filter((command) => command.action === action)
       expect(commands).toHaveLength(2)
       expect(commands[1]).toEqual(commands[0])
-      expect(original.readOnly).toBe(false)
-      expect(original.value).toBe(backend.getNote().content)
+      expect(editor().readOnly).toBe(false)
+      expect(editor().value).toBe(backend.getNote().content)
       expect(
         screen.getByText(
           action === 'apply' ? fr.enrichment.applied : fr.enrichment.undone
@@ -571,10 +605,13 @@ describe('history enrichment through real APIs, controller and primitives', () =
       screen.getByRole('button', { name: en.enrichment.generate })
     )
     await advance()
-    const preview = screen.getByRole('textbox', { name: en.enrichment.preview })
-    expect(preview.getAttribute('aria-describedby')).toBeTruthy()
+    const preview = complement(1, en.enrichment.item)
+    expect(preview.getAttribute('aria-invalid')).toBe('false')
     fireEvent.change(preview, { target: { value: ' ' } })
     expect(preview.getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByRole('alert').textContent).toBe(
+      en.enrichment.invalidAdditions
+    )
     expect(
       (
         screen.getByRole('button', {

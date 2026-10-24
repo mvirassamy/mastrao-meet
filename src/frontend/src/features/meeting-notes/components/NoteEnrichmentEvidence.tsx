@@ -9,22 +9,12 @@ export function NoteEnrichmentEvidence({
   proposal: EnrichmentProposal
 }) {
   const { t } = useTranslation('personalNotes')
-  const coverage = proposal.coverage
   return (
     <div
       className={css({ display: 'grid', gap: '0.5rem', fontSize: '0.8125rem' })}
     >
-      {coverage && (
-        <p>
-          {t('enrichment.coverage', {
-            selected: coverage.selected_segments,
-            total: coverage.total_segments,
-          })}{' '}
-          {coverage.selection !== 'complete' &&
-            t('enrichment.selectedPassages')}
-          {coverage.source_coverage === 'partial_sources' &&
-            ` ${t('enrichment.partialSources')}`}
-        </p>
+      {proposal.coverage?.source_coverage === 'partial_sources' && (
+        <p>{t('enrichment.partialSources')}</p>
       )}
       {proposal.evidence.length > 0 && (
         <details>

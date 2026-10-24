@@ -29,6 +29,8 @@ from core.mastrao_platform_facade import (
 MAX_COMMAND_BYTES = 60_000
 MAX_RESPONSE_BYTES = 480_000
 TIMEOUT_SECONDS = (5, 40)
+MAX_ITEMS = 32
+MAX_TEXT = 8000
 COMMAND_FIELDS = {"version", "meeting_ref", "command_id", "action"}
 STATE_FIELDS = {
     "version",
@@ -64,6 +66,31 @@ def _command(request, meeting_ref):
     return _validate_command(value, meeting_ref)
 
 
+def _item_text(value):
+    return _text(value, MAX_TEXT) and value.strip() != "" and "\x00" not in value
+
+
+def _within_text_budget(items):
+    """The budget is shared by every complement, in UTF-16 units like Zod."""
+    return sum(len(item["text"].encode("utf-16-le")) // 2 for item in items) <= MAX_TEXT
+
+
+def _valid_approved_items(value):
+    """The kept complements, by proposal position, with the user's text."""
+    if not isinstance(value, list) or not 1 <= len(value) <= MAX_ITEMS:
+        return False
+    if not all(
+        _fields(item, {"index", "text"})
+        and _integer(item["index"])
+        and item["index"] < MAX_ITEMS
+        and _item_text(item["text"])
+        for item in value
+    ):
+        return False
+    indexes = {item["index"] for item in value}
+    return len(indexes) == len(value) and _within_text_budget(value)
+
+
 def _validate_command(value, meeting_ref):
     action = value.get("action")
     fields = COMMAND_FIELDS | {"expected_state_version"}
@@ -71,7 +98,7 @@ def _validate_command(value, meeting_ref):
         case "generate":
             fields |= {"expected_revision"}
         case "apply":
-            fields |= {"expected_revision", "proposal_id", "additions"}
+            fields |= {"expected_revision", "proposal_id", "items"}
         case "undo":
             fields |= {"expected_revision", "proposal_id"}
         case "discard":
@@ -94,11 +121,7 @@ def _validate_command(value, meeting_ref):
         raise PlatformFacadeError(status=422)
     if "proposal_id" in value and not _reference(value["proposal_id"]):
         raise PlatformFacadeError(status=422)
-    if action == "apply" and (
-        not _text(value["additions"], 8000)
-        or not value["additions"].strip()
-        or "\x00" in value["additions"]
-    ):
+    if action == "apply" and not _valid_approved_items(value["items"]):
         raise PlatformFacadeError(status=422)
     return value
 
@@ -123,6 +146,30 @@ def _valid_evidence(value, meeting_ref):
     )
 
 
+def _valid_proposal_item(value):
+    """A complement anchored under one line of the note."""
+    if not _fields(value, {"after_line", "text", "citation_ids"}):
+        return False
+    citations = value["citation_ids"]
+    return (
+        _integer(value["after_line"], minimum=1)
+        and _item_text(value["text"])
+        and isinstance(citations, list)
+        and 1 <= len(citations) <= 32
+        and all(_reference(citation) for citation in citations)
+        and len(set(citations)) == len(citations)
+    )
+
+
+def _valid_proposal_items(value):
+    return (
+        isinstance(value, list)
+        and len(value) <= MAX_ITEMS
+        and all(_valid_proposal_item(item) for item in value)
+        and _within_text_budget(value)
+    )
+
+
 def _valid_proposal(value, meeting_ref):
     if not _fields(
         value,
@@ -132,7 +179,7 @@ def _valid_proposal(value, meeting_ref):
             "status",
             "base_revision",
             "base_digest",
-            "text",
+            "items",
             "evidence",
             "coverage",
         },
@@ -145,7 +192,7 @@ def _valid_proposal(value, meeting_ref):
         in ("generating", "ready", "empty", "failed", "unknown", "stale")
         and _integer(value["base_revision"])
         and _digest(value["base_digest"])
-        and _text(value["text"], 8000, minimum=0)
+        and _valid_proposal_items(value["items"])
         and isinstance(value["evidence"], list)
         and len(value["evidence"]) <= 32
         and all(_valid_evidence(item, meeting_ref) for item in value["evidence"])
