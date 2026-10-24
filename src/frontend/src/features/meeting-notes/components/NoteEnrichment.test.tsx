@@ -70,10 +70,7 @@ function mockBackend() {
         const command = JSON.parse(
           String(options.body)
         ) as NoteEnrichmentCommand
-        if (
-          rejectMutation &&
-          (command.action === 'apply' || command.action === 'undo')
-        ) {
+        if (rejectMutation && command.action === 'apply') {
           rejectMutation = false
           throw new TypeError('Request never reached Core')
         }
@@ -121,24 +118,6 @@ function mockBackend() {
               discardFailure = undefined
               throw new TypeError('Discard response lost')
             }
-            break
-          case 'undo':
-            await mutationWait
-            note = savedNote(savedNote().content, note.revision + 1)
-            state = enrichmentState({
-              state_version: state.state_version + 1,
-              last_applied: state.last_applied && {
-                ...state.last_applied,
-                undo_available: false,
-              },
-              receipt: {
-                command_id: command.command_id,
-                action: 'undo',
-                revision: note.revision,
-                digest: 'd'.repeat(64),
-                idempotent_replay: false,
-              },
-            })
             break
         }
         return response(state)
@@ -284,20 +263,21 @@ describe('history enrichment through real APIs, controller and primitives', () =
       'Original\n- Complément approuvé et corrigé.\navec espaces  '
     )
     expect(screen.getByText(fr.enrichment.applied)).toBeTruthy()
-    expect(
-      (
-        screen.getByRole('button', {
-          name: fr.enrichment.undo,
-        }) as HTMLButtonElement
-      ).disabled
-    ).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.undo }))
-    await advance()
+    // Going back is an ordinary note edit, through the note history.
+    fireEvent.click(screen.getByRole('button', { name: fr.toolbar.undo }))
+    await advance(800)
     expect(editor().value).toBe(savedNote().content)
-    expect(screen.getByText(fr.enrichment.undone)).toBeTruthy()
-    expect(
-      screen.queryByRole('button', { name: fr.enrichment.undo })
-    ).toBeNull()
+    expect(screen.queryByText(fr.enrichment.applied)).toBeNull()
+    expect(backend.getNote().content).toBe(savedNote().content)
+    expect(backend.commands().map((command) => command.action)).toEqual([
+      'generate',
+      'apply',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: fr.toolbar.redo }))
+    await advance(800)
+    expect(backend.getNote().content).toBe(
+      'Original\n- Complément approuvé et corrigé.\navec espaces  '
+    )
   })
 
   it('keeps or refuses each complement and restores the proposal', async () => {
@@ -436,62 +416,41 @@ describe('history enrichment through real APIs, controller and primitives', () =
     }
   )
 
-  it.each(['apply', 'undo'] as const)(
-    'offers an accessible explicit replay of an uncertain %s and unlocks after confirmation',
-    async (action) => {
-      const backend = mockBackend()
-      if (action === 'undo')
-        backend.setState(
-          enrichmentState({
-            last_applied: {
-              proposal_id: proposalId,
-              revision: 1,
-              digest: 'c'.repeat(64),
-              undo_available: true,
-            },
-          })
-        )
-      mount()
-      await advance()
-      if (action === 'apply') await generate()
-      backend.failNextMutation()
-      fireEvent.click(
-        screen.getByRole('button', { name: fr.enrichment[action] })
-      )
-      await advance()
-      // An uncertain apply keeps the proposal under review, read-only.
-      const locked = () => (action === 'apply' ? complement() : editor())
-      expect(locked().readOnly).toBe(true)
-      expect(screen.getByRole('alert').textContent).toBe(
-        fr.enrichment.retryMutationTitle
-      )
-      expect(
-        backend.commands().filter((command) => command.action === action)
-      ).toHaveLength(1)
-      const pending = deferred<void>()
-      backend.delayMutation(pending.promise)
-      fireEvent.click(screen.getByRole('button', { name: fr.enrichment.retry }))
-      await advance()
-      expect(
-        screen.queryByRole('button', { name: fr.enrichment.retry })
-      ).toBeNull()
-      expect(locked().readOnly).toBe(true)
-      pending.resolve()
-      await advance()
-      const commands = backend
-        .commands()
-        .filter((command) => command.action === action)
-      expect(commands).toHaveLength(2)
-      expect(commands[1]).toEqual(commands[0])
-      expect(editor().readOnly).toBe(false)
-      expect(editor().value).toBe(backend.getNote().content)
-      expect(
-        screen.getByText(
-          action === 'apply' ? fr.enrichment.applied : fr.enrichment.undone
-        )
-      ).toBeTruthy()
-    }
-  )
+  it('offers an accessible explicit replay of an uncertain apply and unlocks after confirmation', async () => {
+    const backend = mockBackend()
+    mount()
+    await advance()
+    await generate()
+    backend.failNextMutation()
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.apply }))
+    await advance()
+    // An uncertain apply keeps the proposal under review, read-only.
+    expect(complement().readOnly).toBe(true)
+    expect(screen.getByRole('alert').textContent).toBe(
+      fr.enrichment.retryMutationTitle
+    )
+    expect(
+      backend.commands().filter((command) => command.action === 'apply')
+    ).toHaveLength(1)
+    const pending = deferred<void>()
+    backend.delayMutation(pending.promise)
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.retry }))
+    await advance()
+    expect(
+      screen.queryByRole('button', { name: fr.enrichment.retry })
+    ).toBeNull()
+    expect(complement().readOnly).toBe(true)
+    pending.resolve()
+    await advance()
+    const commands = backend
+      .commands()
+      .filter((command) => command.action === 'apply')
+    expect(commands).toHaveLength(2)
+    expect(commands[1]).toEqual(commands[0])
+    expect(editor().readOnly).toBe(false)
+    expect(editor().value).toBe(backend.getNote().content)
+    expect(screen.getByText(fr.enrichment.applied)).toBeTruthy()
+  })
 
   it('shows the server eligibility reason without loading transcript sources', async () => {
     const backend = mockBackend()
@@ -567,32 +526,36 @@ describe('history enrichment through real APIs, controller and primitives', () =
     )
   })
 
-  it('keeps undo unavailable immediately after typing, including before autosave', async () => {
+  it('undoes and redoes typing with the arrows and ⌘Z, saving each step', async () => {
     const backend = mockBackend()
-    backend.setState(
-      enrichmentState({
-        last_applied: {
-          proposal_id: proposalId,
-          revision: 1,
-          digest: 'c'.repeat(64),
-          undo_available: true,
-        },
-      })
-    )
     mount()
     await advance()
     const undo = screen.getByRole('button', {
-      name: fr.enrichment.undo,
+      name: fr.toolbar.undo,
     }) as HTMLButtonElement
-    expect(undo.disabled).toBe(false)
-    fireEvent.change(screen.getByRole('textbox', { name: fr.title }), {
-      target: { value: 'Nouvelle saisie' },
-    })
+    const redo = screen.getByRole('button', {
+      name: fr.toolbar.redo,
+    }) as HTMLButtonElement
     expect(undo.disabled).toBe(true)
-    expect(screen.getByText(fr.enrichment.undoUnavailable)).toBeTruthy()
+    expect(redo.disabled).toBe(true)
+    fireEvent.change(editor(), { target: { value: 'Première saisie' } })
+    await advance(800)
+    fireEvent.change(editor(), { target: { value: 'Deuxième saisie' } })
+    expect(undo.disabled).toBe(false)
+    fireEvent.keyDown(editor(), { key: 'z', metaKey: true })
+    await advance(800)
+    expect(editor().value).toBe('Première saisie')
+    expect(backend.getNote().content).toBe('Première saisie')
     fireEvent.click(undo)
     await advance(800)
-    expect(backend.getNote().content).toBe('Nouvelle saisie')
+    expect(editor().value).toBe(savedNote().content)
+    expect(undo.disabled).toBe(true)
+    fireEvent.keyDown(editor(), { key: 'Z', metaKey: true, shiftKey: true })
+    expect(editor().value).toBe('Première saisie')
+    fireEvent.change(editor(), { target: { value: 'Nouvelle branche' } })
+    expect(redo.disabled).toBe(true)
+    await advance(800)
+    expect(backend.getNote().content).toBe('Nouvelle branche')
     expect(backend.commands()).toEqual([])
   })
 

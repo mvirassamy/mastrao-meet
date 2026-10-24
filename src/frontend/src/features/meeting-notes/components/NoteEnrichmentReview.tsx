@@ -107,7 +107,7 @@ function ComplementLine({
   view: NoteEnrichmentView
   index: number
   entry: EnrichmentReviewItem
-  inputRef?: RefObject<HTMLTextAreaElement | null>
+  inputRef?: RefObject<HTMLTextAreaElement>
 }) {
   const { controller } = view
   const { t } = useTranslation('personalNotes')
@@ -182,8 +182,8 @@ export function NoteEnrichmentReview({
   content: string
   canApply: boolean
   busy: boolean
-  firstItemRef: RefObject<HTMLTextAreaElement | null>
-  cancelRef: RefObject<HTMLButtonElement | null>
+  firstItemRef: RefObject<HTMLTextAreaElement>
+  cancelRef: RefObject<HTMLButtonElement>
   onCancel: () => void
 }) {
   const { controller } = view

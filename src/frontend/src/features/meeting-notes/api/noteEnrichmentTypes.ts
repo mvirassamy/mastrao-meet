@@ -116,7 +116,6 @@ export type NoteEnrichmentCommand = CommandBase &
         items: ApprovedEnrichmentItem[]
       }
     | { action: 'discard'; proposal_id: string }
-    | { action: 'undo'; expected_revision: number; proposal_id: string }
   )
 
 export interface NoteEnrichmentApi {

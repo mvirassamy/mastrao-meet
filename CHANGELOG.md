@@ -6,6 +6,9 @@
   under the note. Core inserts the kept complements under their lines
   (Platform profile meeting_notes_enrichment_fr_v2). Progress shows as a
   loader on the main button and problems as a single toast with one retry.
+  A toolbar above the note holds « Enrichir mes notes » and undo / redo
+  arrows (⌘Z / ⇧⌘Z) over the note history, typing and added complements
+  alike; they replace « Annuler le dernier enrichissement ».
 
 - 2026-10-24: Accept Core host invitation links and reject ambiguous
   invitation fragments while preserving existing host links.

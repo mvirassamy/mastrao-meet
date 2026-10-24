@@ -41,18 +41,14 @@
     "generating": "Preparing additions… You can keep writing in your notes.",
     "discarding": "Checking cancellation… Your notes remain editable.",
     "applying": "Saving additions… Your notes remain readable and can be copied.",
-    "undoing": "Undoing the last enrichment…",
     "verifying": "Checking the saved version…",
     "modified": "Proposal edited by you. The excerpts support the initial proposal and do not certify your edits.",
     "invalidAdditions": "Enter non-empty additions with valid characters, up to 8,000 characters.",
     "apply": "Save",
     "cancel": "Cancel",
     "retry": "Retry",
-    "undo": "Undo last enrichment",
-    "undoUnavailable": "Your notes have changed since this addition; automatic undo is no longer available.",
     "retryMutationTitle": "Operation not confirmed. Retrying will not apply it twice.",
     "applied": "Additions saved.",
-    "undone": "Last enrichment undone and notes saved.",
     "cancelled": "Proposal discarded. Your notes are preserved.",
     "proposalRemoved": "This proposal is no longer current. Your notes are preserved and any new proposal remains available.",
     "proposalAppliedElsewhere": "This proposal was applied in another tab. Review the saved version of your notes; your local typing is preserved.",
@@ -76,6 +72,13 @@
       "discard": "Cancellation not confirmed. Your notes are preserved.",
       "mutation": "The change was not confirmed. Your notes have been reloaded."
     }
+  },
+  "toolbar": {
+    "label": "Actions on my notes",
+    "undo": "Undo the last change",
+    "redo": "Redo the change",
+    "undoShortcut": "Undo · ⌘Z",
+    "redoShortcut": "Redo · ⇧⌘Z"
   },
   "exit": {
     "title": "Your notes have not been saved",

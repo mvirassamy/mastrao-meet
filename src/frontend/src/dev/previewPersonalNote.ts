@@ -1,7 +1,7 @@
 /**
  * A fictional, in-memory walk through « Enrichir mes notes » for the local
- * preview: the note saves, a proposal arrives after a short wait, and saving,
- * cancelling and undoing it change only this page's memory. Nothing is sent.
+ * preview: the note saves, a proposal arrives after a short wait, and saving
+ * or cancelling it change only this page's memory. Nothing is sent.
  */
 
 const GENERATION_DELAY_MS = 2500
@@ -20,7 +20,7 @@ interface ApprovedItem {
   text: string
 }
 interface Command {
-  action: 'generate' | 'apply' | 'discard' | 'undo'
+  action: 'generate' | 'apply' | 'discard'
   command_id: string
   proposal_id?: string
   items?: ApprovedItem[]
@@ -37,7 +37,6 @@ let proposal: Record<string, unknown> | null = null
 let proposalItems: ProposalItem[] = []
 let lastApplied: Record<string, unknown> | null = null
 let receipt: Record<string, unknown> | null = null
-let contentBeforeApply: string | null = null
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -139,10 +138,10 @@ function enrichmentState(meetingRef: string) {
   }
 }
 
-function mutationReceipt(command: Command, action: 'apply' | 'undo') {
+function applyReceipt(command: Command) {
   return {
     command_id: command.command_id,
-    action,
+    action: 'apply',
     revision: note.revision,
     digest: 'c'.repeat(64),
     idempotent_replay: false,
@@ -157,9 +156,8 @@ async function runCommand(meetingRef: string, command: Command) {
       proposal = readyProposal(meetingRef, command.command_id)
       break
     case 'apply':
-      contentBeforeApply = note.content
       writeNote(insert(note.content, command.items ?? []))
-      receipt = mutationReceipt(command, 'apply')
+      receipt = applyReceipt(command)
       lastApplied = {
         proposal_id: command.proposal_id,
         revision: note.revision,
@@ -170,12 +168,6 @@ async function runCommand(meetingRef: string, command: Command) {
       break
     case 'discard':
       proposal = null
-      break
-    case 'undo':
-      if (contentBeforeApply !== null) writeNote(contentBeforeApply)
-      contentBeforeApply = null
-      receipt = mutationReceipt(command, 'undo')
-      lastApplied = lastApplied && { ...lastApplied, undo_available: false }
       break
   }
 }

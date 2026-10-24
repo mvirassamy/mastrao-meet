@@ -31,7 +31,6 @@
     "generating": "Préparation des compléments… Vous pouvez continuer à écrire dans vos notes.",
     "discarding": "Vérification de l’annulation… Vos notes restent modifiables.",
     "applying": "Enregistrement des compléments… Vos notes restent lisibles et copiables.",
-    "undoing": "Annulation du dernier enrichissement…",
     "verifying": "Vérification de l’enregistrement…",
     "review": "Mes notes avec les compléments proposés",
     "item": "Complément {{number}}",
@@ -48,11 +47,8 @@
     "apply": "Enregistrer",
     "cancel": "Annuler",
     "retry": "Réessayer",
-    "undo": "Annuler le dernier enrichissement",
-    "undoUnavailable": "Vos notes ont changé depuis cet ajout ; l’annulation automatique n’est plus disponible.",
     "retryMutationTitle": "Opération non confirmée. Réessayer ne l’appliquera pas deux fois.",
     "applied": "Compléments ajoutés et enregistrés.",
-    "undone": "Dernier enrichissement annulé et notes enregistrées.",
     "cancelled": "Proposition annulée. Vos notes sont conservées.",
     "proposalRemoved": "Cette proposition n’est plus courante. Vos notes sont conservées et toute nouvelle proposition reste disponible.",
     "proposalAppliedElsewhere": "Cette proposition a été appliquée dans un autre onglet. Vérifiez la version enregistrée de vos notes ; votre saisie locale est conservée.",
@@ -76,6 +72,13 @@
       "discard": "Annulation non confirmée. Vos notes sont conservées.",
       "mutation": "La modification n’a pas été confirmée. Vos notes ont été rechargées."
     }
+  },
+  "toolbar": {
+    "label": "Actions sur mes notes",
+    "undo": "Annuler la dernière modification",
+    "redo": "Rétablir la modification",
+    "undoShortcut": "Annuler · ⌘Z",
+    "redoShortcut": "Rétablir · ⇧⌘Z"
   },
   "exit": {
     "title": "Vos notes ne sont pas enregistrées",
