@@ -111,18 +111,18 @@ def test_guest_grant_does_not_authorize_enrichment():
     upstream.assert_not_called()
 
 
-@pytest.mark.parametrize("action", ["read", "generate", "apply", "discard", "undo"])
+@pytest.mark.parametrize("action", ["read", "generate", "apply", "discard"])
 def test_matching_guest_author_cannot_enrich_an_account_note(history_authors, action):
     """Every action rejects a guest note before contacting Platform."""
     _, guest = history_authors
     guest.return_value = {"participant_grant": "synthetic-guest-grant"}
     command = {**COMMAND, "action": action}
-    if action in ("apply", "discard", "undo"):
+    if action in ("apply", "discard"):
         command["proposal_id"] = "proposal_0123456789abcdef"
     if action == "discard":
         del command["expected_revision"]
     if action == "apply":
-        command["additions"] = "Approved additions"
+        command["items"] = [{"index": 0, "text": "Approved complement"}]
     with patch(
         "core.mastrao_note_enrichment.request_platform", return_value=(STATE, 200)
     ) as upstream:
@@ -192,17 +192,22 @@ def test_post_requires_csrf_before_egress():
 
 def test_apply_keeps_exact_approved_unicode():
     """Validation preserves approved Unicode and whitespace byte for byte."""
-    additions = "  De\u0301cision : à confirmer. 📝\n"
+    text = "  De\u0301cision : à confirmer. 📝\n"
     command = {
         **COMMAND,
         "action": "apply",
         "proposal_id": "proposal_0123456789abcdef",
-        "additions": additions,
+        "items": [{"index": 2, "text": text}, {"index": 0, "text": "- Relancer"}],
     }
     request = RequestFactory().post(
         URL, data=json.dumps(command), content_type="application/json"
     )
-    assert _command(request, MEETING)["additions"].encode() == additions.encode()
+    validated = _command(request, MEETING)["items"]
+    assert validated[0]["text"].encode() == text.encode()
+    assert validated[1] == {"index": 0, "text": "- Relancer"}
+
+
+APPLY = {"action": "apply", "proposal_id": "proposal_0123456789abcdef"}
 
 
 @pytest.mark.parametrize(
@@ -212,17 +217,25 @@ def test_apply_keeps_exact_approved_unicode():
         {"owner_id": "actor_other0123456789"},
         {"expected_state_version": True},
         {"action": "read"},
+        {"action": "undo", "proposal_id": "proposal_0123456789abcdef"},
         {"version": True},
+        {**APPLY, "items": [{"index": 0, "text": "\x00"}]},
+        {**APPLY, "items": [{"index": 0, "text": " "}]},
+        {**APPLY, "items": []},
+        {**APPLY, "items": "Complément"},
+        {**APPLY, "items": [{"index": -1, "text": "x"}]},
+        {**APPLY, "items": [{"index": 32, "text": "x"}]},
+        {**APPLY, "items": [{"index": True, "text": "x"}]},
+        {**APPLY, "items": [{"index": 0, "text": "x"}, {"index": 0, "text": "y"}]},
+        {**APPLY, "items": [{"index": 0, "text": "x", "after_line": 1}]},
         {
-            "action": "apply",
-            "proposal_id": "proposal_0123456789abcdef",
-            "additions": "\x00",
+            **APPLY,
+            "items": [
+                {"index": 0, "text": "x" * 8000},
+                {"index": 1, "text": "y"},
+            ],
         },
-        {
-            "action": "apply",
-            "proposal_id": "proposal_0123456789abcdef",
-            "additions": " ",
-        },
+        {**APPLY, "additions": "Ancien format"},
     ],
 )
 def test_bad_commands_refused_without_platform_call(patch_value):
@@ -241,7 +254,7 @@ def test_duplicate_fields_and_oversized_command_refused():
     """Bound request bytes and reject duplicate keys or query fields."""
     with patch("core.mastrao_note_enrichment.request_platform") as upstream:
         client = _client()
-        duplicate = json.dumps(COMMAND)[:-1] + ', "action": "undo"}'
+        duplicate = json.dumps(COMMAND)[:-1] + ', "action": "discard"}'
         assert (
             client.post(
                 URL, data=duplicate, content_type="application/json"
@@ -281,17 +294,61 @@ def test_invalid_upstream_dto_is_sanitized(patch_value):
     assert result.headers["Cache-Control"] == "private, no-store"
 
 
+PROPOSAL = {
+    "id": "proposal_0123456789abcdef",
+    "command_id": COMMAND["command_id"],
+    "status": "ready",
+    "base_revision": 2,
+    "base_digest": "a" * 64,
+    "items": [
+        {
+            "after_line": 3,
+            "text": "- Complément",
+            "citation_ids": ["citation_0123456789abcdef"],
+        }
+    ],
+    "coverage": None,
+    "evidence": [],
+}
+
+
+def test_anchored_proposal_is_accepted():
+    """A ready proposal carries anchored complements."""
+    _validate_state({**STATE, "proposal": PROPOSAL}, MEETING)
+
+
+@pytest.mark.parametrize(
+    "item_patch",
+    [
+        {"after_line": 0},
+        {"after_line": True},
+        {"text": " "},
+        {"citation_ids": []},
+        {"citation_ids": ["citation_0123456789abcdef"] * 2},
+        {"section": "Décisions"},
+    ],
+)
+def test_invalid_anchored_items_are_sanitized(item_patch):
+    """Malformed complements never reach the browser."""
+    item = {**PROPOSAL["items"][0], **item_patch}
+    with pytest.raises(PlatformFacadeError):
+        _validate_state({**STATE, "proposal": {**PROPOSAL, "items": [item]}}, MEETING)
+
+
+def test_former_single_text_proposal_is_sanitized():
+    """The former single-block proposal is no longer a valid projection."""
+    former = {key: value for key, value in PROPOSAL.items() if key != "items"}
+    with pytest.raises(PlatformFacadeError):
+        _validate_state(
+            {**STATE, "proposal": {**former, "text": "Complément"}}, MEETING
+        )
+
+
 def test_published_brief_is_not_note_enrichment_evidence():
     """Only transcript passages can justify the proposed additions."""
     value = copy.deepcopy(STATE)
     value["proposal"] = {
-        "id": "proposal_0123456789abcdef",
-        "command_id": COMMAND["command_id"],
-        "status": "ready",
-        "base_revision": 2,
-        "base_digest": "a" * 64,
-        "text": "Complément",
-        "coverage": None,
+        **PROPOSAL,
         "evidence": [
             {
                 "citation": {

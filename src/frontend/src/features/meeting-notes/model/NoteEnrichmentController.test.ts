@@ -84,6 +84,57 @@ afterEach(() => {
 })
 
 describe('enrichment and the single autosave authority', () => {
+  it('sends only kept complements, with their edited text, by proposal position', async () => {
+    const item = readyProposal().items[0]
+    const { enrichment, command } = await setup(
+      enrichmentState({
+        state_version: 1,
+        proposal: readyProposal({
+          items: [
+            { ...item, text: '- Premier' },
+            { ...item, text: '- Deuxième' },
+            { ...item, text: '- Troisième' },
+          ],
+        }),
+      })
+    )
+    enrichment.setItemKept(1, false)
+    expect(enrichment.getSnapshot().modified).toBe(false)
+    enrichment.setItemText(2, '- Troisième, corrigé ')
+    expect(enrichment.getSnapshot().modified).toBe(true)
+    enrichment.resetReview()
+    expect(enrichment.getSnapshot()).toMatchObject({
+      modified: false,
+      review: [
+        { text: '- Premier', kept: true },
+        { text: '- Deuxième', kept: true },
+        { text: '- Troisième', kept: true },
+      ],
+    })
+    enrichment.setItemKept(1, false)
+    enrichment.setItemText(2, '- Troisième, corrigé ')
+    await enrichment.apply()
+    expect(command.mock.calls[0][0]).toMatchObject({
+      action: 'apply',
+      items: [
+        { index: 0, text: '- Premier' },
+        { index: 2, text: '- Troisième, corrigé ' },
+      ],
+    })
+  })
+
+  it('does not apply when every complement is refused or one is blank', async () => {
+    const { enrichment, command } = await setup(
+      enrichmentState({ state_version: 1, proposal: readyProposal() })
+    )
+    enrichment.setItemKept(0, false)
+    await enrichment.apply()
+    enrichment.setItemKept(0, true)
+    enrichment.setItemText(0, '   ')
+    await enrichment.apply()
+    expect(command).not.toHaveBeenCalled()
+  })
+
   it('refreshes eligibility again if autosave finishes during a background read', async () => {
     const { notes, enrichment, read, setServer } = await setup()
     const background = deferred<NoteEnrichmentState>()
@@ -123,7 +174,10 @@ describe('enrichment and the single autosave authority', () => {
     const { enrichment, setServer, command } = await setup(
       enrichmentState({ state_version: 1, proposal: readyProposal() })
     )
-    enrichment.setAdditions('My edited additions must remain available to copy')
+    enrichment.setItemText(
+      0,
+      'My edited complement must remain available to copy'
+    )
     setServer(
       enrichmentState({
         state_version: 2,
@@ -131,9 +185,12 @@ describe('enrichment and the single autosave authority', () => {
       })
     )
     await enrichment.refresh()
-    expect(enrichment.getSnapshot().additions).toBe(
-      'My edited additions must remain available to copy'
-    )
+    expect(enrichment.getSnapshot().review).toEqual([
+      {
+        text: 'My edited complement must remain available to copy',
+        kept: true,
+      },
+    ])
     expect(enrichment.getSnapshot().stale).toBe(true)
     await enrichment.apply()
     expect(command).not.toHaveBeenCalled()
@@ -291,86 +348,62 @@ describe('enrichment and the single autosave authority', () => {
     })
     expect(command).toHaveBeenCalledOnce()
     expect(writeNote).not.toHaveBeenCalled()
-    expect(enrichment.canUndo()).toBe(false)
   })
 
-  it.each(['apply', 'undo'] as const)(
-    'explicitly replays the identical %s after a negative read, without an automatic retry',
-    async (action) => {
-      const initial = enrichmentState({
-        state_version: 3,
-        proposal: action === 'apply' ? readyProposal() : null,
-        last_applied:
-          action === 'undo'
-            ? {
-                proposal_id: proposalId,
-                revision: 1,
-                digest: 'c'.repeat(64),
-                undo_available: true,
-              }
-            : null,
-      })
-      const { notes, enrichment, command, readNote, setServer } =
-        await setup(initial)
-      enrichment.setAdditions('Approved additions exactly as typed\n')
-      command.mockRejectedValueOnce(new NoteEnrichmentRequestError())
-      await enrichment[action]()
-      const firstCommand = command.mock.calls[0][0]
-      expect(enrichment.getSnapshot()).toMatchObject({
-        phase: 'reconciling',
-        canRetryMutation: true,
-      })
-      expect(notes.getSnapshot().isMutationLocked).toBe(true)
-      await enrichment.refresh()
-      await vi.advanceTimersByTimeAsync(6000)
-      expect(command).toHaveBeenCalledOnce()
-      const result = deferred<NoteEnrichmentState>()
-      command.mockReturnValueOnce(result.promise)
-      const retrying = enrichment.retryMutation()
-      await enrichment.retryMutation()
-      await enrichment.refresh()
-      expect(command).toHaveBeenCalledTimes(2)
-      expect(command.mock.calls[1][0]).toBe(firstCommand)
-      expect(notes.getSnapshot().isMutationLocked).toBe(true)
-      const current = enrichmentState({
-        state_version: 4,
-        receipt: {
-          command_id: firstCommand.command_id,
-          action,
-          revision: 2,
-          digest: 'd'.repeat(64),
-          idempotent_replay: false,
-        },
-      })
-      setServer(current)
-      readNote.mockResolvedValue(
-        savedNote('current server text, never the old receipt', 3)
-      )
-      result.resolve(current)
-      await retrying
-      expect(notes.getSnapshot()).toMatchObject({
-        isMutationLocked: false,
-        content: 'current server text, never the old receipt',
-        confirmedRevision: 3,
-      })
-      expect(enrichment.getSnapshot().canRetryMutation).toBe(false)
-      expect(enrichment.getSnapshot().notice).toBe(
-        action === 'apply' ? 'applied' : 'undone'
-      )
-    }
-  )
-
-  it('does not enter cancellation or block undo after a generation never reaches Core', async () => {
-    const { notes, enrichment, command, read } = await setup(
-      enrichmentState({
-        last_applied: {
-          proposal_id: proposalId,
-          revision: 1,
-          digest: 'c'.repeat(64),
-          undo_available: true,
-        },
-      })
+  it('explicitly replays the identical apply after a negative read, without an automatic retry', async () => {
+    const initial = enrichmentState({
+      state_version: 3,
+      proposal: readyProposal(),
+    })
+    const { notes, enrichment, command, readNote, setServer } =
+      await setup(initial)
+    enrichment.setItemText(0, 'Approved complement exactly as typed\n')
+    command.mockRejectedValueOnce(new NoteEnrichmentRequestError())
+    await enrichment.apply()
+    const firstCommand = command.mock.calls[0][0]
+    expect(enrichment.getSnapshot()).toMatchObject({
+      phase: 'reconciling',
+      canRetryMutation: true,
+    })
+    expect(notes.getSnapshot().isMutationLocked).toBe(true)
+    await enrichment.refresh()
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(command).toHaveBeenCalledOnce()
+    const result = deferred<NoteEnrichmentState>()
+    command.mockReturnValueOnce(result.promise)
+    const retrying = enrichment.retryMutation()
+    await enrichment.retryMutation()
+    await enrichment.refresh()
+    expect(command).toHaveBeenCalledTimes(2)
+    expect(command.mock.calls[1][0]).toBe(firstCommand)
+    expect(notes.getSnapshot().isMutationLocked).toBe(true)
+    const current = enrichmentState({
+      state_version: 4,
+      receipt: {
+        command_id: firstCommand.command_id,
+        action: 'apply',
+        revision: 2,
+        digest: 'd'.repeat(64),
+        idempotent_replay: false,
+      },
+    })
+    setServer(current)
+    readNote.mockResolvedValue(
+      savedNote('current server text, never the old receipt', 3)
     )
+    result.resolve(current)
+    await retrying
+    expect(notes.getSnapshot()).toMatchObject({
+      isMutationLocked: false,
+      content: 'current server text, never the old receipt',
+      confirmedRevision: 3,
+    })
+    expect(enrichment.getSnapshot().canRetryMutation).toBe(false)
+    expect(enrichment.getSnapshot().notice).toBe('applied')
+  })
+
+  it('does not enter cancellation after a generation never reaches Core', async () => {
+    const { notes, enrichment, command, read } = await setup()
     const generation = deferred<NoteEnrichmentState>()
     command.mockReturnValueOnce(generation.promise)
     const generating = enrichment.generate()
@@ -388,7 +421,6 @@ describe('enrichment and the single autosave authority', () => {
       cancellationPending: false,
       notice: null,
     })
-    expect(enrichment.canUndo()).toBe(true)
     expect(notes.getSnapshot().isMutationLocked).toBe(false)
   })
 
@@ -403,7 +435,13 @@ describe('enrichment and the single autosave authority', () => {
         next.proposal = readyProposal({
           id: 'proposal_new0123456789',
           command_id: 'command_new0123456789',
-          text: 'A new proposal',
+          items: [
+            {
+              after_line: 1,
+              text: 'A new proposal',
+              citation_ids: ['citation_0123456789abcdef'],
+            },
+          ],
         })
       if (outcome === 'applied') {
         next.last_applied = {
@@ -432,7 +470,9 @@ describe('enrichment and the single autosave authority', () => {
       expect(command).toHaveBeenCalledOnce()
       if (outcome === 'replaced') {
         expect(enrichment.getSnapshot().dismissed).toBe(false)
-        expect(enrichment.getSnapshot().additions).toBe('A new proposal')
+        expect(enrichment.getSnapshot().review).toEqual([
+          { text: 'A new proposal', kept: true },
+        ])
       }
       if (outcome === 'applied') {
         expect(notes.getSnapshot().content).toBe(
@@ -453,7 +493,7 @@ describe('enrichment and the single autosave authority', () => {
         proposal: readyProposal(),
       })
       const { enrichment, command, read, setServer } = await setup(initial)
-      enrichment.setAdditions('Edited preview survives failed cancellation')
+      enrichment.setItemText(0, 'Edited preview survives failed cancellation')
       command.mockImplementationOnce(async () => {
         if (outcome === 'read-error')
           read.mockRejectedValueOnce(new NoteEnrichmentRequestError())
@@ -471,7 +511,7 @@ describe('enrichment and the single autosave authority', () => {
         error: 'discard',
         dismissed: false,
       })
-      expect(enrichment.getSnapshot().additions).toBe(
+      expect(enrichment.getSnapshot().review[0].text).toBe(
         'Edited preview survives failed cancellation'
       )
       expect(enrichment.canDiscard()).toBe(true)
@@ -502,62 +542,6 @@ describe('enrichment and the single autosave authority', () => {
     })
     expect(enrichment.getSnapshot().error).toBe('mutation')
     expect(enrichment.getSnapshot().notice).toBeNull()
-  })
-
-  it('restores undo availability after reload and refuses after any subsequent local edit', async () => {
-    const state = enrichmentState({
-      last_applied: {
-        proposal_id: proposalId,
-        revision: 1,
-        digest: 'c'.repeat(64),
-        undo_available: true,
-      },
-    })
-    const { notes, enrichment, command } = await setup(state)
-    expect(enrichment.canUndo()).toBe(true)
-    notes.setContent('later typing')
-    await notes.flush()
-    await enrichment.undo()
-    expect(command).not.toHaveBeenCalled()
-    expect(notes.getSnapshot().content).toBe('later typing')
-  })
-
-  it('undoes only under the confirmed revision and reads the restored note', async () => {
-    const { notes, enrichment, command, readNote, setServer } = await setup(
-      enrichmentState({
-        state_version: 3,
-        last_applied: {
-          proposal_id: proposalId,
-          revision: 1,
-          digest: 'c'.repeat(64),
-          undo_available: true,
-        },
-      })
-    )
-    command.mockImplementationOnce(async (request) => {
-      const state = enrichmentState({
-        state_version: 4,
-        receipt: {
-          command_id: request.command_id,
-          action: 'undo',
-          revision: 2,
-          digest: 'd'.repeat(64),
-          idempotent_replay: false,
-        },
-      })
-      setServer(state)
-      readNote.mockResolvedValue(savedNote('exact original', 2))
-      return state
-    })
-    await enrichment.undo()
-    expect(command.mock.calls[0][0]).toMatchObject({
-      action: 'undo',
-      expected_state_version: 3,
-      expected_revision: 1,
-      proposal_id: proposalId,
-    })
-    expect(notes.getSnapshot().content).toBe('exact original')
-    expect(enrichment.getSnapshot().notice).toBe('undone')
   })
 
   it('ignores pending responses after the meeting or identity scope stops', async () => {

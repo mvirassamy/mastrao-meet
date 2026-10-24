@@ -1,8 +1,11 @@
-import type {
-  EnrichmentCoverage,
-  EnrichmentEvidence,
-  EnrichmentProposal,
-  NoteEnrichmentState,
+import {
+  MAX_ENRICHMENT_ITEMS,
+  MAX_ENRICHMENT_LENGTH,
+  type EnrichmentCoverage,
+  type EnrichmentEvidence,
+  type EnrichmentItem,
+  type EnrichmentProposal,
+  type NoteEnrichmentState,
 } from './noteEnrichmentTypes'
 
 const reference = (value: unknown): value is string =>
@@ -39,11 +42,37 @@ function keys(
   )
 }
 
+/** One complement: not blank, without invalid characters, within the shared budget. */
 export function validEnrichmentText(value: unknown): value is string {
   return (
-    boundedText(value, 8000) &&
+    boundedText(value, MAX_ENRICHMENT_LENGTH, 1) &&
+    value.trim().length > 0 &&
     !value.includes('\u0000') &&
     !/[\uD800-\uDFFF]/u.test(value)
+  )
+}
+
+/** Every complement shares one budget, as in the Core contract. */
+export function withinEnrichmentBudget(items: readonly { text: string }[]) {
+  return (
+    items.reduce((total, item) => total + item.text.length, 0) <=
+    MAX_ENRICHMENT_LENGTH
+  )
+}
+
+function item(value: unknown): value is EnrichmentItem {
+  if (!object(value) || !keys(value, ['after_line', 'text', 'citation_ids']))
+    return false
+  const citations = value.citation_ids
+  return (
+    revision(value.after_line) &&
+    value.after_line >= 1 &&
+    validEnrichmentText(value.text) &&
+    Array.isArray(citations) &&
+    citations.length >= 1 &&
+    citations.length <= 32 &&
+    citations.every(reference) &&
+    new Set(citations).size === citations.length
   )
 }
 
@@ -90,7 +119,7 @@ function evidence(value: unknown): value is EnrichmentEvidence {
     citation.end_ms >= citation.start_ms &&
     oneOf(citation.time_basis, ['meeting_relative_ms', 'source_relative_ms']) &&
     (citation.epoch_ref === undefined || reference(citation.epoch_ref)) &&
-    boundedText(value.text, 8000, 1) &&
+    boundedText(value.text, MAX_ENRICHMENT_LENGTH, 1) &&
     (value.speaker === null || boundedText(value.speaker, 160)) &&
     oneOf(value.status, [
       'transcript',
@@ -146,7 +175,7 @@ function proposal(value: unknown): value is EnrichmentProposal {
       'status',
       'base_revision',
       'base_digest',
-      'text',
+      'items',
       'evidence',
       'coverage',
     ])
@@ -165,7 +194,10 @@ function proposal(value: unknown): value is EnrichmentProposal {
     ]) &&
     revision(value.base_revision) &&
     digest(value.base_digest) &&
-    validEnrichmentText(value.text) &&
+    Array.isArray(value.items) &&
+    value.items.length <= MAX_ENRICHMENT_ITEMS &&
+    value.items.every(item) &&
+    withinEnrichmentBudget(value.items) &&
     Array.isArray(value.evidence) &&
     value.evidence.length <= 32 &&
     value.evidence.every(evidence) &&

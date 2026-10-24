@@ -10,6 +10,7 @@ import {
   isPreviewMeetingHistoryRequest,
   previewMeetingHistoryResponse,
 } from './previewMeetingHistoryFixtures'
+import { previewPersonalNoteResponse } from './previewPersonalNote'
 
 export const previewRoomId = 'room_00000000000000000000000000000000'
 export const previewScenario =
@@ -151,16 +152,6 @@ const jsonResponse = (data: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   })
 
-/** A fictional saved note; saving it is refused like every preview write. */
-const previewPersonalNote = {
-  id: 'preview-note',
-  content:
-    'Points à vérifier avec Camille :\n- calendrier de signature du compromis\n- pièces manquantes côté vendeur\n\nÀ relancer avant vendredi.',
-  revision: 3,
-  created_at: '2026-10-16T09:00:00Z',
-  updated_at: '2026-10-16T09:12:00Z',
-}
-
 /** Today's fictional planned slots: one starting soon, one later, one closed. */
 const previewPlannedMeetings = (url: URL) => {
   const nowSeconds = Math.floor(Date.now() / 1000)
@@ -246,17 +237,21 @@ export const preparePreview = () => {
       if (url.pathname.endsWith('/users/me/')) return jsonResponse({}, 401)
       if (url.pathname.endsWith('/request-entry/'))
         return jsonResponse({ status: 'waiting' })
-      // Consent and all other writes fail visibly. Never simulate their success.
-      if (
-        (options?.method ??
-          (input instanceof Request ? input.method : 'GET')) !== 'GET'
+      const method =
+        options?.method ?? (input instanceof Request ? input.method : 'GET')
+      // Personal notes and their enrichment run in memory, to try the flow.
+      const personalNote = await previewPersonalNoteResponse(
+        url,
+        method,
+        options?.body
       )
+      if (personalNote) return personalNote
+      // Consent and all other writes fail visibly. Never simulate their success.
+      if (method !== 'GET')
         return jsonResponse(
           { detail: 'Aperçu local : aucune action envoyée.' },
           503
         )
-      if (url.pathname.endsWith('/personal-note/'))
-        return jsonResponse(previewPersonalNote)
       if (url.pathname.endsWith('/matters/')) {
         const query = (url.searchParams.get('query') ?? '').toLowerCase()
         return jsonResponse({

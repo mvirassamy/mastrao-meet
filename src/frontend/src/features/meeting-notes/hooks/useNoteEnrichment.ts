@@ -3,6 +3,8 @@ import { createNoteEnrichmentApi } from '../api/noteEnrichmentApi'
 import { NoteEnrichmentController } from '../model/NoteEnrichmentController'
 import type { PersonalNotesContextValue } from './usePersonalNotes'
 
+export type NoteEnrichmentView = ReturnType<typeof useNoteEnrichment>
+
 export function useNoteEnrichment(
   notes: PersonalNotesContextValue,
   meetingRef: string

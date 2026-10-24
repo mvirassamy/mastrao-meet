@@ -1,25 +1,54 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, TextArea } from '@/primitives'
+import { Button } from '@/primitives'
+import { ASSISTANT_ICON } from '@/features/meetingHistory/components/meetingContent'
 import { css } from '@/styled-system/css'
-import { MAX_ENRICHMENT_LENGTH } from '../api/noteEnrichmentTypes'
-import { validEnrichmentText } from '../api/parseNoteEnrichment'
-import { useNoteEnrichment } from '../hooks/useNoteEnrichment'
+import {
+  useNoteEnrichment,
+  type NoteEnrichmentView,
+} from '../hooks/useNoteEnrichment'
+import { useNoteHistory } from '../hooks/useNoteHistory'
 import {
   usePersonalNotes,
   type PersonalNotesContextValue,
 } from '../hooks/usePersonalNotes'
 import type { EnrichmentViewState } from '../model/NoteEnrichmentController'
-import { NoteEnrichmentEvidence } from './NoteEnrichmentEvidence'
+import { NoteEnrichmentReview } from './NoteEnrichmentReview'
+import { NoteEnrichmentToast } from './NoteEnrichmentToast'
+import { NoteSaveStatus } from './NoteSaveStatus'
+import { NotesToolbar } from './NotesToolbar'
+import { PersonalNotesEditor } from './PersonalNotesEditor'
 
-/** Only history supplies a meeting reference. Guest notes have no AI controls. */
+/**
+ * The meeting page note: a toolbar above the editor, and a proposal under
+ * review standing in for it. Guest notes have no AI controls, only the editor.
+ */
 export function NoteEnrichment({ meetingRef }: { meetingRef: string }) {
   const notes = usePersonalNotes()
-  if (!notes || notes.isGuest || !notes.hasLoaded) return null
+  if (!notes || notes.isGuest || !notes.hasLoaded)
+    return <PersonalNotesEditor fit="content" />
   return <EnrichmentPanel notes={notes} meetingRef={meetingRef} />
 }
 
-function operationLabel(view: EnrichmentViewState): string | null {
+const secondary = css({ color: 'muted-foreground', fontSize: '0.8125rem' })
+
+const panel = css({
+  display: 'grid',
+  gap: '0.5rem',
+  marginX: '1.25rem',
+  marginBottom: '0.75rem',
+})
+
+/** ⌘Z / ⇧⌘Z (Ctrl on other systems) follow the note history, not the field's. */
+function historyKey(event: KeyboardEvent): 'undo' | 'redo' | null {
+  if (event.nativeEvent.isComposing) return null
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z')
+    return null
+  return event.shiftKey ? 'redo' : 'undo'
+}
+
+/** An operation in progress: shown as a loader, announced as text. */
+function progressLabel(view: EnrichmentViewState): string | null {
   switch (view.phase) {
     case 'loading':
       return 'loading'
@@ -29,23 +58,23 @@ function operationLabel(view: EnrichmentViewState): string | null {
       return 'discarding'
     case 'applying':
       return 'applying'
-    case 'undoing':
-      return 'undoing'
     case 'reconciling':
       return 'verifying'
     case 'idle':
       break
   }
   if (view.dismissed) return null
+  return view.server?.proposal?.status === 'generating' ? 'generating' : null
+}
+
+/** A settled outcome worth reading once the operation is over. */
+function outcomeLabel(view: EnrichmentViewState): string | null {
+  if (view.phase !== 'idle') return null
+  if (view.notice) return view.notice
+  if (view.dismissed) return null
   switch (view.server?.proposal?.status) {
-    case 'generating':
-      return 'generating'
     case 'empty':
       return 'empty'
-    case 'failed':
-      return 'failed'
-    case 'unknown':
-      return 'unknown'
     default:
       return null
   }
@@ -59,49 +88,42 @@ function EnrichmentPanel({
   meetingRef: string
 }) {
   const view = useNoteEnrichment(notes, meetingRef)
+  const history = useNoteHistory(notes)
   const { controller } = view
   const { t } = useTranslation('personalNotes')
-  const id = useId()
   const generateRef = useRef<HTMLButtonElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
-  const previewRef = useRef<HTMLTextAreaElement>(null)
+  const firstItemRef = useRef<HTMLTextAreaElement>(null)
   const lastPreview = useRef<string | null>(null)
   const returnFocus = useRef(false)
-  const [composing, setComposing] = useState(false)
   const proposal = view.proposal
-  const showPreview = Boolean(
-    proposal &&
-    (proposal.status === 'ready' || proposal.status === 'stale') &&
-    !view.dismissed
+  // A proposal made for another version of the note cannot be placed in it.
+  const reviewing = Boolean(
+    proposal?.status === 'ready' && !view.stale && !view.dismissed
   )
   const idle = view.phase === 'idle'
-  const hasLastAddition = Boolean(
-    view.server?.last_applied && view.server.receipt?.action !== 'undo'
-  )
   const generating =
     view.phase === 'generating' ||
     (!view.dismissed && view.server?.proposal?.status === 'generating')
   const canGenerate = Boolean(
     view.server?.eligible && idle && !generating && !notes.hasUnsavedChanges
   )
-  const validAdditions =
-    validEnrichmentText(view.additions) && view.additions.trim().length > 0
-  const label = operationLabel(view)
-  const cancelLabel = t(
-    view.error === 'discard' ? 'enrichment.retryCancel' : 'enrichment.cancel'
-  )
+  const progress = progressLabel(view)
+  const outcome = outcomeLabel(view)
+  // The block's main button carries the loader while anything is in progress.
+  const busy = Boolean(progress) && !view.canRetryMutation
 
   useEffect(() => {
-    if (!showPreview || !proposal || lastPreview.current === proposal.id) return
+    if (!reviewing || !proposal || lastPreview.current === proposal.id) return
     lastPreview.current = proposal.id
-    // A completed generation must not steal focus from ongoing note-taking.
+    // Focus follows only a request made from the enrichment controls.
     if (
       document.activeElement === generateRef.current ||
       document.activeElement === cancelRef.current ||
       document.activeElement === document.body
     )
-      previewRef.current?.focus()
-  }, [showPreview, proposal])
+      firstItemRef.current?.focus()
+  }, [reviewing, proposal])
 
   useEffect(() => {
     if (!returnFocus.current || view.phase !== 'idle') return
@@ -113,188 +135,187 @@ function EnrichmentPanel({
       generateRef.current?.focus()
   }, [view.phase, view.notice])
 
-  if (view.unavailable) return null
+  if (view.unavailable) return <PersonalNotesEditor fit="content" />
 
   const cancel = async () => {
     returnFocus.current = true
     await controller.discard()
   }
 
+  const onEditorKeyDown = (event: KeyboardEvent) => {
+    const action = historyKey(event)
+    if (!action) return
+    event.preventDefault()
+    if (action === 'undo' && history.canUndo) history.undo()
+    if (action === 'redo' && history.canRedo) history.redo()
+  }
+
   return (
-    <section
-      aria-label={t('enrichment.title')}
-      className={css({
-        display: 'grid',
-        gap: '0.75rem',
-        margin: '1.25rem',
-        paddingTop: '1rem',
-        borderTop: '1px solid token(colors.border)',
-        fontSize: '0.875rem',
-      })}
-    >
-      <div
-        className={css({
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: '0.5rem',
-        })}
-      >
-        <Button
-          ref={generateRef}
-          variant="outline"
-          size="sm"
-          aria-describedby={`${id}-help`}
-          isDisabled={!canGenerate}
-          onPress={() => void controller.generate()}
+    <>
+      {!reviewing && (
+        <NotesToolbar
+          status={<NoteSaveStatus notes={notes} />}
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          onUndo={history.undo}
+          onRedo={history.redo}
         >
-          {t('enrichment.generate')}
-        </Button>
-        {hasLastAddition && (
           <Button
-            variant="ghost"
+            ref={generateRef}
+            variant="secondary"
             size="sm"
-            isDisabled={!idle || !controller.canUndo()}
-            onPress={() => void controller.undo()}
+            icon={<img src={ASSISTANT_ICON} alt="" width={16} height={16} />}
+            tooltip={t('enrichment.help')}
+            isDisabled={!canGenerate}
+            loading={busy}
+            onPress={() => void controller.generate()}
           >
-            {t('enrichment.undo')}
+            {t('enrichment.generate')}
           </Button>
-        )}
-      </div>
-      <p id={`${id}-help`} className={css({ color: 'muted-foreground' })}>
-        {t('enrichment.help')}
-      </p>
-      {view.server?.reason && !view.server.eligible && !generating && (
-        <p>{t(`enrichment.reasons.${view.server.reason}`)}</p>
-      )}
-      {hasLastAddition && !controller.canUndo() && !notes.isMutationLocked && (
-        <p>{t('enrichment.undoUnavailable')}</p>
-      )}
-      <p role="status" aria-live="polite" aria-atomic="true">
-        {label && t(`enrichment.${label}`)}
-        {!label && view.notice && t(`enrichment.${view.notice}`)}
-      </p>
-      {view.error && <p role="alert">{t(`enrichment.errors.${view.error}`)}</p>}
-      {view.canRetryMutation && (
-        <div>
-          <p id={`${id}-retry-help`}>{t('enrichment.retryMutationHelp')}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-describedby={`${id}-retry-help`}
-            onPress={() => void controller.retryMutation()}
-          >
-            {t('enrichment.retryMutation')}
-          </Button>
-        </div>
-      )}
-      {view.stale && !view.dismissed && (
-        <p role="alert">{t('enrichment.stale')}</p>
-      )}
-      {(view.error ||
-        view.phase === 'reconciling' ||
-        view.cancellationPending ||
-        proposal?.status === 'unknown') && (
-        <Button
-          variant="outline"
-          size="sm"
-          isDisabled={
-            !idle && view.phase !== 'reconciling' && !view.cancellationPending
-          }
-          onPress={() => void controller.refresh()}
-        >
-          {t('enrichment.check')}
-        </Button>
-      )}
-      {showPreview && proposal && (
-        <div
-          className={css({
-            display: 'grid',
-            gap: '0.75rem',
-            padding: '1rem',
-            border: '1px solid token(colors.border)',
-            borderRadius: '12px',
-            backgroundColor: 'muted',
-          })}
-        >
-          <label htmlFor={`${id}-preview`} className={css({ fontWeight: 600 })}>
-            {t('enrichment.preview')}
-          </label>
-          <TextArea
-            ref={previewRef}
-            id={`${id}-preview`}
-            value={view.additions}
-            readOnly={!idle}
-            aria-describedby={`${id}-review ${id}-length`}
-            aria-invalid={!validAdditions}
-            onChange={(event) =>
-              controller.setAdditions(event.currentTarget.value)
-            }
-            onCompositionStart={() => setComposing(true)}
-            onCompositionEnd={() => setComposing(false)}
-            css={{
-              minHeight: '10rem',
-              padding: '0.75rem',
-              resize: 'vertical',
-              backgroundColor: 'background',
-              whiteSpace: 'pre-wrap',
-              lineHeight: '1.75',
-            }}
-          />
-          <p id={`${id}-review`}>{t('enrichment.review')}</p>
-          <p id={`${id}-length`}>
-            {t('enrichment.length', {
-              count: view.additions.length,
-              maximum: MAX_ENRICHMENT_LENGTH,
-            })}
-          </p>
-          {!validAdditions && (
-            <p role="alert">{t('enrichment.invalidAdditions')}</p>
-          )}
-          {view.modified && <p>{t('enrichment.modified')}</p>}
-          <NoteEnrichmentEvidence proposal={proposal} />
-          <div
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.5rem',
-            })}
-          >
-            <Button
-              size="sm"
-              isDisabled={
-                !idle ||
-                view.stale ||
-                !validAdditions ||
-                composing ||
-                notes.hasUnsavedChanges
-              }
-              onPress={() => void controller.apply()}
-            >
-              {t('enrichment.apply')}
-            </Button>
+          {generating && controller.canDiscard() && (
             <Button
               ref={cancelRef}
-              variant="outline"
+              variant="ghost"
               size="sm"
-              isDisabled={!controller.canDiscard()}
               onPress={() => void cancel()}
             >
-              {cancelLabel}
+              {t('enrichment.cancel')}
             </Button>
-          </div>
+          )}
+        </NotesToolbar>
+      )}
+      {reviewing && proposal ? (
+        <NoteEnrichmentReview
+          key={proposal.id}
+          view={view}
+          proposal={proposal}
+          content={notes.content}
+          canApply={!notes.hasUnsavedChanges}
+          busy={busy}
+          firstItemRef={firstItemRef}
+          cancelRef={cancelRef}
+          onCancel={() => void cancel()}
+        />
+      ) : (
+        <div onKeyDownCapture={onEditorKeyDown}>
+          <PersonalNotesEditor fit="content" showSaveStatus={false} />
         </div>
       )}
-      {generating && controller.canDiscard() && (
-        <Button
-          ref={cancelRef}
-          variant="outline"
-          size="sm"
-          onPress={() => void cancel()}
+      {/* During review, the bar under the note holds the actions. */}
+      <section aria-label={t('enrichment.title')} className={panel}>
+        {view.server?.reason && !view.server.eligible && !generating && (
+          <p className={secondary}>
+            {t(`enrichment.reasons.${view.server.reason}`)}
+          </p>
+        )}
+        <p
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className={progress ? css({ srOnly: true }) : secondary}
         >
-          {cancelLabel}
-        </Button>
-      )}
-    </section>
+          {progress && t(`enrichment.${progress}`)}
+          {!progress && outcome && t(`enrichment.${outcome}`)}
+        </p>
+        <EnrichmentProblemToast
+          view={view}
+          canGenerate={canGenerate}
+          retryCancel={() => void cancel()}
+        />
+      </section>
+    </>
   )
+}
+
+/** At most one toast, for the most pressing problem, with its single fix. */
+function EnrichmentProblemToast({
+  view,
+  canGenerate,
+  retryCancel,
+}: {
+  view: NoteEnrichmentView
+  canGenerate: boolean
+  retryCancel: () => void
+}) {
+  const { t } = useTranslation('personalNotes')
+  const { controller } = view
+  const retry = t('enrichment.retry')
+  // Generation reads the current state first and sends a new versioned command.
+  const regenerate = {
+    label: retry,
+    isDisabled: !canGenerate,
+    onPress: () => void controller.generate(),
+  }
+  if (view.canRetryMutation)
+    return (
+      <NoteEnrichmentToast
+        tone="error"
+        message={t('enrichment.retryMutationTitle')}
+        action={{
+          label: retry,
+          onPress: () => void controller.retryMutation(),
+        }}
+      />
+    )
+  if (view.error === 'discard')
+    return (
+      <NoteEnrichmentToast
+        tone="error"
+        message={t('enrichment.errors.discard')}
+        action={{
+          label: retry,
+          isDisabled: !controller.canDiscard(),
+          onPress: retryCancel,
+        }}
+      />
+    )
+  if (view.error === 'generate')
+    return (
+      <NoteEnrichmentToast
+        tone="error"
+        message={t('enrichment.errors.generate')}
+        action={regenerate}
+      />
+    )
+  if (view.error)
+    return (
+      <NoteEnrichmentToast
+        tone="error"
+        message={t(`enrichment.errors.${view.error}`)}
+        action={{ label: retry, onPress: () => void controller.refresh() }}
+      />
+    )
+  if (
+    view.phase === 'idle' &&
+    !view.dismissed &&
+    view.server?.proposal?.status === 'failed'
+  )
+    return (
+      <NoteEnrichmentToast
+        tone="error"
+        message={t('enrichment.failed')}
+        action={regenerate}
+      />
+    )
+  if (
+    view.phase === 'idle' &&
+    !view.dismissed &&
+    view.server?.proposal?.status === 'unknown'
+  )
+    return (
+      <NoteEnrichmentToast
+        tone="warning"
+        message={t('enrichment.unknown')}
+        action={regenerate}
+      />
+    )
+  if (view.stale && !view.dismissed)
+    return (
+      <NoteEnrichmentToast
+        tone="warning"
+        message={t('enrichment.stale')}
+        action={regenerate}
+      />
+    )
+  return null
 }

@@ -9,6 +9,8 @@ import {
   ArrowRightStartOnRectangleIcon as HeroArrowRightStartOnRectangleIcon,
   ArrowTopRightOnSquareIcon as HeroArrowTopRightOnSquareIcon,
   ArrowUpIcon as HeroArrowUpIcon,
+  ArrowUturnLeftIcon as HeroArrowUturnLeftIcon,
+  ArrowUturnRightIcon as HeroArrowUturnRightIcon,
   ArrowsPointingInIcon as HeroArrowsPointingInIcon,
   ArrowsRightLeftIcon as HeroArrowsRightLeftIcon,
   ArrowsPointingOutIcon as HeroArrowsPointingOutIcon,
@@ -171,6 +173,7 @@ export const PlayCircleIcon = sized(HeroPlayCircleIcon) // RiPlayCircleFill
 export const PlayIcon = sized(HeroPlayIcon) // RiPlayFill
 export const QuestionIcon = sized(HeroQuestionMarkCircleIcon) // RiQuestionFill
 export const RecordIcon = sized(Custom.Record) // RiRecordCircleFill
+export const RedoIcon = sized(HeroArrowUturnRightIcon)
 export const RetryIcon = sized(HeroArrowPathIcon) // RiResetRightFill
 export const RoomsIcon = sized(HeroUserGroupIcon) // RiDoorOpenFill
 export const SendIcon = sized(HeroPaperAirplaneIcon) // RiSendPlane2Fill
@@ -187,6 +190,7 @@ export const TimeIcon = sized(HeroClockIcon) // RiTimeFill
 export const ToolsIcon = sized(HeroSquares2X2Icon) // RiShapesFill
 export const TranslateIcon = sized(HeroLanguageIcon) // RiTranslate2
 export const UnpinIcon = sized(Custom.PinSlash) // RiUnpinFill
+export const UndoIcon = sized(HeroArrowUturnLeftIcon)
 export const UserMinusIcon = sized(HeroUserMinusIcon) // RiUserMinusFill
 export const VideoAddIcon = sized(HeroVideoCameraIcon) // RiVideoAddFill
 export const VideoIcon = sized(HeroVideoCameraIcon) // RiVideoFill

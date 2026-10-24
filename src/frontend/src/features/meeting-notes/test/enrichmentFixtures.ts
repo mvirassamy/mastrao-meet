@@ -24,7 +24,13 @@ export function readyProposal(
     status: 'ready',
     base_revision: 1,
     base_digest: 'a'.repeat(64),
-    text: 'Vérifier la date avec Alice.',
+    items: [
+      {
+        after_line: 1,
+        text: '- Vérifier la date avec Alice.',
+        citation_ids: ['citation_0123456789abcdef'],
+      },
+    ],
     evidence: [
       {
         citation: {

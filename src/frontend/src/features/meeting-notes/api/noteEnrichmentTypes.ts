@@ -1,5 +1,7 @@
 /** Browser DTOs mirror meeting-runtime-contract/note-enrichment, without Node imports. */
+/** Budget shared by every complement of one proposal. */
 export const MAX_ENRICHMENT_LENGTH = 8_000
+export const MAX_ENRICHMENT_ITEMS = 32
 
 export interface EnrichmentEvidence {
   citation: {
@@ -43,13 +45,26 @@ export interface EnrichmentCoverage {
   omitted_segments: number
 }
 
+/** A complement inserted right under one line of the note it was generated from. */
+export interface EnrichmentItem {
+  after_line: number
+  text: string
+  citation_ids: string[]
+}
+
+/** A kept complement, by its position in the proposal, with the text to add. */
+export interface ApprovedEnrichmentItem {
+  index: number
+  text: string
+}
+
 export interface EnrichmentProposal {
   id: string
   command_id: string
   status: 'generating' | 'ready' | 'empty' | 'failed' | 'unknown' | 'stale'
   base_revision: number
   base_digest: string
-  text: string
+  items: EnrichmentItem[]
   evidence: EnrichmentEvidence[]
   coverage: EnrichmentCoverage | null
 }
@@ -98,10 +113,9 @@ export type NoteEnrichmentCommand = CommandBase &
         action: 'apply'
         expected_revision: number
         proposal_id: string
-        additions: string
+        items: ApprovedEnrichmentItem[]
       }
     | { action: 'discard'; proposal_id: string }
-    | { action: 'undo'; expected_revision: number; proposal_id: string }
   )
 
 export interface NoteEnrichmentApi {

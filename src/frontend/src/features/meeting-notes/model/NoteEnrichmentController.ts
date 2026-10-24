@@ -1,6 +1,10 @@
 import { NoteEnrichmentRequestError } from '../api/noteEnrichmentApi'
-import { validEnrichmentText } from '../api/parseNoteEnrichment'
+import {
+  validEnrichmentText,
+  withinEnrichmentBudget,
+} from '../api/parseNoteEnrichment'
 import type {
+  ApprovedEnrichmentItem,
   NoteEnrichmentApi,
   NoteEnrichmentCommand,
   NoteEnrichmentState,
@@ -14,20 +18,24 @@ type Phase =
   | 'generating'
   | 'discarding'
   | 'applying'
-  | 'undoing'
   | 'reconciling'
+/** The user's decision on one proposed complement, at the same position. */
+export interface EnrichmentReviewItem {
+  text: string
+  kept: boolean
+}
 export interface EnrichmentViewState {
   server: NoteEnrichmentState | null
   proposal: EnrichmentProposal | null
   phase: Phase
-  additions: string
+  review: EnrichmentReviewItem[]
+  /** At least one kept text differs from the proposal. */
   modified: boolean
   stale: boolean
   dismissed: boolean
   error: 'load' | 'generate' | 'discard' | 'mutation' | null
   notice:
     | 'applied'
-    | 'undone'
     | 'cancelled'
     | 'proposalRemoved'
     | 'proposalAppliedElsewhere'
@@ -38,7 +46,7 @@ export interface EnrichmentViewState {
 }
 
 interface PendingMutation {
-  command: Extract<NoteEnrichmentCommand, { action: 'apply' | 'undo' }>
+  command: Extract<NoteEnrichmentCommand, { action: 'apply' }>
   settled: boolean
   applied: boolean
   minimumRevision: number
@@ -50,13 +58,37 @@ interface CancellationTarget {
   stateVersion: number
 }
 
+/** Every proposed complement starts kept, with the proposed text. */
+const reviewOf = (
+  proposal: EnrichmentProposal | null
+): EnrichmentReviewItem[] =>
+  (proposal?.items ?? []).map((item) => ({ text: item.text, kept: true }))
+
+/** The kept complements, by proposal position, as the apply command sends them. */
+export function approvedItems(
+  review: readonly EnrichmentReviewItem[]
+): ApprovedEnrichmentItem[] {
+  return review.flatMap((entry, index) =>
+    entry.kept ? [{ index, text: entry.text }] : []
+  )
+}
+
+/** At least one complement, each valid, within the shared budget. */
+export function validApproval(items: readonly ApprovedEnrichmentItem[]) {
+  return (
+    items.length > 0 &&
+    items.every((item) => validEnrichmentText(item.text)) &&
+    withinEnrichmentBudget(items)
+  )
+}
+
 /** Owns the proposal only. The existing notes controller owns every note write. */
 export class NoteEnrichmentController {
   private state: EnrichmentViewState = {
     server: null,
     proposal: null,
     phase: 'loading',
-    additions: '',
+    review: [],
     modified: false,
     stale: false,
     dismissed: false,
@@ -73,7 +105,7 @@ export class NoteEnrichmentController {
   private generationCommandId: string | null = null
   private cancellationTarget: CancellationTarget | null = null
   private proposalEditVersion = 0
-  private undoEditVersion = 0
+  private noteEditVersion = 0
   private readRevision: number | null = null
   private reading = false
   private reconciling = false
@@ -99,6 +131,7 @@ export class NoteEnrichmentController {
     this.active = true
     this.requestController = new AbortController()
     this.unsubscribe = this.notes.subscribe(this.notesChanged)
+    this.noteEditVersion = this.notes.getSnapshot().editVersion
     void this.refresh()
   }
 
@@ -112,11 +145,31 @@ export class NoteEnrichmentController {
     clearTimeout(this.poll)
   }
 
-  setAdditions = (additions: string) => {
+  setItemText = (index: number, text: string) => {
+    this.updateReview(index, { text })
+  }
+
+  setItemKept = (index: number, kept: boolean) => {
+    this.updateReview(index, { kept })
+  }
+
+  /** Back to the proposal as generated: every complement kept, unedited. */
+  resetReview = () => {
     if (!this.active || this.state.phase !== 'idle') return
+    this.update({ review: reviewOf(this.state.proposal), modified: false })
+  }
+
+  private updateReview(index: number, change: Partial<EnrichmentReviewItem>) {
+    if (!this.active || this.state.phase !== 'idle') return
+    const review = this.state.review.map((entry, at) =>
+      at === index ? { ...entry, ...change } : entry
+    )
+    const proposed = this.state.proposal?.items ?? []
     this.update({
-      additions,
-      modified: additions !== this.state.proposal?.text,
+      review,
+      modified: review.some(
+        (entry, at) => entry.kept && entry.text !== proposed[at]?.text
+      ),
     })
   }
 
@@ -289,9 +342,6 @@ export class NoteEnrichmentController {
     }
   }
 
-  apply = () => this.mutate('apply')
-  undo = () => this.mutate('undo')
-
   retryMutation = async () => {
     const pending = this.pendingMutation
     if (
@@ -302,84 +352,50 @@ export class NoteEnrichmentController {
       this.reconciling
     )
       return
-    this.update({
-      phase: pending.command.action === 'apply' ? 'applying' : 'undoing',
-      canRetryMutation: false,
-    })
+    this.update({ phase: 'applying', canRetryMutation: false })
     await this.sendMutation(pending)
   }
 
-  canUndo = () => {
-    const last = this.state.server?.last_applied
-    const notes = this.notes.getSnapshot()
-    return Boolean(
-      last?.undo_available &&
-      !notes.hasUnsavedChanges &&
-      notes.confirmedRevision === last.revision &&
-      notes.editVersion === this.undoEditVersion
-    )
-  }
-
-  private async mutate(action: 'apply' | 'undo') {
+  /** Adds the kept complements; going back afterwards is the note history's job. */
+  apply = async () => {
     if (
       !this.active ||
       this.state.phase !== 'idle' ||
       !this.state.server ||
-      this.pendingMutation
-    )
-      return
-    if (action === 'undo' && !this.canUndo()) return
-    if (
-      action === 'apply' &&
-      (this.state.stale ||
-        this.state.dismissed ||
-        this.state.server.proposal?.status !== 'ready' ||
-        !this.state.additions.trim() ||
-        !validEnrichmentText(this.state.additions))
+      this.pendingMutation ||
+      this.state.stale ||
+      this.state.dismissed ||
+      this.state.server.proposal?.status !== 'ready' ||
+      !validApproval(approvedItems(this.state.review))
     )
       return
     const scope = this.scope
     this.generationToken += 1
-    this.update({
-      phase: action === 'apply' ? 'applying' : 'undoing',
-      error: null,
-      notice: null,
-    })
+    this.update({ phase: 'applying', error: null, notice: null })
     const saved = await this.notes.flush()
     if (!this.isCurrent(scope)) return
     const baseline = this.notes.getConfirmedSnapshot()
     const server = this.state.server
-    const proposalId =
-      action === 'apply'
-        ? server.proposal?.id
-        : server.last_applied?.proposal_id
-    const expectedRevision =
-      action === 'apply'
-        ? server.proposal?.base_revision
-        : server.last_applied?.revision
+    const proposal = server.proposal
     if (
       !saved ||
       !baseline ||
-      !proposalId ||
-      baseline.revision !== expectedRevision ||
-      (action === 'apply' && this.state.stale) ||
-      (action === 'undo' && !this.canUndo()) ||
+      !proposal ||
+      baseline.revision !== proposal.base_revision ||
+      this.state.stale ||
       !this.notes.beginExternalMutation(baseline.revision)
     ) {
       this.update({ phase: 'idle', error: 'mutation' })
       return
     }
-    const common = {
-      ...this.envelope(server),
-      proposal_id: proposalId,
-      expected_revision: baseline.revision,
-    }
-    let command: PendingMutation['command']
-    if (action === 'apply')
-      command = { ...common, action, additions: this.state.additions }
-    else command = { ...common, action }
     const pending: PendingMutation = {
-      command,
+      command: {
+        ...this.envelope(server),
+        action: 'apply',
+        proposal_id: proposal.id,
+        expected_revision: baseline.revision,
+        items: approvedItems(this.state.review),
+      },
       settled: false,
       applied: false,
       minimumRevision: baseline.revision,
@@ -449,15 +465,11 @@ export class NoteEnrichmentController {
         return
       if (!this.isCurrent(scope)) return
       this.pendingMutation = null
-      if (pending.applied && pending.command.action === 'apply')
-        this.update({ modified: false })
+      if (pending.applied) this.update({ modified: false })
       this.acceptServer(current)
-      let notice: EnrichmentViewState['notice'] = null
-      if (pending.applied)
-        notice = pending.command.action === 'apply' ? 'applied' : 'undone'
       this.update({
         phase: 'idle',
-        notice,
+        notice: pending.applied ? 'applied' : null,
         error: pending.applied ? null : 'mutation',
         canRetryMutation: false,
       })
@@ -563,7 +575,6 @@ export class NoteEnrichmentController {
       server.state_version < this.state.server.state_version
     )
       return
-    const old = this.state.server
     const displayed = this.state.proposal
     const proposalChanged = displayed?.id !== server.proposal?.id
     if (proposalChanged && this.state.modified && !this.state.dismissed) {
@@ -573,7 +584,7 @@ export class NoteEnrichmentController {
       this.proposalEditVersion =
         editVersion ?? this.notes.getSnapshot().editVersion
       this.update({
-        additions: server.proposal?.text ?? '',
+        review: reviewOf(server.proposal),
         modified: false,
         stale: false,
         proposal: server.proposal,
@@ -583,18 +594,12 @@ export class NoteEnrichmentController {
       server.proposal?.status === 'ready'
     ) {
       this.update({
-        additions: server.proposal.text,
+        review: reviewOf(server.proposal),
         modified: false,
         proposal: server.proposal,
       })
     } else if (!proposalChanged) {
       this.update({ proposal: server.proposal })
-    }
-    if (
-      old?.last_applied?.proposal_id !== server.last_applied?.proposal_id ||
-      old?.last_applied?.revision !== server.last_applied?.revision
-    ) {
-      this.undoEditVersion = this.notes.getSnapshot().editVersion
     }
     this.update({ server })
     this.markStale()
@@ -603,14 +608,17 @@ export class NoteEnrichmentController {
   private notesChanged = () => {
     this.markStale()
     const note = this.notes.getSnapshot()
+    // « Compléments ajoutés » no longer describes a note edited since.
+    if (note.editVersion !== this.noteEditVersion) {
+      this.noteEditVersion = note.editVersion
+      if (this.state.notice) this.update({ notice: null })
+    }
     if (
       note.status === 'ready' &&
       !note.hasUnsavedChanges &&
       note.confirmedRevision !== this.readRevision
     )
       void this.refresh()
-    // Undo availability also changes immediately on a local keystroke.
-    this.update({})
   }
 
   private markStale() {

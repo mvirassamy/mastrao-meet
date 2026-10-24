@@ -1,5 +1,15 @@
 # Changelog
 
+- 2026-10-24: Show note enrichment as a diff inside My notes: each suggested
+  complement appears in green under the line it details, can be kept (✓),
+  refused (✕) or corrected in place, then saved or cancelled from the bar
+  under the note. Core inserts the kept complements under their lines
+  (Platform profile meeting_notes_enrichment_fr_v2). Progress shows as a
+  loader on the main button and problems as a single toast with one retry.
+  A toolbar above the note holds « Enrichir mes notes » and undo / redo
+  arrows (⌘Z / ⇧⌘Z) over the note history, typing and added complements
+  alike; they replace « Annuler le dernier enrichissement ».
+
 - 2026-10-24: Accept Core host invitation links and reject ambiguous
   invitation fragments while preserving existing host links.
 
