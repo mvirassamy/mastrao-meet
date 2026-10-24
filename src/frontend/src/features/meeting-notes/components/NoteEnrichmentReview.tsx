@@ -1,6 +1,5 @@
 import { useId, useState, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckIcon, CloseIcon } from '@/icons'
 import { Button, TextArea } from '@/primitives'
 import { ASSISTANT_ICON } from '@/features/meetingHistory/components/meetingContent'
 import { css, cx } from '@/styled-system/css'
@@ -15,6 +14,7 @@ import {
   validApproval,
   type EnrichmentReviewItem,
 } from '../model/NoteEnrichmentController'
+import { NoteEnrichmentDecision } from './NoteEnrichmentDecision'
 import { NoteEnrichmentEvidence } from './NoteEnrichmentEvidence'
 
 type DiffRow =
@@ -81,11 +81,6 @@ const gutter = css({
   lineHeight: '1.75rem',
   color: 'var(--success-foreground)',
   '[data-kept=false] &': { color: 'danger' },
-})
-
-const decision = css({
-  color: 'muted-foreground',
-  '&[aria-pressed=true]': { color: 'white!' },
 })
 
 const bar = css({
@@ -157,38 +152,12 @@ function ComplementLine({
           },
         }}
       />
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label={t('enrichment.keep', { number })}
-        aria-pressed={entry.kept}
+      <NoteEnrichmentDecision
+        number={number}
+        kept={entry.kept}
         isDisabled={!idle}
-        className={cx(
-          decision,
-          css({
-            '&[aria-pressed=true]': {
-              backgroundColor: 'var(--success-foreground)!',
-            },
-          })
-        )}
-        onPress={() => controller.setItemKept(index, true)}
-      >
-        <CheckIcon aria-hidden="true" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label={t('enrichment.refuse', { number })}
-        aria-pressed={!entry.kept}
-        isDisabled={!idle}
-        className={cx(
-          decision,
-          css({ '&[aria-pressed=true]': { backgroundColor: 'danger!' } })
-        )}
-        onPress={() => controller.setItemKept(index, false)}
-      >
-        <CloseIcon aria-hidden="true" />
-      </Button>
+        onChange={(kept) => controller.setItemKept(index, kept)}
+      />
     </div>
   )
 }
