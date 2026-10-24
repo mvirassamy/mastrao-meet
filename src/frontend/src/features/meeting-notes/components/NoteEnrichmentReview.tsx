@@ -150,11 +150,8 @@ function ComplementLine({
             color: 'muted-foreground',
             textDecoration: 'line-through',
           },
-          _focusVisible: {
-            outline: '2px solid token(colors.primary)!',
-            outlineOffset: '1px!',
-            borderRadius: '4px',
-          },
+          // Written like the note: the caret shows the focus, no frame.
+          _focusVisible: { outline: 'none!' },
         }}
       />
       <NoteEnrichmentDecision

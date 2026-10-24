@@ -123,12 +123,9 @@ export function PersonalNotesEditor({
           whiteSpace: 'pre-wrap',
           _placeholder: { color: 'muted-foreground' },
           _disabled: { color: 'muted-foreground' },
-          // Important: the global focus ring is unlayered and would win, drawn
-          // outside and clipped by the side panel.
-          _focusVisible: {
-            outline: '2px solid token(colors.primary)!',
-            outlineOffset: '-2px!',
-          },
+          // A writing surface: the caret shows the focus, a frame would only
+          // box the page. Important: the global focus ring is unlayered.
+          _focusVisible: { outline: 'none!' },
         }}
       />
       <p id={`${id}-limit`} className={css({ srOnly: true })}>
