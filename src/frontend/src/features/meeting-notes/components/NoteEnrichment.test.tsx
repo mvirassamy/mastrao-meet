@@ -60,6 +60,7 @@ function mockBackend() {
   let mutationWait: Promise<void> | undefined
   let denied = false
   let rejectMutation = false
+  let rejectGeneration = false
   let discardFailure: 'before' | 'after' | undefined
   const fetch = vi
     .fn<typeof globalThis.fetch>()
@@ -76,10 +77,18 @@ function mockBackend() {
         }
         switch (command.action) {
           case 'generate':
+            if (rejectGeneration) {
+              rejectGeneration = false
+              throw new TypeError('Generation never reached Core')
+            }
             await generationWait
             state = enrichmentState({
               state_version: state.state_version + 1,
               proposal: readyProposal({
+                // Like Core, a new generation replaces any earlier proposal.
+                id: state.proposal
+                  ? `proposal_${command.command_id}`
+                  : proposalId,
                 command_id: command.command_id,
                 base_revision: command.expected_revision,
               }),
@@ -156,6 +165,9 @@ function mockBackend() {
     },
     failNextMutation: () => {
       rejectMutation = true
+    },
+    failNextGeneration: () => {
+      rejectGeneration = true
     },
     failNextDiscard: (when: 'before' | 'after') => {
       discardFailure = when
@@ -347,6 +359,55 @@ describe('history enrichment through real APIs, controller and primitives', () =
     expect(
       backend.commands().filter((request) => request.action === 'apply')
     ).toEqual([])
+    // The stale toast offers the way out: a new proposal for the saved note.
+    await advance(800)
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.retry }))
+    await advance()
+    expect(
+      screen.getByRole('region', { name: fr.enrichment.review })
+    ).toBeTruthy()
+    expect(backend.commands().map((request) => request.action)).toEqual([
+      'generate',
+      'generate',
+    ])
+  })
+
+  it('retries a generation that could not be confirmed from its toast', async () => {
+    const backend = mockBackend()
+    mount()
+    await advance()
+    backend.failNextGeneration()
+    await generate()
+    expect(screen.getByRole('alert').textContent).toBe(
+      fr.enrichment.errors.generate
+    )
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.retry }))
+    await advance()
+    expect(
+      screen.getByRole('region', { name: fr.enrichment.review })
+    ).toBeTruthy()
+    expect(backend.commands().map((request) => request.action)).toEqual([
+      'generate',
+      'generate',
+    ])
+  })
+
+  it('shows a failed generation as a toast that generates again', async () => {
+    const backend = mockBackend()
+    backend.setState(
+      enrichmentState({
+        state_version: 1,
+        proposal: readyProposal({ status: 'failed', items: [] }),
+      })
+    )
+    mount()
+    await advance()
+    expect(screen.getByRole('alert').textContent).toBe(fr.enrichment.failed)
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.retry }))
+    await advance()
+    expect(backend.commands().map((request) => request.action)).toEqual([
+      'generate',
+    ])
   })
 
   it('only offers cancellation after a server proposal exists and restores focus after confirmation', async () => {

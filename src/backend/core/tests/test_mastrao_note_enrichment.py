@@ -111,13 +111,13 @@ def test_guest_grant_does_not_authorize_enrichment():
     upstream.assert_not_called()
 
 
-@pytest.mark.parametrize("action", ["read", "generate", "apply", "discard", "undo"])
+@pytest.mark.parametrize("action", ["read", "generate", "apply", "discard"])
 def test_matching_guest_author_cannot_enrich_an_account_note(history_authors, action):
     """Every action rejects a guest note before contacting Platform."""
     _, guest = history_authors
     guest.return_value = {"participant_grant": "synthetic-guest-grant"}
     command = {**COMMAND, "action": action}
-    if action in ("apply", "discard", "undo"):
+    if action in ("apply", "discard"):
         command["proposal_id"] = "proposal_0123456789abcdef"
     if action == "discard":
         del command["expected_revision"]
@@ -217,6 +217,7 @@ APPLY = {"action": "apply", "proposal_id": "proposal_0123456789abcdef"}
         {"owner_id": "actor_other0123456789"},
         {"expected_state_version": True},
         {"action": "read"},
+        {"action": "undo", "proposal_id": "proposal_0123456789abcdef"},
         {"version": True},
         {**APPLY, "items": [{"index": 0, "text": "\x00"}]},
         {**APPLY, "items": [{"index": 0, "text": " "}]},
@@ -253,7 +254,7 @@ def test_duplicate_fields_and_oversized_command_refused():
     """Bound request bytes and reject duplicate keys or query fields."""
     with patch("core.mastrao_note_enrichment.request_platform") as upstream:
         client = _client()
-        duplicate = json.dumps(COMMAND)[:-1] + ', "action": "undo"}'
+        duplicate = json.dumps(COMMAND)[:-1] + ', "action": "discard"}'
         assert (
             client.post(
                 URL, data=duplicate, content_type="application/json"

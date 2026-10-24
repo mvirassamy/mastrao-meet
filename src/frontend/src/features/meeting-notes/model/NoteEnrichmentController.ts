@@ -167,7 +167,9 @@ export class NoteEnrichmentController {
     const proposed = this.state.proposal?.items ?? []
     this.update({
       review,
-      modified: review.some((entry, at) => entry.text !== proposed[at]?.text),
+      modified: review.some(
+        (entry, at) => entry.kept && entry.text !== proposed[at]?.text
+      ),
     })
   }
 

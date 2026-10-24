@@ -99,8 +99,6 @@ def _validate_command(value, meeting_ref):
             fields |= {"expected_revision"}
         case "apply":
             fields |= {"expected_revision", "proposal_id", "items"}
-        case "undo":
-            fields |= {"expected_revision", "proposal_id"}
         case "discard":
             fields |= {"proposal_id"}
         case _:

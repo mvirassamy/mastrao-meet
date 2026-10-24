@@ -32,12 +32,6 @@ export function NoteEnrichment({ meetingRef }: { meetingRef: string }) {
 
 const secondary = css({ color: 'muted-foreground', fontSize: '0.8125rem' })
 
-/** The AI action stands out in soft blue without competing with the note. */
-const enrichButton = css({
-  color: 'primary!',
-  backgroundColor: 'color-mix(in srgb, token(colors.primary) 9%, transparent)!',
-})
-
 const panel = css({
   display: 'grid',
   gap: '0.5rem',
@@ -81,8 +75,6 @@ function outcomeLabel(view: EnrichmentViewState): string | null {
   switch (view.server?.proposal?.status) {
     case 'empty':
       return 'empty'
-    case 'failed':
-      return 'failed'
     default:
       return null
   }
@@ -170,13 +162,12 @@ function EnrichmentPanel({
         >
           <Button
             ref={generateRef}
-            variant="ghost"
+            variant="secondary"
             size="sm"
             icon={<img src={ASSISTANT_ICON} alt="" width={16} height={16} />}
             tooltip={t('enrichment.help')}
             isDisabled={!canGenerate}
             loading={busy}
-            className={enrichButton}
             onPress={() => void controller.generate()}
           >
             {t('enrichment.generate')}
@@ -226,7 +217,11 @@ function EnrichmentPanel({
           {progress && t(`enrichment.${progress}`)}
           {!progress && outcome && t(`enrichment.${outcome}`)}
         </p>
-        <EnrichmentProblemToast view={view} retryCancel={() => void cancel()} />
+        <EnrichmentProblemToast
+          view={view}
+          canGenerate={canGenerate}
+          retryCancel={() => void cancel()}
+        />
       </section>
     </>
   )
@@ -235,14 +230,22 @@ function EnrichmentPanel({
 /** At most one toast, for the most pressing problem, with its single fix. */
 function EnrichmentProblemToast({
   view,
+  canGenerate,
   retryCancel,
 }: {
   view: NoteEnrichmentView
+  canGenerate: boolean
   retryCancel: () => void
 }) {
   const { t } = useTranslation('personalNotes')
   const { controller } = view
   const retry = t('enrichment.retry')
+  // Generation reads the current state first and sends a new versioned command.
+  const regenerate = {
+    label: retry,
+    isDisabled: !canGenerate,
+    onPress: () => void controller.generate(),
+  }
   if (view.canRetryMutation)
     return (
       <NoteEnrichmentToast
@@ -266,12 +269,32 @@ function EnrichmentProblemToast({
         }}
       />
     )
+  if (view.error === 'generate')
+    return (
+      <NoteEnrichmentToast
+        tone="error"
+        message={t('enrichment.errors.generate')}
+        action={regenerate}
+      />
+    )
   if (view.error)
     return (
       <NoteEnrichmentToast
         tone="error"
         message={t(`enrichment.errors.${view.error}`)}
         action={{ label: retry, onPress: () => void controller.refresh() }}
+      />
+    )
+  if (
+    view.phase === 'idle' &&
+    !view.dismissed &&
+    view.server?.proposal?.status === 'failed'
+  )
+    return (
+      <NoteEnrichmentToast
+        tone="error"
+        message={t('enrichment.failed')}
+        action={regenerate}
       />
     )
   if (
@@ -288,7 +311,11 @@ function EnrichmentProblemToast({
     )
   if (view.stale && !view.dismissed)
     return (
-      <NoteEnrichmentToast tone="warning" message={t('enrichment.stale')} />
+      <NoteEnrichmentToast
+        tone="warning"
+        message={t('enrichment.stale')}
+        action={regenerate}
+      />
     )
   return null
 }
