@@ -4,8 +4,10 @@ import { LockIcon } from '@/icons'
 import { TextArea } from '@/primitives/TextArea'
 import { css } from '@/styled-system/css'
 import { usePersonalNotes } from '../hooks/usePersonalNotes'
+import { useFillScrollArea } from '../hooks/useFillScrollArea'
 import { PERSONAL_NOTE_LIMIT } from '../model/noteContent'
 import { NoteSaveAlert, NoteSaveStatus } from './NoteSaveStatus'
+import { notePageScroll } from './notePageScroll'
 
 /** The remaining count only shows once it matters. */
 const NEAR_LIMIT = PERSONAL_NOTE_LIMIT * 0.9
@@ -25,6 +27,10 @@ export function PersonalNotesEditor({
   const notes = usePersonalNotes()
   const { t } = useTranslation('personalNotes', { useSuspense: false })
   const id = useId()
+  // On the meeting page the note takes the rest of the screen and scrolls itself.
+  const page = useFillScrollArea<HTMLTextAreaElement>(
+    fit === 'content' && Boolean(notes)
+  )
   const flush = notes?.flush
   const setComposing = notes?.setComposing
 
@@ -71,6 +77,7 @@ export function PersonalNotesEditor({
         {t('title', { defaultValue: 'Mes notes' })}
       </label>
       <TextArea
+        ref={page.ref}
         id={id}
         aria-describedby={[
           `${id}-privacy`,
@@ -79,7 +86,8 @@ export function PersonalNotesEditor({
         ]
           .filter(Boolean)
           .join(' ')}
-        fieldSizing={fit === 'content' ? 'content' : undefined}
+        className={fit === 'content' ? notePageScroll : undefined}
+        style={{ height: page.height }}
         value={notes.content}
         disabled={!notes.hasLoaded}
         readOnly={notes.isMutationLocked}
@@ -115,12 +123,11 @@ export function PersonalNotesEditor({
           whiteSpace: 'pre-wrap',
           _placeholder: { color: 'muted-foreground' },
           _disabled: { color: 'muted-foreground' },
-          // Important: the global focus ring is unlayered and would win, drawn
-          // outside and clipped by the side panel.
-          _focusVisible: {
-            outline: '2px solid token(colors.primary)!',
-            outlineOffset: '-2px!',
-          },
+          // A writing surface: the caret shows the focus, a frame would only
+          // box the page. Same transparent outline as at rest, so the
+          // TextArea transition has nothing to fade on blur. Important: the
+          // global focus ring is unlayered.
+          _focusVisible: { outline: '2px solid transparent!' },
         }}
       />
       <p id={`${id}-limit`} className={css({ srOnly: true })}>

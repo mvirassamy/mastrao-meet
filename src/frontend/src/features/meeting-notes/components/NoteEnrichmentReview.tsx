@@ -9,6 +9,7 @@ import type {
 } from '../api/noteEnrichmentTypes'
 import { validEnrichmentText } from '../api/parseNoteEnrichment'
 import type { NoteEnrichmentView } from '../hooks/useNoteEnrichment'
+import { useFillScrollArea } from '../hooks/useFillScrollArea'
 import {
   approvedItems,
   validApproval,
@@ -16,6 +17,7 @@ import {
 } from '../model/NoteEnrichmentController'
 import { NoteEnrichmentDecision } from './NoteEnrichmentDecision'
 import { NoteEnrichmentEvidence } from './NoteEnrichmentEvidence'
+import { notePageScroll } from './notePageScroll'
 
 type DiffRow =
   | { kind: 'original'; line: number; text: string }
@@ -43,8 +45,11 @@ function diffRows(
   ])
 }
 
-/** Same type and padding as the note editor, so the note does not move. */
-const page = css({
+/**
+ * Same type, padding and height limit as the note editor, so the note does
+ * not move and scrolls inside itself.
+ */
+const pageText = css({
   paddingX: '1.25rem',
   paddingY: '1rem',
   fontSize: '0.875rem',
@@ -145,11 +150,8 @@ function ComplementLine({
             color: 'muted-foreground',
             textDecoration: 'line-through',
           },
-          _focusVisible: {
-            outline: '2px solid token(colors.primary)!',
-            outlineOffset: '1px!',
-            borderRadius: '4px',
-          },
+          // Written like the note: the caret shows the focus, no frame.
+          _focusVisible: { outline: '2px solid transparent!' },
         }}
       />
       <NoteEnrichmentDecision
@@ -189,6 +191,7 @@ export function NoteEnrichmentReview({
   const { controller } = view
   const { t } = useTranslation('personalNotes')
   const id = useId()
+  const page = useFillScrollArea<HTMLDivElement>(true)
   const [composing, setComposing] = useState(false)
   const idle = view.phase === 'idle'
   const approved = approvedItems(view.review)
@@ -209,7 +212,11 @@ export function NoteEnrichmentReview({
       <h3 id={`${id}-title`} className={css({ srOnly: true })}>
         {t('enrichment.review')}
       </h3>
-      <div className={page}>
+      <div
+        ref={page.ref}
+        className={cx(pageText, notePageScroll)}
+        style={{ height: page.height }}
+      >
         {diffRows(content, proposal.items).map((row) =>
           row.kind === 'original' ? (
             <p key={`line-${row.line}`} className={originalLine}>

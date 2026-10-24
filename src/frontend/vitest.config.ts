@@ -12,6 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
     include: [
       'src/features/meeting-notes/**/*.test.{ts,tsx}',
       'src/features/{rooms,home,meetingHistory,recordingTemplate,settings,subtitle}/**/*.test.{ts,tsx}',
