@@ -16,6 +16,7 @@ import {
 } from '../model/NoteEnrichmentController'
 import { NoteEnrichmentDecision } from './NoteEnrichmentDecision'
 import { NoteEnrichmentEvidence } from './NoteEnrichmentEvidence'
+import { notePageScroll } from './notePageScroll'
 
 type DiffRow =
   | { kind: 'original'; line: number; text: string }
@@ -43,7 +44,10 @@ function diffRows(
   ])
 }
 
-/** Same type and padding as the note editor, so the note does not move. */
+/**
+ * Same type, padding and height limit as the note editor, so the note does
+ * not move and scrolls inside itself.
+ */
 const page = css({
   paddingX: '1.25rem',
   paddingY: '1rem',
@@ -209,7 +213,7 @@ export function NoteEnrichmentReview({
       <h3 id={`${id}-title`} className={css({ srOnly: true })}>
         {t('enrichment.review')}
       </h3>
-      <div className={page}>
+      <div className={cx(page, notePageScroll)}>
         {diffRows(content, proposal.items).map((row) =>
           row.kind === 'original' ? (
             <p key={`line-${row.line}`} className={originalLine}>

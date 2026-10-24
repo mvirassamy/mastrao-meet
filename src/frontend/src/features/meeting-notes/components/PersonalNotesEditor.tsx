@@ -6,6 +6,7 @@ import { css } from '@/styled-system/css'
 import { usePersonalNotes } from '../hooks/usePersonalNotes'
 import { PERSONAL_NOTE_LIMIT } from '../model/noteContent'
 import { NoteSaveAlert, NoteSaveStatus } from './NoteSaveStatus'
+import { notePageScroll } from './notePageScroll'
 
 /** The remaining count only shows once it matters. */
 const NEAR_LIMIT = PERSONAL_NOTE_LIMIT * 0.9
@@ -80,6 +81,7 @@ export function PersonalNotesEditor({
           .filter(Boolean)
           .join(' ')}
         fieldSizing={fit === 'content' ? 'content' : undefined}
+        className={fit === 'content' ? notePageScroll : undefined}
         value={notes.content}
         disabled={!notes.hasLoaded}
         readOnly={notes.isMutationLocked}

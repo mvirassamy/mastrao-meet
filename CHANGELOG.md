@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-24: On the meeting page, My notes and its enrichment review grow
+  with the text up to one screen, then scroll inside themselves instead of
+  scrolling the whole page.
+
 - 2026-10-24: Show note enrichment as a diff inside My notes: each suggested
   complement appears in green under the line it details, can be kept (✓),
   refused (✕) or corrected in place, then saved or cancelled from the bar
