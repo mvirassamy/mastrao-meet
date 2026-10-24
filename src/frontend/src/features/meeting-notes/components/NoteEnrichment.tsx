@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
 import { ASSISTANT_ICON } from '@/features/meetingHistory/components/meetingContent'
@@ -15,30 +15,28 @@ import {
 import type { EnrichmentViewState } from '../model/NoteEnrichmentController'
 import { NoteEnrichmentReview } from './NoteEnrichmentReview'
 import { NoteEnrichmentToast } from './NoteEnrichmentToast'
+import { NoteSaveStatus } from './NoteSaveStatus'
 import { NotesToolbar } from './NotesToolbar'
+import { PersonalNotesEditor } from './PersonalNotesEditor'
 
 /**
- * Only history supplies a meeting reference. Guest notes have no AI controls.
- * `children` is the note editor: a toolbar sits above it, and a proposal
- * under review stands in for it.
+ * The meeting page note: a toolbar above the editor, and a proposal under
+ * review standing in for it. Guest notes have no AI controls, only the editor.
  */
-export function NoteEnrichment({
-  meetingRef,
-  children,
-}: {
-  meetingRef: string
-  children: ReactNode
-}) {
+export function NoteEnrichment({ meetingRef }: { meetingRef: string }) {
   const notes = usePersonalNotes()
-  if (!notes || notes.isGuest || !notes.hasLoaded) return children
-  return (
-    <EnrichmentPanel notes={notes} meetingRef={meetingRef}>
-      {children}
-    </EnrichmentPanel>
-  )
+  if (!notes || notes.isGuest || !notes.hasLoaded)
+    return <PersonalNotesEditor fit="content" />
+  return <EnrichmentPanel notes={notes} meetingRef={meetingRef} />
 }
 
 const secondary = css({ color: 'muted-foreground', fontSize: '0.8125rem' })
+
+/** The AI action stands out in soft blue without competing with the note. */
+const enrichButton = css({
+  color: 'primary!',
+  backgroundColor: 'color-mix(in srgb, token(colors.primary) 9%, transparent)!',
+})
 
 const panel = css({
   display: 'grid',
@@ -93,11 +91,9 @@ function outcomeLabel(view: EnrichmentViewState): string | null {
 function EnrichmentPanel({
   notes,
   meetingRef,
-  children,
 }: {
   notes: PersonalNotesContextValue
   meetingRef: string
-  children: ReactNode
 }) {
   const view = useNoteEnrichment(notes, meetingRef)
   const history = useNoteHistory(notes)
@@ -147,7 +143,7 @@ function EnrichmentPanel({
       generateRef.current?.focus()
   }, [view.phase, view.notice])
 
-  if (view.unavailable) return children
+  if (view.unavailable) return <PersonalNotesEditor fit="content" />
 
   const cancel = async () => {
     returnFocus.current = true
@@ -166,6 +162,7 @@ function EnrichmentPanel({
     <>
       {!reviewing && (
         <NotesToolbar
+          status={<NoteSaveStatus notes={notes} />}
           canUndo={history.canUndo}
           canRedo={history.canRedo}
           onUndo={history.undo}
@@ -173,12 +170,13 @@ function EnrichmentPanel({
         >
           <Button
             ref={generateRef}
-            variant="outline"
+            variant="ghost"
             size="sm"
             icon={<img src={ASSISTANT_ICON} alt="" width={16} height={16} />}
             tooltip={t('enrichment.help')}
             isDisabled={!canGenerate}
             loading={busy}
+            className={enrichButton}
             onPress={() => void controller.generate()}
           >
             {t('enrichment.generate')}
@@ -208,7 +206,9 @@ function EnrichmentPanel({
           onCancel={() => void cancel()}
         />
       ) : (
-        <div onKeyDownCapture={onEditorKeyDown}>{children}</div>
+        <div onKeyDownCapture={onEditorKeyDown}>
+          <PersonalNotesEditor fit="content" showSaveStatus={false} />
+        </div>
       )}
       {/* During review, the bar under the note holds the actions. */}
       <section aria-label={t('enrichment.title')} className={panel}>

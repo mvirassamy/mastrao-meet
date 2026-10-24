@@ -13,12 +13,14 @@ const NEAR_LIMIT = PERSONAL_NOTE_LIMIT * 0.9
 /**
  * A blank page: the text fills the space, status and privacy sit underneath.
  * `panel` fills the room side panel; `content` grows with the note, as on the
- * meeting page.
+ * meeting page. A toolbar that already shows the save status hides it here.
  */
 export function PersonalNotesEditor({
   fit = 'panel',
+  showSaveStatus = true,
 }: {
   fit?: 'panel' | 'content'
+  showSaveStatus?: boolean
 }) {
   const notes = usePersonalNotes()
   const { t } = useTranslation('personalNotes', { useSuspense: false })
@@ -167,7 +169,7 @@ export function PersonalNotesEditor({
               })}
             </span>
           )}
-          <NoteSaveStatus notes={notes} />
+          {showSaveStatus && <NoteSaveStatus notes={notes} />}
         </span>
       </footer>
       {notes.isGuest && (

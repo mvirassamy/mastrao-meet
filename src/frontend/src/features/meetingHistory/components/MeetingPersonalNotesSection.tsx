@@ -47,9 +47,7 @@ function NotesCard({
       )}
       {/* The whole note shows at once, growing with its text. */}
       {meetingRef ? (
-        <NoteEnrichment meetingRef={meetingRef}>
-          <PersonalNotesEditor fit="content" />
-        </NoteEnrichment>
+        <NoteEnrichment meetingRef={meetingRef} />
       ) : (
         <PersonalNotesEditor fit="content" />
       )}

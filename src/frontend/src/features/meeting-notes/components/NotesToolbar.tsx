@@ -4,15 +4,20 @@ import { RedoIcon, UndoIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 
-/** The note's actions above its text: enrichment on the left, history on the right. */
+/**
+ * A thin full-width bar under the tabs: enrichment on the left, then the save
+ * status and the history arrows on the right.
+ */
 export function NotesToolbar({
   children,
+  status,
   canUndo,
   canRedo,
   onUndo,
   onRedo,
 }: {
   children: ReactNode
+  status: ReactNode
   canUndo: boolean
   canRedo: boolean
   onUndo: () => void
@@ -26,13 +31,25 @@ export function NotesToolbar({
       className={css({
         display: 'flex',
         alignItems: 'center',
-        gap: '0.5rem',
-        paddingX: '1.25rem',
-        paddingTop: '0.75rem',
+        gap: '0.375rem',
+        paddingX: '1rem',
+        paddingY: '0.375rem',
+        borderBottom: '1px solid token(colors.border)',
+        fontSize: '0.75rem',
       })}
     >
       {children}
       <span className={css({ flex: 1 })} />
+      {status}
+      <span
+        aria-hidden="true"
+        className={css({
+          width: '1px',
+          height: '1.25rem',
+          marginX: '0.25rem',
+          backgroundColor: 'border',
+        })}
+      />
       <Button
         variant="ghost"
         size="icon-sm"
