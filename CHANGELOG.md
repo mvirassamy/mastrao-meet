@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-24: Accept Core host invitation links and reject ambiguous
+  invitation fragments while preserving existing host links.
+
 - 2026-10-23: Give the server-rendered pages (page not found, sign-in
   expired or temporarily unavailable) the Mastrao look, in French: text and
   button on the left, illustration on the watercolor on the right. Replace
