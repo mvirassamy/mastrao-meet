@@ -410,6 +410,24 @@ describe('history enrichment through real APIs, controller and primitives', () =
     ])
   })
 
+  it('generates again from the toast of an uncertain generation', async () => {
+    const backend = mockBackend()
+    backend.setState(
+      enrichmentState({
+        state_version: 1,
+        proposal: readyProposal({ status: 'unknown', items: [] }),
+      })
+    )
+    mount()
+    await advance()
+    expect(screen.getByRole('alert').textContent).toBe(fr.enrichment.unknown)
+    fireEvent.click(screen.getByRole('button', { name: fr.enrichment.retry }))
+    await advance()
+    expect(backend.commands().map((request) => request.action)).toEqual([
+      'generate',
+    ])
+  })
+
   it('only offers cancellation after a server proposal exists and restores focus after confirmation', async () => {
     const backend = mockBackend()
     const pending = deferred<void>()

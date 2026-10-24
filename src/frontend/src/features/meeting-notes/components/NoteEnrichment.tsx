@@ -306,7 +306,7 @@ function EnrichmentProblemToast({
       <NoteEnrichmentToast
         tone="warning"
         message={t('enrichment.unknown')}
-        action={{ label: retry, onPress: () => void controller.refresh() }}
+        action={regenerate}
       />
     )
   if (view.stale && !view.dismissed)

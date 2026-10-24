@@ -40,7 +40,7 @@ Les notes simples gardent leur plafond existant de 100 000 caractères. L’enri
 
 Une transcription longue peut être sélectionnée : Core enregistre la couverture, et Meet n’affiche que l’avertissement des sources manquantes. Une transcription native stabilisée reste parfois `partial_sources` ; elle est utilisable avec cet avertissement. Une transcription absente, encore en traitement ou remplacée ne permet pas d’appliquer une proposition obsolète.
 
-Une relecture marque la proposition périmée si sa transcription a changé. La perte d’autorisation des sources désactive l’enrichissement mais conserve l’annulation privée du dernier ajout, tant que le propriétaire est toujours autorisé et que ses notes n’ont pas changé.
+Une relecture marque la proposition périmée si sa transcription a changé. La perte d’autorisation des sources désactive l’enrichissement ; côté Core, l’annulation privée du dernier ajout reste possible tant que le propriétaire est toujours autorisé et que ses notes n’ont pas changé, mais Meet ne la relaie plus.
 
 Un résultat vide, une sortie invalide ou un refus confirmé ne modifie pas les notes. Une réponse perdue ou un timeout reste incertain jusqu’à relecture. Aucune relance automatique du fournisseur. Les erreurs publiques n’exposent ni notes, ni corps fournisseur, ni secrets.
 
