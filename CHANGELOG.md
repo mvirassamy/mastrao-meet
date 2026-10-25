@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-25: Update backend Brotli to 1.2.1 to fix the critical
+  GHSA-9v8h-qqgm-4m35 decoder vulnerability in staging candidates.
+
 - 2026-10-24: On the meeting page, My notes and its enrichment review fill
   the rest of the screen and scroll inside themselves instead of scrolling
   the whole page. Writing in them no longer draws a blue focus frame.
