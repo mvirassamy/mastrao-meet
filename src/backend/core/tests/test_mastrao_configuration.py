@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from django.core.exceptions import ImproperlyConfigured
 
 import pytest
+
 from meet import settings as meet_settings
 from meet.settings import (
     redis_url_with_database,

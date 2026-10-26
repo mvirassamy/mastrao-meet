@@ -1,6 +1,6 @@
 ## 2026-10-26
 
-CHORE: Align retained-history tests with the backend Ruff formatter.
+CHORE: Align history and configuration tests with backend Ruff checks.
 
 FEATURE: Add Mistral as a third internal-admin live transcription profile
     alongside OpenAI and Deepgram, preserving frozen meeting selections and
