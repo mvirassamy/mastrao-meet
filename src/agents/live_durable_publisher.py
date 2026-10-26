@@ -13,6 +13,7 @@ from live_delivery_codec import (
     validate_receipt,
     validated_language,
 )
+from live_model_evidence import ModelEvidence
 from live_send_control import ControlError, LiveSendAuthority
 
 
@@ -26,6 +27,7 @@ class DurablePublisher:
         self._lock = asyncio.Lock()
         self._sequence = 0
         self._finals: dict[tuple[str, str, int], tuple[int, str]] = {}
+        self._model_snapshots: dict[str, tuple[int, str]] = {}
         self._final_count = 0
         self._error: BaseException | None = None
         self._unconfirmed_error: BaseException | None = None
@@ -88,11 +90,50 @@ class DurablePublisher:
                     if event_digest(event) != digest:
                         raise ControlError("conflicting durable final identity")
                     return
-                # Keep space for a possible explicit gap and the source end.
-                if self._sequence >= MAX_EVENTS_PER_SOURCE - 2:
+                # Keep space for this leg's snapshot, a possible gap and source end.
+                if self._sequence >= MAX_EVENTS_PER_SOURCE - 3:
                     raise ControlError("durable source event capacity exceeded")
                 await self._send(event, self._final_count + 1)
                 self._finals[identity] = (event["sequence"], event_digest(event))
+        except BaseException as error:
+            self._fail(error)
+            raise
+
+    async def publish_model_evidence(
+        self, leg_ref: str, evidence: ModelEvidence
+    ) -> None:
+        """Confirm one post-close snapshot per leg without counting a final."""
+        try:
+            async with self._lock:
+                # Known local loss can still be recorded before gap/end. An
+                # unconfirmed delivery cannot be skipped to send a snapshot.
+                if self._unconfirmed_error is not None:
+                    raise self._unconfirmed_error
+                if self._ended:
+                    raise ControlError("durable source already ended")
+                if leg_ref != self._authority.leg_ref:
+                    raise ControlError("model evidence leg differs from current leg")
+                if evidence["provider"] != self._authority.live_profile.provider:
+                    raise ControlError(
+                        "model evidence provider differs from admitted profile"
+                    )
+                event = self._event(
+                    version=3, leg_ref=leg_ref, kind="model_evidence", **evidence
+                )
+                previous = self._model_snapshots.get(leg_ref)
+                if previous is not None:
+                    sequence, digest = previous
+                    event["sequence"] = sequence
+                    if event_digest(event) != digest:
+                        raise ControlError("conflicting durable model evidence")
+                    return
+                if self._sequence >= MAX_EVENTS_PER_SOURCE - 2:
+                    raise ControlError("durable source event capacity exceeded")
+                await self._send(event, self._final_count)
+                self._model_snapshots[leg_ref] = (
+                    event["sequence"],
+                    event_digest(event),
+                )
         except BaseException as error:
             self._fail(error)
             raise

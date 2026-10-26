@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from live_model_evidence import ProviderName
+
 PREPARE_VERSION = 3
 OPENAI_PROFILE = "openai-live-fr-en-v1"
 DEEPGRAM_PROFILE = "deepgram-live-multi-v1"
@@ -27,6 +29,19 @@ class LiveProfileSelection:
     profile_ref: str
     profile_version: int
     config_digest: str
+
+    @property
+    def provider(self) -> ProviderName:
+        """Bind delivery identity to the admitted closed profile."""
+        match self.profile_ref:
+            case "openai-live-fr-en-v1":
+                return "openai"
+            case "deepgram-live-multi-v1":
+                return "deepgram"
+            case "mistral-live-multi-v1":
+                return "mistral"
+            case _:
+                raise ValueError("unsupported live provider profile")
 
     @classmethod
     def parse(cls, value: object) -> "LiveProfileSelection":

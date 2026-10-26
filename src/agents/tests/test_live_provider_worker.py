@@ -109,6 +109,75 @@ class ProviderWorkerTests(unittest.IsolatedAsyncioTestCase):
         for _ in range(first, stop):
             await self.audio.delivered.get()
 
+    async def test_terminal_only_model_evidence_without_any_transcript_final(self):
+        """Retain terminal Metadata when no Results were supplied."""
+        terminal = metadata_frame()
+        terminal["models"] = ["terminal-build"]
+        terminal["model_info"] = {
+            "terminal-build": {
+                "name": "terminal-native-name",
+                "version": "2026.10",
+                "arch": "nova-native",
+            }
+        }
+        self.sockets[0].terminal_frames = [terminal]
+        old_leg = self.lease.leg_ref
+        self.ticks.put_nowait(None)
+        await asyncio.wait_for(self.timers.get(), 2)
+        events = [body["event"] for body in self.commands("deliver")]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["kind"], "model_evidence")
+        self.assertEqual(events[0]["leg_ref"], old_leg)
+        self.assertEqual(events[0]["provider"], "deepgram")
+        self.assertEqual(
+            events[0]["models"],
+            [
+                {
+                    "origin": "terminal",
+                    "model_ref": "terminal-build",
+                    "name": "terminal-native-name",
+                    "version": "2026.10",
+                    "architecture": "nova-native",
+                }
+            ],
+        )
+        self.assertFalse(events[0]["truncated"])
+        self.assertTrue(self.sockets[0].closed)
+        self.assertEqual(self.gateway.final_count, 0)
+        self.publisher.publish_segment.assert_not_awaited()
+
+    async def test_model_overflow_and_invalid_metadata_keep_every_final_text(self):
+        """Missing model details and overflow never discard final text."""
+        results = []
+        for number in range(10):
+            result = result_frame(
+                start=number / 100, duration=0.01, text=f"  final {number} e\u0301 😀\n"
+            )
+            result["metadata"]["model_uuid"] = f"build-{number}"
+            result["metadata"]["model_info"] = {"name": "x" * 161}
+            results.append(result)
+        terminal = metadata_frame()
+        terminal.pop("model_info")
+        self.sockets[0].terminal_frames = [*results, terminal]
+        self.ticks.put_nowait(None)
+        await asyncio.wait_for(self.timers.get(), 2)
+        events = [body["event"] for body in self.commands("deliver")]
+        finals = [event for event in events if event["kind"] == "final"]
+        self.assertEqual(
+            [event["text"] for event in finals],
+            [result["channel"]["alternatives"][0]["transcript"] for result in results],
+        )
+        self.assertEqual(self.gateway.final_count, len(results))
+        self.assertEqual([event["version"] for event in finals], [2] * len(results))
+        self.assertEqual(events[-1]["kind"], "model_evidence")
+        self.assertTrue(events[-1]["truncated"])
+        self.assertEqual(
+            [record["model_ref"] for record in events[-1]["models"]],
+            [f"build-{number}" for number in range(8)],
+        )
+        self.assertTrue(all(record["name"] is None for record in events[-1]["models"]))
+        self.assertFalse(self.track.incomplete_reasons)
+
     async def test_two_legs_conserve_pcm_profile_and_distinct_native_final_corrections(
         self,
     ):

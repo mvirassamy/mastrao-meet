@@ -13,6 +13,7 @@ from livekit.agents import APIConnectOptions, stt
 
 from live_input_drain import InputDrainError
 from live_mistral_transcript import MistralTranscript
+from live_model_evidence import ModelEvidence, ModelEvidenceCollector
 
 MODEL = "voxtral-mini-transcribe-realtime-3"
 REALTIME_URL = f"wss://api.mistral.ai/v1/audio/transcriptions/realtime?model={MODEL}"
@@ -115,6 +116,7 @@ class _MistralSocket:
                 raise InputDrainError("mistral-native-frame-invalid")
             if event["type"] == "error":
                 raise InputDrainError("mistral-native-provider-error")
+            self._owner._model_evidence.observe(event)
             return event
 
     async def close(self) -> None:
@@ -410,6 +412,7 @@ class AuthorizedMistral(stt.STT):
         self._end_started = False
         self._end_sent = False
         self._terminal_metadata: dict | None = None
+        self._model_evidence = ModelEvidenceCollector("mistral")
         self._native_request_id: str | None = None
         self._native_events = 0
         self._terminal_complete = False
@@ -432,6 +435,11 @@ class AuthorizedMistral(stt.STT):
     def appended_samples(self) -> int:
         """Count only successful local physical socket PCM writes."""
         return self._appended_samples
+
+    @property
+    def model_evidence(self) -> ModelEvidence:
+        """Project session and terminal model facts without native text or usage."""
+        return self._model_evidence.snapshot
 
     @property
     def terminal_metadata(self) -> dict | None:

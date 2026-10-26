@@ -750,14 +750,24 @@ class TrackTranscriber:
 
     async def _close_leg_resources(self) -> None:
         """Share physical leg closure between planned handoff and hard stop."""
+        provider = self._provider
+        speech_stream = self._speech_stream
+        leg_ref = self.leg_id
         errors: list[BaseException] = []
-        for resource in (self._speech_stream, self._provider):
+        for resource in (speech_stream, provider):
             if resource is None:
                 continue
             try:
                 await resource.aclose()
             except (Exception, asyncio.CancelledError) as error:
                 logger.error("failed to close speech leg (%s)", type(error).__name__)
+                errors.append(error)
+        if self._durable is not None and provider is not None:
+            try:
+                await self._durable.publish_model_evidence(
+                    leg_ref, provider.model_evidence
+                )
+            except (Exception, asyncio.CancelledError) as error:
                 errors.append(error)
         if errors:
             raise BaseExceptionGroup("live speech leg close failed", errors)

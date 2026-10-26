@@ -12,6 +12,7 @@ from livekit.plugins.deepgram import stt as sdk
 
 from live_deepgram_drain import MAX_NATIVE_FRAME_BYTES, DeepgramDrain
 from live_input_drain import InputDrainError
+from live_model_evidence import ModelEvidence, ModelEvidenceCollector
 
 DRAIN_TIMEOUT_SECONDS = 25
 MAX_SDK_EVENTS = 512
@@ -174,6 +175,7 @@ class _DeepgramStream(sdk.SpeechStream):
     def _process_stream_event(self, data: dict) -> None:
         send = self._event_ch.send_nowait
         try:
+            self._owner._model_evidence.observe(data)
             native = self._owner.ledger.observe(data)
 
             def emit(event):
@@ -263,6 +265,7 @@ class AuthorizedDeepgram(deepgram.STT):
         self._canonical_stream: _DeepgramStream | None = None
         self._drain_task: asyncio.Task | None = None
         self.ledger = DeepgramDrain(failed)
+        self._model_evidence = ModelEvidenceCollector("deepgram")
 
     def can_send(self) -> bool:
         """Retain both the immutable leg lease and the immediate local fence."""
@@ -290,6 +293,11 @@ class AuthorizedDeepgram(deepgram.STT):
     def appended_samples(self) -> int:
         """Count only binary socket writes that actually returned successfully."""
         return self.ledger.appended_samples
+
+    @property
+    def model_evidence(self) -> ModelEvidence:
+        """Project Results and terminal model fields, never the native payload."""
+        return self._model_evidence.snapshot
 
     @property
     def terminal_metadata(self) -> dict | None:

@@ -1,4 +1,10 @@
-import type { MeetingLiveEvent, MeetingLiveSource } from './types'
+import type {
+  MeetingLiveEvent,
+  MeetingLiveModel,
+  MeetingLiveModelEvidence,
+  MeetingLiveSource,
+  MeetingLiveWireEvent,
+} from './types'
 import type { LiveFullSnapshot } from './meetingLiveFull'
 import {
   normalizeLiveObservedDomain,
@@ -37,6 +43,50 @@ const hasFields = (value: Record<string, unknown>, fields: string[]) =>
 
 type LiveFinal = Extract<MeetingLiveEvent, { kind: 'final' }>
 
+const isModelField = (value: unknown): value is string | null =>
+  value === null ||
+  (typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= 160 &&
+    /^[^\ud800-\udfff]*$/u.test(value))
+
+const normalizeModel = (value: unknown): MeetingLiveModel | null => {
+  if (
+    !isRecord(value) ||
+    !hasFields(value, [
+      'origin',
+      'model_ref',
+      'name',
+      'version',
+      'architecture',
+    ]) ||
+    !isModelField(value.model_ref) ||
+    !isModelField(value.name) ||
+    !isModelField(value.version) ||
+    !isModelField(value.architecture) ||
+    (value.model_ref === null &&
+      value.name === null &&
+      value.version === null &&
+      value.architecture === null)
+  )
+    return null
+  const origin = value.origin
+  switch (origin) {
+    case 'session':
+    case 'result':
+    case 'terminal':
+      return {
+        origin,
+        model_ref: value.model_ref,
+        name: value.name,
+        version: value.version,
+        architecture: value.architecture,
+      }
+    default:
+      return null
+  }
+}
+
 const normalizeTiming = (value: unknown): LiveFinal['timing'] | null => {
   if (!isRecord(value)) return null
   if (value.state === 'unavailable' && hasFields(value, ['state'])) {
@@ -64,22 +114,61 @@ const normalizeEvent = (
   value: unknown,
   sourceRef: string,
   confirmedSequence: number
-): MeetingLiveEvent | null => {
+): MeetingLiveWireEvent | null => {
   if (
     !isRecord(value) ||
-    value.version !== 2 ||
     value.source_ref !== sourceRef ||
     !isReference(value.leg_ref) ||
     !isInteger(value.sequence, 1, confirmedSequence)
   )
     return null
+  const fields = ['version', 'source_ref', 'leg_ref', 'sequence', 'kind']
+  if (value.kind === 'model_evidence') {
+    if (
+      value.version !== 3 ||
+      !hasFields(value, [...fields, 'provider', 'models', 'truncated']) ||
+      !Array.isArray(value.models) ||
+      value.models.length > 8 ||
+      typeof value.truncated !== 'boolean'
+    )
+      return null
+    const provider = value.provider
+    switch (provider) {
+      case 'openai':
+      case 'deepgram':
+      case 'mistral':
+        break
+      default:
+        return null
+    }
+    const models: MeetingLiveModel[] = []
+    const identities = new Set<string>()
+    for (const raw of value.models) {
+      const model = normalizeModel(raw)
+      if (!model) return null
+      const identity = JSON.stringify(model)
+      if (identities.has(identity)) return null
+      identities.add(identity)
+      models.push(model)
+    }
+    return {
+      version: 3,
+      source_ref: sourceRef,
+      leg_ref: value.leg_ref,
+      sequence: value.sequence,
+      kind: 'model_evidence',
+      provider,
+      models,
+      truncated: value.truncated,
+    }
+  }
+  if (value.version !== 2) return null
   const common = {
     version: 2 as const,
     source_ref: sourceRef,
     leg_ref: value.leg_ref,
     sequence: value.sequence,
   }
-  const fields = ['version', 'source_ref', 'leg_ref', 'sequence', 'kind']
   switch (value.kind) {
     case 'final': {
       if (
@@ -175,6 +264,7 @@ const normalizeSource = (value: unknown): MeetingLiveSource | null => {
     return null
 
   const events: MeetingLiveEvent[] = []
+  const modelEvidence: MeetingLiveModelEvidence[] = []
   const sequences = new Set<number>()
   const items = new Set<string>()
   for (const raw of value.events) {
@@ -186,6 +276,10 @@ const normalizeSource = (value: unknown): MeetingLiveSource | null => {
     if (!event) return null
     if (sequences.has(event.sequence)) return null
     sequences.add(event.sequence)
+    if (event.kind === 'model_evidence') {
+      modelEvidence.push(event)
+      continue
+    }
     if (event.kind === 'final') {
       const item = `${event.leg_ref}:${event.item_ref}`
       // The reader already selected the latest correction for each leg/item.
@@ -202,6 +296,7 @@ const normalizeSource = (value: unknown): MeetingLiveSource | null => {
     incomplete: value.incomplete,
     confirmedSequence: value.confirmed_sequence,
     events,
+    ...(modelEvidence.length > 0 ? { modelEvidence } : {}),
   }
 }
 

@@ -46,6 +46,11 @@ class ControlledSessionTests(unittest.IsolatedAsyncioTestCase):
         self.provider.fence_audio = MagicMock()
         self.provider.appended_samples = 0
         self.provider.input_window = AsyncMock(return_value=None)
+        self.provider.model_evidence = {
+            "provider": "openai",
+            "models": [],
+            "truncated": False,
+        }
         self.provider.stream = MagicMock(return_value=self.speech)
         self.factory = self.enterContext(
             patch("live_provider_session.AuthorizedOpenAI", return_value=self.provider)

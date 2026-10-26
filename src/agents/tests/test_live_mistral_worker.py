@@ -11,7 +11,7 @@ from test_live_provider_profiles import MISTRAL_SELECTION
 from test_live_send_control import Gateway, authority
 from test_live_transcriber_stop import AudioSource
 
-from live_mistral import AuthorizedMistral
+from live_mistral import MODEL, AuthorizedMistral
 from live_transcriber import TrackTranscriber
 
 FRAME_SAMPLES = 480
@@ -145,6 +145,34 @@ class MistralWorkerTests(unittest.IsolatedAsyncioTestCase):
         async with asyncio.timeout(2):
             await self.timers.get()
         await eventually(lambda: self.providers[-1]._socket is not None)
+
+    async def test_native_session_and_done_survive_empty_text_rotation(self):
+        """Deduplicate session facts and retain terminal facts without text."""
+        old_leg = self.lease.leg_ref
+        await self.rotate()
+        events = [body["event"] for body in self.commands("deliver")]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["kind"], "model_evidence")
+        self.assertEqual(events[0]["provider"], "mistral")
+        self.assertEqual(events[0]["leg_ref"], old_leg)
+        self.assertEqual(
+            events[0]["models"],
+            [
+                {
+                    "origin": origin,
+                    "model_ref": MODEL,
+                    "name": None,
+                    "version": None,
+                    "architecture": None,
+                }
+                for origin in ("session", "terminal")
+            ],
+        )
+        self.assertFalse(events[0]["truncated"])
+        self.assertTrue(self.sockets[0].closed)
+        self.assertEqual(self.gateway.final_count, 0)
+        self.publisher.publish_segment.assert_not_awaited()
+        self.assertFalse(self.track.incomplete_reasons)
 
     async def test_two_rotations_partition_pcm_and_publish_bounded_native_shards(self):
         """One RTC reader, immutable Mistral selection and exact latest text survive."""

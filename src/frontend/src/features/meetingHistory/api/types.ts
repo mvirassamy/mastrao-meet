@@ -159,14 +159,12 @@ export type MeetingNativeCoverage = {
 }
 
 type MeetingLiveEventIdentity = {
-  version: 2
   source_ref: string
   leg_ref: string
   sequence: number
 }
 
-export type MeetingLiveEvent = MeetingLiveEventIdentity &
-  (
+export type MeetingLiveEvent = MeetingLiveEventIdentity & { version: 2 } & (
     | {
         kind: 'final'
         item_ref: string
@@ -202,6 +200,25 @@ export type MeetingLiveEvent = MeetingLiveEventIdentity &
       }
   )
 
+export type MeetingLiveModel = {
+  origin: 'session' | 'result' | 'terminal'
+  model_ref: string | null
+  name: string | null
+  version: string | null
+  architecture: string | null
+}
+
+export type MeetingLiveModelEvidence = MeetingLiveEventIdentity & {
+  version: 3
+  kind: 'model_evidence'
+  provider: 'openai' | 'deepgram' | 'mistral'
+  models: MeetingLiveModel[]
+  truncated: boolean
+}
+
+/** Wire metadata is retained separately from the events presented as transcript. */
+export type MeetingLiveWireEvent = MeetingLiveEvent | MeetingLiveModelEvidence
+
 export type MeetingLiveSource = {
   sourceRef: string
   participantKind: 'host' | 'guest'
@@ -210,6 +227,7 @@ export type MeetingLiveSource = {
   incomplete: boolean
   confirmedSequence: number
   events: MeetingLiveEvent[]
+  modelEvidence?: MeetingLiveModelEvidence[]
 }
 
 export type MeetingHistoryDetail = MeetingHistoryItem & {

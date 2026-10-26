@@ -1,8 +1,30 @@
-import type { MeetingLiveEvent } from './types'
+import type { MeetingLiveEvent, MeetingLiveModelEvidence } from './types'
 
 export const liveMeetingRef = 'meeting_0123456789abcdef'
 export const liveSourceRef = 'source_0123456789abcdef'
 export const liveLegRef = 'leg_0123456789abcdef'
+
+export const liveModelEvidence = (changes: Record<string, unknown> = {}) => ({
+  ...({
+    version: 3,
+    source_ref: liveSourceRef,
+    leg_ref: liveLegRef,
+    sequence: 4,
+    kind: 'model_evidence',
+    provider: 'deepgram',
+    models: [
+      {
+        origin: 'terminal',
+        model_ref: null,
+        name: '  synthetic-model  ',
+        version: 'fixture-1',
+        architecture: null,
+      },
+    ],
+    truncated: false,
+  } satisfies MeetingLiveModelEvidence),
+  ...changes,
+})
 
 export const liveFinal = (changes: Record<string, unknown> = {}) => ({
   ...({

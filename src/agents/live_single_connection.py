@@ -17,6 +17,7 @@ from livekit.agents import APIConnectOptions, stt, utils
 from livekit.plugins import openai
 
 from live_input_drain import InputDrain, InputDrainError
+from live_model_evidence import ModelEvidence, ModelEvidenceCollector
 
 DRAIN_TIMEOUT_SECONDS = 25
 
@@ -29,6 +30,7 @@ class _AuthorizedSocket:
         socket: aiohttp.ClientWebSocketResponse,
         can_send: Callable[[], bool],
         failed: Callable[[str], None],
+        model_evidence: ModelEvidenceCollector,
     ):
         self._socket = socket
         self._can_send = can_send
@@ -37,6 +39,7 @@ class _AuthorizedSocket:
         self._write_lock = asyncio.Lock()
         self._close_task: asyncio.Task[None] | None = None
         self.drain = InputDrain(failed)
+        self._model_evidence = model_evidence
 
     def fence_audio(self) -> None:
         """Discard future queued writes and cancel writes already awaiting I/O."""
@@ -104,6 +107,7 @@ class _AuthorizedSocket:
                 data = json.loads(message.data)
                 if not isinstance(data, dict):
                     raise InputDrainError("live-input-provider-event-invalid")
+                self._model_evidence.observe(data)
                 self.drain.observe(data)
             elif message.type in {
                 aiohttp.WSMsgType.CLOSED,
@@ -182,6 +186,7 @@ class AuthorizedOpenAI(openai.STT):
         self._audio_fenced = False
         self._socket: _AuthorizedSocket | None = None
         self._drain_task: asyncio.Task[frozenset[str]] | None = None
+        self._model_evidence = ModelEvidenceCollector("openai")
         # The original pool is empty: this instance is never prewarmed/shared.
         self._pool = _SingleAcquisitionPool(self, can_send, reconnect_refused)
 
@@ -194,7 +199,9 @@ class AuthorizedOpenAI(openai.STT):
             raise RuntimeError("canonical live source cannot open another socket")
         self._connection_attempted = True
         socket = await super()._connect_ws(timeout)
-        self._socket = _AuthorizedSocket(socket, self._can_send, self._failed)
+        self._socket = _AuthorizedSocket(
+            socket, self._can_send, self._failed, self._model_evidence
+        )
         if self._audio_fenced:
             self._socket.fence_audio()
         return self._socket
@@ -204,6 +211,11 @@ class AuthorizedOpenAI(openai.STT):
         self._audio_fenced = True
         if self._socket is not None:
             self._socket.fence_audio()
+
+    @property
+    def model_evidence(self) -> ModelEvidence:
+        """Project received session facts, including an explicit empty observation."""
+        return self._model_evidence.snapshot
 
     @property
     def appended_samples(self) -> int:

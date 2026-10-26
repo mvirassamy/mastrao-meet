@@ -8,12 +8,18 @@ from livekit.agents import stt
 from live_deepgram import AuthorizedDeepgram
 from live_input_drain import InputDrainError
 from live_mistral import AuthorizedMistral
+from live_model_evidence import ModelEvidence
 from live_provider_profile import LiveProfileSelection
 from live_single_connection import AuthorizedOpenAI
 
 
 class CanonicalProviderSession(Protocol):
     """Only progress, fencing and terminal evidence beyond the shared STT API."""
+
+    @property
+    def model_evidence(self) -> ModelEvidence:
+        """Return bounded supplied model facts without raw provider metadata."""
+        ...
 
     @property
     def appended_samples(self) -> int:

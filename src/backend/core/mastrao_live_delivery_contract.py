@@ -1,4 +1,4 @@
-"""Canonical final-event bytes and exact durable receipts at the worker boundary."""
+"""Canonical live-event bytes and exact durable receipts at the worker boundary."""
 
 # JSON wire integers intentionally exclude booleans.
 # pylint: disable=unidiomatic-typecheck,too-many-boolean-expressions
@@ -18,10 +18,17 @@ MAX_EVENTS = 100_000
 MAX_DELIVERY_BODY_BYTES = MAX_EVENT_BYTES + 8192
 EVENT_FIELDS = ("version", "source_ref", "leg_ref", "sequence", "kind")
 KIND_FIELDS = {
+    "model_evidence": ("provider", "models", "truncated"),
     "final": ("item_ref", "revision", "text", "language", "timing"),
     "gap": ("reason",),
     "end": ("reason", "final_event_count"),
 }
+MODEL_FIELDS = ("origin", "model_ref", "name", "version", "architecture")
+# Core validates nonblank using ECMAScript trim, not Python's whitespace set.
+MODEL_WHITESPACE = (
+    " \t\n\r\v\f\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
+    "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
 GAP_REASONS = {
     "connection_lost",
     "provider_failed",
@@ -97,6 +104,8 @@ def _valid_final(event):
 
 def _valid_payload(event):
     kind = event["kind"]
+    if kind == "model_evidence":
+        return _valid_model_evidence(event)
     if kind == "final":
         return _valid_final(event)
     if kind == "gap":
@@ -109,6 +118,43 @@ def _valid_payload(event):
             and event["final_event_count"] < event["sequence"]
         )
     return False
+
+
+def _valid_model_string(value):
+    return (
+        isinstance(value, str)
+        and bool(value.strip(MODEL_WHITESPACE))
+        and len(value.encode("utf-16-le")) // 2 <= 160
+    )
+
+
+def _valid_model_evidence(event):
+    models = event["models"]
+    if (
+        not isinstance(event["provider"], str)
+        or event["provider"] not in {"openai", "mistral", "deepgram"}
+        or type(event["truncated"]) is not bool
+        or not isinstance(models, list)
+        or len(models) > 8
+    ):
+        return False
+    previous = []
+    for model in models:
+        if (
+            not isinstance(model, dict)
+            or set(model) != set(MODEL_FIELDS)
+            or not isinstance(model["origin"], str)
+            or model["origin"] not in {"session", "result", "terminal"}
+            or not any(model[name] is not None for name in MODEL_FIELDS[1:])
+            or any(
+                model[name] is not None and not _valid_model_string(model[name])
+                for name in MODEL_FIELDS[1:]
+            )
+            or model in previous
+        ):
+            return False
+        previous.append(model)
+    return True
 
 
 def canonical_delivery_event(value, command):
@@ -124,9 +170,10 @@ def canonical_delivery_event(value, command):
         if not isinstance(kind, str) or kind not in KIND_FIELDS:
             raise ValueError
         fields = EVENT_FIELDS + KIND_FIELDS[kind]
+        version = 3 if kind == "model_evidence" else 2
         if (
             set(value) != set(fields)
-            or not _integer(value["version"], 2, 2)
+            or not _integer(value["version"], version, version)
             or not _integer(value["sequence"], 1, MAX_EVENTS)
             or any(
                 not _matches(OPAQUE_REFERENCE, value[name])
@@ -139,6 +186,11 @@ def canonical_delivery_event(value, command):
         event = {name: value[name] for name in fields}
         if kind == "final":
             event["timing"] = _canonical_timing(event["timing"])
+        elif kind == "model_evidence":
+            event["models"] = [
+                {name: model[name] for name in MODEL_FIELDS}
+                for model in event["models"]
+            ]
         raw = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode()
         if len(raw) > MAX_EVENT_BYTES:
             raise ValueError
@@ -178,7 +230,7 @@ def validate_delivery_receipt(result, event, digest):
         or (
             event["kind"] == "end"
             and (
-                event["sequence"] > 1
+                event["final_event_count"] > 0
                 or event["reason"] in {"provider_failed", "capture_incomplete"}
             )
             and not result["incomplete"]

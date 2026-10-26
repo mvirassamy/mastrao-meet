@@ -1,5 +1,7 @@
 ## 2026-10-26
 
+FIX: Preserve bounded provider-reported live model evidence across closure and rotation.
+
 FIX: Prevent internal HTTP retries and redirects for Deepgram live upgrades.
 FIX: Fence Deepgram PONG writes and disable autonomous heartbeat traffic.
 TEST: Restore the current schema after native-domain migration proofs.
