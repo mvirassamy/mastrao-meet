@@ -63,6 +63,7 @@ def receipt(event, **changes):
 
 @pytest.mark.parametrize("provider", ["openai", "mistral", "deepgram"])
 def test_evidence_canonical_order_and_neutral_receipt(provider):
+    """Preserve exact model bytes while accepting either incomplete state."""
     event = evidence(provider=provider)
     expected = (
         '{"version":3,"source_ref":"source_reference_0001",'
@@ -104,6 +105,7 @@ def test_evidence_canonical_order_and_neutral_receipt(provider):
     ],
 )
 def test_evidence_rejects_invalid_fields_and_binding(changes):
+    """Refuse malformed snapshots and foreign source or leg bindings."""
     with pytest.raises(RecordingContractRefused) as error:
         canonical_delivery_event(evidence(**changes), evidence())
     assert error.value.status == 400
@@ -125,12 +127,14 @@ def test_evidence_rejects_invalid_fields_and_binding(changes):
     ],
 )
 def test_evidence_rejects_invalid_records(changes):
+    """Refuse model records outside the bounded native allowlist."""
     with pytest.raises(RecordingContractRefused) as error:
         canonical_delivery_event(evidence(models=[record(**changes)]), evidence())
     assert error.value.status == 400
 
 
 def test_empty_and_maximum_evidence_fit_the_unchanged_byte_bound():
+    """Keep empty and maximally escaped evidence within the event budget."""
     canonical_delivery_event(evidence(models=[]), evidence())
     # Control characters need six JSON bytes each, the worst escaping case.
     models = [
@@ -156,6 +160,7 @@ def test_empty_and_maximum_evidence_fit_the_unchanged_byte_bound():
 @pytest.mark.parametrize("sequence", [2, 9, 100_000])
 @pytest.mark.parametrize("reason", ["track_unpublished", "meeting_ended"])
 def test_end_after_only_evidence_is_neutral(sequence, reason):
+    """Metadata alone does not require an incomplete normal end receipt."""
     event = {
         "version": 2,
         "source_ref": SOURCE,
@@ -178,6 +183,7 @@ def test_end_after_only_evidence_is_neutral(sequence, reason):
     ],
 )
 def test_neutral_evidence_does_not_clear_known_incomplete(reason, count):
+    """Known transcript loss still requires an incomplete receipt."""
     event = {
         "version": 2,
         "source_ref": SOURCE,
@@ -206,6 +212,7 @@ def test_neutral_evidence_does_not_clear_known_incomplete(reason, count):
     ],
 )
 def test_evidence_receipt_keeps_exact_v2_bounds(changes):
+    """Reject mismatched or invalid acknowledgements for a snapshot."""
     event = evidence()
     result = receipt(event, **changes)
     with pytest.raises(RecordingContractRefused) as error:
@@ -215,6 +222,7 @@ def test_evidence_receipt_keeps_exact_v2_bounds(changes):
 
 @pytest.mark.parametrize("kind", ["final", "gap", "end"])
 def test_existing_kinds_cannot_become_v3(kind):
+    """Historical transcript event kinds retain their v2 wire version."""
     event = {
         "version": 3,
         "source_ref": SOURCE,
