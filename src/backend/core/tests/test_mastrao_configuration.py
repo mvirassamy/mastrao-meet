@@ -10,6 +10,12 @@ from django.core.exceptions import ImproperlyConfigured
 
 import pytest
 
+from core.mastrao_live_observed_domain_contract import (
+    MASTRAO_LIVE_OBSERVED_DOMAIN_TRUST,
+    LiveDomainRefused,
+    validate_transport_configuration,
+)
+
 from meet import settings as meet_settings
 from meet.settings import (
     redis_url_with_database,
@@ -508,30 +514,26 @@ def test_parallel_test_cache_preserves_configured_redis_endpoint():
 # Live metadata transport is independent of recording enablement. Evaluate it
 # at delivery time so invalid opt-in never prevents the unconditional purge.
 def _live_domain_configuration():
-    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
-        MASTRAO_LIVE_OBSERVED_DOMAIN_TRUST,
-    )
-
     return SimpleNamespace(
         **dict.fromkeys(MASTRAO_LIVE_OBSERVED_DOMAIN_TRUST, "synthetic-config-value"),
-        MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT="http://cabinet-core/internal/v1/meetings/live/observed-domain/context",
-        MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT="http://cabinet-core/internal/v1/meetings/live/observed-domain",
+        MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT=(
+            "http://cabinet-core/internal/v1/meetings/live/observed-domain/context"
+        ),
+        MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT=(
+            "http://cabinet-core/internal/v1/meetings/live/observed-domain"
+        ),
         MASTRAO_MEETING_RECORDING_ENABLED=False,
     )
 
 
 def test_live_observed_domain_accepts_transport_without_recording():
-    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
-        validate_transport_configuration,
-    )
+    """Allow live metadata transport independently of recording enablement."""
 
     assert validate_transport_configuration(_live_domain_configuration()) is True
 
 
 def test_live_observed_domain_absent_endpoints_do_not_enable_delivery():
-    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
-        validate_transport_configuration,
-    )
+    """Keep live metadata delivery disabled when both endpoints are absent."""
 
     configuration = _live_domain_configuration()
     configuration.MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT = ""
@@ -555,10 +557,7 @@ def test_live_observed_domain_absent_endpoints_do_not_enable_delivery():
     ],
 )
 def test_live_observed_domain_partial_configuration_refuses_atomically(missing):
-    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
-        LiveDomainRefused,
-        validate_transport_configuration,
-    )
+    """Refuse opt-in transport unless every endpoint and trust field is present."""
 
     configuration = _live_domain_configuration()
     setattr(configuration, missing, "")
@@ -577,10 +576,7 @@ def test_live_observed_domain_partial_configuration_refuses_atomically(missing):
     ],
 )
 def test_live_observed_domain_rejects_untrusted_or_wrong_endpoint(endpoint):
-    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
-        LiveDomainRefused,
-        validate_transport_configuration,
-    )
+    """Refuse transport endpoints outside the fixed internal Core contract."""
 
     configuration = _live_domain_configuration()
     configuration.MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT = endpoint

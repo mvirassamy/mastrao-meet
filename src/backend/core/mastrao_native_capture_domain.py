@@ -416,6 +416,8 @@ def _capture_snapshot(capture, organization):
     if job is not None:
         _text(job, r"EG_[A-Za-z0-9]{1,96}")
     status = capture["observed_status"]
+    # Persisted provider status is an exact integer; bool is not a valid status.
+    # pylint: disable-next=unidiomatic-typecheck
     if status is not None and (type(status) is not int or not 0 <= status <= 6):
         raise DomainSnapshotRefused("Invalid persisted provider status")
     stop_reason = capture["stop_reason"] or None
@@ -734,6 +736,8 @@ def finish_native_capture_domain(claim, *, acknowledged):
 
 
 def _send(claim):
+    # Keep the exact ACK schema together; integer versions/revisions reject bool.
+    # pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
     if connection.in_atomic_block or not connection.get_autocommit():
         raise DomainSnapshotRefused("Domain network delivery requires autocommit")
     result = post_core_json(

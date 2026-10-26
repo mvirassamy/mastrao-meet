@@ -24,6 +24,7 @@ PROFILES = [
 
 @pytest.mark.parametrize("reference,digest", PROFILES)
 def test_profile_is_strict_and_preserves_admin_revision(reference, digest):
+    """Preserve pinned revisions and refuse malformed or substituted selections."""
     selection = {
         "version": 1,
         "revision": 7,
@@ -49,10 +50,11 @@ def test_profile_is_strict_and_preserves_admin_revision(reference, digest):
         assert error.value.status == 503
 
 
-@pytest.mark.parametrize("reference,digest", PROFILES)
+@pytest.mark.parametrize("reference,_digest", PROFILES)
 def test_another_approved_profile_digest_cannot_substitute_this_selection(
-    reference, digest
+    reference, _digest
 ):
+    """Refuse another approved profile's digest for the selected reference."""
     for other_reference, other_digest in PROFILES:
         if other_reference == reference:
             continue

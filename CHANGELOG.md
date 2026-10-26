@@ -1,5 +1,8 @@
 ## 2026-10-26
 
+TEST: Align legacy recording and drain tests with the controlled Live boundary.
+CHORE: Resolve scoped backend lint while preserving strict wire validation.
+
 CHORE: Align history and configuration tests with backend Ruff checks.
 
 FEATURE: Add Mistral as a third internal-admin live transcription profile

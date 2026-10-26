@@ -1412,8 +1412,10 @@ class MastraoLiveObservedDomain(BaseModel):
             ),
             models.CheckConstraint(
                 condition=models.expressions.RawSQL(
-                    "jsonb_typeof(snapshot) = 'object' AND jsonb_typeof(inventory_baseline) = 'object' "
-                    "AND octet_length(snapshot::text) <= 65536 AND octet_length(inventory_baseline::text) <= 65536",
+                    "jsonb_typeof(snapshot) = 'object' "
+                    "AND jsonb_typeof(inventory_baseline) = 'object' "
+                    "AND octet_length(snapshot::text) <= 65536 "
+                    "AND octet_length(inventory_baseline::text) <= 65536",
                     [],
                     output_field=models.BooleanField(),
                 ),

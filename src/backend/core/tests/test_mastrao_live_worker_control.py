@@ -1,5 +1,8 @@
 """Private capability + signed RTC webhook provenance; no provider calls."""
 
+# Capability and signed-webhook cases share the same worker-control fixtures.
+# pylint: disable=too-many-lines
+
 # Imported fixtures deliberately reuse actual token issuance and signed webhooks.
 # pylint: disable=missing-function-docstring,redefined-outer-name,unused-import
 # pylint: disable=no-member,unused-argument

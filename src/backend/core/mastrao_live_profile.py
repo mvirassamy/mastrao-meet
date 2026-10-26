@@ -18,6 +18,8 @@ SELECTION_FIELDS = {
 
 def validate_live_profile(selection):
     """Require the exact immutable Core selection before forwarding to a worker."""
+    # Keep the immutable schema predicates together; exact integers reject bool.
+    # pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
     if not isinstance(selection, dict) or set(selection) != SELECTION_FIELDS:
         raise RecordingContractRefused(status=503)
     reference = selection["profile_ref"]

@@ -288,6 +288,8 @@ def persisted_close_receipt_claims_digest(closure):
     Historical receipt expiry is not current authority. The signed domain and
     Core's confirmed close/policy checks provide that boundary at consumption.
     """
+    # Durable signed claims retain one exact schema; integer fields reject bool.
+    # pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
     claims = closure["receipt_claims"]
     if not isinstance(claims, dict) or set(claims) != ROOM_CLOSE_EFFECT_FIELDS | {
         "status",

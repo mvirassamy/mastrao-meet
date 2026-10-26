@@ -15,6 +15,7 @@ from core.mastrao_core_http import validate_core_endpoint
 from core.mastrao_recording_contract import RecordingContractRefused, _sign, _verify
 from core.mastrao_room_contract import (
     RoomEffectRefused,
+    _base64url_decode,
     _canonical_json,
     _sha256_canonical,
 )
@@ -110,6 +111,8 @@ def canonical_bytes(value, maximum=MAX_BYTES):
     entries = 0
 
     def visit(item, depth):
+        # Canonical JSON accepts exact bool/int types, excluding numeric subclasses.
+        # pylint: disable=unidiomatic-typecheck
         nonlocal entries
         entries += 1
         if depth > 32 or entries > 4096:
@@ -176,6 +179,8 @@ def _uuid(value):
 
 
 def _integer(value, minimum=1, maximum=MAX_SAFE_INTEGER):
+    # Wire integers must reject bool and numeric subclasses.
+    # pylint: disable-next=unidiomatic-typecheck
     _require(type(value) is int and minimum <= value <= maximum)
 
 
@@ -275,6 +280,8 @@ def _inventory(value):
         previous = connections.setdefault(epoch["connection_ref"], connection_identity)
         _require(previous == connection_identity)
         rooms.add(epoch["room_sid"])
+        # The frozen epoch schema requires an exact JSON boolean.
+        # pylint: disable-next=unidiomatic-typecheck
         _require(type(epoch["ended"]) is bool and epoch["conflict"] is False)
         _require(
             epoch["correlation"] in {"missing_join", "unmatched_issuance", "correlated"}
@@ -324,6 +331,8 @@ def validate_snapshot(value):
         _revision(value["producer_revision"])
     else:
         raise LiveDomainRefused()
+    # A boolean version must never satisfy the signed integer schema.
+    # pylint: disable-next=unidiomatic-typecheck
     _require(type(value["version"]) is int and value["version"] == 1)
     _require(
         value["type"] == "mastrao.live-observed-domain"
@@ -394,6 +403,8 @@ def publication_request(snapshot, jti):
 
 def _response(compact, jose, fields, assertion_type, operation):
     # Context and ACK are small exact schemas. Reuse established signature crypto.
+    # Signed version integers must reject bool and numeric subclasses.
+    # pylint: disable=unidiomatic-typecheck
     try:
         payload = _verify(compact, jose, ENVELOPE_FIELDS | fields)
         canonical_bytes(payload)
@@ -429,8 +440,6 @@ def _response(compact, jose, fields, assertion_type, operation):
 def verify_context(compact, binding, jti):
     """Verify signed terminal classification or fixed initial Live policy."""
     # Discriminated fields are identified only to select the exact signed schema.
-    from core.mastrao_room_contract import _base64url_decode  # noqa: PLC0415
-
     try:
         _require(isinstance(compact, str) and len(compact) <= 16384)
         raw = json.loads(_base64url_decode(compact.split(".")[1]))

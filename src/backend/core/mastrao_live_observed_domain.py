@@ -48,8 +48,9 @@ MAX_EPOCHS = 32
 logger = logging.getLogger(__name__)
 
 
+# The detached delivery fence must retain all eight immutable claim fields.
 @dataclass(frozen=True)
-class LiveDomainClaim:
+class LiveDomainClaim:  # pylint: disable=too-many-instance-attributes
     """Detached attempt fence; later dirty facts cannot be acknowledged by it."""
 
     domain_ref: UUID
@@ -456,7 +457,7 @@ def _snapshot(cursor, binding):
         "domain_ref": str(cursor.pk),
     }
     if cursor.inventory_baseline and any(
-        cursor.inventory_baseline[k] != common[k] for k in common
+        cursor.inventory_baseline[key] != value for key, value in common.items()
     ):
         content = {"reason": "identity_conflict"}
     elif cursor.sticky_reason:
@@ -704,6 +705,8 @@ def _invalidate_oversized_delivery(claim):
 
 def deliver_live_observed_domain(domain_id):  # noqa: PLR0911 -- phase-specific guarded exits
     """Fresh JOSE envelope around durable semantic bytes; retry after lost reply."""
+    # Separate exits preserve the context, publication, fencing and retry phases.
+    # pylint: disable=too-many-return-statements
     _require_postgres()
     if not _configuration():
         return False
