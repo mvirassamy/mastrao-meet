@@ -1,3 +1,8 @@
+import type { MeetingNativeCaptureDomain } from './meetingNativeCaptureDomain'
+import type { LiveFullSnapshot } from './meetingLiveFull'
+import type { MeetingLiveObservedDomain } from './meetingLiveObservedDomain'
+import type { NativeFullSnapshot } from './meetingNativeFull'
+
 /**
  * Frontend view of the meeting history contract proposed to the backend.
  * Paths and field names stay provisional until the backend confirms them.
@@ -101,6 +106,10 @@ export type MeetingTranscriptSegment = {
   startMs: number
   speaker: string | null
   text: string
+  sourceEpoch?: {
+    epochRef: string
+    timeBasis: 'source_relative_ms'
+  }
 }
 
 export type MeetingTranscript = {
@@ -108,6 +117,99 @@ export type MeetingTranscript = {
   projection: MeetingContentProjection
   segments: MeetingTranscriptSegment[]
   truncated: boolean
+  /** Retained live sources never establish canonical transcript readiness. */
+  liveSources?: MeetingLiveSource[]
+  liveTruncated?: boolean
+  liveFullSnapshot?: LiveFullSnapshot
+  liveObservedDomain?: MeetingLiveObservedDomain
+  nativeCoverage?: MeetingNativeCoverage
+  nativePartial?: MeetingNativePartial
+  nativeFullSnapshot?: NativeFullSnapshot
+}
+
+/** Auxiliary native consultation; never a canonical transcript revision. */
+export type MeetingNativePartial = {
+  version: 1
+  meetingRef: string
+  snapshotDigest: string
+  coverage: 'partial_sources'
+  segments: (MeetingTranscriptSegment & {
+    sourceEpoch: NonNullable<MeetingTranscriptSegment['sourceEpoch']>
+  })[]
+  truncated: boolean
+}
+
+export type MeetingNativeCoverage = {
+  epochsUnavailableReason?:
+    | 'epoch_limit_exceeded'
+    | 'result_bytes_limit_exceeded'
+  captureDomain?: MeetingNativeCaptureDomain
+  meetingCoverage: 'unverified'
+  observationsAvailable: boolean
+  truncated: boolean
+  tracks: {
+    observationRef: string
+    captureState: 'admitted' | 'unadmitted'
+    epochRefs?: string[]
+  }[]
+  epochs: {
+    epochRef: string
+    state: 'pending' | 'failed' | 'available'
+  }[]
+}
+
+type MeetingLiveEventIdentity = {
+  version: 2
+  source_ref: string
+  leg_ref: string
+  sequence: number
+}
+
+export type MeetingLiveEvent = MeetingLiveEventIdentity &
+  (
+    | {
+        kind: 'final'
+        item_ref: string
+        revision: number
+        text: string
+        language: string | null
+        timing:
+          | { state: 'unavailable' }
+          | {
+              state: 'source_buffer'
+              sample_rate: 24000
+              start_sample: number
+              end_sample: number
+            }
+      }
+    | {
+        kind: 'gap'
+        reason:
+          | 'connection_lost'
+          | 'provider_failed'
+          | 'delivery_failed'
+          | 'timing_unavailable'
+          | 'capture_incomplete'
+      }
+    | {
+        kind: 'end'
+        reason:
+          | 'track_unpublished'
+          | 'meeting_ended'
+          | 'provider_failed'
+          | 'capture_incomplete'
+        final_event_count: number
+      }
+  )
+
+export type MeetingLiveSource = {
+  sourceRef: string
+  participantKind: 'host' | 'guest'
+  participantRef: string
+  state: 'collecting' | 'ended'
+  incomplete: boolean
+  confirmedSequence: number
+  events: MeetingLiveEvent[]
 }
 
 export type MeetingHistoryDetail = MeetingHistoryItem & {

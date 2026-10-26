@@ -79,7 +79,7 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
             return provider
 
         self.factory = self.enterContext(
-            patch("live_transcriber.AuthorizedOpenAI", side_effect=factory)
+            patch("live_provider_session.AuthorizedOpenAI", side_effect=factory)
         )
         self.published = []
 

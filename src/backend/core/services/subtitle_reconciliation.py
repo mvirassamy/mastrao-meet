@@ -84,8 +84,15 @@ class _ProviderResult:
     had_dispatches: bool = False
 
 
-def subtitle_provider():
-    """Return the configured provider identity used by new subtitle intents."""
+def subtitle_provider(room=None):
+    """Use Core control for integrated rooms and preserve unbound legacy jobs."""
+    if (
+        room is not None
+        and settings.MASTRAO_LIVE_WORKER_CONTROL_ENABLED
+        and settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
+        and models.MastraoRoomBinding.objects.filter(room_id=room.pk).exists()
+    ):
+        return "controlled-live"
     return getattr(settings, "ROOM_SUBTITLE_PROVIDER", DEFAULT_SUBTITLE_PROVIDER)
 
 

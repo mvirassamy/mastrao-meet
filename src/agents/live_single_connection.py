@@ -260,6 +260,12 @@ class AuthorizedOpenAI(openai.STT):
         if self._socket is not None:
             await self._socket.close()
 
+    def terminal_drain_complete(self, stream: stt.RecognizeStream) -> bool:
+        """OpenAI must still be live at its existing ACK/publication barrier."""
+        if stream._task.done():
+            raise InputDrainError("live-continuation-sdk-ended-during-drain")
+        return False
+
     def stream(self):
         """Disable the base SpeechStream's independent retry loop as well."""
         return super().stream(conn_options=APIConnectOptions(max_retry=0))

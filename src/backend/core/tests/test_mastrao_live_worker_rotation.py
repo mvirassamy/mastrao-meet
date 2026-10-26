@@ -202,11 +202,11 @@ def test_old_controlled_dispatch_cannot_be_adopted_after_protocol_change(
     dispatch = mock.Mock(
         id="AD_old_protocol",
         agent_name="multi-user-transcriber",
-        metadata=_dispatch_metadata_json("RM_fixture", 3, "openai-live", old),
+        metadata=_dispatch_metadata_json("RM_fixture", 3, "controlled-live", old),
     )
     mock_livekit_client.agent_dispatch.list_dispatch.return_value = [dispatch]
     with pytest.raises(SubtitleReconciliationAmbiguous):
         async_to_sync(_reconcile_provider_unlocked)(
-            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "openai-live"
+            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "controlled-live"
         )
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()

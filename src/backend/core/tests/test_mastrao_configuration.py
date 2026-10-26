@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from django.core.exceptions import ImproperlyConfigured
 
 import pytest
-
 from meet import settings as meet_settings
 from meet.settings import (
     redis_url_with_database,
@@ -503,3 +502,86 @@ def test_parallel_test_cache_preserves_configured_redis_endpoint():
     assert redis_url_with_database(redis_url, 11) == (
         "redis://user:pass@localhost:6379/11?ssl_cert_reqs=none"
     )
+
+
+# Live metadata transport is independent of recording enablement. Evaluate it
+# at delivery time so invalid opt-in never prevents the unconditional purge.
+def _live_domain_configuration():
+    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
+        MASTRAO_LIVE_OBSERVED_DOMAIN_TRUST,
+    )
+
+    return SimpleNamespace(
+        **dict.fromkeys(MASTRAO_LIVE_OBSERVED_DOMAIN_TRUST, "synthetic-config-value"),
+        MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT="http://cabinet-core/internal/v1/meetings/live/observed-domain/context",
+        MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT="http://cabinet-core/internal/v1/meetings/live/observed-domain",
+        MASTRAO_MEETING_RECORDING_ENABLED=False,
+    )
+
+
+def test_live_observed_domain_accepts_transport_without_recording():
+    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
+        validate_transport_configuration,
+    )
+
+    assert validate_transport_configuration(_live_domain_configuration()) is True
+
+
+def test_live_observed_domain_absent_endpoints_do_not_enable_delivery():
+    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
+        validate_transport_configuration,
+    )
+
+    configuration = _live_domain_configuration()
+    configuration.MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT = ""
+    configuration.MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT = ""
+    assert validate_transport_configuration(configuration) is False
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT",
+        "MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT",
+        "MASTRAO_RECORDING_EFFECT_ISSUER",
+        "MASTRAO_RECORDING_EFFECT_AUDIENCE",
+        "MASTRAO_RECORDING_EFFECT_PUBLIC_JWK",
+        "MASTRAO_RECORDING_EFFECT_KEY_ID",
+        "MASTRAO_RECORDING_RECEIPT_ISSUER",
+        "MASTRAO_RECORDING_RECEIPT_AUDIENCE",
+        "MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK",
+        "MASTRAO_RECORDING_RECEIPT_KEY_ID",
+    ],
+)
+def test_live_observed_domain_partial_configuration_refuses_atomically(missing):
+    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
+        LiveDomainRefused,
+        validate_transport_configuration,
+    )
+
+    configuration = _live_domain_configuration()
+    setattr(configuration, missing, "")
+    with pytest.raises(LiveDomainRefused):
+        validate_transport_configuration(configuration)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://cabinet-core/internal/v1/meetings/live/observed-domain",
+        "http://external.invalid/internal/v1/meetings/live/observed-domain",
+        "http://cabinet-core/internal/v1/meetings/live/observed-domain?policy=other",
+        "http://user:password@cabinet-core/internal/v1/meetings/live/observed-domain",
+        "http://cabinet-core/internal/v1/meetings/capture/native/domain",
+    ],
+)
+def test_live_observed_domain_rejects_untrusted_or_wrong_endpoint(endpoint):
+    from core.mastrao_live_observed_domain_contract import (  # noqa: PLC0415
+        LiveDomainRefused,
+        validate_transport_configuration,
+    )
+
+    configuration = _live_domain_configuration()
+    configuration.MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT = endpoint
+    with pytest.raises(LiveDomainRefused):
+        validate_transport_configuration(configuration)

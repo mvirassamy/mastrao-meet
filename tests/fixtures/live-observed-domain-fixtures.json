@@ -1,0 +1,1004 @@
+{
+  "version": 1,
+  "description": "Synthetic wire vectors with concrete values; canonical UTF-8 JSON plus LF. No provider, HTTP close or complete-domain proof.",
+  "vectors": [
+    {
+      "name": "empty_inventory",
+      "schema": "snapshot",
+      "payload": {
+        "version": 1,
+        "type": "mastrao.live-observed-domain",
+        "scope": "observed_live_domain",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1,
+        "kind": "inventory",
+        "observations": [],
+        "epochs": []
+      },
+      "canonical_utf8": "{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"epochs\":[],\"kind\":\"inventory\",\"observations\":[],\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":1,\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1}\n",
+      "sha256": "0cc734bf9f3904b207820208bedb6fa0d6a0530d7534f5f923195316f2b5584b"
+    },
+    {
+      "name": "correlated_inventory",
+      "schema": "snapshot",
+      "payload": {
+        "version": 1,
+        "type": "mastrao.live-observed-domain",
+        "scope": "observed_live_domain",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1,
+        "kind": "inventory",
+        "observations": [
+          {
+            "observation_ref": "11111111-1111-4111-8111-000000000001",
+            "event_id": "rtc_event_fixture_1",
+            "payload_digest": "654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca",
+            "event_type": "track_published",
+            "observed_at": 1761000001,
+            "room_sid": "RM_fixture",
+            "participant_sid": "PA_fixture",
+            "track_sid": "TR_fixture",
+            "track_type": 0,
+            "track_source": 2
+          },
+          {
+            "observation_ref": "11111111-1111-4111-8111-000000000002",
+            "event_id": "rtc_event_fixture_2",
+            "payload_digest": "899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c",
+            "event_type": "track_unpublished",
+            "observed_at": 1761000002,
+            "room_sid": "RM_fixture",
+            "participant_sid": "PA_fixture",
+            "track_sid": "TR_fixture",
+            "track_type": 0,
+            "track_source": 2
+          }
+        ],
+        "epochs": [
+          {
+            "epoch_ref": "11111111-1111-4111-8111-000000000005",
+            "connection_ref": "11111111-1111-4111-8111-000000000006",
+            "room_sid": "RM_fixture",
+            "participant_sid": "PA_fixture",
+            "track_sid": "TR_fixture",
+            "publication_observation_ref": "11111111-1111-4111-8111-000000000001",
+            "end_observation_refs": ["11111111-1111-4111-8111-000000000002"],
+            "ended": true,
+            "conflict": false,
+            "correlation": "correlated",
+            "media_token_binding_ref": "11111111-1111-4111-8111-000000000007"
+          }
+        ]
+      },
+      "canonical_utf8": "{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"epochs\":[{\"conflict\":false,\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"correlation\":\"correlated\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\",\"participant_sid\":\"PA_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\"}],\"kind\":\"inventory\",\"observations\":[{\"event_id\":\"rtc_event_fixture_1\",\"event_type\":\"track_published\",\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"observed_at\":1761000001,\"participant_sid\":\"PA_fixture\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\",\"track_source\":2,\"track_type\":0},{\"event_id\":\"rtc_event_fixture_2\",\"event_type\":\"track_unpublished\",\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"observed_at\":1761000002,\"participant_sid\":\"PA_fixture\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\",\"track_source\":2,\"track_type\":0}],\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":1,\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1}\n",
+      "sha256": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb"
+    },
+    {
+      "name": "terminal_only_inventory",
+      "schema": "snapshot",
+      "payload": {
+        "version": 1,
+        "type": "mastrao.live-observed-domain",
+        "scope": "observed_live_domain",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1,
+        "kind": "inventory",
+        "observations": [
+          {
+            "observation_ref": "11111111-1111-4111-8111-000000000002",
+            "event_id": "rtc_event_fixture_2",
+            "payload_digest": "899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c",
+            "event_type": "track_unpublished",
+            "observed_at": 1761000002,
+            "room_sid": "RM_fixture",
+            "participant_sid": "PA_fixture",
+            "track_sid": "TR_fixture",
+            "track_type": null,
+            "track_source": null
+          }
+        ],
+        "epochs": [
+          {
+            "epoch_ref": "11111111-1111-4111-8111-000000000005",
+            "connection_ref": "11111111-1111-4111-8111-000000000006",
+            "room_sid": "RM_fixture",
+            "participant_sid": "PA_fixture",
+            "track_sid": "TR_fixture",
+            "publication_observation_ref": null,
+            "end_observation_refs": ["11111111-1111-4111-8111-000000000002"],
+            "ended": true,
+            "conflict": false,
+            "correlation": "missing_join",
+            "media_token_binding_ref": null
+          }
+        ]
+      },
+      "canonical_utf8": "{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"epochs\":[{\"conflict\":false,\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"correlation\":\"missing_join\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"media_token_binding_ref\":null,\"participant_sid\":\"PA_fixture\",\"publication_observation_ref\":null,\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\"}],\"kind\":\"inventory\",\"observations\":[{\"event_id\":\"rtc_event_fixture_2\",\"event_type\":\"track_unpublished\",\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"observed_at\":1761000002,\"participant_sid\":\"PA_fixture\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\",\"track_source\":null,\"track_type\":null}],\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":1,\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1}\n",
+      "sha256": "ee3b7df60021d3302a8c0c438df270c070caac9de9e7208be87f87260fe0e099"
+    },
+    {
+      "name": "last_ordinary_inventory",
+      "schema": "snapshot",
+      "payload": {
+        "version": 1,
+        "type": "mastrao.live-observed-domain",
+        "scope": "observed_live_domain",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1024,
+        "kind": "inventory",
+        "observations": [],
+        "epochs": []
+      },
+      "canonical_utf8": "{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"epochs\":[],\"kind\":\"inventory\",\"observations\":[],\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":1024,\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1}\n",
+      "sha256": "18dae07a7fa062465ea0b114dd5a2532a2e8ad7201b43e3f393d21aa8dcff51b"
+    },
+    {
+      "name": "structural_invalidation",
+      "schema": "snapshot",
+      "payload": {
+        "version": 1,
+        "type": "mastrao.live-observed-domain",
+        "scope": "observed_live_domain",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1,
+        "kind": "invalidation",
+        "reason": "identity_conflict"
+      },
+      "canonical_utf8": "{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"kind\":\"invalidation\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":1,\"reason\":\"identity_conflict\",\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1}\n",
+      "sha256": "d142cf2d26a4e159a2829ee3e1cb5fdccf680f6735f04e9ca952330ceab0f3c6"
+    },
+    {
+      "name": "terminal_revision",
+      "schema": "snapshot",
+      "payload": {
+        "version": 1,
+        "type": "mastrao.live-observed-domain",
+        "scope": "observed_live_domain",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 9007199254740991,
+        "kind": "invalidation",
+        "reason": "revision_exhausted"
+      },
+      "canonical_utf8": "{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"kind\":\"invalidation\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":9007199254740991,\"reason\":\"revision_exhausted\",\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1}\n",
+      "sha256": "4d785edec04ebf573e7dba938a04eb104cadcf33998dabfd2b798dd143eeec22"
+    },
+    {
+      "name": "context_request",
+      "schema": "context_request",
+      "payload": {
+        "version": 1,
+        "issuer": "https://meet.fixture.invalid",
+        "audience": "https://core.fixture.invalid",
+        "type": "mastrao.meet-live-observed-domain-context-request",
+        "operation": "resolve_live_observed_domain_context",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        }
+      },
+      "canonical_utf8": "{\"audience\":\"https://core.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://meet.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"resolve_live_observed_domain_context\",\"operation_version\":1,\"type\":\"mastrao.meet-live-observed-domain-context-request\",\"version\":1}\n",
+      "sha256": "24d4a28613349975ccf7198e2fe698797e794dae3ba5b9f54bea5168b96bab83"
+    },
+    {
+      "name": "eligible_context",
+      "schema": "context",
+      "payload": {
+        "version": 1,
+        "issuer": "https://core.fixture.invalid",
+        "audience": "https://meet.fixture.invalid",
+        "type": "mastrao.core-live-observed-domain-context",
+        "operation": "confirm_live_observed_domain_context",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "request_jti": "jti_live_fixture_0000",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "outcome": "eligible",
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        }
+      },
+      "canonical_utf8": "{\"audience\":\"https://meet.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://core.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"outcome\":\"eligible\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"request_jti\":\"jti_live_fixture_0000\",\"type\":\"mastrao.core-live-observed-domain-context\",\"version\":1}\n",
+      "sha256": "113acd017a3a17a0e6ccdc8aeba173a9cf33d6f3c716c7cdefb8c340a4ec9f5a"
+    },
+    {
+      "name": "mode_not_live",
+      "schema": "context",
+      "payload": {
+        "version": 1,
+        "issuer": "https://core.fixture.invalid",
+        "audience": "https://meet.fixture.invalid",
+        "type": "mastrao.core-live-observed-domain-context",
+        "operation": "confirm_live_observed_domain_context",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "request_jti": "jti_live_fixture_0000",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "outcome": "not_applicable",
+        "reason": "mode_not_live",
+        "policy": null
+      },
+      "canonical_utf8": "{\"audience\":\"https://meet.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://core.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"outcome\":\"not_applicable\",\"policy\":null,\"reason\":\"mode_not_live\",\"request_jti\":\"jti_live_fixture_0000\",\"type\":\"mastrao.core-live-observed-domain-context\",\"version\":1}\n",
+      "sha256": "e7962f0289d2cae970a0b38d5b71d09a8a11d00b3b7c849b5699462370b819d3"
+    },
+    {
+      "name": "policy_absent",
+      "schema": "context",
+      "payload": {
+        "version": 1,
+        "issuer": "https://core.fixture.invalid",
+        "audience": "https://meet.fixture.invalid",
+        "type": "mastrao.core-live-observed-domain-context",
+        "operation": "confirm_live_observed_domain_context",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "request_jti": "jti_live_fixture_0000",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "outcome": "not_applicable",
+        "reason": "policy_absent",
+        "policy": null
+      },
+      "canonical_utf8": "{\"audience\":\"https://meet.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://core.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"outcome\":\"not_applicable\",\"policy\":null,\"reason\":\"policy_absent\",\"request_jti\":\"jti_live_fixture_0000\",\"type\":\"mastrao.core-live-observed-domain-context\",\"version\":1}\n",
+      "sha256": "fe575bf2a5db4e5b905d1116e584e245e1957ab7bb9132de8f82fc07256281ae"
+    },
+    {
+      "name": "retention_expired",
+      "schema": "context",
+      "payload": {
+        "version": 1,
+        "issuer": "https://core.fixture.invalid",
+        "audience": "https://meet.fixture.invalid",
+        "type": "mastrao.core-live-observed-domain-context",
+        "operation": "confirm_live_observed_domain_context",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "request_jti": "jti_live_fixture_0000",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "outcome": "not_applicable",
+        "reason": "retention_expired",
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1760000000
+        }
+      },
+      "canonical_utf8": "{\"audience\":\"https://meet.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://core.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"outcome\":\"not_applicable\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1760000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"reason\":\"retention_expired\",\"request_jti\":\"jti_live_fixture_0000\",\"type\":\"mastrao.core-live-observed-domain-context\",\"version\":1}\n",
+      "sha256": "e4fff6ec2cede11ab40b10c4ee1b4934f0e78332b9ec64551b6536865727ade2"
+    },
+    {
+      "name": "inventory_publication",
+      "schema": "publication",
+      "payload": {
+        "version": 1,
+        "issuer": "https://meet.fixture.invalid",
+        "audience": "https://core.fixture.invalid",
+        "type": "mastrao.meet-live-observed-domain",
+        "operation": "publish_live_observed_domain",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "snapshot": {
+          "version": 1,
+          "type": "mastrao.live-observed-domain",
+          "scope": "observed_live_domain",
+          "binding": {
+            "organization_external_id": "org_live_fixture",
+            "meeting_ref": "meeting_live_fixture_001",
+            "room_ref": "room_live_fixture_0001",
+            "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+            "close_ref": "close_live_fixture_001",
+            "effect_key": "effect_live_fixture_001",
+            "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+            "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+          },
+          "policy": {
+            "policy_ref": "policy_live_fixture_001",
+            "retention_policy_ref": "retention_live_fixture_001",
+            "retention_expires_at": 1762000000
+          },
+          "domain_ref": "11111111-1111-4111-8111-000000000008",
+          "producer_revision": 1,
+          "kind": "inventory",
+          "observations": [
+            {
+              "observation_ref": "11111111-1111-4111-8111-000000000001",
+              "event_id": "rtc_event_fixture_1",
+              "payload_digest": "654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca",
+              "event_type": "track_published",
+              "observed_at": 1761000001,
+              "room_sid": "RM_fixture",
+              "participant_sid": "PA_fixture",
+              "track_sid": "TR_fixture",
+              "track_type": 0,
+              "track_source": 2
+            },
+            {
+              "observation_ref": "11111111-1111-4111-8111-000000000002",
+              "event_id": "rtc_event_fixture_2",
+              "payload_digest": "899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c",
+              "event_type": "track_unpublished",
+              "observed_at": 1761000002,
+              "room_sid": "RM_fixture",
+              "participant_sid": "PA_fixture",
+              "track_sid": "TR_fixture",
+              "track_type": 0,
+              "track_source": 2
+            }
+          ],
+          "epochs": [
+            {
+              "epoch_ref": "11111111-1111-4111-8111-000000000005",
+              "connection_ref": "11111111-1111-4111-8111-000000000006",
+              "room_sid": "RM_fixture",
+              "participant_sid": "PA_fixture",
+              "track_sid": "TR_fixture",
+              "publication_observation_ref": "11111111-1111-4111-8111-000000000001",
+              "end_observation_refs": ["11111111-1111-4111-8111-000000000002"],
+              "ended": true,
+              "conflict": false,
+              "correlation": "correlated",
+              "media_token_binding_ref": "11111111-1111-4111-8111-000000000007"
+            }
+          ]
+        },
+        "snapshot_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb"
+      },
+      "canonical_utf8": "{\"audience\":\"https://core.fixture.invalid\",\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://meet.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"publish_live_observed_domain\",\"operation_version\":1,\"snapshot\":{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"epochs\":[{\"conflict\":false,\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"correlation\":\"correlated\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\",\"participant_sid\":\"PA_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\"}],\"kind\":\"inventory\",\"observations\":[{\"event_id\":\"rtc_event_fixture_1\",\"event_type\":\"track_published\",\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"observed_at\":1761000001,\"participant_sid\":\"PA_fixture\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\",\"track_source\":2,\"track_type\":0},{\"event_id\":\"rtc_event_fixture_2\",\"event_type\":\"track_unpublished\",\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"observed_at\":1761000002,\"participant_sid\":\"PA_fixture\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\",\"track_source\":2,\"track_type\":0}],\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":1,\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1},\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"type\":\"mastrao.meet-live-observed-domain\",\"version\":1}\n",
+      "sha256": "6f49a60687a115126d5979f2246e754738172f39650b2285772346ab1fabc5b7"
+    },
+    {
+      "name": "invalidation_publication",
+      "schema": "publication",
+      "payload": {
+        "version": 1,
+        "issuer": "https://meet.fixture.invalid",
+        "audience": "https://core.fixture.invalid",
+        "type": "mastrao.meet-live-observed-domain",
+        "operation": "publish_live_observed_domain",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "snapshot": {
+          "version": 1,
+          "type": "mastrao.live-observed-domain",
+          "scope": "observed_live_domain",
+          "binding": {
+            "organization_external_id": "org_live_fixture",
+            "meeting_ref": "meeting_live_fixture_001",
+            "room_ref": "room_live_fixture_0001",
+            "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+            "close_ref": "close_live_fixture_001",
+            "effect_key": "effect_live_fixture_001",
+            "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+            "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+          },
+          "policy": {
+            "policy_ref": "policy_live_fixture_001",
+            "retention_policy_ref": "retention_live_fixture_001",
+            "retention_expires_at": 1762000000
+          },
+          "domain_ref": "11111111-1111-4111-8111-000000000008",
+          "producer_revision": 9007199254740991,
+          "kind": "invalidation",
+          "reason": "revision_exhausted"
+        },
+        "snapshot_digest": "4d785edec04ebf573e7dba938a04eb104cadcf33998dabfd2b798dd143eeec22"
+      },
+      "canonical_utf8": "{\"audience\":\"https://core.fixture.invalid\",\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://meet.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"publish_live_observed_domain\",\"operation_version\":1,\"snapshot\":{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"kind\":\"invalidation\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":9007199254740991,\"reason\":\"revision_exhausted\",\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1},\"snapshot_digest\":\"4d785edec04ebf573e7dba938a04eb104cadcf33998dabfd2b798dd143eeec22\",\"type\":\"mastrao.meet-live-observed-domain\",\"version\":1}\n",
+      "sha256": "ba7d6e8f45c6a66feb4d0bf2b755957cad252c46b8f85ac118cc17f2a1b8cdda"
+    },
+    {
+      "name": "recorded_ack",
+      "schema": "ack",
+      "payload": {
+        "version": 1,
+        "issuer": "https://core.fixture.invalid",
+        "audience": "https://meet.fixture.invalid",
+        "type": "mastrao.core-live-observed-domain-ack",
+        "operation": "acknowledge_live_observed_domain",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "request_jti": "jti_live_fixture_0001",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "requested_revision": 1,
+        "requested_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "current_revision": 1,
+        "current_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "outcome": "recorded"
+      },
+      "canonical_utf8": "{\"audience\":\"https://meet.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"current_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"current_revision\":1,\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://core.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"acknowledge_live_observed_domain\",\"operation_version\":1,\"outcome\":\"recorded\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"request_jti\":\"jti_live_fixture_0001\",\"requested_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"requested_revision\":1,\"type\":\"mastrao.core-live-observed-domain-ack\",\"version\":1}\n",
+      "sha256": "96d11e2e4b1837e29f52f7091457e489b1faa999437b23dfe48364937d7f9998"
+    },
+    {
+      "name": "replayed_ack",
+      "schema": "ack",
+      "payload": {
+        "version": 1,
+        "issuer": "https://core.fixture.invalid",
+        "audience": "https://meet.fixture.invalid",
+        "type": "mastrao.core-live-observed-domain-ack",
+        "operation": "acknowledge_live_observed_domain",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "request_jti": "jti_live_fixture_0001",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "requested_revision": 1,
+        "requested_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "current_revision": 1,
+        "current_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "outcome": "replayed"
+      },
+      "canonical_utf8": "{\"audience\":\"https://meet.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"current_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"current_revision\":1,\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://core.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"acknowledge_live_observed_domain\",\"operation_version\":1,\"outcome\":\"replayed\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"request_jti\":\"jti_live_fixture_0001\",\"requested_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"requested_revision\":1,\"type\":\"mastrao.core-live-observed-domain-ack\",\"version\":1}\n",
+      "sha256": "f887e52ec08bffee2ebe1552e413c0315320e7305a4d59b1e843a280abb05d8e"
+    },
+    {
+      "name": "superseded_ack",
+      "schema": "ack",
+      "payload": {
+        "version": 1,
+        "issuer": "https://core.fixture.invalid",
+        "audience": "https://meet.fixture.invalid",
+        "type": "mastrao.core-live-observed-domain-ack",
+        "operation": "acknowledge_live_observed_domain",
+        "operation_version": 1,
+        "issued_at": 1761000100,
+        "expires_at": 1761000130,
+        "jti": "jti_live_fixture_0001",
+        "request_jti": "jti_live_fixture_0001",
+        "binding": {
+          "organization_external_id": "org_live_fixture",
+          "meeting_ref": "meeting_live_fixture_001",
+          "room_ref": "room_live_fixture_0001",
+          "provider_binding_digest": "ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5",
+          "close_ref": "close_live_fixture_001",
+          "effect_key": "effect_live_fixture_001",
+          "arguments_digest": "ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1",
+          "close_receipt_claims_digest": "272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f"
+        },
+        "policy": {
+          "policy_ref": "policy_live_fixture_001",
+          "retention_policy_ref": "retention_live_fixture_001",
+          "retention_expires_at": 1762000000
+        },
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "requested_revision": 1,
+        "requested_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "current_revision": 2,
+        "current_digest": "8a52041efc42ca131a6129395ded20ecef533a208a5513a63df051a7b26a64d3",
+        "outcome": "superseded"
+      },
+      "canonical_utf8": "{\"audience\":\"https://meet.fixture.invalid\",\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"current_digest\":\"8a52041efc42ca131a6129395ded20ecef533a208a5513a63df051a7b26a64d3\",\"current_revision\":2,\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"expires_at\":1761000130,\"issued_at\":1761000100,\"issuer\":\"https://core.fixture.invalid\",\"jti\":\"jti_live_fixture_0001\",\"operation\":\"acknowledge_live_observed_domain\",\"operation_version\":1,\"outcome\":\"superseded\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"request_jti\":\"jti_live_fixture_0001\",\"requested_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"requested_revision\":1,\"type\":\"mastrao.core-live-observed-domain-ack\",\"version\":1}\n",
+      "sha256": "d7268cbabf6b27049e4bc7cf3349d66e60cb2691eda00799c6886a23fd7c10c2"
+    },
+    {
+      "name": "observed_projection",
+      "schema": "projection",
+      "payload": {
+        "version": 1,
+        "scope": "observed_live_domain",
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1,
+        "snapshot_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "projection_digest": "c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17",
+        "closure_state": "closed",
+        "state": "observed",
+        "retention_expires_at": 1762000000,
+        "blockers": [
+          {
+            "reason": "live_admission_absent",
+            "epoch_ref": "11111111-1111-4111-8111-000000000005"
+          }
+        ],
+        "counts": {
+          "observations": 2,
+          "microphone_epochs": 1,
+          "unclassified_epochs": 0,
+          "correlated_epochs": 1,
+          "admitted_sources": 0,
+          "journal_ended_sources": 0,
+          "send_stop_acknowledged_sources": 0
+        }
+      },
+      "canonical_utf8": "{\"blockers\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"reason\":\"live_admission_absent\"}],\"closure_state\":\"closed\",\"counts\":{\"admitted_sources\":0,\"correlated_epochs\":1,\"journal_ended_sources\":0,\"microphone_epochs\":1,\"observations\":2,\"send_stop_acknowledged_sources\":0,\"unclassified_epochs\":0},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"retention_expires_at\":1762000000,\"scope\":\"observed_live_domain\",\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"state\":\"observed\",\"version\":1}\n",
+      "sha256": "56e83c409b0206af4c0f8d4a4ec7e18e4979df65b0c882889ec616e0931d5093"
+    },
+    {
+      "name": "empty_projection",
+      "schema": "projection",
+      "payload": {
+        "version": 1,
+        "scope": "observed_live_domain",
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1,
+        "snapshot_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "projection_digest": "c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17",
+        "closure_state": "closed",
+        "state": "observed",
+        "retention_expires_at": 1762000000,
+        "blockers": [],
+        "counts": {
+          "observations": 0,
+          "microphone_epochs": 0,
+          "unclassified_epochs": 0,
+          "correlated_epochs": 0,
+          "admitted_sources": 0,
+          "journal_ended_sources": 0,
+          "send_stop_acknowledged_sources": 0
+        }
+      },
+      "canonical_utf8": "{\"blockers\":[],\"closure_state\":\"closed\",\"counts\":{\"admitted_sources\":0,\"correlated_epochs\":0,\"journal_ended_sources\":0,\"microphone_epochs\":0,\"observations\":0,\"send_stop_acknowledged_sources\":0,\"unclassified_epochs\":0},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"retention_expires_at\":1762000000,\"scope\":\"observed_live_domain\",\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"state\":\"observed\",\"version\":1}\n",
+      "sha256": "f2b6906dc99979955b288f5a76bbd689e9931d9d447dabb466b8ed793bcbdd15"
+    },
+    {
+      "name": "unknown_projection",
+      "schema": "projection",
+      "payload": {
+        "version": 1,
+        "scope": "observed_live_domain",
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 1,
+        "snapshot_digest": "0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb",
+        "projection_digest": "c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17",
+        "closure_state": "closed",
+        "state": "unknown",
+        "retention_expires_at": 1762000000,
+        "blockers": [
+          {
+            "reason": "core_source_unrepresented",
+            "epoch_ref": null
+          }
+        ],
+        "counts": null
+      },
+      "canonical_utf8": "{\"blockers\":[{\"epoch_ref\":null,\"reason\":\"core_source_unrepresented\"}],\"closure_state\":\"closed\",\"counts\":null,\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"retention_expires_at\":1762000000,\"scope\":\"observed_live_domain\",\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"state\":\"unknown\",\"version\":1}\n",
+      "sha256": "d64e97030aa3c6474cc31c3e7ef4c9dd1ea96f6d278ce40217d365d99db88b33"
+    },
+    {
+      "name": "terminal_projection",
+      "schema": "projection",
+      "payload": {
+        "version": 1,
+        "scope": "observed_live_domain",
+        "domain_ref": "11111111-1111-4111-8111-000000000008",
+        "producer_revision": 9007199254740991,
+        "snapshot_digest": "4d785edec04ebf573e7dba938a04eb104cadcf33998dabfd2b798dd143eeec22",
+        "projection_digest": "c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17",
+        "closure_state": "closed",
+        "state": "unknown",
+        "retention_expires_at": 1762000000,
+        "blockers": [
+          {
+            "reason": "revision_exhausted",
+            "epoch_ref": null
+          }
+        ],
+        "counts": null
+      },
+      "canonical_utf8": "{\"blockers\":[{\"epoch_ref\":null,\"reason\":\"revision_exhausted\"}],\"closure_state\":\"closed\",\"counts\":null,\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":9007199254740991,\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"retention_expires_at\":1762000000,\"scope\":\"observed_live_domain\",\"snapshot_digest\":\"4d785edec04ebf573e7dba938a04eb104cadcf33998dabfd2b798dd143eeec22\",\"state\":\"unknown\",\"version\":1}\n",
+      "sha256": "f1d80f2ef15eb651c8a4f15127f2ca5e81195a34481ed4b0bd670b215a618bf8"
+    }
+  ],
+  "negative": [
+    {
+      "name": "unknown_snapshot_property",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[],\"inventory_complete\":true}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "uppercase_uuid",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "ordinary_revision_overflow",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1025,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "terminal_cannot_inventory",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":9007199254740991,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "exhaustion_requires_terminal",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1024,\"kind\":\"invalidation\",\"reason\":\"revision_exhausted\"}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "terminal_requires_exhaustion",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":9007199254740991,\"kind\":\"invalidation\",\"reason\":\"identity_conflict\"}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "unknown_event_enum",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"audio_drained\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":false,\"correlation\":\"correlated\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "unknown_correlation",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":false,\"correlation\":\"provider_confirmed\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "omitted_required_property",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "compact_digest_alias_forbidden",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"receipt_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "uppercase_digest",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"BA573953AE6DAB7AAF539CEB067722C603B4667E4522FB084861D187CDCB8AB1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "boolean_revision",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":true,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "fractional_revision",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1.5,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "unsafe_integer",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":9007199254740992},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[],\"epochs\":[]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "orphan_publication_link",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000099\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":false,\"correlation\":\"correlated\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "orphan_terminal_link",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000099\"],\"ended\":true,\"conflict\":false,\"correlation\":\"correlated\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "unsorted_observations",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":false,\"correlation\":\"correlated\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "duplicate_observation",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":false,\"correlation\":\"correlated\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "quarantined_epoch",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":true,\"correlation\":\"correlated\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "token_marker_is_not_correlation",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":false,\"correlation\":\"missing_join\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "unknown_requires_null_counts",
+      "schema": "projection",
+      "raw_json": "{\"version\":1,\"scope\":\"observed_live_domain\",\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"closure_state\":\"closed\",\"state\":\"unknown\",\"retention_expires_at\":1762000000,\"blockers\":[{\"reason\":\"live_admission_absent\",\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\"}],\"counts\":{\"observations\":2,\"microphone_epochs\":1,\"unclassified_epochs\":0,\"correlated_epochs\":1,\"admitted_sources\":0,\"journal_ended_sources\":0,\"send_stop_acknowledged_sources\":0}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "unbounded_count",
+      "schema": "projection",
+      "raw_json": "{\"version\":1,\"scope\":\"observed_live_domain\",\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"closure_state\":\"closed\",\"state\":\"observed\",\"retention_expires_at\":1762000000,\"blockers\":[{\"reason\":\"live_admission_absent\",\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\"}],\"counts\":{\"observations\":129,\"microphone_epochs\":1,\"unclassified_epochs\":0,\"correlated_epochs\":1,\"admitted_sources\":0,\"journal_ended_sources\":0,\"send_stop_acknowledged_sources\":0}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "structural_cannot_positive",
+      "schema": "projection",
+      "raw_json": "{\"version\":1,\"scope\":\"observed_live_domain\",\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"closure_state\":\"closed\",\"state\":\"observed\",\"retention_expires_at\":1762000000,\"blockers\":[{\"reason\":\"inventory_contradiction\",\"epoch_ref\":null}],\"counts\":{\"observations\":2,\"microphone_epochs\":1,\"unclassified_epochs\":0,\"correlated_epochs\":1,\"admitted_sources\":0,\"journal_ended_sources\":0,\"send_stop_acknowledged_sources\":0}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "eligible_without_policy",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"eligible\",\"policy\":null}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "expired_without_policy",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"not_applicable\",\"reason\":\"retention_expired\",\"policy\":null}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "absent_policy_cannot_export_policy",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"not_applicable\",\"reason\":\"policy_absent\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "unsigned_retry_is_not_terminal",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"not_applicable\",\"reason\":\"close_unconfirmed\",\"policy\":null}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "ttl_zero",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000100,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"eligible\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "ttl_31",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000131,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"eligible\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "decomposed_unicode",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://fixture.invalid/é\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"eligible\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "lone_surrogate",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://fixture.invalid/\\ud800\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"eligible\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000}}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "ack_different_digest",
+      "schema": "ack",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-ack\",\"operation\":\"acknowledge_live_observed_domain\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0001\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"requested_revision\":1,\"requested_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"current_revision\":1,\"current_digest\":\"77872a0e7ea398f26ff4fe9225bceef53cccb1e481e3914bc827f3a8df70d92d\",\"outcome\":\"recorded\"}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "superseded_same_revision",
+      "schema": "ack",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-ack\",\"operation\":\"acknowledge_live_observed_domain\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0001\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"requested_revision\":1,\"requested_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"current_revision\":1,\"current_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"outcome\":\"superseded\"}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "request_extra_key",
+      "schema": "context_request",
+      "raw_json": "{\"version\":1,\"issuer\":\"https://meet.fixture.invalid\",\"audience\":\"https://core.fixture.invalid\",\"type\":\"mastrao.meet-live-observed-domain-context-request\",\"operation\":\"resolve_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"recording_ref\":\"recording_fixture_0001\"}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "negative_zero_track_type",
+      "schema": "snapshot",
+      "raw_json": "{\"version\":1,\"type\":\"mastrao.live-observed-domain\",\"scope\":\"observed_live_domain\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"kind\":\"inventory\",\"observations\":[{\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"event_id\":\"rtc_event_fixture_1\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"event_type\":\"track_published\",\"observed_at\":1761000001,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":-0,\"track_source\":2},{\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"event_id\":\"rtc_event_fixture_2\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"event_type\":\"track_unpublished\",\"observed_at\":1761000002,\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"track_type\":0,\"track_source\":2}],\"epochs\":[{\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"room_sid\":\"RM_fixture\",\"participant_sid\":\"PA_fixture\",\"track_sid\":\"TR_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"conflict\":false,\"correlation\":\"correlated\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\"}]}",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "duplicate_json_property",
+      "schema": "context",
+      "raw_json": "{\"version\":1,\"version\":1,\"issuer\":\"https://core.fixture.invalid\",\"audience\":\"https://meet.fixture.invalid\",\"type\":\"mastrao.core-live-observed-domain-context\",\"operation\":\"confirm_live_observed_domain_context\",\"operation_version\":1,\"issued_at\":1761000100,\"expires_at\":1761000130,\"jti\":\"jti_live_fixture_0001\",\"request_jti\":\"jti_live_fixture_0000\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"outcome\":\"eligible\",\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000}}",
+      "expected_failure": "canonical_bytes"
+    },
+    {
+      "name": "noncanonical_whitespace",
+      "schema": "context",
+      "raw_json": "{\n  \"version\": 1,\n  \"issuer\": \"https://core.fixture.invalid\",\n  \"audience\": \"https://meet.fixture.invalid\",\n  \"type\": \"mastrao.core-live-observed-domain-context\",\n  \"operation\": \"confirm_live_observed_domain_context\",\n  \"operation_version\": 1,\n  \"issued_at\": 1761000100,\n  \"expires_at\": 1761000130,\n  \"jti\": \"jti_live_fixture_0001\",\n  \"request_jti\": \"jti_live_fixture_0000\",\n  \"binding\": {\n    \"organization_external_id\": \"org_live_fixture\",\n    \"meeting_ref\": \"meeting_live_fixture_001\",\n    \"room_ref\": \"room_live_fixture_0001\",\n    \"provider_binding_digest\": \"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\n    \"close_ref\": \"close_live_fixture_001\",\n    \"effect_key\": \"effect_live_fixture_001\",\n    \"arguments_digest\": \"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\n    \"close_receipt_claims_digest\": \"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"\n  },\n  \"outcome\": \"eligible\",\n  \"policy\": {\n    \"policy_ref\": \"policy_live_fixture_001\",\n    \"retention_policy_ref\": \"retention_live_fixture_001\",\n    \"retention_expires_at\": 1762000000\n  }\n}\n",
+      "expected_failure": "canonical_bytes"
+    },
+    {
+      "name": "noncanonical_key_order",
+      "schema": "context",
+      "raw_json": "{\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_policy_ref\":\"retention_live_fixture_001\",\"retention_expires_at\":1762000000},\"outcome\":\"eligible\",\"binding\":{\"organization_external_id\":\"org_live_fixture\",\"meeting_ref\":\"meeting_live_fixture_001\",\"room_ref\":\"room_live_fixture_0001\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\"},\"request_jti\":\"jti_live_fixture_0000\",\"jti\":\"jti_live_fixture_0001\",\"expires_at\":1761000130,\"issued_at\":1761000100,\"operation_version\":1,\"operation\":\"confirm_live_observed_domain_context\",\"type\":\"mastrao.core-live-observed-domain-context\",\"audience\":\"https://meet.fixture.invalid\",\"issuer\":\"https://core.fixture.invalid\",\"version\":1}\n",
+      "expected_failure": "canonical_bytes"
+    },
+    {
+      "name": "observed_admitted_sources_without_any_epoch",
+      "schema": "projection",
+      "raw_json": "{\"blockers\":[],\"closure_state\":\"closed\",\"counts\":{\"admitted_sources\":1,\"correlated_epochs\":0,\"journal_ended_sources\":1,\"microphone_epochs\":0,\"observations\":0,\"send_stop_acknowledged_sources\":1,\"unclassified_epochs\":0},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"producer_revision\":1,\"projection_digest\":\"c51ca4c69ab73782d571ba67d15c570abe1df676e983578762e767c5fe056a17\",\"retention_expires_at\":1762000000,\"scope\":\"observed_live_domain\",\"snapshot_digest\":\"0e8ee299198a8921969e1ff99fc7e2bccc0a68e6a8ed3689d937268e5972b8bb\",\"state\":\"observed\",\"version\":1}\n",
+      "expected_failure": "schema"
+    },
+    {
+      "name": "same_connection_distinct_participant_and_same_token",
+      "schema": "snapshot",
+      "raw_json": "{\"binding\":{\"arguments_digest\":\"ba573953ae6dab7aaf539ceb067722c603b4667e4522fb084861d187cdcb8ab1\",\"close_receipt_claims_digest\":\"272f55808eb5e71e7e0f23ca6fc20379a4a589434edaec6a1e0d98964273829f\",\"close_ref\":\"close_live_fixture_001\",\"effect_key\":\"effect_live_fixture_001\",\"meeting_ref\":\"meeting_live_fixture_001\",\"organization_external_id\":\"org_live_fixture\",\"provider_binding_digest\":\"ca01091852ee1dd7d2c9fad6bf333083d3c63ee8d57597623bf889125669e8f5\",\"room_ref\":\"room_live_fixture_0001\"},\"domain_ref\":\"11111111-1111-4111-8111-000000000008\",\"epochs\":[{\"conflict\":false,\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"correlation\":\"correlated\",\"end_observation_refs\":[\"11111111-1111-4111-8111-000000000002\"],\"ended\":true,\"epoch_ref\":\"11111111-1111-4111-8111-000000000005\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\",\"participant_sid\":\"PA_fixture\",\"publication_observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\"},{\"conflict\":false,\"connection_ref\":\"11111111-1111-4111-8111-000000000006\",\"correlation\":\"correlated\",\"end_observation_refs\":[],\"ended\":true,\"epoch_ref\":\"22222222-2222-4222-8222-000000000050\",\"media_token_binding_ref\":\"11111111-1111-4111-8111-000000000007\",\"participant_sid\":\"PA_different\",\"publication_observation_ref\":null,\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\"}],\"kind\":\"inventory\",\"observations\":[{\"event_id\":\"rtc_event_fixture_1\",\"event_type\":\"track_published\",\"observation_ref\":\"11111111-1111-4111-8111-000000000001\",\"observed_at\":1761000001,\"participant_sid\":\"PA_fixture\",\"payload_digest\":\"654398cf95bed47917a562fd0c34972e1ca9411adc95d1893de6b1d5dc9b92ca\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\",\"track_source\":2,\"track_type\":0},{\"event_id\":\"rtc_event_fixture_2\",\"event_type\":\"track_unpublished\",\"observation_ref\":\"11111111-1111-4111-8111-000000000002\",\"observed_at\":1761000002,\"participant_sid\":\"PA_fixture\",\"payload_digest\":\"899dc37e406dc86f3c0b1bfb6cef448a05315e8c20ec57108418a7ab34383a2c\",\"room_sid\":\"RM_fixture\",\"track_sid\":\"TR_fixture\",\"track_source\":2,\"track_type\":0}],\"policy\":{\"policy_ref\":\"policy_live_fixture_001\",\"retention_expires_at\":1762000000,\"retention_policy_ref\":\"retention_live_fixture_001\"},\"producer_revision\":1,\"scope\":\"observed_live_domain\",\"type\":\"mastrao.live-observed-domain\",\"version\":1}\n",
+      "expected_failure": "schema"
+    }
+  ]
+}

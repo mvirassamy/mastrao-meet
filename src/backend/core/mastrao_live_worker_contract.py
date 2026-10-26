@@ -6,6 +6,7 @@
 import re
 import time
 
+from core.mastrao_live_profile import validate_live_profile
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_room_contract import OPAQUE_REFERENCE
 
@@ -17,6 +18,8 @@ SEND_JOSE = "mastrao-live-transcript-send+jws"
 PREPARE_TYPE = "mastrao.meet-live-track-prepare"
 SEND_TYPE = "mastrao.meet-live-transcript-send"
 CONTROL_VERSION = 2
+PREPARE_VERSION = 2
+ADMISSION_VERSION = 3
 MAX_SAFE_INTEGER = 2**53 - 1
 REQUEST_FIELDS = {
     "version",
@@ -46,6 +49,7 @@ SEND_FIELDS = OWNER_FIELDS | {
 }
 ADMIT_FIELDS = {
     "version",
+    "live_profile",
     "source_ref",
     "state",
     "confirmed_sequence",
@@ -117,7 +121,7 @@ def validate_admission(result):
         raise RecordingContractRefused(status=503)
     if (
         type(result["version"]) is not int
-        or result["version"] != 1
+        or result["version"] != ADMISSION_VERSION
         or not matches(OPAQUE_REFERENCE, result["source_ref"])
         or result["state"] not in ("collecting", "ended")
         or type(result["incomplete"]) is not bool
@@ -129,6 +133,7 @@ def validate_admission(result):
         or result["final_event_count"] > result["confirmed_sequence"]
     ):
         raise RecordingContractRefused(status=503)
+    validate_live_profile(result["live_profile"])
     return result
 
 

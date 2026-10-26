@@ -68,7 +68,7 @@ describe('liveTranscriptionReducer', () => {
     }
   )
 
-  it('applies interim revisions and replaces them with an immutable final', () => {
+  it('applies interim revisions and replaces them with a final', () => {
     let state = createLiveTranscriptionState('room-1')
     state = ingest(state, [segment({ revision: 0, text: 'bon' })])
     state = ingest(state, [segment({ revision: 1, text: 'bonjour' })])
@@ -82,11 +82,171 @@ describe('liveTranscriptionReducer', () => {
       state: 'final',
       revision: 2,
     })
+  })
 
-    const finalState = ingest(state, [
-      segment({ revision: 99, state: 'final', text: 'bonjour corrigé' }),
+  it('accepts a higher final revision without changing its position or sequence', () => {
+    const state = ingest(createLiveTranscriptionState('room-1'), [
+      segment({
+        state: 'final',
+        revision: 1,
+        sequence: 1,
+        receivedAt: 10,
+        text: 'Budget 10',
+      }),
+      segment({ itemId: 'next', state: 'final', revision: 1, sequence: 2 }),
     ])
-    expect(finalState).toBe(state)
+
+    const corrected = ingest(state, [
+      segment({
+        state: 'final',
+        revision: 2,
+        sequence: 99,
+        receivedAt: 20,
+        text: 'Budget 20',
+      }),
+    ])
+
+    expect(corrected.segments).toHaveLength(2)
+    expect(corrected.segments[0]).toMatchObject({
+      key: state.segments[0].key,
+      state: 'final',
+      revision: 2,
+      sequence: 1,
+      text: 'Budget 20',
+    })
+    expect(corrected.segments[1]).toBe(state.segments[1])
+    expect(corrected.nextSequence).toBe(state.nextSequence)
+    expect(state.segments[0].text).toBe('Budget 10')
+  })
+
+  it('keeps a corrected final in place when two tracks share a sequence', () => {
+    const state = ingest(createLiveTranscriptionState('room-1'), [
+      segment({
+        state: 'final',
+        revision: 1,
+        sequence: 1,
+        receivedAt: 10,
+        text: 'Budget 10',
+      }),
+      segment({
+        participantIdentity: 'bob',
+        trackSid: 'TR_bob',
+        state: 'final',
+        revision: 1,
+        sequence: 1,
+        receivedAt: 20,
+        text: 'Ne pas valider.',
+      }),
+    ])
+
+    const corrected = ingest(state, [
+      segment({
+        state: 'final',
+        revision: 2,
+        sequence: 2,
+        receivedAt: 30,
+        text: '  Budget 20 : de\u0301cision non validée.\n',
+      }),
+    ])
+
+    expect(corrected.segments.map(({ key }) => key)).toEqual(
+      state.segments.map(({ key }) => key)
+    )
+    expect(corrected.segments[0]).toMatchObject({
+      sequence: 1,
+      revision: 2,
+      receivedAt: 10,
+      text: '  Budget 20 : de\u0301cision non validée.\n',
+    })
+    expect(corrected.segments[1]).toBe(state.segments[1])
+  })
+
+  it.each([
+    { state: 'final', revision: 1 },
+    { state: 'final', revision: 2 },
+    { state: 'final', revision: undefined },
+    { state: 'interim', revision: 3 },
+    { state: 'interim', revision: undefined },
+  ] as const)(
+    'keeps a final unchanged for $state revision $revision',
+    (update) => {
+      const state = ingest(createLiveTranscriptionState('room-1'), [
+        segment({ state: 'final', revision: 2, text: 'final' }),
+      ])
+
+      const nextState = ingest(state, [
+        segment({ ...update, text: 'late update' }),
+      ])
+
+      expect(nextState).toBe(state)
+    }
+  )
+
+  it('keeps legacy revision allocation and finalization', () => {
+    let state = ingest(createLiveTranscriptionState('room-1'), [
+      segment({ metadataSource: 'legacy-event' }),
+    ])
+    expect(state.segments[0].revision).toBe(0)
+
+    state = ingest(state, [
+      segment({ metadataSource: 'legacy-event', text: 'bonjour' }),
+    ])
+    expect(state.segments[0].revision).toBe(1)
+
+    state = ingest(state, [
+      segment({
+        metadataSource: 'legacy-event',
+        state: 'final',
+        text: 'final',
+      }),
+    ])
+    expect(state.segments[0]).toMatchObject({
+      revision: 2,
+      state: 'final',
+      text: 'final',
+      sequence: 0,
+      metadataSource: 'legacy-event',
+    })
+    expect(state.nextSequence).toBe(1)
+    expect(
+      ingest(state, [
+        segment({
+          metadataSource: 'legacy-event',
+          state: 'final',
+          text: 'late',
+        }),
+      ])
+    ).toBe(state)
+  })
+
+  it('corrects only the matching track and leg when item ids are equal', () => {
+    const state = ingest(createLiveTranscriptionState('room-1'), [
+      segment({ state: 'final', revision: 1, text: 'first leg' }),
+      segment({
+        state: 'final',
+        revision: 1,
+        legId: 'leg-2',
+        text: 'other leg',
+      }),
+      segment({
+        state: 'final',
+        revision: 1,
+        trackSid: 'TR_other',
+        text: 'other track',
+      }),
+    ])
+
+    const corrected = ingest(state, [
+      segment({ state: 'final', revision: 2, text: 'corrected first leg' }),
+    ])
+
+    expect(corrected.segments.map(({ text }) => text)).toEqual([
+      'corrected first leg',
+      'other leg',
+      'other track',
+    ])
+    expect(corrected.segments[1]).toBe(state.segments[1])
+    expect(corrected.segments[2]).toBe(state.segments[2])
   })
 
   it('rejects a late interim after finalization', () => {
@@ -157,6 +317,27 @@ describe('liveTranscriptionReducer', () => {
     expect(state.segments.some(({ itemId }) => itemId === 'active')).toBe(true)
     expect(state.segments.some(({ itemId }) => itemId === 'final-0')).toBe(
       false
+    )
+
+    const corrected = ingest(state, [
+      segment({
+        itemId: 'final-1',
+        state: 'final',
+        revision: 1,
+        text: 'corrected final-1',
+      }),
+    ])
+    expect(corrected.segments).toHaveLength(state.segments.length)
+    expect(corrected.segments[0]).toMatchObject({
+      itemId: 'final-1',
+      sequence: 1,
+      revision: 1,
+      text: 'corrected final-1',
+    })
+    expect(corrected.truncated).toBe(true)
+    expect(corrected.nextSequence).toBe(state.nextSequence)
+    expect(corrected.segments.some(({ itemId }) => itemId === 'active')).toBe(
+      true
     )
 
     const activeSegments = Array.from(

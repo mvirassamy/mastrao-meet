@@ -29,11 +29,13 @@ from core.mastrao_live_delivery_contract import (
 )
 from core.mastrao_live_track_provenance import trusted_live_track
 from core.mastrao_live_worker_contract import (
+    ADMISSION_VERSION,
     CONTROL_PATH,
     CONTROL_VERSION,
     PREPARE_JOSE,
     PREPARE_PATH,
     PREPARE_TYPE,
+    PREPARE_VERSION,
     SEND_JOSE,
     SEND_PATH,
     SEND_TYPE,
@@ -111,15 +113,15 @@ def _active_control(control, generation):
         and settings.ROOM_SUBTITLE_ENABLED
         and control.is_current
         and control.control_generation == generation
-        and control.provider == "openai-live"
+        and control.provider == "controlled-live"
         and control.desired_state == models.RoomSubtitleControl.DesiredState.ON
         and control.room_finished_at is None
     )
 
 
 def live_control_metadata(room_sid, generation, provider):
-    """Opt in canonical OpenAI jobs; disabled feature preserves legacy metadata."""
-    if provider != "openai-live" or not settings.MASTRAO_LIVE_WORKER_CONTROL_ENABLED:
+    """Dispatch the controlled pipeline; Core later supplies the sealed ASR profile."""
+    if not settings.MASTRAO_LIVE_WORKER_CONTROL_ENABLED:
         return None
     control = (
         models.RoomSubtitleControl.objects.select_related("room")
@@ -127,11 +129,15 @@ def live_control_metadata(room_sid, generation, provider):
         .first()
     )
     if control is None:
-        raise RecordingContractRefused(status=503)
+        if provider == "controlled-live":
+            raise RecordingContractRefused(status=503)
+        return None
     binding = models.MastraoRoomBinding.objects.filter(room_id=control.room_id).first()
     if binding is None:
+        if provider == "controlled-live":
+            raise RecordingContractRefused(status=503)
         return None
-    if not _active_control(control, generation):
+    if provider != "controlled-live" or not _active_control(control, generation):
         raise RecordingContractRefused()
     url = _control_url()
     validate_core_endpoint(
@@ -181,7 +187,7 @@ def _capability_scope(capability, command):
         or scope["version"] != CONTROL_VERSION
         or type(scope["generation"]) is not int
         or scope["generation"] < 0
-        or scope["provider"] != "openai-live"
+        or scope["provider"] != "controlled-live"
         or scope["room_sid"] != command["room_sid"]
         or type(scope["issued_at"]) is not int
         or type(scope["expires_at"]) is not int
@@ -242,8 +248,7 @@ def execute_worker_command(capability, body):
             **_envelope(PREPARE_TYPE),
             **facts,
             "attempt_ref": command["attempt_ref"],
-            "provider": "openai",
-            "model_ref": "gpt-live-transcribe",
+            "version": PREPARE_VERSION,
         }
         result = _post(
             settings.MASTRAO_CORE_LIVE_PREPARE_ENDPOINT,
@@ -253,7 +258,8 @@ def execute_worker_command(capability, body):
         )
         validate_admission(result)
         return {
-            "version": CONTROL_VERSION,
+            "version": ADMISSION_VERSION,
+            "live_profile": result["live_profile"],
             "source_ref": result["source_ref"],
             "admission_ref": facts["admission_ref"],
             "leg_ref": facts["leg_ref"],

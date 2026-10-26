@@ -1,0 +1,22 @@
+export const liveDomainFixture = (changes: Record<string, unknown> = {}) => ({
+  version: 1,
+  scope: 'observed_live_domain',
+  domain_ref: '10000000-0000-4000-8000-000000000001',
+  producer_revision: 1,
+  snapshot_digest: '1'.repeat(64),
+  projection_digest: '2'.repeat(64),
+  closure_state: 'closed',
+  state: 'observed',
+  retention_expires_at: 2_000_000_000,
+  blockers: [],
+  counts: {
+    observations: 2,
+    microphone_epochs: 1,
+    unclassified_epochs: 0,
+    correlated_epochs: 1,
+    admitted_sources: 1,
+    journal_ended_sources: 1,
+    send_stop_acknowledged_sources: 1,
+  },
+  ...changes,
+})

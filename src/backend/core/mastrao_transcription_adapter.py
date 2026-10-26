@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 from core import models
 from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_artifact import canonical_artifact_receipt_digest
-from core.mastrao_recording_contract import compact_digest
+from core.mastrao_recording_contract import RecordingContractRefused, compact_digest
 from core.mastrao_transcription_artifact import (
     extract_verified_audio_file,
     load_result_recovery,
@@ -786,7 +786,7 @@ def transcribe_mastrao_recording(request):
         return _safe_response(
             {"transcription_submit_receipt": _apply_transcription(effect)}
         )
-    except TranscriptionContractRefused as error:
+    except RecordingContractRefused as error:
         return _safe_response(
             {"message": "Not found" if error.status == 404 else "Unavailable"},
             error.status,

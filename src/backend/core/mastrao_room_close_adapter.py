@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from core import models
+from core.mastrao_live_observed_domain import mark_live_domain_dirty
 from core.mastrao_room_close_contract import (
     RoomCloseRefused,
     build_room_close_receipt_claims,
@@ -107,11 +108,16 @@ def _persist_tombstone(effect):
 
 @transaction.atomic
 def _apply_tombstone(closure_id, effect):
-    closure = (
-        models.MastraoRoomClosure.objects.select_for_update()
-        .select_related("room_binding__room")
-        .get(pk=closure_id)
+    room_binding_id = models.MastraoRoomClosure.objects.values_list(
+        "room_binding_id", flat=True
+    ).get(pk=closure_id)
+    binding = (
+        models.MastraoRoomBinding.objects.select_for_update()
+        .select_related("room")
+        .get(pk=room_binding_id)
     )
+    closure = models.MastraoRoomClosure.objects.select_for_update().get(pk=closure_id)
+    closure.room_binding = binding
     _validate_existing(closure, effect)
     if closure.state == models.MastraoRoomClosure.State.APPLIED:
         return sign_room_close_receipt(closure.receipt_claims)
@@ -171,6 +177,7 @@ def _apply_tombstone(closure_id, effect):
             "updated_at",
         ]
     )
+    mark_live_domain_dirty(closure)
     room_sid = (
         models.RoomSubtitleControl.objects.filter(
             room_id=room_id,

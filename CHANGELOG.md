@@ -1,4 +1,76 @@
+## 2026-10-26
+
+FEATURE: Add Mistral as a third internal-admin live transcription profile
+    alongside OpenAI and Deepgram, preserving frozen meeting selections and
+    provider-specific consent.
+FEATURE: Keep Meet consent provider-specific and forward the immutable Core
+    live profile to controlled worker dispatches independently of legacy STT
+    configuration.
+
 # Changelog
+
+- 2026-10-25: Deliver observed Live microphone facts after applied closure
+  through
+  a durable signed outbox, independently from recording; retain the original
+  consent deadline, fence stale acknowledgements and purge new metadata.
+
+- 2026-10-25: Show the observed Live inventory even with zero admitted sources,
+  preserve unresolved steps and withdraw loaded passages on fresh inventory
+  identity or retention expiry without new transcription.
+
+- 2026-10-25: Export the canonical persisted closure-claims digest for native
+  inventory reconciliation with Core, preserving the local compact receipt
+  digest and refusing inconsistent closure evidence.
+
+- 2026-10-25: Return the controlled transcription refusal when no signed submit
+  schema verifies or a verified payload expires, including v4, instead of
+  leaking a recording exception.
+
+- 2026-10-25: Load and copy retained live passages on explicit request,
+  preserve
+  independent source/connection groups and loss markers beside the canonical
+  result, and withdraw loaded text after fresh identity, access or retention
+  changes.
+
+- 2026-10-25: Persist and deliver signed revisions of known native capture
+  facts,
+  fence expired claims after database locks, and retain previously delivered
+  members across late track classification and overflow invalidation.
+
+- 2026-10-25: Explain native text consultation limits while preserving
+  authorized
+  capture metadata; withdraw expanded consultation on fresh unavailable status.
+
+- 2026-10-25: Show the known native capture inventory, its final capture states
+  and
+  available result counts without claiming complete meeting coverage; withdraw
+  stale counts after invalidation. Keep full consultation bound to a valid
+  fresh
+  raw revision and require a new explicit read after snapshot changes.
+
+- 2026-10-25: Load retained native source groups beyond the bounded history
+  preview on explicit request, preserve exact text and independent local times,
+  and withdraw loaded consultation after fresh identity changes or retention
+  expiry.
+
+- 2026-10-25: Display and copy ready native source groups while other sources
+  are processing, preserving local times, fresh access and partial coverage.
+
+- 2026-10-25: Display retained live source groups in meeting history with
+  explicit
+  gaps and connection endings, without invented timestamps or
+  complete-transcript
+  promotion; clear them on fresh unavailable or revoked reads.
+
+- 2026-10-25: Preserve native transcript epoch groups and their local times in
+  history, keep separate turns after reconnection and retain exact transcript
+  text; leave classic provider ordering unchanged.
+
+- 2026-10-25: Apply newer final live revisions while rejecting stale replays
+  and
+  late interim updates; preserve track and connection identities without
+  another
+  transcription request.
 
 - 2026-10-23: Keep the LiveKit error handler stable when meeting preferences
   rerender the conference, so a voluntary departure does not request another

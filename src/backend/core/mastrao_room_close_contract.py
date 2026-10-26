@@ -3,6 +3,7 @@
 import hashlib
 import json
 import time
+import unicodedata
 import uuid
 
 from django.conf import settings
@@ -279,3 +280,54 @@ def compact_receipt_digest(compact_jws):
         return hashlib.sha256(compact_jws.encode("ascii")).hexdigest()
     except UnicodeEncodeError as error:
         raise RoomCloseRefused() from error
+
+
+def persisted_close_receipt_claims_digest(closure):
+    """Hash exact durable claims as Core does, never the local compact JWS hash.
+
+    Historical receipt expiry is not current authority. The signed domain and
+    Core's confirmed close/policy checks provide that boundary at consumption.
+    """
+    claims = closure["receipt_claims"]
+    if not isinstance(claims, dict) or set(claims) != ROOM_CLOSE_EFFECT_FIELDS | {
+        "status",
+        "provider_observation",
+    }:
+        raise RoomCloseRefused()
+    for name, value in claims.items():
+        if name in {"version", "operation_version", "issued_at", "expires_at"}:
+            if type(value) is not int or not 0 < value <= 9_007_199_254_740_991:
+                raise RoomCloseRefused()
+        elif (
+            not isinstance(value, str)
+            or len(value) > 200
+            or value != unicodedata.normalize("NFC", value)
+            or any(0xD800 <= ord(character) <= 0xDFFF for character in value)
+        ):
+            raise RoomCloseRefused()
+    if (
+        type(claims["version"]) is not int
+        or claims["version"] != 1
+        or type(claims["operation_version"]) is not int
+        or claims["operation_version"] != 1
+        or claims["type"] != ROOM_CLOSE_RECEIPT_TYPE
+        or claims["operation"] != "confirm_private_room_closed"
+        or claims["status"] != "confirmed"
+        or claims["issuer"] != settings.MASTRAO_ROOM_RECEIPT_ISSUER
+        or claims["audience"] != settings.MASTRAO_ROOM_RECEIPT_AUDIENCE
+        or claims["provider_observation"] not in {"deleted", "already_absent"}
+        or claims["provider_observation"] != closure["provider_observation"]
+        or any(claims[name] != closure[name] for name in CLOSE_BINDING_FIELDS)
+    ):
+        raise RoomCloseRefused()
+    if (
+        not REQUEST_ID.fullmatch(claims["jti"])
+        or not 0 < claims["expires_at"] - claims["issued_at"] <= MAX_ASSERTION_SECONDS
+        or claims["arguments_digest"] != _sha256_canonical(close_arguments(claims))
+    ):
+        raise RoomCloseRefused()
+    if not isinstance(closure["receipt_digest"], str) or not DIGEST.fullmatch(
+        closure["receipt_digest"]
+    ):
+        raise RoomCloseRefused()
+    return _sha256_canonical(claims)

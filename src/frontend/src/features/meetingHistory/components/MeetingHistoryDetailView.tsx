@@ -135,7 +135,7 @@ export const MeetingHistoryDetailView = ({
   let content: ReactNode
   if (query.isPending || isAuthRequiredError(query.error)) {
     content = <MeetingHistoryDetailSkeleton label={t('detail.loading')} />
-  } else if (!query.data) {
+  } else if (!query.data || isNotFoundError(query.error)) {
     const notFound = isNotFoundError(query.error)
     content = (
       <MeetingHistoryStatePanel
@@ -183,6 +183,7 @@ export const MeetingHistoryDetailView = ({
       <MeetingDetailContent
         key={`${identityKey ?? ''}:${query.data.id}`}
         meeting={query.data}
+        consultationAvailable={!query.isError}
         timeZone={timeZone}
         identityKey={identityKey}
         headingRef={headingRef}
@@ -277,6 +278,7 @@ export const MeetingHistoryDetailView = ({
 
 const MeetingDetailContent = ({
   meeting,
+  consultationAvailable,
   timeZone,
   headingRef,
   summaryRequestState,
@@ -287,6 +289,7 @@ const MeetingDetailContent = ({
   onOpenAssistant,
 }: {
   meeting: MeetingHistoryDetail
+  consultationAvailable: boolean
   timeZone?: string
   headingRef: React.Ref<HTMLHeadingElement>
   summaryRequestState: SummaryRequestState
@@ -476,7 +479,10 @@ const MeetingDetailContent = ({
           </MeetingContentSection>
         }
         transcript={
-          <MeetingTranscriptSection transcript={meeting.transcript} />
+          <MeetingTranscriptSection
+            transcript={meeting.transcript}
+            meetingRef={consultationAvailable ? meeting.id : undefined}
+          />
         }
         notes={
           <MeetingPersonalNotesSection

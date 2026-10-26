@@ -93,7 +93,7 @@ def test_ingested_room_finished_refuses_audio_with_control_still_active(
     control.refresh_from_db()
     assert control.is_current
     assert control.desired_state == "ON"
-    assert control.provider == "openai-live"
+    assert control.provider == "controlled-live"
     assert control.control_generation == 3
     assert control.room_finished_at is None
     epoch.connection.room_binding.refresh_from_db()

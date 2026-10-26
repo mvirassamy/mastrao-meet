@@ -48,7 +48,7 @@ class ControlledSessionTests(unittest.IsolatedAsyncioTestCase):
         self.provider.input_window = AsyncMock(return_value=None)
         self.provider.stream = MagicMock(return_value=self.speech)
         self.factory = self.enterContext(
-            patch("live_transcriber.AuthorizedOpenAI", return_value=self.provider)
+            patch("live_provider_session.AuthorizedOpenAI", return_value=self.provider)
         )
         self.audio_factory = self.enterContext(
             patch(

@@ -398,6 +398,107 @@ describe('normalizeHistoryDetail', () => {
     ])
   })
 
+  it('preserves independent epoch groups, repeated IDs and exact transcript text', () => {
+    const epochA = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const epochB = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const segments = [
+      {
+        id: 's1',
+        start_ms: 5000,
+        text: '  De\u0301cision : ne pas payer 250 €.\n',
+        epoch: epochA,
+      },
+      { id: 's2', start_ms: 6000, text: 'Aucune validation.  ', epoch: epochA },
+      { id: 's1', start_ms: 0, text: '  Reconnexion.\n', epoch: epochB },
+      { id: 's2', start_ms: 5500, text: 'Ne pas confirmer.  ', epoch: epochB },
+    ]
+    const detail = normalizeHistoryDetail({
+      ...base,
+      transcript: {
+        status: 'available',
+        segments: segments.map(({ epoch, ...segment }) => ({
+          ...segment,
+          speaker: 'Camille',
+          source_epoch: { epoch_ref: epoch, time_basis: 'source_relative_ms' },
+        })),
+      },
+    })
+
+    expect(detail?.transcript.segments).toEqual(
+      segments.map(({ epoch, id, start_ms, text }) => ({
+        id,
+        startMs: start_ms,
+        speaker: 'Camille',
+        text,
+        sourceEpoch: { epochRef: epoch, timeBasis: 'source_relative_ms' },
+      }))
+    )
+  })
+
+  it('orders locally within each epoch while keeping first server appearance of groups', () => {
+    const epochA = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const epochB = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const detail = normalizeHistoryDetail({
+      ...base,
+      transcript: {
+        status: 'available',
+        segments: [
+          { id: 's2', start_ms: 6000, text: 'A6', epoch: epochA },
+          { id: 's2', start_ms: 5500, text: 'B5.5', epoch: epochB },
+          { id: 's1', start_ms: 5000, text: 'A5', epoch: epochA },
+          { id: 's1', start_ms: 0, text: 'B0', epoch: epochB },
+        ].map(({ epoch, ...segment }) => ({
+          ...segment,
+          source_epoch: { epoch_ref: epoch, time_basis: 'source_relative_ms' },
+        })),
+      },
+    })
+
+    expect(detail?.transcript.segments.map((segment) => segment.text)).toEqual([
+      'A5',
+      'A6',
+      'B0',
+      'B5.5',
+    ])
+  })
+
+  it('keeps provider time ordering without inferring epochs from segment IDs', () => {
+    const detail = normalizeHistoryDetail({
+      ...base,
+      transcript: {
+        status: 'available',
+        segments: [
+          {
+            id: 'native_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb_s1',
+            start_ms: 6000,
+            text: '  Plus tard.\n',
+          },
+          {
+            id: 'native_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa_s1',
+            start_ms: 0,
+            text: '  Ne pas accepter.  ',
+          },
+          { id: 'blank', start_ms: 1000, text: ' \n\t ' },
+        ],
+      },
+    })
+
+    expect(detail?.transcript.segments).toEqual([
+      {
+        id: 'native_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa_s1',
+        startMs: 0,
+        speaker: null,
+        text: '  Ne pas accepter.  ',
+      },
+      {
+        id: 'native_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb_s1',
+        startMs: 6000,
+        speaker: null,
+        text: '  Plus tard.\n',
+      },
+    ])
+  })
+
   it('treats legacy available content without readable data as completed', () => {
     const detail = normalizeHistoryDetail({
       ...base,

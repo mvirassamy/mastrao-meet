@@ -587,3 +587,100 @@ def test_notice_text_matches_its_canonical_contract_digest():
     ).hexdigest() == (
         "19a76d62a39b5c4c3211d17720908bf474fe3080eec010ea0c0470db8c40d249"
     )
+
+
+@pytest.mark.parametrize(
+    "notice_version,digest,disclosure",
+    [
+        (
+            "live_microphone_fr_v1",
+            "19a76d62a39b5c4c3211d17720908bf474fe3080eec010ea0c0470db8c40d249",
+            "OpenAI, avec le modèle gpt-live-transcribe",
+        ),
+        (
+            "live_microphone_deepgram_fr_v1",
+            "075ce191193d455e6769a2691455c21eea171eca4ef6d0b8adfff9330241b8ed",
+            "Deepgram, avec le modèle nova-3",
+        ),
+        (
+            "live_microphone_mistral_fr_v1",
+            "796222a034349c74ece96d66ace0632ff3ae26cba6038ac211c18f54a2c5b02e",
+            "Mistral, avec le modèle voxtral-mini-transcribe-realtime-3",
+        ),
+    ],
+)
+@pytest.mark.parametrize("decision", ["accepted", "refused", "withdrawn"])
+def test_provider_disclosure_roundtrip_keeps_displayed_notice(
+    consent_peer, notice_version, digest, disclosure, decision
+):
+    peer = consent_peer
+    text = adapter.NOTICE_TEXT.replace(
+        "OpenAI, avec le modèle gpt-live-transcribe", disclosure
+    )
+    assert hashlib.sha256(_canonical_json({"text": text})).hexdigest() == digest
+    peer.offer.update(notice_version=notice_version, notice_digest=digest, text=text)
+    peer.decision.update(
+        notice_version=notice_version, notice_digest=digest, decision=decision
+    )
+    displayed = adapter.offer_live_consent(peer.request, peer.room)
+    assert displayed["text"] == text
+    assert displayed["capture_authorized"] is False
+    peer.offer["decision"] = decision
+    result = adapter.record_live_consent(peer.request, peer.room, **peer.decision)
+    assertion = peer.sign.call_args.args[0]
+    assert assertion["notice_version"] == notice_version
+    assert assertion["notice_digest"] == digest
+    assert result["capture_authorized"] is False
+    assert peer.request.session == {"unchanged": "session-marker"}
+
+
+@pytest.mark.parametrize(
+    "notice_version",
+    [
+        "live_microphone_deepgram_fr_v1",
+        "live_microphone_mistral_fr_v1",
+    ],
+)
+def test_rejects_mixed_provider_disclosure_or_missing_text(
+    consent_peer, notice_version
+):
+    peer = consent_peer
+    digest, text = adapter.APPROVED_NOTICES[notice_version]
+    peer.offer.update(notice_version=notice_version, notice_digest=digest, text=text)
+    for changes in (
+        {"notice_digest": adapter.NOTICE_DIGEST},
+        {"text": adapter.NOTICE_TEXT},
+        {"text": None},
+        {"text": text + " autre traitement"},
+    ):
+        peer.transport.return_value = {**peer.offer, **changes}
+        with pytest.raises(RecordingContractRefused) as error:
+            adapter.offer_live_consent(peer.request, peer.room)
+        assert error.value.status == 503
+
+
+@pytest.mark.parametrize("digest", [adapter.NOTICE_DIGEST, "f" * 64])
+def test_mistral_forged_decision_digest_is_rejected_before_signing(
+    consent_peer, digest
+):
+    peer = consent_peer
+    peer.decision.update(
+        notice_version="live_microphone_mistral_fr_v1", notice_digest=digest
+    )
+    with pytest.raises(RecordingContractRefused):
+        adapter.record_live_consent(peer.request, peer.room, **peer.decision)
+    peer.participant_mock.assert_not_called()
+    peer.sign.assert_not_called()
+    peer.transport.assert_not_called()
+
+
+def test_decision_response_cannot_substitute_an_approved_mistral_notice(consent_peer):
+    peer = consent_peer
+    digest, text = adapter.APPROVED_NOTICES["live_microphone_mistral_fr_v1"]
+    peer.offer.update(
+        notice_version="live_microphone_mistral_fr_v1", notice_digest=digest, text=text
+    )
+    with pytest.raises(RecordingContractRefused) as error:
+        adapter.record_live_consent(peer.request, peer.room, **peer.decision)
+    assert error.value.status == 503
+    assert peer.sign.call_args.args[0]["notice_version"] == "live_microphone_fr_v1"

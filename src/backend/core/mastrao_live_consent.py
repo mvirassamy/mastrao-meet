@@ -36,6 +36,36 @@ NOTICE_TEXT = (
     "transcription en direct."
 )
 NOTICE_DIGEST = "19a76d62a39b5c4c3211d17720908bf474fe3080eec010ea0c0470db8c40d249"
+# Existing OpenAI notices remain readable; only these version/digest/text triples
+# are approved. Core owns which immutable policy a meeting has selected.
+APPROVED_NOTICES = {
+    NOTICE_VERSION: (NOTICE_DIGEST, NOTICE_TEXT),
+    "live_microphone_deepgram_fr_v1": (
+        "075ce191193d455e6769a2691455c21eea171eca4ef6d0b8adfff9330241b8ed",
+        NOTICE_TEXT.replace(
+            "OpenAI, avec le modèle gpt-live-transcribe",
+            "Deepgram, avec le modèle nova-3",
+        ),
+    ),
+    "live_microphone_mistral_fr_v1": (
+        "796222a034349c74ece96d66ace0632ff3ae26cba6038ac211c18f54a2c5b02e",
+        NOTICE_TEXT.replace(
+            "OpenAI, avec le modèle gpt-live-transcribe",
+            "Mistral, avec le modèle voxtral-mini-transcribe-realtime-3",
+        ),
+    ),
+}
+
+
+def _approved_notice(version, digest, text=None):
+    if not isinstance(version, str):
+        return False
+    approved = APPROVED_NOTICES.get(version)
+    if approved is None or digest != approved[0]:
+        return False
+    return text is None or text == approved[1]
+
+
 OFFER_PATH = "/internal/v1/meetings/transcripts/live/consent/offer"
 DECISION_PATH = "/internal/v1/meetings/transcripts/live/consent/decision"
 OFFER_JOSE = "mastrao-live-transcript-consent-offer+jws"
@@ -204,9 +234,10 @@ def _validate_offer(result, binding):
         type(result["version"]) is not int
         or result["version"] != 1
         or result["capture_authorized"] is not False
-        or result["notice_version"] != NOTICE_VERSION
-        or result["notice_digest"] != NOTICE_DIGEST
-        or result["text"] != NOTICE_TEXT
+        or not isinstance(result["text"], str)
+        or not _approved_notice(
+            result["notice_version"], result["notice_digest"], result["text"]
+        )
         or result["purpose"] != CONSENT_PURPOSE
         or result["scope"] != CONSENT_SCOPE
         or not isinstance(result["decision"], str)
@@ -263,8 +294,7 @@ def record_live_consent(  # noqa: PLR0913  # pylint: disable=too-many-arguments
             not _matches(OPAQUE_REFERENCE, value)
             for value in (decision_ref, consent_ref, policy_ref)
         )
-        or notice_version != NOTICE_VERSION
-        or notice_digest != NOTICE_DIGEST
+        or not _approved_notice(notice_version, notice_digest)
         or not _future_retention(retention_expires_at)
     ):
         raise RecordingContractRefused()

@@ -15,6 +15,8 @@ from urllib.parse import urlsplit
 
 import aiohttp
 
+from live_provider_profile import PREPARE_VERSION, LiveProfileSelection
+
 CONTROL_VERSION = 2
 MAX_BODY_BYTES = 16_384
 MAX_CAPABILITY_BYTES = 8192
@@ -135,13 +137,15 @@ class LiveControlClient:
 
     @classmethod
     def from_metadata(cls, metadata: str) -> LiveControlClient | None:
-        """Keep jobs without liveControl on the existing legacy path."""
+        """Require canonical capability metadata; retain other unbound legacy jobs."""
         if not metadata:
             return None
         if not isinstance(metadata, str) or len(metadata.encode()) > MAX_BODY_BYTES:
             raise ControlError("invalid job metadata")
         job = _json_object(metadata)
         if "liveControl" not in job:
+            if job.get("provider") == "controlled-live":
+                raise ControlError("controlled-live job requires liveControl")
             return None
         value = job["liveControl"]
         if not isinstance(value, dict) or set(value) != {
@@ -268,6 +272,15 @@ class LiveSendAuthority:
         self._rotation_pending = False
         self._cleanup_leg: str | None = None
         self._cleanup_start = 0
+        self._live_profile: LiveProfileSelection | None = None
+
+    @property
+    def live_profile(self) -> LiveProfileSelection:
+        """Return only the profile captured from the authoritative preparation."""
+        if self._live_profile is None:
+            raise ControlError("live profile was not prepared")
+        self._live_profile.validate()
+        return self._live_profile
 
     def can_send(self) -> bool:
         """Check on every frame and immediately before a provider connection."""
@@ -301,11 +314,16 @@ class LiveSendAuthority:
         if prepared is None:
             return False
         if (
-            set(prepared) != {"version", "source_ref", "admission_ref", "leg_ref"}
+            set(prepared)
+            != {"version", "source_ref", "admission_ref", "leg_ref", "live_profile"}
             or type(prepared["version"]) is not int
-            or prepared["version"] != CONTROL_VERSION
+            or prepared["version"] != PREPARE_VERSION
         ):
             raise ControlError("invalid prepare response")
+        try:
+            self._live_profile = LiveProfileSelection.parse(prepared["live_profile"])
+        except ValueError as error:
+            raise ControlError("invalid prepared live profile") from error
         self.source = {
             "source_ref": _reference(prepared["source_ref"]),
             "admission_ref": _reference(prepared["admission_ref"]),

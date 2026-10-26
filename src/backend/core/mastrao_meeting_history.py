@@ -31,6 +31,7 @@ CREATION_FIELDS = {
 DAY_QUERY_FIELDS = {"day_start", "day_end", "cursor"}
 UNIX_SECONDS = re.compile(r"^[0-9]{1,16}$")
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
+SNAPSHOT_DIGEST = re.compile(r"^[a-f0-9]{64}$")
 
 
 def _reject_json_constant(_value):
@@ -186,6 +187,58 @@ def meeting_history_detail(request, meeting_ref):
             "GET",
             meeting_path(meeting_ref),
             accepted_statuses={200},
+        )
+    )
+
+
+def _transcript_consultation_path(request, meeting_ref, kind, digest_field):
+    """Forward exactly one expected snapshot; never accept extra query options."""
+
+    if (
+        set(request.GET) != {digest_field}
+        or len(request.GET.getlist(digest_field)) != 1
+    ):
+        raise PlatformFacadeError(status=422)
+    digest = request.GET[digest_field]
+    if not SNAPSHOT_DIGEST.fullmatch(digest):
+        raise PlatformFacadeError(status=422)
+    return f"{meeting_path(meeting_ref, f'{kind}-transcript/')}?{digest_field}={digest}"
+
+
+@require_GET
+def meeting_native_transcript(request, meeting_ref):
+    """Read retained native groups through the existing 2 MiB, no-store bridge."""
+
+    return _response(
+        lambda: request_platform(
+            request,
+            "GET",
+            _transcript_consultation_path(
+                request, meeting_ref, "native", "snapshot_digest"
+            ),
+            accepted_statuses={200},
+            options={"error_statuses": {401, 403, 404, 409, 410, 422}},
+        )
+    )
+
+
+@require_GET
+def meeting_live_transcript(request, meeting_ref):
+    """Read retained live groups through the authenticated bounded bridge."""
+
+    return _response(
+        lambda: request_platform(
+            request,
+            "GET",
+            _transcript_consultation_path(
+                request, meeting_ref, "live", "source_heads_digest"
+            ),
+            accepted_statuses={200},
+            options={
+                "error_statuses": {401, 403, 404, 409, 410, 422},
+                # Allow fresh lookup/preview and the Core reader's signed 30 s budget.
+                "timeout": (5, 45),
+            },
         )
     )
 

@@ -287,12 +287,13 @@ def _verified_submit_payload(compact_jws):
         (SUBMIT_EFFECT_V2_FIELDS, 2),
         (SUBMIT_EFFECT_V3_FIELDS, 3),
         (SUBMIT_EFFECT_FIELDS, 1),
+        (SUBMIT_EFFECT_V4_FIELDS, 4),
     ):
         try:
             return _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, fields), version
         except RecordingContractRefused:
             pass
-    return _verify(compact_jws, SUBMIT_EFFECT_JOSE_TYPE, SUBMIT_EFFECT_V4_FIELDS), 4
+    raise TranscriptionContractRefused()
 
 
 def _validate_asr_reference(effect, name):

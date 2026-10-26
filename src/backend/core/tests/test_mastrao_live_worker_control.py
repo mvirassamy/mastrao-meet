@@ -23,6 +23,7 @@ from core.factories import RoomFactory
 from core.mastrao_live_delivery_contract import DELIVERY_PATH
 from core.mastrao_live_track_provenance import epoch_references
 from core.mastrao_live_worker_contract import (
+    ADMISSION_VERSION,
     CONTROL_PATH,
     CONTROL_VERSION,
     PREPARE_PATH,
@@ -39,6 +40,7 @@ from core.services.subtitle_reconciliation import (
     _dispatch_metadata_json,
     _reconcile_provider_unlocked,
     reconcile_subtitle_control,
+    subtitle_provider,
 )
 from core.tests.services.test_subtitle_reconciliation import mock_livekit_client
 from core.tests.test_mastrao_media_token_binding import (
@@ -84,11 +86,11 @@ def gateway(settings, host, receipt, client):
     control = models.RoomSubtitleControl.objects.create(
         room=host.room_binding.room,
         room_sid="RM_fixture",
-        provider="openai-live",
+        provider="controlled-live",
         desired_state="ON",
         control_generation=3,
     )
-    metadata = live_control_metadata(control.room_sid, 3, "openai-live")
+    metadata = live_control_metadata(control.room_sid, 3, "controlled-live")
     return {
         "epoch": epoch,
         "control": control,
@@ -118,7 +120,14 @@ def command(action="prepare", **changes):
 
 def core_admission():
     return {
-        "version": 1,
+        "version": ADMISSION_VERSION,
+        "live_profile": {
+            "version": 1,
+            "revision": 7,
+            "profile_ref": "openai-live-fr-en-v1",
+            "profile_version": 1,
+            "config_digest": "3e427e95b56ac2f2c43dfcbc6e1d6a88b1f4e4ef85484e506a166919edac7bf7",
+        },
         "source_ref": SOURCE,
         "state": "collecting",
         "confirmed_sequence": 0,
@@ -183,7 +192,8 @@ def test_prepare_signs_exact_server_provenance_without_recording_or_credentials(
         response = invoke(client, gateway, command())
     assert response.status_code == 200
     assert response.json() == {
-        "version": CONTROL_VERSION,
+        "version": ADMISSION_VERSION,
+        "live_profile": core_admission()["live_profile"],
         "source_ref": SOURCE,
         "admission_ref": epoch_references(gateway["epoch"])["admission_ref"],
         "leg_ref": epoch_references(gateway["epoch"])["leg_ref"],
@@ -202,12 +212,13 @@ def test_prepare_signs_exact_server_provenance_without_recording_or_credentials(
         == "mastrao-live-track-prepare+jws"
     )
     assert claims["organization_external_id"] == host.organization_external_id
-    assert claims["version"] == 1  # Core preparation remains a v1 admission.
+    assert claims["version"] == 2  # Core derives the immutable ASR profile.
     assert claims["participant_ref"] == host.identity.host_ref
     assert claims["participant_session_digest"] == host.session_nonce_digest
     assert claims["grant_digest"] == host.grant_digest
-    assert claims["provider"] == "openai"
-    assert claims["model_ref"] == "gpt-live-transcribe"
+    assert "provider" not in claims
+    assert "model_ref" not in claims
+    assert "live_profile" not in claims
     assert claims["leg_ref"] == epoch_references(gateway["epoch"])["leg_ref"]
     assert "consent_ref" not in claims
     assert "worker_instance_ref" not in claims
@@ -401,7 +412,7 @@ def test_expired_token_does_not_revoke_established_connection(client, gateway, r
     with mock.patch(
         "core.mastrao_live_worker_control.time.time", return_value=time.time() + 3700
     ):
-        fresh = live_control_metadata("RM_fixture", 3, "openai-live")
+        fresh = live_control_metadata("RM_fixture", 3, "controlled-live")
         with mock.patch(
             "core.mastrao_live_worker_control.post_core_json",
             return_value=core_admission(),
@@ -510,9 +521,9 @@ def test_renew_cannot_authorize_a_new_open(client, gateway):
 
 def test_dispatch_disabled_default_retains_metadata(gateway, settings):
     settings.MASTRAO_LIVE_WORKER_CONTROL_ENABLED = False
-    assert live_control_metadata("RM_fixture", 3, "openai-live") is None
+    assert live_control_metadata("RM_fixture", 3, "controlled-live") is None
     assert "liveControl" not in json.loads(
-        _dispatch_metadata_json("RM_fixture", 3, "openai-live")
+        _dispatch_metadata_json("RM_fixture", 3, "controlled-live")
     )
 
 
@@ -533,7 +544,7 @@ def test_enabled_canonical_dispatch_fails_closed_without_valid_config(
 ):
     setattr(settings, name, value)
     with pytest.raises(RecordingContractRefused):
-        live_control_metadata("RM_fixture", 3, "openai-live")
+        live_control_metadata("RM_fixture", 3, "controlled-live")
 
 
 def test_no_participant_session_authentication(client, gateway):
@@ -645,7 +656,7 @@ def test_malformed_admission_response_is_opaque(client, gateway, changes):
 def test_dispatch_url_rejects_public_or_malformed_targets(gateway, settings, url):
     settings.MASTRAO_LIVE_WORKER_CONTROL_URL = url
     with pytest.raises(RecordingContractRefused):
-        live_control_metadata("RM_fixture", 3, "openai-live")
+        live_control_metadata("RM_fixture", 3, "controlled-live")
 
 
 @pytest.mark.parametrize(
@@ -664,7 +675,7 @@ def test_dispatch_url_is_exact_and_internal(gateway, settings, hostname):
         "http://" + hostname + ":8000" + CONTROL_PATH
     )
     assert (
-        live_control_metadata("RM_fixture", 3, "openai-live")["url"]
+        live_control_metadata("RM_fixture", 3, "controlled-live")["url"]
         == settings.MASTRAO_LIVE_WORKER_CONTROL_URL
     )
 
@@ -700,11 +711,11 @@ def test_actual_dispatch_has_scoped_metadata_only_when_enabled(
 ):
     settings.MASTRAO_LIVE_WORKER_CONTROL_ENABLED = enabled
     async_to_sync(_reconcile_provider_unlocked)(
-        str(gateway["control"].room_id), "RM_fixture", "ON", 3, "openai-live"
+        str(gateway["control"].room_id), "RM_fixture", "ON", 3, "controlled-live"
     )
     request = mock_livekit_client.agent_dispatch.create_dispatch.call_args.args[0]
     metadata = json.loads(request.metadata)
-    assert metadata["provider"] == "openai-live"
+    assert metadata["provider"] == "controlled-live"
     if enabled:
         assert (
             metadata["liveControl"]["url"] == settings.MASTRAO_LIVE_WORKER_CONTROL_URL
@@ -725,7 +736,7 @@ def test_actual_canonical_dispatch_missing_url_never_creates_legacy_job(
     settings.MASTRAO_LIVE_WORKER_CONTROL_URL = ""
     with pytest.raises(SubtitleReconciliationAmbiguous):
         async_to_sync(_reconcile_provider_unlocked)(
-            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "openai-live"
+            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "controlled-live"
         )
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
 
@@ -738,13 +749,13 @@ def test_noncanonical_dispatch_preserves_legacy_path(
     models.RoomSubtitleControl.objects.create(
         room=room,
         room_sid="RM_other",
-        provider="openai-live",
+        provider="deepgram",
         desired_state="ON",
         control_generation=1,
     )
     settings.MASTRAO_LIVE_WORKER_CONTROL_URL = ""
     async_to_sync(_reconcile_provider_unlocked)(
-        str(room.pk), "RM_other", "ON", 1, "openai-live"
+        str(room.pk), "RM_other", "ON", 1, "deepgram"
     )
     request = mock_livekit_client.agent_dispatch.create_dispatch.call_args.args[0]
     assert "liveControl" not in json.loads(request.metadata)
@@ -757,12 +768,12 @@ def test_existing_uncontrolled_canonical_dispatch_is_never_adopted(
     dispatch = mock.Mock(
         id="AD_legacy",
         agent_name="multi-user-transcriber",
-        metadata=_dispatch_metadata_json("RM_fixture", 3, "openai-live"),
+        metadata=_dispatch_metadata_json("RM_fixture", 3, "controlled-live"),
     )
     mock_livekit_client.agent_dispatch.list_dispatch.return_value = [dispatch]
     with pytest.raises(SubtitleReconciliationAmbiguous):
         async_to_sync(_reconcile_provider_unlocked)(
-            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "openai-live"
+            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "controlled-live"
         )
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
 
@@ -774,14 +785,14 @@ def test_existing_uncontrolled_canonical_dispatch_is_never_adopted(
     "metadata",
     [
         "{}",
-        json.dumps({"generation": 3, "provider": "openai-live"}),
-        json.dumps({"generation": 2, "provider": "openai-live"}),
+        json.dumps({"generation": 3, "provider": "controlled-live"}),
+        json.dumps({"generation": 2, "provider": "controlled-live"}),
         *[
             json.dumps(
                 {
                     "roomSid": room_sid,
                     "generation": 3,
-                    "provider": "openai-live",
+                    "provider": "controlled-live",
                     "agentName": "multi-user-transcriber",
                 }
             )
@@ -830,7 +841,7 @@ def test_unknown_dispatch_cannot_hide_behind_room_metadata(
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
-    "metadata", ["{}", '{"generation":3,"provider":"openai-live"}']
+    "metadata", ["{}", '{"generation":3,"provider":"controlled-live"}']
 )
 def test_off_relist_cannot_confirm_absence_while_unknown_dispatch_remains(
     gateway, mock_livekit_client, metadata
@@ -849,7 +860,7 @@ def test_off_relist_cannot_confirm_absence_while_unknown_dispatch_remains(
 
     with pytest.raises(SubtitleReconciliationAmbiguous):
         async_to_sync(_reconcile_provider_unlocked)(
-            str(gateway["control"].room_id), "RM_fixture", "OFF", 4, "openai-live"
+            str(gateway["control"].room_id), "RM_fixture", "OFF", 4, "controlled-live"
         )
 
     assert mock_livekit_client.agent_dispatch.list_dispatch.await_count == 2
@@ -861,14 +872,14 @@ def test_off_relist_cannot_confirm_absence_while_unknown_dispatch_remains(
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
-    "metadata", ["{}", '{"generation":3,"provider":"openai-live"}']
+    "metadata", ["{}", '{"generation":3,"provider":"controlled-live"}']
 )
 def test_on_deduplication_relist_cannot_hide_unknown_dispatch(
     gateway, mock_livekit_client, metadata
 ):
     """A valid current worker does not hide a malformed one in the relist."""
     controlled = _dispatch_metadata_json(
-        "RM_fixture", 3, "openai-live", gateway["metadata"]
+        "RM_fixture", 3, "controlled-live", gateway["metadata"]
     )
     known = mock.Mock(
         id="AD_0", agent_name="multi-user-transcriber", metadata=controlled
@@ -886,7 +897,7 @@ def test_on_deduplication_relist_cannot_hide_unknown_dispatch(
 
     with pytest.raises(SubtitleReconciliationAmbiguous):
         async_to_sync(_reconcile_provider_unlocked)(
-            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "openai-live"
+            str(gateway["control"].room_id), "RM_fixture", "ON", 3, "controlled-live"
         )
 
     assert mock_livekit_client.agent_dispatch.list_dispatch.await_count == 2
@@ -894,3 +905,162 @@ def test_on_deduplication_relist_cannot_hide_unknown_dispatch(
         dispatch_id="AD_1", room_name=str(gateway["control"].room_id)
     )
     mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+@pytest.mark.parametrize("legacy_provider", ["legacy", "deepgram", "openai-live"])
+def test_bound_room_dispatch_is_controlled_independently_of_legacy_provider(
+    settings, gateway, legacy_provider
+):
+    settings.ROOM_SUBTITLE_PROVIDER = legacy_provider
+    room = gateway["control"].room
+    assert subtitle_provider(room) == "controlled-live"
+    assert subtitle_provider(RoomFactory()) == legacy_provider
+    settings.MASTRAO_LIVE_WORKER_CONTROL_ENABLED = False
+    assert subtitle_provider(room) == legacy_provider
+
+
+@pytest.mark.parametrize(
+    "reference,digest",
+    [
+        (
+            "openai-live-fr-en-v1",
+            "3e427e95b56ac2f2c43dfcbc6e1d6a88b1f4e4ef85484e506a166919edac7bf7",
+        ),
+        (
+            "deepgram-live-multi-v1",
+            "854db1101119b3e2749dd87e5edc5608a783aa70d87c5a4d757892fc938b7963",
+        ),
+        (
+            "mistral-live-multi-v1",
+            "ee3a31d7f8f4f54c71f6b1c30c57c065af090c8d872c183bb43819047c8e5005",
+        ),
+    ],
+)
+def test_prepare_forwards_frozen_selection_without_meet_choosing_model(
+    client, gateway, reference, digest
+):
+    result = core_admission()
+    result["live_profile"].update(
+        profile_ref=reference,
+        config_digest=digest,
+    )
+    with mock.patch(
+        "core.mastrao_live_worker_control.post_core_json", return_value=result
+    ) as post:
+        response = invoke(client, gateway, command())
+    assert response.status_code == 200
+    assert response.json()["live_profile"] == result["live_profile"]
+    assert response.json()["live_profile"]["revision"] == 7
+    assert "capture_authorized" not in response.json()
+    claims = jwt.decode(
+        post.call_args.kwargs["body"]["request"],
+        gateway["key"],
+        algorithms=["EdDSA"],
+        options={"verify_aud": False},
+    )
+    assert claims["version"] == 2
+    assert "provider" not in claims and "model_ref" not in claims
+
+
+@pytest.mark.parametrize(
+    "replacement", [None, {}, {"revision": True}, {"config_digest": "a" * 64}]
+)
+def test_prepare_refuses_missing_or_substituted_core_profile(
+    client, gateway, replacement
+):
+    result = core_admission()
+    if replacement is None:
+        del result["live_profile"]
+    else:
+        result["live_profile"] = {**result["live_profile"], **replacement}
+        if not replacement:
+            result["live_profile"] = {}
+    with mock.patch(
+        "core.mastrao_live_worker_control.post_core_json", return_value=result
+    ):
+        assert invoke(client, gateway, command()).status_code == 503
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("protocol", [None, 1, 2])
+def test_bound_legacy_intent_cannot_create_or_adopt_an_uncontrolled_job(
+    gateway, mock_livekit_client, protocol
+):
+    control = gateway["control"]
+    control.provider = "openai-live"
+    control.save(update_fields=["provider"])
+    dispatches = []
+    if protocol is not None:
+        metadata = {**gateway["metadata"], "version": protocol}
+        dispatches.append(
+            mock.Mock(
+                id="AD_old_marker",
+                agent_name="multi-user-transcriber",
+                metadata=_dispatch_metadata_json(
+                    "RM_fixture", 3, "openai-live", metadata
+                ),
+            )
+        )
+    mock_livekit_client.agent_dispatch.list_dispatch.return_value = dispatches
+    with pytest.raises(SubtitleReconciliationAmbiguous):
+        async_to_sync(_reconcile_provider_unlocked)(
+            str(control.room_id), "RM_fixture", "ON", 3, "openai-live"
+        )
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
+
+
+def test_controlled_marker_without_a_bound_room_never_returns_legacy_metadata(
+    gateway,
+):
+    room = RoomFactory()
+    models.RoomSubtitleControl.objects.create(
+        room=room,
+        room_sid="RM_unbound",
+        provider="controlled-live",
+        desired_state="ON",
+        control_generation=1,
+    )
+    with pytest.raises(RecordingContractRefused):
+        live_control_metadata("RM_unbound", 1, "controlled-live")
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {
+            "config_digest": "3e427e95b56ac2f2c43dfcbc6e1d6a88b1f4e4ef85484e506a166919edac7bf7"
+        },
+        {"config_digest": "f" * 64},
+        {"profile_version": 2},
+        {"provider": "mistral"},
+        {"configuration": {"language": "fr"}},
+    ],
+)
+def test_prepare_refuses_mistral_profile_substitution(client, gateway, changes):
+    result = core_admission()
+    result["live_profile"].update(
+        profile_ref="mistral-live-multi-v1",
+        config_digest="ee3a31d7f8f4f54c71f6b1c30c57c065af090c8d872c183bb43819047c8e5005",
+    )
+    result["live_profile"].update(changes)
+    with mock.patch(
+        "core.mastrao_live_worker_control.post_core_json", return_value=result
+    ):
+        response = invoke(client, gateway, command())
+    assert response.status_code == 503
+    assert response.json() == {"message": "Unavailable"}
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"profile_ref": "mistral-live-multi-v1"},
+        {"provider": "mistral"},
+        {"model_ref": "voxtral-mini-transcribe-realtime-3"},
+        {"live_profile": {"profile_ref": "mistral-live-multi-v1"}},
+    ],
+)
+def test_prepare_worker_cannot_choose_mistral_in_request(client, gateway, changes):
+    with mock.patch("core.mastrao_live_worker_control.post_core_json") as post:
+        assert invoke(client, gateway, {**command(), **changes}).status_code == 400
+        post.assert_not_called()

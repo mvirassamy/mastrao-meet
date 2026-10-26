@@ -1,4 +1,8 @@
 import { fetchApi } from '@/api/fetchApi'
+import { normalizeLiveTranscript } from './meetingLiveTranscript'
+import { normalizeNativeCoverage } from './meetingNativeCoverage'
+import { normalizeNativePartial } from './meetingNativePartial'
+import { normalizeNativeFullPreviewSnapshot } from './meetingNativeFull'
 import {
   normalizeMeetingRecording,
   normalizeRecordingStatus,
@@ -10,6 +14,7 @@ import {
   type MeetingHistoryDetail,
   type MeetingHistoryItem,
   type MeetingHistoryPage,
+  type MeetingNativeCoverage,
   type MeetingSummarySection,
   type MeetingTranscriptSegment,
 } from './types'
@@ -98,6 +103,24 @@ const normalizeProjection = (
 
 const isReadable = (projection: MeetingContentProjection) =>
   projection.state === 'available' || projection.state === 'partial'
+
+const canConsultNativePartial = (
+  projection: MeetingContentProjection,
+  coverage: MeetingNativeCoverage | undefined,
+  segments: MeetingTranscriptSegment[]
+) => {
+  if (isReadable(projection) && segments.length > 0) return false
+  switch (projection.state) {
+    case 'completed_empty':
+      return false
+    case 'transcribing':
+      return true
+    default:
+      return (
+        coverage?.epochs.some((epoch) => epoch.state === 'pending') === true
+      )
+  }
+}
 
 const sameSource = (
   left: MeetingContentProjection['source'],
@@ -194,7 +217,22 @@ export const mergeHistoryDetail = (
   current: MeetingHistoryDetail,
   incoming: MeetingHistoryDetail
 ): MeetingHistoryDetail => {
-  const item = mergeHistoryItem(current, incoming)
+  // Coverage may be "partial" before any final body exists. Only protect an
+  // immutable readable identity once its actual transcript has been received.
+  let previousItem: MeetingHistoryItem = current
+  if (
+    current.transcript.segments.length === 0 &&
+    isReadable(current.transcriptProjection)
+  ) {
+    previousItem = {
+      ...current,
+      transcriptProjection: {
+        ...current.transcriptProjection,
+        state: 'unknown',
+      },
+    }
+  }
+  const item = mergeHistoryItem(previousItem, incoming)
   const coherentSummaryProjection =
     item.summaryProjection.sourceRequired === true &&
     isReadable(item.summaryProjection) &&
@@ -215,7 +253,7 @@ export const mergeHistoryDetail = (
       ) &&
       isReadable(current.summaryProjection))
   const keepTranscript =
-    item.transcriptProjection === current.transcriptProjection ||
+    item.transcriptProjection === previousItem.transcriptProjection ||
     (item.transcriptProjection.refreshPending &&
       isReadable(current.transcriptProjection))
   return {
@@ -234,9 +272,18 @@ export const mergeHistoryDetail = (
             sections: [],
           }
         : { ...incoming.summary, projection: coherentSummaryProjection },
-    transcript: keepTranscript
-      ? { ...current.transcript, projection: item.transcriptProjection }
-      : { ...incoming.transcript, projection: item.transcriptProjection },
+    transcript: {
+      ...(keepTranscript ? current.transcript : incoming.transcript),
+      projection: item.transcriptProjection,
+      // Consultation data follows this fresh authorized read, not canonical revision.
+      liveSources: incoming.transcript.liveSources,
+      liveTruncated: incoming.transcript.liveTruncated,
+      liveFullSnapshot: incoming.transcript.liveFullSnapshot,
+      liveObservedDomain: incoming.transcript.liveObservedDomain,
+      nativeCoverage: incoming.transcript.nativeCoverage,
+      nativePartial: incoming.transcript.nativePartial,
+      nativeFullSnapshot: incoming.transcript.nativeFullSnapshot,
+    },
   }
 }
 
@@ -313,26 +360,61 @@ const normalizeSections = (value: unknown): MeetingSummarySection[] =>
     return title ? [{ title, items }] : []
   })
 
-const normalizeSegments = (value: unknown): MeetingTranscriptSegment[] =>
-  (Array.isArray(value) ? value : [])
-    .flatMap((segment, index) => {
+const normalizeSourceEpoch = (
+  value: unknown
+): MeetingTranscriptSegment['sourceEpoch'] => {
+  if (
+    !isRecord(value) ||
+    typeof value.epoch_ref !== 'string' ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu.test(
+      value.epoch_ref
+    ) ||
+    value.time_basis !== 'source_relative_ms'
+  )
+    return undefined
+
+  return { epochRef: value.epoch_ref, timeBasis: value.time_basis }
+}
+
+const orderTranscriptSegments = (segments: MeetingTranscriptSegment[]) => {
+  const groups = new Map<string | undefined, MeetingTranscriptSegment[]>()
+  for (const segment of segments) {
+    const epochRef = segment.sourceEpoch?.epochRef
+    const group = groups.get(epochRef)
+    if (group) group.push(segment)
+    else groups.set(epochRef, [segment])
+  }
+  // Each epoch has its own clock; Map order retains first server appearance.
+  // Segments without provenance share the historical provider clock.
+  return Array.from(groups.values()).flatMap((group) =>
+    group.sort((left, right) => left.startMs - right.startMs)
+  )
+}
+
+const normalizeSegments = (value: unknown): MeetingTranscriptSegment[] => {
+  const segments = (Array.isArray(value) ? value : []).flatMap(
+    (segment, index) => {
       if (!isRecord(segment)) return []
-      const text = asString(segment.text)
-      if (!text) return []
+      const text = segment.text
+      if (typeof text !== 'string' || text.trim() === '') return []
       const startMs =
         typeof segment.start_ms === 'number' && segment.start_ms >= 0
           ? segment.start_ms
           : 0
+      const sourceEpoch = normalizeSourceEpoch(segment.source_epoch)
       return [
         {
           id: asString(segment.id) ?? `segment-${index}`,
           startMs,
           speaker: asString(segment.speaker),
           text,
+          ...(sourceEpoch ? { sourceEpoch } : {}),
         },
       ]
-    })
-    .sort((left, right) => left.startMs - right.startMs)
+    }
+  )
+  return orderTranscriptSegments(segments)
+}
 
 /** Old responses without projections are refined locally during rollout. */
 export const normalizeHistoryDetail = (
@@ -404,11 +486,27 @@ export const normalizeHistoryDetail = (
     paragraphs: isReadable(summaryProjection) ? paragraphs : [],
     sections: isReadable(summaryProjection) ? sections : [],
   }
+  const nativeCoverage = normalizeNativeCoverage(raw.native_coverage, item.id)
   const transcript = {
     status: transcriptProjection.state,
     projection: transcriptProjection,
     segments: isReadable(transcriptProjection) ? segments : [],
     truncated: rawTranscript.truncated === true,
+    ...normalizeLiveTranscript(raw, item.id),
+    nativeCoverage,
+    nativeFullSnapshot: normalizeNativeFullPreviewSnapshot(
+      raw.native_coverage,
+      raw.transcript,
+      item.id,
+      raw.transcript_projection ?? rawTranscript.projection
+    ),
+    nativePartial: canConsultNativePartial(
+      transcriptProjection,
+      nativeCoverage,
+      segments
+    )
+      ? normalizeNativePartial(raw.native_partial, raw.native_coverage, item.id)
+      : undefined,
   }
 
   return {

@@ -75,10 +75,19 @@ class Gateway:
             }
         elif action == "prepare":
             result = {
-                "version": 2,
+                "version": 3,
                 "source_ref": SOURCE,
                 "admission_ref": ADMISSION,
                 "leg_ref": LEG,
+                "live_profile": {
+                    "version": 1,
+                    "revision": 7,
+                    "profile_ref": "openai-live-fr-en-v1",
+                    "profile_version": 1,
+                    "config_digest": (
+                        "3e427e95b56ac2f2c43dfcbc6e1d6a88b1f4e4ef85484e506a166919edac7bf7"
+                    ),
+                },
             }
         else:
             if action == "rotate":
