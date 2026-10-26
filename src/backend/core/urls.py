@@ -28,6 +28,8 @@ from core.mastrao_meeting_history import (
     meeting_collection,
     meeting_history,
     meeting_history_detail,
+    meeting_live_transcript,
+    meeting_native_transcript,
     meeting_summary,
 )
 from core.mastrao_native_capture_adapter import start_native_capture
@@ -224,6 +226,16 @@ urlpatterns = [
                     "meetings/history/<str:meeting_ref>/",
                     meeting_history_detail,
                     name="mastrao_meeting_history_detail",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/live-transcript/",
+                    meeting_live_transcript,
+                    name="mastrao_meeting_live_transcript",
+                ),
+                path(
+                    "meetings/history/<str:meeting_ref>/native-transcript/",
+                    meeting_native_transcript,
+                    name="mastrao_meeting_native_transcript",
                 ),
                 path(
                     "meetings/history/<str:meeting_ref>/summary/",

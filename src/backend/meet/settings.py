@@ -521,6 +521,16 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
+    MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_CONTEXT_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_LIVE_OBSERVED_DOMAIN_ENDPOINT",
+        environ_prefix=None,
+    )
     MASTRAO_CORE_LIVE_CONSENT_OFFER_ENDPOINT = values.Value(
         "", environ_name="MASTRAO_CORE_LIVE_CONSENT_OFFER_ENDPOINT", environ_prefix=None
     )
@@ -583,6 +593,11 @@ class Base(Configuration):
     MASTRAO_CORE_NATIVE_TRACK_OBSERVATION_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_NATIVE_TRACK_OBSERVATION_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_NATIVE_CAPTURE_DOMAIN_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_NATIVE_CAPTURE_DOMAIN_ENDPOINT",
         environ_prefix=None,
     )
     MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED = values.BooleanValue(

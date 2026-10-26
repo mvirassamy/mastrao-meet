@@ -1,12 +1,14 @@
 """Execute pinned SDK retry/rotation loops with synthetic websocket transport."""
 
 import asyncio
+import os
 import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
+from live_continuation_fixtures import FixtureVAD
 from livekit import rtc
 from livekit.plugins import openai
 from openai import AsyncOpenAI
@@ -55,7 +57,9 @@ class SingleConnectionSDKTests(unittest.IsolatedAsyncioTestCase):
             return self.provider
 
         self.enterContext(
-            patch("live_transcriber.AuthorizedOpenAI", side_effect=provider_factory)
+            patch(
+                "live_provider_session.AuthorizedOpenAI", side_effect=provider_factory
+            )
         )
         self.publisher = SimpleNamespace(
             publish_segment=AsyncMock(), publish_gap=AsyncMock()
@@ -65,7 +69,7 @@ class SingleConnectionSDKTests(unittest.IsolatedAsyncioTestCase):
             participant=SimpleNamespace(identity="fixture", sid="PA_participant"),
             track_sid="TR_track",
             publisher=self.publisher,
-            vad=None,
+            vad=FixtureVAD(),
             authority=self.lease,
         )
         self.run = None
@@ -85,6 +89,16 @@ class SingleConnectionSDKTests(unittest.IsolatedAsyncioTestCase):
         self.run = asyncio.create_task(self.track.run())
         await reached(self.receiving)
         self.connector.assert_awaited_once()
+
+    async def test_closed_openai_profile_ignores_legacy_language_and_model(self):
+        """The real SDK constructor receives the closed selection's exact options."""
+        with patch.dict(
+            os.environ,
+            {"OPENAI_STT_LANGUAGE": "de", "OPENAI_STT_MODEL": "legacy-model"},
+        ):
+            await self.start_track()
+        self.assertEqual(self.provider._opts.languages, ["fr", "en"])
+        self.assertEqual(self.provider._opts.model, "gpt-live-transcribe")
 
     async def test_real_sdk_ten_minute_rotation_is_refused_with_explicit_gap(self):
         """The SDK's while-True rotation cannot acquire a second connection."""

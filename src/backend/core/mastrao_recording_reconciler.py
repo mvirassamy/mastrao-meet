@@ -12,8 +12,10 @@ from django.utils import timezone
 from livekit import api as livekit_api
 
 from core import models
+from core.mastrao_live_observed_domain import reconcile_live_observed_domains
 from core.mastrao_native_admission import reconcile_native_admissions
 from core.mastrao_native_asr_worker import schedule_native_asr
+from core.mastrao_native_capture_domain import reconcile_native_capture_domains
 from core.mastrao_native_capture_drain import reconcile_native_captures
 from core.mastrao_native_source_transfer import schedule_native_source_transfer
 from core.mastrao_native_track_observations import reconcile_native_track_observations
@@ -103,12 +105,14 @@ def reconcile_native_recordings(limit=20):
         + reconcile_native_admissions(limit=limit)
         + schedule_native_source_transfer(limit=limit)
         + schedule_native_asr(limit=limit)
+        + reconcile_native_capture_domains(limit=limit)
     )
 
 
 def reconcile_mastrao_recordings(limit=20):
     """Process a bounded batch for an external scheduler or operator."""
 
+    live_reconciled = reconcile_live_observed_domains(limit=limit)
     applying_starts = models.MastraoRecordingEffect.objects.filter(
         operation=models.MastraoRecordingEffect.Operation.START,
         state=models.MastraoRecordingEffect.State.APPLYING,
@@ -149,6 +153,7 @@ def reconcile_mastrao_recordings(limit=20):
             )
     return (
         reconciled
+        + live_reconciled
         + reconcile_transcription_dispatches(limit=limit)
         + reconcile_native_recordings(limit=limit)
     )

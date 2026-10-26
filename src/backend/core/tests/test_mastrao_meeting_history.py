@@ -510,3 +510,328 @@ def test_invitees_require_complete_schedule_before_any_external_side_effect(sche
     platform.assert_not_called()
     consume.assert_not_called()
     deliver.assert_not_called()
+
+
+NATIVE_MEETING_REF = "meeting_native0123456789"
+NATIVE_DIGEST = "a" * 64
+NATIVE_TARGET = f"/api/v1.0/meetings/history/{NATIVE_MEETING_REF}/native-transcript/"
+
+
+@override_settings(**TEST_SETTINGS)
+def test_native_transcript_forwards_exact_snapshot_query_and_retains_text():
+    """Use one authenticated GET, with no cache, ASR call or text rewriting."""
+    epoch = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    body = {
+        "version": 1,
+        "meeting_ref": NATIVE_MEETING_REF,
+        "snapshot_digest": NATIVE_DIGEST,
+        "coverage": "partial_sources",
+        "ordering": "independent_epoch_groups",
+        "native_coverage": {
+            "version": 1,
+            "meeting_ref": NATIVE_MEETING_REF,
+            "snapshot_digest": NATIVE_DIGEST,
+            "epochs": [{"epoch_ref": epoch, "state": "available"}],
+        },
+        "segments": [
+            {
+                "id": f"{epoch}_s{index}",
+                "start_ms": index,
+                "speaker": "Camille",
+                "text": "  De\u0301cision : ne pas payer 250 €.\n",
+                "source_epoch": {
+                    "epoch_ref": epoch,
+                    "time_basis": "source_relative_ms",
+                },
+            }
+            for index in range(1001)
+        ],
+        "retention_expires_at": 2_000_000_000,
+        "truncated": False,
+    }
+    upstream = _upstream(200, body)
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().get(
+            f"{NATIVE_TARGET}?snapshot_digest={NATIVE_DIGEST}"
+        )
+    assert response.status_code == 200
+    assert response.json() == body
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert TOKEN not in response.content.decode()
+    session.request.assert_called_once_with(
+        "GET",
+        f"{PLATFORM}/api/meet/meetings/history/{NATIVE_MEETING_REF}/native-transcript/"
+        f"?snapshot_digest={NATIVE_DIGEST}",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        timeout=5,
+        allow_redirects=False,
+        stream=True,
+    )
+    assert session.trust_env is False
+    upstream.close.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "",
+        "snapshot_digest=",
+        "snapshot_digest=" + "a" * 63,
+        "snapshot_digest=" + "a" * 65,
+        "snapshot_digest=" + "A" * 64,
+        "snapshot_digest=" + "g" * 64,
+        "snapshot_digest=" + "a" * 64 + "%0A",
+        "snapshot_digest=" + "a" * 64 + "%20",
+        f"snapshot_digest={NATIVE_DIGEST}&snapshot_digest={NATIVE_DIGEST}",
+        f"snapshot_digest={NATIVE_DIGEST}&snapshot_digest=" + "b" * 64,
+        f"snapshot_digest={NATIVE_DIGEST}&cursor=next",
+        f"snapshot_digest={NATIVE_DIGEST}&refresh=true",
+    ],
+)
+@override_settings(**TEST_SETTINGS)
+def test_native_transcript_rejects_ambiguous_or_invalid_query_before_network(query):
+    """Accept exactly one lowercase SHA-256 and no extra parameters."""
+    with patch("core.mastrao_platform_facade.requests.Session") as session:
+        response = _client_with_token().get(f"{NATIVE_TARGET}?{query}")
+    assert response.status_code == 422
+    assert response.headers["Cache-Control"] == "private, no-store"
+    session.assert_not_called()
+
+
+@override_settings(**TEST_SETTINGS)
+def test_native_transcript_rejects_missing_auth_and_invalid_meeting_before_network():
+    """Keep the existing session and canonical path checks ahead of transport."""
+    with patch("core.mastrao_platform_facade.requests.Session") as session:
+        missing = Client().get(f"{NATIVE_TARGET}?snapshot_digest={NATIVE_DIGEST}")
+        invalid = _client_with_token().get(
+            "/api/v1.0/meetings/history/not-valid!/native-transcript/"
+            f"?snapshot_digest={NATIVE_DIGEST}"
+        )
+    assert missing.status_code == 401
+    assert invalid.status_code == 404
+    session.assert_not_called()
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 409, 410, 422])
+@override_settings(**TEST_SETTINGS)
+def test_native_transcript_preserves_access_and_snapshot_refusals_without_body_read(
+    status,
+):
+    """No-store refusals remain opaque and never forward an upstream error body."""
+    upstream = _upstream(status, {"message": "private upstream error"})
+    session = _session_returning(upstream)
+    client = _client_with_token()
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = client.get(f"{NATIVE_TARGET}?snapshot_digest={NATIVE_DIGEST}")
+    assert response.status_code == status
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert TOKEN not in response.content.decode()
+    assert "private upstream error" not in response.content.decode()
+    if status == 401:
+        assert "oidc_access_token" not in client.session
+    upstream.iter_content.assert_not_called()
+    upstream.close.assert_called_once()
+
+
+@pytest.mark.parametrize("declared", [True, False])
+@override_settings(**TEST_SETTINGS)
+def test_native_transcript_retains_existing_two_mib_response_limit(declared):
+    """Refuse declared and streamed overflow without increasing shared limits."""
+    assert MAX_PLATFORM_RESPONSE_BYTES == 2 * 1024 * 1024
+    upstream = _upstream(200, {})
+    if declared:
+        upstream.headers["content-length"] = str(MAX_PLATFORM_RESPONSE_BYTES + 1)
+    else:
+        upstream.headers = {}
+        upstream.iter_content.return_value = [b" " * MAX_PLATFORM_RESPONSE_BYTES, b" "]
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().get(
+            f"{NATIVE_TARGET}?snapshot_digest={NATIVE_DIGEST}"
+        )
+    assert response.status_code == 503
+    assert response.headers["Cache-Control"] == "private, no-store"
+    upstream.close.assert_called_once()
+
+
+@override_settings(**TEST_SETTINGS)
+def test_native_transcript_accepts_exact_existing_transport_limit():
+    """The transport's exact 2 MiB boundary remains inclusive."""
+    body = {"transport_fixture": ""}
+    overhead = len(json.dumps(body).encode())
+    body["transport_fixture"] = "x" * (MAX_PLATFORM_RESPONSE_BYTES - overhead)
+    upstream = _upstream(200, body)
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().get(
+            f"{NATIVE_TARGET}?snapshot_digest={NATIVE_DIGEST}"
+        )
+    assert response.status_code == 200
+    assert response.json() == body
+
+
+@override_settings(**TEST_SETTINGS)
+def test_native_transcript_rejects_mutating_methods():
+    """Consultation is GET-only, even with a well-formed digest."""
+    with patch("core.mastrao_platform_facade.requests.Session") as session:
+        response = _client_with_token().post(
+            f"{NATIVE_TARGET}?snapshot_digest={NATIVE_DIGEST}"
+        )
+    assert response.status_code == 405
+    session.assert_not_called()
+
+
+LIVE_TARGET = f"/api/v1.0/meetings/history/{NATIVE_MEETING_REF}/live-transcript/"
+LIVE_QUERY = f"source_heads_digest={NATIVE_DIGEST}"
+
+
+@override_settings(**TEST_SETTINGS)
+def test_live_transcript_forwards_exact_heads_and_unicode_without_reinterpreting_content():
+    """Transport all retained finals and markers once, using the session token."""
+    source = "source_live0123456789"
+    leg = "leg_live0123456789"
+    events = [
+        {
+            "version": 2,
+            "kind": "final",
+            "source_ref": source,
+            "leg_ref": leg,
+            "sequence": index + 1,
+            "item_ref": f"item-{index}",
+            "revision": 2,
+            "text": "  De\u0301cision : ne pas payer 250 €.\n",
+            "language": None,
+            "timing": {"state": "unavailable"},
+        }
+        for index in range(1001)
+    ]
+    events.append(
+        {
+            "version": 2,
+            "kind": "gap",
+            "source_ref": source,
+            "leg_ref": leg,
+            "sequence": 1002,
+            "reason": "connection_lost",
+        }
+    )
+    body = {
+        "version": 1,
+        "meeting_ref": NATIVE_MEETING_REF,
+        "matter_ref": "matter_live0123456789",
+        "source_heads_digest": NATIVE_DIGEST,
+        "snapshot_digest": "b" * 64,
+        "coverage": "partial_sources",
+        "meeting_coverage": "unverified",
+        "ordering": "independent_source_groups",
+        "retention_expires_at": 2_000_000_000,
+        "truncated": False,
+        "sources": [
+            {
+                "source_ref": source,
+                "participant_kind": "host",
+                "participant_ref": "participant_live0123456789",
+                "state": "collecting",
+                "incomplete": True,
+                "confirmed_sequence": 1002,
+                "events": events,
+            }
+        ],
+    }
+    upstream = _upstream(200, body)
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().get(f"{LIVE_TARGET}?{LIVE_QUERY}")
+    assert response.status_code == 200
+    assert response.json() == body
+    assert response.headers["Cache-Control"] == "private, no-store"
+    session.request.assert_called_once_with(
+        "GET",
+        f"{PLATFORM}/api/meet/meetings/history/{NATIVE_MEETING_REF}/live-transcript/"
+        f"?{LIVE_QUERY}",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        timeout=(5, 45),
+        allow_redirects=False,
+        stream=True,
+    )
+    assert session.trust_env is False
+    upstream.close.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "",
+        "source_heads_digest=",
+        "source_heads_digest=" + "a" * 63,
+        "source_heads_digest=" + "a" * 65,
+        "source_heads_digest=" + "A" * 64,
+        "source_heads_digest=" + "g" * 64,
+        f"{LIVE_QUERY}%0A",
+        f"{LIVE_QUERY}%20",
+        f"{LIVE_QUERY}&{LIVE_QUERY}",
+        f"{LIVE_QUERY}&source_heads_digest=" + "b" * 64,
+        f"{LIVE_QUERY}&cursor=next",
+        f"{LIVE_QUERY}&snapshot_digest={NATIVE_DIGEST}",
+        f"{LIVE_QUERY}&participant_ref=forged",
+        f"{LIVE_QUERY}&refresh=true",
+    ],
+)
+@override_settings(**TEST_SETTINGS)
+def test_live_transcript_rejects_ambiguous_query_before_transport(query):
+    """Participant input supplies only the expected heads digest."""
+    with patch("core.mastrao_platform_facade.requests.Session") as session:
+        response = _client_with_token().get(f"{LIVE_TARGET}?{query}")
+    assert response.status_code == 422
+    assert response.headers["Cache-Control"] == "private, no-store"
+    session.assert_not_called()
+
+
+@override_settings(**TEST_SETTINGS)
+def test_live_transcript_rejects_missing_session_invalid_meeting_and_mutations():
+    """Existing auth, canonical path and GET restrictions precede network access."""
+    with patch("core.mastrao_platform_facade.requests.Session") as session:
+        missing = Client().get(f"{LIVE_TARGET}?{LIVE_QUERY}")
+        invalid = _client_with_token().get(
+            f"/api/v1.0/meetings/history/not-valid!/live-transcript/?{LIVE_QUERY}"
+        )
+        mutation = _client_with_token().post(f"{LIVE_TARGET}?{LIVE_QUERY}")
+    assert missing.status_code == 401
+    assert invalid.status_code == 404
+    assert mutation.status_code == 405
+    session.assert_not_called()
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 409, 410, 422, 503])
+@override_settings(**TEST_SETTINGS)
+def test_live_transcript_preserves_opaque_refusals_without_reading_private_body(status):
+    """Never read or expose upstream text on access or snapshot refusal."""
+    upstream = _upstream(status, {"message": "private live text"})
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().get(f"{LIVE_TARGET}?{LIVE_QUERY}")
+    assert response.status_code == status
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert "private live text" not in response.content.decode()
+    assert TOKEN not in response.content.decode()
+    upstream.iter_content.assert_not_called()
+    upstream.close.assert_called_once()
+
+
+@pytest.mark.parametrize("declared", [True, False])
+@override_settings(**TEST_SETTINGS)
+def test_live_transcript_rejects_declared_and_streamed_two_mib_overflow(declared):
+    """Keep the shared transport bound unchanged for live consultation."""
+    upstream = _upstream(200, {})
+    if declared:
+        upstream.headers["content-length"] = str(MAX_PLATFORM_RESPONSE_BYTES + 1)
+    else:
+        upstream.headers = {}
+        upstream.iter_content.return_value = [b" " * MAX_PLATFORM_RESPONSE_BYTES, b" "]
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().get(f"{LIVE_TARGET}?{LIVE_QUERY}")
+    assert response.status_code == 503
+    assert response.headers["Cache-Control"] == "private, no-store"
+    upstream.close.assert_called_once()

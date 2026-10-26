@@ -1,0 +1,95 @@
+{
+  "provenance": "Synthetic facts; generated from frozen Core nativeDomainSnapshotDigest on 2026-10-25; no RTC/provider/media proof",
+  "vectors": [
+    {
+      "facts": {
+        "version": 1,
+        "type": "mastrao.meet-native-capture-domain",
+        "organization_external_id": "synthetic_organization",
+        "meeting_ref": "meeting_synthetic_0001",
+        "room_ref": "room_synthetic_0000001",
+        "provider_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "scope": "observed_native_capture_domain",
+        "domain_ref": "d0000000-0000-4000-8000-000000000000",
+        "producer_revision": 7,
+        "kind": "inventory",
+        "inventory_complete": true,
+        "observations": [
+          {
+            "observation_ref": "a0000000-0000-4000-8000-000000000000",
+            "event_id": "EV_synthetic_0",
+            "payload_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "event_type": "track_published",
+            "observed_at": 1,
+            "room_sid": "RM_synthetic",
+            "participant_sid": "PA_synthetic",
+            "track_sid": "TR_synthetic_0",
+            "epoch_ref": "a1111111-1111-4111-8111-111111111111"
+          },
+          {
+            "observation_ref": "b0000000-0000-4000-8000-000000000000",
+            "event_id": "EV_synthetic_1",
+            "payload_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "event_type": "track_published",
+            "observed_at": 1,
+            "room_sid": "RM_synthetic",
+            "participant_sid": "PA_synthetic",
+            "track_sid": "TR_synthetic_1",
+            "epoch_ref": "b1111111-1111-4111-8111-111111111111"
+          }
+        ],
+        "epochs": [
+          {
+            "epoch_ref": "a1111111-1111-4111-8111-111111111111",
+            "room_sid": "RM_synthetic",
+            "participant_sid": "PA_synthetic",
+            "track_sid": "TR_synthetic_0",
+            "ended": false,
+            "conflict": false,
+            "end_observation_refs": [],
+            "admission": "unadmitted",
+            "refusal_digest": null,
+            "capture_ref": null
+          },
+          {
+            "epoch_ref": "b1111111-1111-4111-8111-111111111111",
+            "room_sid": "RM_synthetic",
+            "participant_sid": "PA_synthetic",
+            "track_sid": "TR_synthetic_1",
+            "ended": false,
+            "conflict": false,
+            "end_observation_refs": [],
+            "admission": "unadmitted",
+            "refusal_digest": null,
+            "capture_ref": null
+          }
+        ],
+        "captures": [],
+        "counts": {
+          "observations": 2,
+          "epochs": 2,
+          "captures": 0
+        },
+        "close_requested_at": null,
+        "closure": null
+      },
+      "digest": "080acc71bce3c26e7a85be890308a5e76b2b0148c956ea130f0c133a062fc6c1"
+    },
+    {
+      "facts": {
+        "version": 1,
+        "type": "mastrao.meet-native-capture-domain",
+        "organization_external_id": "synthetic_organization",
+        "meeting_ref": "meeting_synthetic_0001",
+        "room_ref": "room_synthetic_0000001",
+        "provider_binding_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "scope": "observed_native_capture_domain",
+        "domain_ref": "d0000000-0000-4000-8000-000000000000",
+        "producer_revision": 7,
+        "kind": "invalidation",
+        "reason": "payload_limit_exceeded"
+      },
+      "digest": "dd0699f7af3fca918229d01969dd673c4bd2e928ded7f8b3f306e82b8087b534"
+    }
+  ]
+}

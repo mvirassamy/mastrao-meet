@@ -14,6 +14,7 @@ from django.conf import settings
 from django.db import transaction
 
 from core import models
+from core.mastrao_live_observed_domain import dirty_live_domain_for_room
 from core.mastrao_native_admission import wake_native_admissions
 from core.mastrao_native_track_observations import wake_native_track_observation
 from core.mastrao_rtc_correlation import correlate_verified_observation
@@ -120,6 +121,7 @@ def _persist_observation(event, verified_body, room_id):
         room_binding=binding, payload_digest=digest, **facts
     )
     correlate_verified_observation(observation)
+    dirty_live_domain_for_room(binding)
     if observation.event_type == "track_published":
         transaction.on_commit(lambda: wake_native_track_observation(observation.pk))
     if observation.event_type == "room_finished":

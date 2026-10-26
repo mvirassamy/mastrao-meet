@@ -773,12 +773,44 @@ class MastraoRoomClosure(BaseModel):
     receipt_claims = models.JSONField(default=dict, blank=True)
     receipt_digest = models.CharField(max_length=64, null=True, blank=True)
 
+    # Terminal scheduling classification only; no retained Live inventory facts.
+    live_domain_outcome = models.CharField(max_length=24, null=True, blank=True)
+    live_domain_reason = models.CharField(max_length=32, null=True, blank=True)
+    live_domain_classified_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = "meet_mastrao_room_closure"
         indexes = [
+            models.Index(
+                fields=["applied_at", "id"],
+                name="mastrao_live_discovery_idx",
+                condition=models.Q(state="applied", live_domain_outcome__isnull=True),
+            ),
             models.Index(fields=["applied_at"], name="mastrao_close_applied_idx"),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        live_domain_outcome__isnull=True,
+                        live_domain_reason__isnull=True,
+                        live_domain_classified_at__isnull=True,
+                    )
+                    | models.Q(
+                        state="applied",
+                        live_domain_outcome="not_applicable",
+                        live_domain_reason__in=[
+                            "mode_not_live",
+                            "policy_absent",
+                            "retention_expired",
+                        ],
+                        live_domain_reason__isnull=False,
+                        live_domain_classified_at__isnull=False,
+                        live_domain_outcome__isnull=False,
+                    )
+                ),
+                name="mastrao_live_terminal_shape",
+            ),
             models.CheckConstraint(
                 condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
                 name="mastrao_closure_arguments_digest_format",
@@ -1189,6 +1221,244 @@ class MastraoNativeCaptureStart(BaseModel):
 
     def __str__(self):
         return f"Mastrao native capture start {self.pk}"
+
+
+class MastraoNativeCaptureDomain(BaseModel):
+    """Latest durable producer revision and its fenced delivery, never authority."""
+
+    room_binding = models.OneToOneField(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="native_capture_domain",
+    )
+    producer_revision = models.PositiveBigIntegerField(default=0)
+    facts_digest = models.CharField(max_length=64, blank=True, default="")
+    snapshot_digest = models.CharField(max_length=64, blank=True, default="")
+    snapshot = models.JSONField(default=dict, blank=True)
+    # Last bounded inventory survives invalidation of the current delivery head.
+    inventory_baseline = models.JSONField(default=dict, blank=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    claim_token = models.UUIDField(null=True, blank=True)
+    claim_until = models.DateTimeField(null=True, blank=True)
+    next_attempt_at = models.DateTimeField(default=timezone.now, db_index=True)
+    next_snapshot_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        db_table = "meet_mastrao_native_capture_domain"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        producer_revision=0,
+                        facts_digest="",
+                        snapshot_digest="",
+                        snapshot={},
+                    )
+                    | models.Q(
+                        producer_revision__gt=0,
+                        facts_digest__regex=r"^[a-f0-9]{64}$",
+                        snapshot_digest__regex=r"^[a-f0-9]{64}$",
+                    )
+                ),
+                name="mastrao_native_domain_revision",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(claim_token__isnull=True, claim_until__isnull=True)
+                    | models.Q(claim_token__isnull=False, claim_until__isnull=False)
+                ),
+                name="mastrao_native_domain_claim",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao native capture domain {self.pk}"
+
+
+class MastraoLiveObservedDomain(BaseModel):
+    """Fixed-retention metadata outbox, independent of any RecordingBinding."""
+
+    closure = models.OneToOneField(
+        MastraoRoomClosure,
+        on_delete=models.PROTECT,
+        related_name="live_observed_domain",
+    )
+    policy_ref = models.CharField(max_length=160, null=True, blank=True)
+    retention_policy_ref = models.CharField(max_length=160, null=True, blank=True)
+    retention_expires_at = models.DateTimeField(null=True, blank=True)
+    producer_revision = models.PositiveBigIntegerField(default=0)
+    facts_digest = models.CharField(max_length=64, default="", blank=True)
+    snapshot_digest = models.CharField(max_length=64, default="", blank=True)
+    snapshot = models.JSONField(default=dict, blank=True)
+    inventory_baseline = models.JSONField(default=dict, blank=True)
+    sticky_reason = models.CharField(max_length=32, default="", blank=True)
+    dirty_generation = models.PositiveBigIntegerField(default=1)
+    prepared_generation = models.PositiveBigIntegerField(default=0)
+    acked_generation = models.PositiveBigIntegerField(default=0)
+    acknowledged_revision = models.PositiveBigIntegerField(default=0)
+    acknowledged_digest = models.CharField(max_length=64, default="", blank=True)
+    claim_token = models.UUIDField(null=True, blank=True)
+    claim_until = models.DateTimeField(null=True, blank=True)
+    claim_generation = models.PositiveBigIntegerField(null=True, blank=True)
+    claim_revision = models.PositiveBigIntegerField(null=True, blank=True)
+    claim_digest = models.CharField(max_length=64, null=True, blank=True)
+    claim_jti = models.UUIDField(null=True, blank=True)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    next_snapshot_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "meet_mastrao_live_observed_domain"
+        indexes = [
+            models.Index(
+                fields=["next_attempt_at", "id"], name="mastrao_live_delivery_idx"
+            ),
+            models.Index(
+                fields=["next_snapshot_at", "id"], name="mastrao_live_refresh_idx"
+            ),
+            models.Index(
+                fields=["retention_expires_at", "id"], name="mastrao_live_expiry_idx"
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        policy_ref__isnull=True,
+                        retention_policy_ref__isnull=True,
+                        retention_expires_at__isnull=True,
+                        producer_revision=0,
+                        snapshot={},
+                        inventory_baseline={},
+                        facts_digest="",
+                        snapshot_digest="",
+                        sticky_reason="",
+                    )
+                    | models.Q(
+                        policy_ref__isnull=False,
+                        retention_policy_ref__isnull=False,
+                        retention_expires_at__isnull=False,
+                        policy_ref__regex=r"^[A-Za-z0-9_-]{16,160}$",
+                        retention_policy_ref__regex=r"^[A-Za-z0-9_-]{16,160}$",
+                    )
+                ),
+                name="mastrao_live_policy_phase",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        producer_revision=0,
+                        snapshot={},
+                        facts_digest="",
+                        snapshot_digest="",
+                    )
+                    | (
+                        (
+                            models.Q(
+                                producer_revision__gte=1, producer_revision__lte=1024
+                            )
+                            | models.Q(producer_revision=9007199254740991)
+                        )
+                        & models.Q(
+                            facts_digest__regex=r"^[a-f0-9]{64}$",
+                            snapshot_digest__regex=r"^[a-f0-9]{64}$",
+                        )
+                        & ~models.Q(snapshot={})
+                    )
+                ),
+                name="mastrao_live_revision_shape",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        claim_token__isnull=True,
+                        claim_until__isnull=True,
+                        claim_generation__isnull=True,
+                        claim_revision__isnull=True,
+                        claim_digest__isnull=True,
+                        claim_jti__isnull=True,
+                    )
+                    | models.Q(
+                        claim_token__isnull=False,
+                        claim_until__isnull=False,
+                        claim_generation__isnull=False,
+                        claim_revision__isnull=False,
+                        claim_digest__isnull=False,
+                        claim_jti__isnull=False,
+                    )
+                ),
+                name="mastrao_live_claim_shape",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(acked_generation__lte=models.F("prepared_generation"))
+                    & models.Q(prepared_generation__lte=models.F("dirty_generation"))
+                    & models.Q(dirty_generation__lte=9007199254740991)
+                ),
+                name="mastrao_live_generation_order",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    sticky_reason__in=[
+                        "",
+                        "observation_limit_exceeded",
+                        "epoch_limit_exceeded",
+                        "payload_limit_exceeded",
+                        "identity_conflict",
+                        "correlation_conflict",
+                        "revision_exhausted",
+                    ]
+                ),
+                name="mastrao_live_sticky_reason",
+            ),
+            models.CheckConstraint(
+                condition=models.expressions.RawSQL(
+                    "jsonb_typeof(snapshot) = 'object' "
+                    "AND jsonb_typeof(inventory_baseline) = 'object' "
+                    "AND octet_length(snapshot::text) <= 65536 "
+                    "AND octet_length(inventory_baseline::text) <= 65536",
+                    [],
+                    output_field=models.BooleanField(),
+                ),
+                name="mastrao_live_bounded_bodies",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao Live observed domain {self.pk}"
+
+
+class MastraoLiveObservedDomainRevision(BaseModel):
+    """Bounded revision fingerprints only, physically deleted with their head."""
+
+    domain = models.ForeignKey(
+        MastraoLiveObservedDomain, on_delete=models.CASCADE, related_name="revisions"
+    )
+    producer_revision = models.PositiveBigIntegerField()
+    snapshot_digest = models.CharField(max_length=64)
+    retention_expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "meet_mastrao_live_observed_domain_revision"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["domain", "producer_revision"],
+                name="mastrao_live_revision_unique",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(producer_revision__gte=1, producer_revision__lte=1024)
+                    | models.Q(producer_revision=9007199254740991)
+                ),
+                name="mastrao_live_fingerprint_revision",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(snapshot_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_live_fingerprint_digest",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Mastrao Live revision {self.producer_revision}"
 
 
 class MastraoRecordingBinding(BaseModel):

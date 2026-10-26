@@ -161,12 +161,14 @@ const materializeSegment = (
   const revision = existing
     ? (input.revision ?? existing.revision + 1)
     : (input.revision ?? 0)
+  let receivedAt = input.receivedAt ?? Date.now()
+  if (existing?.state === 'final') receivedAt = existing.receivedAt
   return {
     ...input,
     key: getLiveTranscriptionSegmentKey(input),
     sequence,
     revision,
-    receivedAt: input.receivedAt ?? Date.now(),
+    receivedAt,
     metadataSource: input.metadataSource ?? 'envelope',
   }
 }
@@ -182,7 +184,12 @@ const reduceSegment = (
   const key = getLiveTranscriptionSegmentKey(input)
   const existing = state.segments.find((segment) => segment.key === key)
 
-  if (existing?.state === 'final') return state
+  if (
+    existing?.state === 'final' &&
+    (input.state !== 'final' || input.revision === undefined)
+  ) {
+    return state
+  }
   if (
     existing &&
     input.revision !== undefined &&

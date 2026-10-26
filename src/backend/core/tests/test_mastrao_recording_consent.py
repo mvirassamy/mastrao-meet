@@ -814,7 +814,12 @@ def test_reconciler_rechecks_applying_start_without_provider_ref(
     start_effect.save(update_fields=["receipt_claims", "updated_at"])
     assert binding.provider_recording_ref is None
 
+    # Live inventory has its own outside-transaction integration harness.
     with (
+        mock.patch(
+            "core.mastrao_recording_reconciler.reconcile_live_observed_domains",
+            return_value=0,
+        ),
         mock.patch(
             "core.mastrao_recording_reconciler._exact_provider_egress",
             return_value=None,
@@ -1199,6 +1204,10 @@ def test_reconciler_isolates_one_bad_item_while_rollout_controls_are_off(db, set
 
     with (
         mock.patch(
+            "core.mastrao_recording_reconciler.reconcile_live_observed_domains",
+            return_value=0,
+        ),
+        mock.patch(
             "core.mastrao_recording_reconciler.reconcile_mastrao_recording",
             side_effect=[RuntimeError("provider unavailable"), True],
         ) as reconcile,
@@ -1220,10 +1229,16 @@ def test_reconciler_rotates_observed_active_items_before_the_next_batch(db):
         binding.state = models.MastraoRecordingBinding.State.ACTIVE
         binding.save(update_fields=["provider_recording_ref", "state", "updated_at"])
 
-    with mock.patch(
-        "core.mastrao_recording_reconciler.reconcile_mastrao_recording",
-        side_effect=[False, False, True, False],
-    ) as reconcile:
+    with (
+        mock.patch(
+            "core.mastrao_recording_reconciler.reconcile_live_observed_domains",
+            return_value=0,
+        ),
+        mock.patch(
+            "core.mastrao_recording_reconciler.reconcile_mastrao_recording",
+            side_effect=[False, False, True, False],
+        ) as reconcile,
+    ):
         assert reconcile_mastrao_recordings(limit=2) == 0
         assert reconcile_mastrao_recordings(limit=2) == 1
 

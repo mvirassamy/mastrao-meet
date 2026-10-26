@@ -133,7 +133,7 @@ def test_new_on_invalidates_old_drain_even_after_another_stop(client, gateway):
         new_intent=True,
     )
     metadata = live_control_metadata(
-        control.room_sid, control.control_generation, "openai-live"
+        control.room_sid, control.control_generation, "controlled-live"
     )
     body = delivery(gateway)
     with mock.patch(POST, return_value=receipt_for(body)) as post:

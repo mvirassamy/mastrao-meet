@@ -141,7 +141,9 @@ class SubtitleService:
 
         room_sid, active = await _resolve_subtitle_room(room)
 
-        requested_provider = subtitle_provider()
+        requested_provider = await sync_to_async(
+            subtitle_provider, thread_sensitive=True
+        )(room)
         active_provider_conflict = any(
             dispatch_provider(dispatch) not in (None, requested_provider)
             for dispatch in active

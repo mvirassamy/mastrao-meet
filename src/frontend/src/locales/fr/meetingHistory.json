@@ -118,6 +118,60 @@
   },
   "title": "Historique",
   "transcript": {
+    "live": {
+      "full": {
+        "title": "Passages live conservés",
+        "load": "Afficher les passages live conservés",
+        "loading": "Chargement des passages live…",
+        "retry": "Réessayer la consultation live",
+        "failed": "Les passages live conservés sont indisponibles. L’aperçu reste consultable.",
+        "expired": "La consultation live a expiré. Relancez une lecture pour vérifier les passages encore conservés."
+      },
+      "title": "Transcription en direct conservée",
+      "partial": "Sources partielles uniquement. La couverture de la réunion n’est pas vérifiée. Les tampons de capture ne fournissent pas d’horodatage de parole ou de réunion.",
+      "truncated": "Seule une partie de l’historique en direct conservé est affichée.",
+      "source": "Source {{number}}",
+      "leg": "Capture {{number}}",
+      "participant": {
+        "host": "Hôte",
+        "guest": "Invité"
+      },
+      "state": {
+        "collecting": "Collecte de la source en cours.",
+        "ended": "Collecte de la source terminée."
+      },
+      "incomplete": "Cette source est incomplète ; du contenu peut manquer.",
+      "gap": {
+        "connection_lost": "Interruption : connexion perdue.",
+        "provider_failed": "Interruption : échec du service de transcription.",
+        "delivery_failed": "Interruption : échec de livraison de la transcription.",
+        "timing_unavailable": "Interruption : repères temporels indisponibles.",
+        "capture_incomplete": "Interruption : capture incomplète."
+      },
+      "end": {
+        "track_unpublished": "Fin de capture : piste audio arrêtée.",
+        "meeting_ended": "Fin de capture : réunion terminée.",
+        "provider_failed": "Fin de capture : échec du service de transcription.",
+        "capture_incomplete": "Fin de capture : capture incomplète."
+      },
+      "domain": {
+        "title": "Micros observés après la réunion",
+        "unverified": "Ces repères décrivent les sources observées. La couverture de toute la réunion et la transcription de tout l’audio restent non vérifiées.",
+        "microphones": "Micros observés : {{microphone_epochs}} · pistes non identifiées : {{unclassified_epochs}}.",
+        "sources": "Sources live admises : {{admitted_sources}} · pistes rattachées à un participant : {{correlated_epochs}}.",
+        "stages": "Fin de journal confirmée : {{journal_ended_sources}} · arrêt de transmission confirmé : {{send_stop_acknowledged_sources}}. Ces étapes ne prouvent pas que tout l’audio a été reçu.",
+        "unknown": "L’inventaire est incertain. Aucun compteur fiable n’est disponible.",
+        "expired": "Les résultats live ont atteint leur limite de conservation.",
+        "blockers": {
+          "contradiction": "Des informations sur les sources se contredisent.",
+          "admission": "Le lien entre certains micros et les sources live reste à confirmer.",
+          "microphone": "La publication ou la fin de certains micros reste à confirmer.",
+          "journal": "La fin du journal de certaines sources reste à confirmer.",
+          "transmission": "L’arrêt de transmission de certaines sources reste à confirmer.",
+          "limits": "Les limites de vérification de l’inventaire ont été atteintes."
+        }
+      }
+    },
     "absent": {
       "description": "Aucune transcription n’a été produite pour cette réunion.",
       "title": "Aucune transcription"
@@ -163,6 +217,65 @@
     "temporarilySuspended": {
       "title": "Transcription temporairement suspendue côté Mastrao",
       "description": "Augmenter votre seuil d’alerte utilisateur ne réactive pas la transcription."
+    },
+    "native": {
+      "full": {
+        "title": "Groupes source retenus",
+        "scope": "Cette consultation porte sur les groupes source retenus, avec leurs éventuels échecs. Les noms proviennent des sessions et ne sont pas des identités vérifiées.",
+        "load": "Afficher les groupes source retenus",
+        "loading": "Chargement des groupes retenus…",
+        "retry": "Réessayer la lecture des groupes retenus",
+        "failed": "Les groupes retenus ne sont pas disponibles pour cette lecture. L’aperçu reste affiché.",
+        "expired": "La consultation chargée a expiré et a été retirée."
+      },
+      "partialTitle": "Transcription partielle des sources disponibles",
+      "partialNotice": "Seuls les groupes source déjà disponibles sont consultables ici. D’autres groupes peuvent être en attente ou indisponibles ; cette consultation partielle peut évoluer.",
+      "source": "Groupe source {{number}}",
+      "unknownSource": "Source non précisée",
+      "localTimes": "Les temps sont locaux à chaque groupe source, sans recalage sur la chronologie de la réunion.",
+      "localTime": "Temps local {{time}}",
+      "unknownTimeBasis": "Repère temporel non précisé",
+      "coverage": {
+        "epoch_limit_exceeded": "La consultation des transcriptions natives est indisponible : le nombre de sources dépasse la limite de consultation. Les informations de capture restent affichées.",
+        "result_bytes_limit_exceeded": "La consultation des transcriptions natives est indisponible : le volume des résultats dépasse la limite de consultation. Les informations de capture restent affichées.",
+        "title": "Couverture des sources",
+        "unverified": "La couverture de la réunion n’est pas vérifiée, même si tous les résultats connus sont disponibles.",
+        "observationsUnavailable": "Le détail des pistes audio n’est pas disponible pour ce résultat. Cela ne permet pas de conclure à une absence de capture.",
+        "truncated": "Seule une partie des informations sur les sources est affichée.",
+        "pending": "Des groupes source sont en attente de transcription.",
+        "failed": "La transcription de certains groupes source a échoué.",
+        "unadmitted": "Certaines sources audio n’ont pas été prises en charge pour la transcription.",
+        "unknownLinks": "Les groupes associés à certaines sources audio ne sont pas renseignés.",
+        "missingResults": "Aucun résultat consultable n’est confirmé pour certaines sources audio. Cela ne signifie pas qu’elles n’ont pas été capturées."
+      },
+      "domain": {
+        "title": "Inventaire des captures connues",
+        "state": {
+          "unknown": "L’état de l’inventaire des captures connues est indéterminé.",
+          "open": "L’inventaire des captures connues est ouvert.",
+          "closing": "La réunion est clôturée ; des captures connues restent à terminer.",
+          "closed": "L’inventaire des captures connues est fermé. Cela ne garantit pas la transcription de toute la réunion."
+        },
+        "counts": "Pistes connues : {{epochs}}. Captures terminées : {{terminal}} sur {{captures}}. Sources vérifiées : {{sources}} ; résultats disponibles : {{results}}.",
+        "failures": "Captures en échec : {{failed}} ; interrompues : {{aborted}} ; arrêtées par limite : {{limited}}.",
+        "reason": {
+          "observation_limit_exceeded": "Trop d’observations pour vérifier cet inventaire. Les anciens comptes sont retirés.",
+          "epoch_limit_exceeded": "Trop de pistes ou captures pour vérifier cet inventaire. Les anciens comptes sont retirés.",
+          "payload_limit_exceeded": "L’inventaire dépasse la taille vérifiable. Les anciens comptes sont retirés.",
+          "inventory_contradiction": "Des faits de capture se contredisent. L’inventaire doit être réconcilié.",
+          "late_core_facts": "De nouveaux faits de capture rendent cet inventaire obsolète."
+        },
+        "blocker": {
+          "core_observation_omitted": "Des observations connues manquent dans cet inventaire.",
+          "core_capture_omitted": "Des captures connues manquent dans cet inventaire.",
+          "closure_unconfirmed": "La clôture de la réunion reste à confirmer.",
+          "epoch_not_ended": "Des pistes connues n’ont pas de fin confirmée.",
+          "admission_unresolved": "L’admission de certaines pistes reste à résoudre.",
+          "start_unresolved": "Le démarrage de certaines captures reste à confirmer.",
+          "capture_not_drained": "Des captures attendent encore leur état final.",
+          "epoch_conflict": "Des observations de pistes sont en conflit."
+        }
+      }
     }
   },
   "untitled": "Réunion sans titre",

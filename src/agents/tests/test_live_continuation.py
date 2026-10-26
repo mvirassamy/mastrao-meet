@@ -79,7 +79,7 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
             return provider
 
         self.factory = self.enterContext(
-            patch("live_transcriber.AuthorizedOpenAI", side_effect=factory)
+            patch("live_provider_session.AuthorizedOpenAI", side_effect=factory)
         )
         self.published = []
 
@@ -136,9 +136,144 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.ticks.put_nowait(None)
         await asyncio.wait_for(self.rotation_timers.get(), 2)
 
+    async def test_empty_snapshots_wait_for_physical_close_and_receipt_before_rotate(
+        self,
+    ):
+        """Physical close and receipt both precede rotation, even without a final."""
+        socket = self.sockets[0]
+        socket.close_release.clear()
+        self.gateway.release["deliver"].clear()
+        self.ticks.put_nowait(None)
+        try:
+            await asyncio.wait_for(socket.close_entered.wait(), 2)
+            self.assertFalse(self.gateway.entered["deliver"].is_set())
+            self.assertFalse(self.gateway.entered["rotate"].is_set())
+            socket.close_release.set()
+            await asyncio.wait_for(self.gateway.entered["deliver"].wait(), 2)
+            self.assertTrue(socket.closed)
+            self.assertFalse(self.gateway.entered["rotate"].is_set())
+            event = self.gateway.requests[-1]["event"]
+            self.assertEqual(event["kind"], "model_evidence")
+            self.assertEqual(event["models"], [])
+            self.assertFalse(event["truncated"])
+            self.gateway.release["deliver"].set()
+            await asyncio.wait_for(self.rotation_timers.get(), 2)
+            await asyncio.gather(self.track.aclose(), self.track.aclose(), self.run)
+            events = [
+                body["event"]
+                for body in self.gateway.requests
+                if body["action"] == "deliver"
+            ]
+            self.assertEqual(
+                [e["kind"] for e in events], ["model_evidence", "model_evidence", "end"]
+            )
+            self.assertEqual([e["leg_ref"] for e in events[:2]], self.factory_leg_refs)
+            self.assertEqual(events[-1]["final_event_count"], 0)
+        finally:
+            socket.close_release.set()
+            self.gateway.release["deliver"].set()
+
+    async def test_native_session_overflow_preserves_exact_final_and_old_leg_snapshot(
+        self,
+    ):
+        """Native model facts survive lossy SDK SpeechData conversion."""
+        socket = self.sockets[0]
+        for number in range(10):
+            socket.feed(
+                {
+                    "type": "session.updated",
+                    "session": {
+                        "model": "conversation-model-not-asr",
+                        "audio": {
+                            "input": {"transcription": {"model": f"received-{number}"}}
+                        },
+                    },
+                }
+            )
+        await self.feed(1, 6)
+        await self.rotate()
+        snapshots = [
+            body["event"]
+            for body in self.gateway.requests
+            if body["action"] == "deliver" and body["event"]["kind"] == "model_evidence"
+        ]
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(snapshots[0]["leg_ref"], self.factory_leg_refs[0])
+        self.assertEqual(
+            [model["model_ref"] for model in snapshots[0]["models"]],
+            [f"received-{number}" for number in range(8)],
+        )
+        self.assertTrue(snapshots[0]["truncated"])
+        finals = [
+            body["event"]
+            for body in self.gateway.requests
+            if body["action"] == "deliver" and body["event"]["kind"] == "final"
+        ]
+        self.assertEqual([event["text"] for event in finals], ["synthetic final"])
+        self.assertEqual(finals[0]["version"], 2)
+        self.assertEqual(self.track.incomplete_reasons, ())
+        self.assertEqual(self.providers[1].model_evidence["models"], [])
+
     async def test_queued_final_survives_physical_close(self):
         """A distinct accepted item still publishes after its provider is cleared."""
         await self.assert_queued_final_survives_close(cancel_waiter=False)
+
+    async def test_close_failure_still_snapshots_old_leg_without_successful_rotation(
+        self,
+    ):
+        """Retain received evidence and the original physical-close error together."""
+        provider = self.providers[0]
+        socket = self.sockets[0]
+        socket.feed(
+            {
+                "type": "session.updated",
+                "session": {
+                    "audio": {
+                        "input": {
+                            "transcription": {
+                                "model": "received-before-close-error",
+                            }
+                        }
+                    }
+                },
+            }
+        )
+        await eventually(lambda: bool(provider.model_evidence["models"]))
+        original_close = provider.aclose
+        close_error = RuntimeError("synthetic physical close failure")
+
+        async def failed_close():
+            await original_close()
+            self.assertTrue(socket.closed)
+            raise close_error
+
+        self.enterContext(patch.object(provider, "aclose", side_effect=failed_close))
+        self.ticks.put_nowait(None)
+        outcome = (
+            await asyncio.wait_for(asyncio.gather(self.run, return_exceptions=True), 3)
+        )[0]
+        self.assertIsInstance(outcome, BaseExceptionGroup)
+
+        def contains_original(error):
+            if isinstance(error, BaseExceptionGroup):
+                return any(contains_original(child) for child in error.exceptions)
+            return error is close_error
+
+        self.assertTrue(contains_original(outcome))
+        snapshots = [
+            body["event"]
+            for body in self.gateway.requests
+            if body["action"] == "deliver" and body["event"]["kind"] == "model_evidence"
+        ]
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(snapshots[0]["leg_ref"], self.factory_leg_refs[0])
+        self.assertEqual(
+            snapshots[0]["models"][0]["model_ref"], "received-before-close-error"
+        )
+        self.assertFalse(self.gateway.entered["rotate"].is_set())
+        self.assertFalse(self.gateway.entered["stopped"].is_set())
+        self.assertIs(self.track._provider, provider)
+        self.assertFalse(self.lease.can_send())
 
     async def test_queued_final_survives_cancelled_stop_waiter(self):
         """Cancelling one stop waiter does not abandon accepted text delivery."""
@@ -252,13 +387,17 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
             for body in self.gateway.requests
             if body["action"] == "deliver"
         ]
-        self.assertEqual([e["sequence"] for e in events], [1, 2, 3, 4])
-        self.assertEqual([e["kind"] for e in events], ["final"] * 3 + ["end"])
-        self.assertEqual([e["item_ref"] for e in events[:3]], ["item-1"] * 3)
-        self.assertEqual([e["leg_ref"] for e in events[:3]], self.factory_leg_refs[:3])
-        self.assertEqual([e["revision"] for e in events[:3]], [1, 1, 1])
+        self.assertEqual([e["sequence"] for e in events], list(range(1, 9)))
         self.assertEqual(
-            [e["timing"] for e in events[:3]],
+            [e["kind"] for e in events],
+            ["final", "model_evidence"] * 3 + ["model_evidence", "end"],
+        )
+        finals = [event for event in events if event["kind"] == "final"]
+        self.assertEqual([e["item_ref"] for e in finals], ["item-1"] * 3)
+        self.assertEqual([e["leg_ref"] for e in finals], self.factory_leg_refs[:3])
+        self.assertEqual([e["revision"] for e in finals], [1, 1, 1])
+        self.assertEqual(
+            [e["timing"] for e in finals],
             [
                 {
                     "state": "source_buffer",
@@ -389,7 +528,9 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.sockets[0].feed(committed("item-1"), raw_final)
         await asyncio.wait_for(self.rotation_timers.get(), 2)
         deliveries = [b for b in self.gateway.requests if b["action"] == "deliver"]
-        self.assertEqual(len(deliveries), 1)
+        self.assertEqual(
+            [body["event"]["kind"] for body in deliveries], ["final", "model_evidence"]
+        )
         event = deliveries[0]["event"]
         self.assertEqual(event["kind"], "final")
         self.assertEqual(event["sequence"], 1)
@@ -419,7 +560,9 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         socket.feed(committed("item-1"))
         await asyncio.wait_for(self.rotation_timers.get(), 2)
         events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
-        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            [event["kind"] for event in events], ["final", "model_evidence"]
+        )
         self.assertEqual(
             events[0]["timing"],
             {
@@ -528,7 +671,7 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.gateway.entered["rotate"].is_set())
         self.assertEqual(self.factory.call_count, 1)
         events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
-        self.assertEqual([e["kind"] for e in events], ["gap", "end"])
+        self.assertEqual([e["kind"] for e in events], ["model_evidence", "gap", "end"])
         self.assertEqual(events[-1]["final_event_count"], 0)
         self.assertEqual(events[-1]["reason"], "capture_incomplete")
 
@@ -565,7 +708,9 @@ class ContinuationSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.gateway.entered["rotate"].is_set())
         self.assertEqual(self.factory.call_count, 1)
         events = [b["event"] for b in self.gateway.requests if b["action"] == "deliver"]
-        self.assertEqual([e["kind"] for e in events], ["final", "gap", "end"])
+        self.assertEqual(
+            [e["kind"] for e in events], ["final", "model_evidence", "gap", "end"]
+        )
         self.assertEqual(events[-1]["final_event_count"], 1)
         self.assertEqual(events[-1]["reason"], "capture_incomplete")
         # Retrying UI handling cannot write or renumber the acknowledged final.

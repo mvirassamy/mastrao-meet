@@ -1,4 +1,4 @@
-"""Canonical v2 delivery bytes and exact durable receipt validation."""
+"""Canonical v2/v3 delivery bytes and exact v2 durable receipt validation."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 
+from live_model_evidence import MAX_MODELS, MODEL_FIELDS, valid_model_string
 from live_send_control import (
     MAX_SAFE_SAMPLE,
     PCM_SAMPLE_RATE,
@@ -83,6 +84,8 @@ def canonical_timing(value: object) -> dict[str, object]:
 
 
 def _fields(kind: object) -> tuple[str, ...]:
+    if kind == "model_evidence":
+        return ("kind", "provider", "models", "truncated")
     if kind == "final":
         return ("kind", "item_ref", "revision", "text", "language", "timing")
     if kind == "gap":
@@ -104,7 +107,8 @@ def event_bytes(event: dict[str, object]) -> bytes:
     if (
         set(event) != set(fields)
         or type(event["version"]) is not int
-        or event["version"] != DELIVERY_VERSION
+        or event["version"]
+        != (3 if event["kind"] == "model_evidence" else DELIVERY_VERSION)
         or not _matches(_REFERENCE, event["source_ref"])
         or not _matches(_REFERENCE, event["leg_ref"])
         or not _integer(event["sequence"], 1, MAX_EVENTS_PER_SOURCE)
@@ -114,6 +118,10 @@ def event_bytes(event: dict[str, object]) -> bytes:
     ordered = {key: event[key] for key in fields}
     if event["kind"] == "final":
         ordered["timing"] = canonical_timing(event["timing"])
+    elif event["kind"] == "model_evidence":
+        ordered["models"] = [
+            {key: model[key] for key in MODEL_FIELDS} for model in event["models"]
+        ]
     try:
         encoded = json.dumps(
             ordered,
@@ -130,6 +138,9 @@ def event_bytes(event: dict[str, object]) -> bytes:
 
 def _validate_content(event: dict[str, object]) -> None:
     kind = event["kind"]
+    if kind == "model_evidence":
+        _validate_model_evidence(event)
+        return
     if kind == "final":
         text = event["text"]
         if (
@@ -159,6 +170,34 @@ def _validate_content(event: dict[str, object]) -> None:
         raise ControlError("invalid delivery end")
 
 
+def _validate_model_evidence(event: dict[str, object]) -> None:
+    models = event["models"]
+    if (
+        not isinstance(event["provider"], str)
+        or event["provider"] not in {"openai", "mistral", "deepgram"}
+        or type(event["truncated"]) is not bool
+        or not isinstance(models, list)
+        or len(models) > MAX_MODELS
+    ):
+        raise ControlError("invalid delivery model evidence")
+    previous = []
+    for model in models:
+        if (
+            not isinstance(model, dict)
+            or set(model) != set(MODEL_FIELDS)
+            or not isinstance(model["origin"], str)
+            or model["origin"] not in {"session", "result", "terminal"}
+            or not any(model[key] is not None for key in MODEL_FIELDS[1:])
+            or any(
+                model[key] is not None and not valid_model_string(model[key])
+                for key in MODEL_FIELDS[1:]
+            )
+            or model in previous
+        ):
+            raise ControlError("invalid delivery model record")
+        previous.append(model)
+
+
 def event_digest(event: dict[str, object]) -> str:
     """Hash exact compact UTF-8 schema bytes, including connection identity."""
     return hashlib.sha256(event_bytes(event)).hexdigest()
@@ -184,7 +223,16 @@ def validate_receipt(
         or receipt["confirmed_sequence"] != event["sequence"]
         or type(receipt["final_event_count"]) is not int
         or receipt["final_event_count"] != final_count
-        or receipt["incomplete"] is not True
+        or type(receipt["incomplete"]) is not bool
+        or (event["kind"] in {"final", "gap"} and not receipt["incomplete"])
+        or (
+            event["kind"] == "end"
+            and (
+                final_count > 0
+                or event["reason"] in {"provider_failed", "capture_incomplete"}
+            )
+            and not receipt["incomplete"]
+        )
         or receipt["meeting_coverage"] != "unverified"
     ):
         raise ControlError("invalid durable delivery receipt")

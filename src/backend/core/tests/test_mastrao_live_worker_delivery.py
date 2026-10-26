@@ -233,10 +233,7 @@ def test_gap_and_terminal_count_receive_exact_durable_ack(client, gateway, kind)
 
 
 @pytest.mark.parametrize("reason", ["track_unpublished", "meeting_ended"])
-@pytest.mark.parametrize("final_count", [0, 1])
-def test_normal_end_cannot_clear_a_prior_final_or_gap(
-    client, gateway, reason, final_count
-):
+def test_normal_end_cannot_clear_a_prior_final(client, gateway, reason):
     body = delivery(gateway)
     body["event"] = {
         "version": 2,
@@ -245,10 +242,10 @@ def test_normal_end_cannot_clear_a_prior_final_or_gap(
         "sequence": 2,
         "kind": "end",
         "reason": reason,
-        "final_event_count": final_count,
+        "final_event_count": 1,
     }
     result = receipt_for(body)
-    result.update(state="ended", final_event_count=final_count, incomplete=False)
+    result.update(state="ended", final_event_count=1, incomplete=False)
     with mock.patch(POST, return_value=result):
         assert invoke(client, gateway, body).status_code == 503
 
@@ -271,15 +268,16 @@ def test_gap_receipt_cannot_count_the_gap_as_a_final(client, gateway, sequence):
 
 
 @pytest.mark.parametrize("reason", ["track_unpublished", "meeting_ended"])
+@pytest.mark.parametrize("sequence", [1, 2, 9])
 def test_empty_normal_end_preserves_valid_non_incomplete_receipt(
-    client, gateway, reason
+    client, gateway, reason, sequence
 ):
     body = delivery(gateway)
     body["event"] = {
         "version": 2,
         "source_ref": body["source_ref"],
         "leg_ref": body["leg_ref"],
-        "sequence": 1,
+        "sequence": sequence,
         "kind": "end",
         "reason": reason,
         "final_event_count": 0,

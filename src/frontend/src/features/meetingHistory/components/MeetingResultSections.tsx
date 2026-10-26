@@ -1,15 +1,13 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { GroupIcon, InformationIcon, RetryIcon } from '@/icons'
+import { InformationIcon, RetryIcon } from '@/icons'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import type {
   MeetingContentStatus,
   MeetingSummary,
   MeetingTranscript,
-  MeetingTranscriptSegment,
 } from '../api/types'
-import { formatTranscriptTimestamp } from '../utils/meetingHistoryFormat'
 import {
   contentPhase,
   SECTION_ICONS,
@@ -24,6 +22,13 @@ import {
   type SectionStateLook,
 } from './MeetingHistoryStatePanel'
 import { MeetingContentToolbar } from './MeetingContentToolbar'
+import { MeetingLiveResults } from './MeetingLiveResults'
+import { MeetingNativeCoverage } from './MeetingNativeCoverage'
+import { MeetingNativeFullTranscript } from './MeetingNativeFullTranscript'
+import {
+  MeetingNativePartialTranscript,
+  MeetingTranscriptContent,
+} from './MeetingTranscriptContent'
 
 const isReadableStatus = (
   status: MeetingContentStatus
@@ -296,153 +301,97 @@ const summaryPlainText = (summary: MeetingSummary) =>
     .filter(Boolean)
     .join('\n\n')
 
-type SpeakerTurn = {
-  id: string
-  speaker: string | null
-  startMs: number
-  texts: string[]
-}
-
-const groupTurns = (segments: MeetingTranscriptSegment[]) =>
-  segments.reduce<SpeakerTurn[]>((turns, segment) => {
-    const previous = turns[turns.length - 1]
-    if (previous && previous.speaker === segment.speaker)
-      previous.texts.push(segment.text)
-    else
-      turns.push({
-        id: segment.id,
-        speaker: segment.speaker,
-        startMs: segment.startMs,
-        texts: [segment.text],
-      })
-    return turns
-  }, [])
-
-/** Each speaker keeps one colour along the transcript, in order of appearance. */
-const SPEAKER_COLORS = ['#2d5be3', '#0f766e', '#9333ea', '#c2410c', '#0369a1']
-const UNKNOWN_SPEAKER_COLOR = '#98a2b3'
-
-const speakerColors = (turns: SpeakerTurn[]) => {
-  const colors = new Map<string, string>()
-  for (const turn of turns) {
-    if (turn.speaker === null || colors.has(turn.speaker)) continue
-    colors.set(
-      turn.speaker,
-      SPEAKER_COLORS[colors.size % SPEAKER_COLORS.length]
-    )
-  }
-  return colors
-}
-
-/** The transcript as plain text: speaker and time, then what was said. */
-const transcriptPlainText = (turns: SpeakerTurn[], unknownSpeaker: string) =>
-  turns
-    .map(
-      (turn) =>
-        `${turn.speaker ?? unknownSpeaker} (${formatTranscriptTimestamp(turn.startMs)})\n${turn.texts.join('\n')}`
-    )
-    .join('\n\n')
-
 export const TranscriptBody = ({
   transcript,
+  meetingRef,
 }: {
   transcript: MeetingTranscript
+  meetingRef?: string
 }) => {
-  const { t } = useTranslation('meetingHistory')
-  if (!isReadableStatus(transcript.status))
-    return <UnavailableContent kind="transcript" status={transcript.status} />
-
-  const turns = groupTurns(transcript.segments)
-  const colors = speakerColors(turns)
-  const unknownSpeaker = t('transcript.unknownSpeaker')
+  const nativeCoverage = transcript.nativeCoverage && (
+    <MeetingNativeCoverage coverage={transcript.nativeCoverage} />
+  )
+  const hasCanonicalContent =
+    isReadableStatus(transcript.status) && transcript.segments.length > 0
+  const nativePartial = transcript.status !== 'completed_empty' &&
+    !hasCanonicalContent &&
+    transcript.nativePartial && (
+      <MeetingNativePartialTranscript
+        partial={transcript.nativePartial}
+        coverage={transcript.nativeCoverage}
+      />
+    )
+  const liveSources = transcript.liveSources ?? []
+  const liveContent = (liveSources.length > 0 ||
+    transcript.liveObservedDomain) && (
+    <MeetingLiveResults meetingRef={meetingRef} transcript={transcript} />
+  )
+  const consultationStatus = nativePartial ? 'transcribing' : transcript.status
+  const unavailableContent = !isReadableStatus(consultationStatus) && (
+    <UnavailableContent kind="transcript" status={consultationStatus} />
+  )
+  if (!isReadableStatus(transcript.status) || nativePartial) {
+    return (
+      <>
+        {nativeCoverage}
+        {nativePartial}
+        {liveContent}
+        {transcript.projection.processing_state === 'temporarily_suspended' &&
+        transcript.status === 'transcribing' ? (
+          <SuspendedTranscriptState />
+        ) : (
+          (!liveContent || nativePartial) && unavailableContent
+        )}
+      </>
+    )
+  }
   return (
     <>
-      {transcript.status === 'partial' && (
-        <div className={css({ marginBottom: '1rem' })}>
-          <PartialContentWarning kind="transcript" />
-        </div>
-      )}
-      <MeetingContentToolbar
-        // Unnamed speakers cannot be counted, so no count is shown for them.
-        note={
-          colors.size > 0 && (
-            <>
-              <GroupIcon size={15} aria-hidden="true" />
-              {t('transcript.speakers', { count: colors.size })}
-            </>
-          )
-        }
-        copyText={transcriptPlainText(turns, unknownSpeaker)}
+      {nativeCoverage}
+      <CanonicalTranscriptBody
+        transcript={transcript}
+        meetingRef={meetingRef}
       />
-      <ol
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.25rem',
-          margin: 0,
-          padding: 0,
-          listStyle: 'none',
-        })}
-      >
-        {turns.map((turn) => {
-          // An unnamed speaker keeps the default text colour for contrast.
-          const color = turn.speaker ? colors.get(turn.speaker) : undefined
-          return (
-            <li
-              key={turn.id}
-              style={{ borderLeftColor: color ?? UNKNOWN_SPEAKER_COLOR }}
-              className={css({
-                paddingLeft: '0.875rem',
-                borderLeft: '3px solid',
-              })}
-            >
-              <p
-                className={css({
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  gap: '0.5rem',
-                  margin: 0,
-                  marginBottom: '0.125rem',
-                  fontSize: '0.8125rem',
-                  lineHeight: '1.25rem',
-                })}
-              >
-                <span style={{ color }} className={css({ fontWeight: 600 })}>
-                  {turn.speaker ?? unknownSpeaker}
-                </span>
-                <span
-                  className={css({
-                    color: 'muted-foreground',
-                    fontVariantNumeric: 'tabular-nums',
-                  })}
-                >
-                  {formatTranscriptTimestamp(turn.startMs)}
-                </span>
-              </p>
-              {turn.texts.map((text, index) => (
-                <p
-                  key={index}
-                  className={`${bodyTextClass} ${css({ '& + &': { marginTop: '0.375rem' } })}`}
-                >
-                  {text}
-                </p>
-              ))}
-            </li>
-          )
-        })}
-      </ol>
-      {transcript.truncated && (
-        <p
-          className={css({
-            marginTop: '1rem',
-            marginBottom: 0,
-            color: 'muted-foreground',
-            fontSize: '0.8125rem',
-          })}
-        >
-          {t('transcript.truncated')}
-        </p>
-      )}
+      {liveContent}
     </>
+  )
+}
+
+const CanonicalTranscriptBody = ({
+  transcript,
+  meetingRef,
+}: {
+  transcript: MeetingTranscript
+  meetingRef?: string
+}) => (
+  <>
+    {transcript.status === 'partial' && (
+      <div className={css({ marginBottom: '1rem' })}>
+        <PartialContentWarning kind="transcript" />
+      </div>
+    )}
+    <MeetingNativeFullTranscript
+      meetingRef={meetingRef}
+      transcript={transcript}
+      snapshot={transcript.nativeFullSnapshot}
+    >
+      <MeetingTranscriptContent
+        segments={transcript.segments}
+        truncated={transcript.truncated}
+        nativeCoverage={transcript.nativeCoverage}
+      />
+    </MeetingNativeFullTranscript>
+  </>
+)
+
+const SuspendedTranscriptState = () => {
+  const { t } = useTranslation('meetingHistory')
+  return (
+    <MeetingSectionState
+      icon={SECTION_ICONS.transcript}
+      look="empty"
+      title={t('transcript.temporarilySuspended.title')}
+      description={t('transcript.temporarilySuspended.description')}
+    />
   )
 }

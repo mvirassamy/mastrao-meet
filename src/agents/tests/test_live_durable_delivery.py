@@ -17,7 +17,12 @@ from live_delivery_codec import (
     validated_language,
 )
 from live_durable_publisher import DurablePublisher
-from live_send_control import MAX_SAFE_SAMPLE, ControlError, ControlResponseLost
+from live_send_control import (
+    CONTROL_VERSION,
+    MAX_SAFE_SAMPLE,
+    ControlError,
+    ControlResponseLost,
+)
 
 
 def final_event(**changes):
@@ -181,6 +186,84 @@ class DurablePublisherTests(unittest.IsolatedAsyncioTestCase):
         """Inspect only events actually handed to the control transport."""
         return [b for b in self.gateway.requests if b["action"] == "deliver"]
 
+    async def test_model_snapshot_shares_final_order_and_deduplicates_without_counting(
+        self,
+    ):
+        """One lock orders finals and evidence; exact replay changes neither count."""
+        evidence = {"provider": "openai", "models": [], "truncated": False}
+        self.gateway.release["deliver"].clear()
+        final = asyncio.create_task(
+            self.publisher.publish_final("one", 1, "exact", "fr")
+        )
+        await self.gateway.entered["deliver"].wait()
+        snapshot = asyncio.create_task(
+            self.publisher.publish_model_evidence(self.lease.leg_ref, evidence)
+        )
+        try:
+            await asyncio.sleep(0)
+            self.assertEqual(len(self.deliveries()), 1)
+            self.gateway.release["deliver"].set()
+            await asyncio.gather(final, snapshot)
+            await self.publisher.publish_model_evidence(self.lease.leg_ref, evidence)
+            await self.publisher.publish_final("one", 1, "exact", "fr")
+            await self.publisher.finish(None)
+        finally:
+            self.gateway.release["deliver"].set()
+            await asyncio.gather(final, snapshot, return_exceptions=True)
+        events = [body["event"] for body in self.deliveries()]
+        self.assertEqual(
+            [event["kind"] for event in events], ["final", "model_evidence", "end"]
+        )
+        self.assertEqual([event["sequence"] for event in events], [1, 2, 3])
+        self.assertEqual([event["version"] for event in events], [2, 3, 2])
+        self.assertTrue(
+            all(body["version"] == CONTROL_VERSION for body in self.deliveries())
+        )
+        self.assertEqual(events[-1]["final_event_count"], 1)
+        self.assertEqual(events[-1]["reason"], "capture_incomplete")
+        self.failed.assert_not_called()
+
+    async def test_model_snapshot_refuses_foreign_provider_or_conflicting_replay(self):
+        """Reject foreign profiles and changed snapshots before sending again."""
+        await self.publisher.publish_model_evidence(
+            self.lease.leg_ref, {"provider": "openai", "models": [], "truncated": False}
+        )
+        with self.assertRaises(ControlError):
+            await self.publisher.publish_model_evidence(
+                self.lease.leg_ref,
+                {"provider": "openai", "models": [], "truncated": True},
+            )
+        self.assertEqual(len(self.deliveries()), 1)
+        gateway = Gateway()
+        lease = authority(gateway)
+        await lease.claim()
+        publisher = DurablePublisher(lease, MagicMock())
+        with self.assertRaises(ControlError):
+            await publisher.publish_model_evidence(
+                lease.leg_ref, {"provider": "mistral", "models": [], "truncated": False}
+            )
+        self.assertFalse(gateway.entered["deliver"].is_set())
+
+    async def test_model_receipt_loss_is_terminal_without_retry_or_final_increment(
+        self,
+    ):
+        """A lost receipt forbids retry, later events and an acknowledged end."""
+        self.gateway.errors["deliver"] = ControlResponseLost(
+            "fixture lost model receipt"
+        )
+        evidence = {"provider": "openai", "models": [], "truncated": False}
+        with self.assertRaises(ControlResponseLost) as failure:
+            await self.publisher.publish_model_evidence(self.lease.leg_ref, evidence)
+        with self.assertRaises(ControlResponseLost) as replay:
+            await self.publisher.publish_model_evidence(self.lease.leg_ref, evidence)
+        with self.assertRaises(ControlResponseLost) as finish:
+            await self.publisher.finish("delivery_failed")
+        self.assertIs(failure.exception, replay.exception)
+        self.assertIs(failure.exception, finish.exception)
+        self.assertEqual(self.gateway.final_count, 0)
+        self.assertEqual(len(self.deliveries()), 1)
+        self.assertFalse(self.lease.can_send())
+
     async def test_same_provider_item_across_legs_keeps_source_order_and_total(self):
         """Item bytes remain original while leg identity separates final storage."""
         text = final_event()["text"]
@@ -227,18 +310,56 @@ class DurablePublisherTests(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         """Reserve closure capacity without dropping, truncating or retrying finals."""
-        with patch("live_durable_publisher.MAX_EVENTS_PER_SOURCE", 3):
+        with patch("live_durable_publisher.MAX_EVENTS_PER_SOURCE", 4):
             await self.publisher.publish_final("one", 1, "first", "fr")
             with self.assertRaises(ControlError) as failure:
                 await self.publisher.publish_final("two", 1, "second", "fr")
             self.assertFalse(self.lease.can_send())
+            await self.publisher.publish_model_evidence(
+                self.lease.leg_ref,
+                {"provider": "openai", "models": [], "truncated": False},
+            )
             with self.assertRaises(ControlError) as closed:
                 await self.publisher.finish("capture_incomplete")
         self.assertIs(failure.exception, closed.exception)
         events = [b["event"] for b in self.deliveries()]
-        self.assertEqual([e["kind"] for e in events], ["final", "gap", "end"])
-        self.assertEqual([e["sequence"] for e in events], [1, 2, 3])
+        self.assertEqual(
+            [e["kind"] for e in events], ["final", "model_evidence", "gap", "end"]
+        )
+        self.assertEqual([e["sequence"] for e in events], [1, 2, 3, 4])
         self.assertEqual(events[-1]["final_event_count"], 1)
+
+    async def test_last_final_reserves_snapshot_gap_end_at_real_sequence_limit(self):
+        """The existing 100000 bound holds for all three reserved events."""
+        self.publisher._sequence = MAX_EVENTS_PER_SOURCE - 4
+        await self.publisher.publish_final("last", 1, "exact final", "fr")
+        await self.publisher.publish_model_evidence(
+            self.lease.leg_ref,
+            {"provider": "openai", "models": [], "truncated": False},
+        )
+        await self.publisher.finish("capture_incomplete")
+        events = [body["event"] for body in self.deliveries()]
+        self.assertEqual(
+            [event["sequence"] for event in events],
+            [99_997, 99_998, 99_999, 100_000],
+        )
+        self.assertEqual(
+            [event["kind"] for event in events],
+            ["final", "model_evidence", "gap", "end"],
+        )
+        self.assertEqual(events[0]["text"], "exact final")
+        self.assertEqual(events[-1]["final_event_count"], 1)
+        self.failed.assert_not_called()
+
+    async def test_model_snapshot_refuses_a_leg_rotated_while_close_waited(self):
+        """A captured old leg can never be silently relabelled with its successor."""
+        old_leg = self.lease.leg_ref
+        await self.lease.rotate("next_leg_reference_0001", 480)
+        with self.assertRaises(ControlError):
+            await self.publisher.publish_model_evidence(
+                old_leg, {"provider": "openai", "models": [], "truncated": False}
+            )
+        self.assertEqual(self.deliveries(), [])
 
     async def test_lost_refused_or_incoherent_receipt_is_terminal_without_any_retry(
         self,

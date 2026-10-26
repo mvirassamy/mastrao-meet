@@ -25,7 +25,7 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, silero
 
-from live_send_control import ControlError, LiveControlClient
+from live_send_control import LiveControlClient
 from live_transcriber import LiveTranscriber
 from observability import configure_sentry, set_job_context
 from tasks import done_callback
@@ -163,17 +163,15 @@ async def entrypoint(ctx: JobContext):
     """Initialize and run the multi-user transcriber."""
     set_job_context(room=ctx.room.name, job_id=ctx.job.id)
     control = LiveControlClient.from_metadata(getattr(ctx.job, "metadata", ""))
-    if control is not None and STT_PROVIDER != OPENAI_LIVE_PROVIDER:
-        raise ControlError("liveControl jobs require STT_PROVIDER=openai-live")
-
-    if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
+    live = control is not None or STT_PROVIDER == OPENAI_LIVE_PROVIDER
+    if live:
         transcriber = LiveTranscriber(ctx)
     else:
         transcriber = MultiUserTranscriber(ctx)
     transcriber.start()
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
+    if live:
         transcriber.start_existing_tracks()
     else:
         for participant in ctx.room.remote_participants.values():
@@ -217,7 +215,11 @@ async def handle_transcriber_job_request(job_req: JobRequest) -> None:
 def prewarm(proc: JobProcess):
     """Preload voice activity detection model."""
     configure_sentry(TRANSCRIBER_AGENT_NAME)
-    if ENABLE_SILERO_VAD or STT_PROVIDER == OPENAI_LIVE_PROVIDER:
+    if (
+        ENABLE_SILERO_VAD
+        or STT_PROVIDER == OPENAI_LIVE_PROVIDER
+        or os.getenv("LIVE_TRANSCRIPT_CONTROL_URL")
+    ):
         proc.userdata["vad"] = silero.VAD.load()
 
 

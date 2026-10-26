@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import math
@@ -21,13 +22,17 @@ from live_continuation import ContinuationInput, continue_legs
 from live_delivery_codec import MAX_LEG_SAMPLES
 from live_durable_publisher import DurablePublisher
 from live_input_drain import InputDrainError
+from live_provider_session import (
+    CanonicalProviderSession,
+    application_item_ref,
+    create_canonical_provider,
+)
 from live_send_control import (
     MAX_SAFE_SAMPLE,
     PCM_SAMPLE_RATE,
     LiveControlClient,
     LiveSendAuthority,
 )
-from live_single_connection import AuthorizedOpenAI
 
 logger = logging.getLogger("transcriber.live")
 
@@ -132,6 +137,16 @@ def _language(data: stt.SpeechData) -> str | None:
     return language or None
 
 
+def _native_content(data: stt.SpeechData) -> str | None:
+    """Retain native-only final corrections without receipt-time revisions."""
+    if data.metadata is None or "native_provenance" not in data.metadata:
+        return None
+    native = json.dumps(
+        data.metadata["native_provenance"], sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(native.encode()).hexdigest()
+
+
 def _has_transcript(event: stt.SpeechEvent) -> bool:
     """Identify events that need space in the publication queue."""
     return bool(
@@ -170,6 +185,7 @@ class _FinalContent:
     data_end_time: float
     speech_start_time: float | None
     speech_end_time: float | None
+    native_content: str | None = None
 
 
 @dataclass(frozen=True)
@@ -299,7 +315,7 @@ class TrackTranscriber:
         self._leg_audio_start_sample = 0
         self._speech_stream: stt.RecognizeStream | None = None
         self._audio_stream: rtc.AudioStream | None = None
-        self._provider: openai.STT | None = None
+        self._provider: CanonicalProviderSession | openai.STT | None = None
         self._pcm_input: ContinuationInput | None = None
         self._continuation_task: asyncio.Task[None] | None = None
         self._leg_close_task: asyncio.Task[None] | None = None
@@ -334,7 +350,7 @@ class TrackTranscriber:
             logger.warning("incomplete transcription for %s: %s", self.leg_id, reason)
 
     async def run(self) -> None:
-        """Pump one LiveKit audio track into one OpenAI realtime stream."""
+        """Pump one LiveKit audio track through its selected provider session."""
         if self._closing:
             return
         self._run_task = asyncio.current_task()
@@ -456,15 +472,13 @@ class TrackTranscriber:
             raise InputDrainError("live-continuation-open-not-authorized")
         self.leg_id = leg_ref
         self._leg_audio_start_sample = authority.audio_start_sample
-        self._provider = AuthorizedOpenAI(
+        self._provider = create_canonical_provider(
+            authority.live_profile,
             can_send=lambda: authority.can_send_leg(leg_ref),
             reconnect_refused=lambda: self._mark_incomplete(
                 "canonical-provider-reconnect-refused"
             ),
             failed=self._fail_continuation,
-            language=configured_languages(),
-            model=MODEL,
-            use_realtime=True,
             vad=self._vad,
         )
         self._leg_close_task = None
@@ -485,6 +499,10 @@ class TrackTranscriber:
             self._speech_stream, end_sample - self._authority.audio_start_sample
         )
         expected = await self._provider.drain_input()
+        if self._provider.terminal_drain_complete(self._speech_stream):
+            # Deepgram's proved terminal close ends its SDK iterator. Join every
+            # accepted correction, including revisions of already-published IDs.
+            await asyncio.gather(self._reader_task, self._publication_task)
         while not expected <= self._published_items:
             for task in (self._reader_task, self._publication_task):
                 if task.done():
@@ -500,8 +518,7 @@ class TrackTranscriber:
             finally:
                 changed.cancel()
                 await asyncio.gather(changed, return_exceptions=True)
-        if self._speech_stream._task.done():
-            raise InputDrainError("live-continuation-sdk-ended-during-drain")
+        self._provider.terminal_drain_complete(self._speech_stream)
         self._leg_drained = True
         self._provider.fence_audio()
         await self._close_leg()
@@ -579,7 +596,7 @@ class TrackTranscriber:
                 event = self._pending_events.popleft()
                 await self._handle_event(event)
                 if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
-                    self._published_items.add(event.request_id)
+                    self._published_items.add(application_item_ref(event))
                     self._publication_ready.set()
             if self._speech_read_done:
                 return
@@ -733,14 +750,24 @@ class TrackTranscriber:
 
     async def _close_leg_resources(self) -> None:
         """Share physical leg closure between planned handoff and hard stop."""
+        provider = self._provider
+        speech_stream = self._speech_stream
+        leg_ref = self.leg_id
         errors: list[BaseException] = []
-        for resource in (self._speech_stream, self._provider):
+        for resource in (speech_stream, provider):
             if resource is None:
                 continue
             try:
                 await resource.aclose()
             except (Exception, asyncio.CancelledError) as error:
                 logger.error("failed to close speech leg (%s)", type(error).__name__)
+                errors.append(error)
+        if self._durable is not None and provider is not None:
+            try:
+                await self._durable.publish_model_evidence(
+                    leg_ref, provider.model_evidence
+                )
+            except (Exception, asyncio.CancelledError) as error:
                 errors.append(error)
         if errors:
             raise BaseExceptionGroup("live speech leg close failed", errors)
@@ -768,7 +795,11 @@ class TrackTranscriber:
         data = event.alternatives[0]
         # Without a provider request_id, replay/correction identity is unknown.
         # Keep those events independent rather than guessing from their text.
-        item_id = event.request_id or uuid.uuid4().hex
+        item_id = application_item_ref(event)
+        if not item_id:
+            if self._authority is not None:
+                raise InputDrainError("canonical-provider-item-identity-unavailable")
+            item_id = uuid.uuid4().hex
         item = self._items.get(item_id)
         if item is None and len(self._items) >= MAX_ITEMS_PER_TRACK:
             # Fail through run() cleanup and the existing provider-error gap.
@@ -784,6 +815,7 @@ class TrackTranscriber:
                 data_end_time=data.end_time,
                 speech_start_time=event.speech_start_time,
                 speech_end_time=event.speech_end_time,
+                native_content=_native_content(data),
             )
         if item is not None and item.final_content is not None:
             if not final or final_content == item.final_content:
@@ -794,7 +826,7 @@ class TrackTranscriber:
         start_time, end_time = _transcription_times(event, item, received_at)
         timing = item.durable_timing
         if final and self._durable is not None and timing is None:
-            timing = await self._final_buffer_timing(event.request_id)
+            timing = await self._final_buffer_timing(item_id)
         revision = item.revision + 1
         next_item = _ItemState(
             revision=revision,
@@ -806,7 +838,7 @@ class TrackTranscriber:
         if final and self._durable is not None:
             # Controlled finals require the provider's actual item identity.
             await self._durable.publish_final(
-                event.request_id, revision, data.text, data.language, timing=timing
+                item_id, revision, data.text, data.language, timing=timing
             )
             # Retain the durable revision before the fallible UI effect.
             self._items[item_id] = next_item
@@ -988,7 +1020,7 @@ class LiveTranscriber:
         participant: rtc.RemoteParticipant,
     ) -> None:
         """Replace a stale session and launch a fresh one for a track."""
-        if self._vad is None:
+        if self._vad is None and self._control is None:
             raise RuntimeError("Silero VAD is required for gpt-live-transcribe")
         async with self._lifecycle_lock:
             await self._ensure_session_unlocked(track, track_sid, participant)

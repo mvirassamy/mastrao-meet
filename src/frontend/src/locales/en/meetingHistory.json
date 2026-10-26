@@ -118,6 +118,60 @@
   },
   "title": "History",
   "transcript": {
+    "live": {
+      "full": {
+        "title": "Retained live passages",
+        "load": "Show retained live passages",
+        "loading": "Loading live passages…",
+        "retry": "Retry live consultation",
+        "failed": "Retained live passages are unavailable. The preview is still accessible.",
+        "expired": "This live consultation has expired. Read again to check which passages are still retained."
+      },
+      "title": "Retained live transcript",
+      "partial": "Partial sources only. Meeting coverage is unverified. Capture buffers do not provide speech or meeting timestamps.",
+      "truncated": "Only part of the retained live history is displayed.",
+      "source": "Source {{number}}",
+      "leg": "Capture {{number}}",
+      "participant": {
+        "host": "Host",
+        "guest": "Guest"
+      },
+      "state": {
+        "collecting": "Source collection in progress.",
+        "ended": "Source collection ended."
+      },
+      "incomplete": "This source is incomplete; content may be missing.",
+      "gap": {
+        "connection_lost": "Gap: connection lost.",
+        "provider_failed": "Gap: transcription service failed.",
+        "delivery_failed": "Gap: transcript delivery failed.",
+        "timing_unavailable": "Gap: timing unavailable.",
+        "capture_incomplete": "Gap: capture incomplete."
+      },
+      "end": {
+        "track_unpublished": "Capture ended: audio track stopped.",
+        "meeting_ended": "Capture ended: meeting ended.",
+        "provider_failed": "Capture ended: transcription service failed.",
+        "capture_incomplete": "Capture ended: capture incomplete."
+      },
+      "domain": {
+        "title": "Microphones observed after the meeting",
+        "unverified": "These details describe observed sources. Coverage of the whole meeting and transcription of all audio remain unverified.",
+        "microphones": "Observed microphones: {{microphone_epochs}} · unidentified tracks: {{unclassified_epochs}}.",
+        "sources": "Admitted live sources: {{admitted_sources}} · tracks linked to a participant: {{correlated_epochs}}.",
+        "stages": "Confirmed journal endings: {{journal_ended_sources}} · confirmed transmission stops: {{send_stop_acknowledged_sources}}. These stages do not prove that all audio was received.",
+        "unknown": "The inventory is uncertain. No reliable counts are available.",
+        "expired": "Live results have reached their retention limit.",
+        "blockers": {
+          "contradiction": "Some source information is contradictory.",
+          "admission": "The link between some microphones and live sources remains unconfirmed.",
+          "microphone": "Publication or the end of some microphones remains unconfirmed.",
+          "journal": "The end of some source journals remains unconfirmed.",
+          "transmission": "Transmission stop remains unconfirmed for some sources.",
+          "limits": "The inventory verification limits have been reached."
+        }
+      }
+    },
     "absent": {
       "description": "No transcript was produced for this meeting.",
       "title": "No transcript"
@@ -163,6 +217,65 @@
     "temporarilySuspended": {
       "title": "Transcription temporarily suspended by Mastrao",
       "description": "Increasing your alert threshold does not resume transcription."
+    },
+    "native": {
+      "full": {
+        "title": "Retained source groups",
+        "scope": "This consultation covers retained source groups, including any failures. Names come from sessions and are not verified identities.",
+        "load": "Show retained source groups",
+        "loading": "Loading retained groups…",
+        "retry": "Retry reading retained groups",
+        "failed": "Retained groups are unavailable for this read. The preview remains visible.",
+        "expired": "The loaded consultation has expired and has been removed."
+      },
+      "partialTitle": "Partial transcript of available sources",
+      "partialNotice": "Only source groups already available can be read here. Other groups may be pending or unavailable; this partial view may change.",
+      "source": "Source group {{number}}",
+      "unknownSource": "Unspecified source",
+      "localTimes": "Times are local to each source group, with no alignment to the meeting timeline.",
+      "localTime": "Local time {{time}}",
+      "unknownTimeBasis": "Time reference unspecified",
+      "coverage": {
+        "epoch_limit_exceeded": "Native transcript consultation is unavailable: the number of sources exceeds the consultation limit. Capture information remains visible.",
+        "result_bytes_limit_exceeded": "Native transcript consultation is unavailable: the result size exceeds the consultation limit. Capture information remains visible.",
+        "title": "Source coverage",
+        "unverified": "Meeting coverage is unverified, even if all known results are available.",
+        "observationsUnavailable": "Audio track details are unavailable for this result. This does not establish that capture was absent.",
+        "truncated": "Only part of the source information is displayed.",
+        "pending": "Some source groups are awaiting transcription.",
+        "failed": "Transcription failed for some source groups.",
+        "unadmitted": "Some audio sources were not accepted for transcription.",
+        "unknownLinks": "The groups associated with some audio sources are unspecified.",
+        "missingResults": "No accessible result is confirmed for at least some audio sources. This does not mean those sources were not captured."
+      },
+      "domain": {
+        "title": "Known capture inventory",
+        "state": {
+          "unknown": "The known capture inventory state is unknown.",
+          "open": "The known capture inventory is open.",
+          "closing": "The meeting is closed; known captures still need to finish.",
+          "closed": "The known capture inventory is closed. This does not guarantee transcription of the entire meeting."
+        },
+        "counts": "Known tracks: {{epochs}}. Finished captures: {{terminal}} of {{captures}}. Verified sources: {{sources}}; available results: {{results}}.",
+        "failures": "Failed captures: {{failed}}; aborted: {{aborted}}; stopped at limit: {{limited}}.",
+        "reason": {
+          "observation_limit_exceeded": "There are too many observations to verify this inventory. Previous counts have been withdrawn.",
+          "epoch_limit_exceeded": "There are too many tracks or captures to verify this inventory. Previous counts have been withdrawn.",
+          "payload_limit_exceeded": "The inventory exceeds the verifiable size. Previous counts have been withdrawn.",
+          "inventory_contradiction": "Capture facts contradict each other. The inventory needs reconciliation.",
+          "late_core_facts": "New capture facts have made this inventory obsolete."
+        },
+        "blocker": {
+          "core_observation_omitted": "Known observations are missing from this inventory.",
+          "core_capture_omitted": "Known captures are missing from this inventory.",
+          "closure_unconfirmed": "Meeting closure has not been confirmed.",
+          "epoch_not_ended": "Some known tracks have no confirmed end.",
+          "admission_unresolved": "Some track admissions are unresolved.",
+          "start_unresolved": "Some capture starts have not been confirmed.",
+          "capture_not_drained": "Some captures are still awaiting their final state.",
+          "epoch_conflict": "Some track observations conflict."
+        }
+      }
     }
   },
   "untitled": "Untitled meeting",
