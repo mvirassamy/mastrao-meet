@@ -17,6 +17,12 @@ DRAIN_TIMEOUT_SECONDS = 25
 MAX_SDK_EVENTS = 512
 
 
+async def _refuse_redirect(session, context, params) -> None:
+    """A redirected upgrade would acquire a second connection."""
+    params.response.close()
+    raise InputDrainError("deepgram-handshake-redirect-refused")
+
+
 class _DeepgramSocket:
     """Fence bytes and protocol strings at the last boundary before real I/O."""
 
@@ -33,7 +39,13 @@ class _DeepgramSocket:
         for task in tuple(self._senders):
             task.cancel()
 
-    async def _send(self, *, pcm: bytes | None = None, text: str | None = None) -> None:
+    async def _send(
+        self,
+        *,
+        pcm: bytes | None = None,
+        text: str | None = None,
+        pong: bytes | None = None,
+    ) -> None:
         provider = self._provider
         if self._fenced or not provider.can_send():
             raise InputDrainError("deepgram-socket-write-fenced")
@@ -45,6 +57,9 @@ class _DeepgramSocket:
                     raise InputDrainError("deepgram-socket-write-fenced")
                 ledger = provider.ledger
                 ledger.check()
+                if pong is not None:
+                    await self._socket.pong(pong)
+                    return
                 if pcm is not None:
                     if len(pcm) % 2 or ledger.close_sent:
                         raise InputDrainError("deepgram-socket-pcm-invalid")
@@ -89,7 +104,13 @@ class _DeepgramSocket:
         await self._send(text=message)
 
     async def receive(self):
-        message = await self._socket.receive()
+        while True:
+            message = await self._socket.receive()
+            if message.type == aiohttp.WSMsgType.PING:
+                await self._send(pong=message.data)
+                continue
+            if message.type != aiohttp.WSMsgType.PONG:
+                break
         if message.type == aiohttp.WSMsgType.TEXT:
             try:
                 if len(message.data.encode("utf-8")) > MAX_NATIVE_FRAME_BYTES:
@@ -138,6 +159,12 @@ class _DeepgramStream(sdk.SpeechStream):
             raise InputDrainError("deepgram-connection-not-authorized")
         owner._connection_attempted = True
         socket = await super()._connect_ws()
+        # SDK 1.8.3 forces heartbeat=30 and leaves aiohttp auto-PONG enabled.
+        # Disable both before handing the socket to any receive loop; all
+        # subsequent PONG writes must pass the same lease fence as PCM.
+        socket._autoping = False
+        socket._heartbeat = None
+        socket._cancel_heartbeat()
         owner._socket = _DeepgramSocket(socket, owner)
         if not owner.can_send():
             await owner._socket.close()
@@ -223,6 +250,9 @@ class AuthorizedDeepgram(deepgram.STT):
             or version("livekit-plugins-deepgram") != "1.8.3"
         ):
             raise RuntimeError("canonical live transport requires reviewed SDK 1.8.3")
+        if version("aiohttp") != "3.14.4":
+            raise RuntimeError("canonical Deepgram transport requires aiohttp 3.14.4")
+        self._owns_http_session = kwargs.get("http_session") is None
         super().__init__(**kwargs)
         self._can_send = can_send
         self._reconnect_refused = reconnect_refused
@@ -237,6 +267,24 @@ class AuthorizedDeepgram(deepgram.STT):
     def can_send(self) -> bool:
         """Retain both the immutable leg lease and the immediate local fence."""
         return not self._audio_fenced and self._can_send()
+
+    async def _check_upgrade(self, session, context, params) -> None:
+        """Pinned aiohttp calls this before serializing credentialed headers."""
+        if not self.can_send():
+            raise InputDrainError("deepgram-connection-not-authorized")
+
+    def _ensure_session(self):
+        """Own the canonical client's retry policy instead of the shared SDK pool."""
+        if self._session is None:
+            trace = aiohttp.TraceConfig()
+            trace.on_request_headers_sent.append(self._check_upgrade)
+            trace.on_request_redirect.append(_refuse_redirect)
+            self._session = aiohttp.ClientSession(
+                trust_env=False, trace_configs=[trace]
+            )
+            # Reviewed aiohttp retries disconnected GET upgrades below the SDK.
+            self._session._retry_connection = False
+        return self._session
 
     @property
     def appended_samples(self) -> int:
@@ -321,11 +369,15 @@ class AuthorizedDeepgram(deepgram.STT):
     async def aclose(self):
         """Fence first, then join the actual SDK and physical socket cleanup."""
         self.fence_audio()
-        if self._drain_task is not None:
-            if not self._drain_task.done():
-                self._drain_task.cancel()
-            await asyncio.gather(self._drain_task, return_exceptions=True)
-        if self._canonical_stream is not None:
-            await self._canonical_stream.aclose()
-        if self._socket is not None:
-            await self._socket.close()
+        try:
+            if self._drain_task is not None:
+                if not self._drain_task.done():
+                    self._drain_task.cancel()
+                await asyncio.gather(self._drain_task, return_exceptions=True)
+            if self._canonical_stream is not None:
+                await self._canonical_stream.aclose()
+            if self._socket is not None:
+                await self._socket.close()
+        finally:
+            if self._owns_http_session and self._session is not None:
+                await self._session.close()

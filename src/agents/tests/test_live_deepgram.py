@@ -2,9 +2,11 @@
 
 import asyncio
 import unittest
-from unittest.mock import Mock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
 
 import aiohttp
+from aiohttp.client_ws import ClientWSTimeout
 from live_continuation_fixtures import eventually, numbered_frame
 from live_deepgram_fixtures import (
     DeepgramSocket,
@@ -14,9 +16,168 @@ from live_deepgram_fixtures import (
 )
 from livekit.agents import APIConnectionError
 
-from live_deepgram import AuthorizedDeepgram
+from live_deepgram import AuthorizedDeepgram, _DeepgramStream, sdk
+from live_deepgram_drain import DeepgramDrain
 from live_input_drain import InputDrainError
 from live_provider_session import application_item_ref
+
+
+class DeepgramHTTPTests(unittest.IsolatedAsyncioTestCase):
+    """Keep aiohttp's actual upgrade, redirect and retry machinery in the test."""
+
+    async def run_upgrade(self, middleware):
+        """Intercept before network I/O; the production path acquires its client."""
+        real_client = aiohttp.ClientSession
+        clients = []
+
+        def create_client(**kwargs):
+            client = real_client(middlewares=(middleware,), **kwargs)
+            clients.append(client)
+            return client
+
+        provider = AuthorizedDeepgram(
+            api_key="fixture-unused-key",
+            can_send=lambda: self.authorized,
+            reconnect_refused=Mock(),
+            failed=Mock(),
+        )
+        try:
+            with (
+                patch("live_deepgram.aiohttp.ClientSession", side_effect=create_client),
+                patch(
+                    "live_deepgram.sdk.utils.http_context.http_session",
+                    side_effect=create_client,
+                ),
+            ):
+                stream = provider.stream()
+                with self.assertRaises(APIConnectionError):
+                    async with asyncio.timeout(2):
+                        async for _ in stream:
+                            pass
+            await provider.aclose()
+            self.assertEqual(len(clients), 1)
+            self.assertTrue(clients[0].closed)
+        finally:
+            await provider.aclose()
+            for client in clients:
+                await client.close()
+
+    async def test_disconnected_upgrade_never_retries_after_revocation(self):
+        """A disconnected GET must not acquire again after its lease is withdrawn."""
+        self.authorized = True
+        attempts = []
+
+        async def disconnect(request, handler):
+            attempts.append(self.authorized)
+            self.authorized = False
+            raise aiohttp.ServerDisconnectedError("synthetic offline disconnect")
+
+        await self.run_upgrade(disconnect)
+        self.assertEqual(attempts, [True])
+
+    async def test_redirected_upgrade_is_closed_without_following(self):
+        """A redirect is another acquisition, even without audio being sent."""
+        self.authorized = True
+        attempts = []
+        response = SimpleNamespace(status=302, _raw_cookie_headers=(), close=Mock())
+
+        async def redirect(request, handler):
+            attempts.append(str(request.url))
+            return response
+
+        await self.run_upgrade(redirect)
+        self.assertEqual(len(attempts), 1)
+        self.assertTrue(response.close.called)
+
+
+class DeepgramPingTests(unittest.IsolatedAsyncioTestCase):
+    """Exercise real aiohttp receive and frame writes after SDK acquisition."""
+
+    async def asyncSetUp(self):
+        """Acquire a real local socket through the production SDK override."""
+        self.authorized = True
+        self.reader = SimpleNamespace(read=AsyncMock())
+        self.writer = SimpleNamespace(send_frame=AsyncMock())
+        response = SimpleNamespace(connection=None, headers={}, close=Mock())
+        self.raw = aiohttp.ClientWebSocketResponse(
+            self.reader,
+            self.writer,
+            None,
+            response,
+            ClientWSTimeout(),
+            True,
+            True,
+            asyncio.get_running_loop(),
+            heartbeat=30.0,
+        )
+        owner = SimpleNamespace(
+            can_send=lambda: self.authorized,
+            _connection_attempted=False,
+            _reconnect_refused=Mock(),
+            _socket=None,
+            ledger=DeepgramDrain(lambda reason: None),
+        )
+
+        class AcquisitionProbe(_DeepgramStream):
+            def __init__(self):
+                self._owner = owner
+
+        with patch.object(
+            sdk.SpeechStream, "_connect_ws", AsyncMock(return_value=self.raw)
+        ):
+            self.socket = await AcquisitionProbe()._connect_ws()
+        self.reader.read.side_effect = [
+            aiohttp.WSMessage(aiohttp.WSMsgType.PING, b"offline-ping", ""),
+            aiohttp.WSMessage(aiohttp.WSMsgType.TEXT, '{"type":"SpeechStarted"}', ""),
+        ]
+
+    async def asyncTearDown(self):
+        """Cancel writes and release aiohttp timers without a network transport."""
+        self.socket.fence_audio()
+        self.raw._cancel_heartbeat()
+
+    async def test_authorized_ping_receives_one_pong_before_next_event(self):
+        """Answer a permitted ping without restarting autonomous heartbeats."""
+        message = await self.socket.receive()
+        self.assertEqual(message.type, aiohttp.WSMsgType.TEXT)
+        self.writer.send_frame.assert_awaited_once_with(
+            b"offline-ping", aiohttp.WSMsgType.PONG
+        )
+        self.assertIsNone(self.raw._heartbeat_cb)
+
+    async def test_revoked_ping_cannot_write_a_pong(self):
+        """Withdrawal prevents writes inside the real aiohttp receive loop."""
+        self.authorized = False
+        self.socket.fence_audio()
+        with self.assertRaises(InputDrainError):
+            await self.socket.receive()
+        self.writer.send_frame.assert_not_awaited()
+
+    async def test_fence_cancels_an_inflight_pong(self):
+        """A pong waiting on the writer is cancelled before bytes escape."""
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        writes = []
+
+        async def blocked_write(data, opcode):
+            entered.set()
+            await release.wait()
+            writes.append((data, opcode))
+
+        self.writer.send_frame.side_effect = blocked_write
+        receiving = asyncio.create_task(self.socket.receive())
+        try:
+            async with asyncio.timeout(2):
+                await entered.wait()
+                self.authorized = False
+                self.socket.fence_audio()
+                release.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await receiving
+            self.assertEqual(writes, [])
+        finally:
+            receiving.cancel()
+            await asyncio.gather(receiving, return_exceptions=True)
 
 
 class DeepgramSDKTests(unittest.IsolatedAsyncioTestCase):

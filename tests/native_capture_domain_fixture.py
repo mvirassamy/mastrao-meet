@@ -1099,6 +1099,7 @@ class NativeCaptureDomainPostgresTest(unittest.TestCase):
             self.assertEqual(domain.deliver_native_capture_domain(cursor.pk), 1)
 
     def test_upgrade_adds_cursor_without_touching_existing_rtc_fact(self):
+        self.addCleanup(call_command, "migrate", verbosity=0, interactive=False)
         previous = [("core", "0061_native_track_observation_delivery")]
         latest = [("core", "0063_native_capture_domain_inventory_baseline")]
         executor = MigrationExecutor(connection)
@@ -1118,6 +1119,7 @@ class NativeCaptureDomainPostgresTest(unittest.TestCase):
         )
 
     def test_baseline_migration_preserves_inventory_revision_ack_and_claim(self):
+        self.addCleanup(call_command, "migrate", verbosity=0, interactive=False)
         synthetic_rtc_capture(self.binding)
         prepared = domain.prepare_native_capture_domain(self.binding.pk)
         domain.claim_native_capture_domain(prepared.pk)

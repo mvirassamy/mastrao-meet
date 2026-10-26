@@ -1,5 +1,8 @@
 ## 2026-10-26
 
+FIX: Prevent internal HTTP retries and redirects for Deepgram live upgrades.
+FIX: Fence Deepgram PONG writes and disable autonomous heartbeat traffic.
+TEST: Restore the current schema after native-domain migration proofs.
 TEST: Align legacy recording and drain tests with the controlled Live boundary.
 CHORE: Resolve scoped backend lint while preserving strict wire validation.
 

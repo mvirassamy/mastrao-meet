@@ -4,7 +4,7 @@ import asyncio
 import json
 from array import array
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import aiohttp
 from test_live_audio_timing import ProtocolSocket
@@ -66,6 +66,7 @@ class DeepgramSocket(ProtocolSocket):
         """Expose independent gates for binary writes, controls and physical close."""
         super().__init__()
         self._response = SimpleNamespace(headers={"dg-model-name": "synthetic-nova-3"})
+        self._cancel_heartbeat = Mock()
         self.close_code = 1000
         self.controls = []
         self.samples = []
