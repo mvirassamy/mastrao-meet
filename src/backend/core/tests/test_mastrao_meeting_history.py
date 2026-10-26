@@ -514,9 +514,7 @@ def test_invitees_require_complete_schedule_before_any_external_side_effect(sche
 
 NATIVE_MEETING_REF = "meeting_native0123456789"
 NATIVE_DIGEST = "a" * 64
-NATIVE_TARGET = (
-    f"/api/v1.0/meetings/history/{NATIVE_MEETING_REF}/native-transcript/"
-)
+NATIVE_TARGET = f"/api/v1.0/meetings/history/{NATIVE_MEETING_REF}/native-transcript/"
 
 
 @override_settings(**TEST_SETTINGS)
@@ -617,7 +615,9 @@ def test_native_transcript_rejects_missing_auth_and_invalid_meeting_before_netwo
 
 @pytest.mark.parametrize("status", [401, 403, 404, 409, 410, 422])
 @override_settings(**TEST_SETTINGS)
-def test_native_transcript_preserves_access_and_snapshot_refusals_without_body_read(status):
+def test_native_transcript_preserves_access_and_snapshot_refusals_without_body_read(
+    status,
+):
     """No-store refusals remain opaque and never forward an upstream error body."""
     upstream = _upstream(status, {"message": "private upstream error"})
     session = _session_returning(upstream)
