@@ -1405,6 +1405,57 @@ agentMetadata:
   pdb:
     enabled: false
 
+## @section agentRoomAudio
+
+agentRoomAudio:
+  ## @param agentRoomAudio.enabled Render the post room-audio worker deployment
+  enabled: false
+
+  ## @param agentRoomAudio.image.repository Room-audio worker image repository
+  ## @param agentRoomAudio.image.digest Immutable image digest; takes precedence over tag
+  ## @param agentRoomAudio.image.tag Room-audio worker image tag
+  ## @param agentRoomAudio.image.pullPolicy Room-audio worker image pull policy
+  image:
+    repository: lasuite/meet-agents
+    pullPolicy: IfNotPresent
+    digest: ""
+    tag: "latest"
+
+  ## @param agentRoomAudio.command Room-audio worker command
+  command: ["python", "room_audio_worker.py", "start"]
+
+  ## @param agentRoomAudio.args Additional room-audio worker arguments
+  args: []
+
+  ## @param agentRoomAudio.replicas Amount of room-audio worker replicas
+  replicas: 1
+
+  ## @param agentRoomAudio.envVars Explicit worker trust, storage and callback environment
+  ## @skip agentRoomAudio.envVars
+  envVars:
+    <<: *commonEnvVars
+
+  ## @param agentRoomAudio.podAnnotations Annotations for the room-audio Pod
+  podAnnotations: {}
+
+  ## @param agentRoomAudio.securityContext Room-audio container security context
+  securityContext: null
+
+  ## @param agentRoomAudio.podSecurityContext Room-audio Pod security context
+  podSecurityContext: null
+
+  ## @param agentRoomAudio.resources Room-audio worker resource requirements
+  resources: {}
+
+  ## @param agentRoomAudio.nodeSelector Room-audio Pod node selector
+  nodeSelector: {}
+
+  ## @param agentRoomAudio.tolerations Room-audio Pod tolerations
+  tolerations: []
+
+  ## @param agentRoomAudio.affinity Room-audio Pod affinity
+  affinity: {}
+
 ## @section agentSubtitles
 
 agentSubtitles:
