@@ -9,6 +9,9 @@
 {{- fail (printf "agentRoomAudio.envVars.%s is required when enabled" $name) }}
 {{- end }}
 {{- end }}
+{{- if hasKey $settings.envVars "MISTRAL_ASR_API_KEY" -}}
+{{- fail "agentRoomAudio.envVars.MISTRAL_ASR_API_KEY is forbidden on the post worker" -}}
+{{- end -}}
 {{- range $name := list "LIVEKIT_API_SECRET" "AWS_S3_ACCESS_KEY_ID" "AWS_S3_SECRET_ACCESS_KEY" }}
 {{- $value := get $settings.envVars $name -}}
 {{- $reference := dict -}}
@@ -60,6 +63,10 @@ spec:
           {{- end }}
           env:
             {{- $envVars | indent 12 }}
+            - name: ROOM_AUDIO_PIPELINE
+              value: "post"
+            - name: ROOM_AUDIO_AGENT_NAME
+              value: "room-audio-worker"
           {{- with $settings.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

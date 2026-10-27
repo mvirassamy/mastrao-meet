@@ -27,7 +27,7 @@ CALLBACK_HOSTS = {
 MAX_RESPONSE_BYTES = 16_384
 MAX_TIMEOUT_SECONDS = 30
 HTTP_OK = 200
-WORKER_IDENTITY = re.compile(r"^room-audio-worker-[a-f0-9]{32}$")
+WORKER_IDENTITY = re.compile(r"^room-audio-worker-(?:post|live)-[a-f0-9]{32}$")
 
 
 class RoomAudioSourcePublicationError(RuntimeError):

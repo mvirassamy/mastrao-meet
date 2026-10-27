@@ -17,7 +17,7 @@ from room_audio_source_publisher import (
 
 LIVEKIT_KEY = "callback-key"
 LIVEKIT_SECRET = "callback-" + "secret-padded-for-livekit-tests"
-WORKER_IDENTITY = "room-audio-worker-0123456789abcdef0123456789abcdef"
+WORKER_IDENTITY = "room-audio-worker-post-0123456789abcdef0123456789abcdef"
 
 
 def _manifest():

@@ -20,6 +20,7 @@ class TrackAuthorizationError(ValueError):
 class _TrackState:
     """Current authority and bounded audio queue for one provider track."""
 
+    observed: bool = False
     generation: int = 0
     status: str = "pending"
     expires_at_ms: int = 0
@@ -75,12 +76,16 @@ class RoomAudioMixer:
         """Register a published track as pending, without admitting its audio."""
         if not track_ref:
             raise ValueError("track_ref is required")
-        self._tracks.setdefault(track_ref, _TrackState())
+        state = self._tracks.setdefault(track_ref, _TrackState())
+        state.observed = True
 
     def unobserve_track(self, track_ref: str) -> None:
-        """Remove a physically absent track and discard all queued media."""
-        state = self._tracks.pop(track_ref, None)
+        """Tombstone a physically absent track without losing Core generation."""
+        state = self._tracks.get(track_ref)
         if state is not None:
+            state.observed = False
+            state.status = "excluded"
+            state.expires_at_ms = 0
             state.frames.clear()
 
     def admit_track(
@@ -141,7 +146,7 @@ class RoomAudioMixer:
         self._require_frame_geometry(frame)
         state = self._tracks.setdefault(track_ref, _TrackState())
         self._expire(state, observed_at_ms)
-        if state.status != "authorized":
+        if not state.observed or state.status != "authorized":
             return False
         if len(state.frames) == self._maximum_buffered_frames:
             state.frames.popleft()
@@ -158,7 +163,7 @@ class RoomAudioMixer:
         speaking_frames: list[list[int]] = []
         for state in self._tracks.values():
             self._expire(state, observed_at_ms)
-            if state.status != "authorized":
+            if not state.observed or state.status != "authorized":
                 continue
             if not state.frames:
                 self._track_underrun_frame_count += 1
@@ -178,7 +183,7 @@ class RoomAudioMixer:
 
     def snapshot(self) -> RoomAudioMixerSnapshot:
         """Return bounded metrics with no room, participant or track labels."""
-        statuses = [state.status for state in self._tracks.values()]
+        statuses = [state.status for state in self._tracks.values() if state.observed]
         return RoomAudioMixerSnapshot(
             published_track_count=len(statuses),
             authorized_track_count=statuses.count("authorized"),

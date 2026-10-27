@@ -79,6 +79,20 @@ async def wait_for_frames(stream, count):
     raise AssertionError(f"expected {count} room frames, got {len(stream.frames)}")
 
 
+async def invalidate_generation():
+    """Model a successful provider-generation fence."""
+
+
+def live_output(provider_factory, handler_factory, failure_handler):
+    """Build one complete live-output boundary for runtime tests."""
+    return RoomLiveOutput(
+        provider_factory=provider_factory,
+        speech_event_handler_factory=handler_factory,
+        failure_handler=failure_handler,
+        generation_invalidator=invalidate_generation,
+    )
+
+
 class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
     """Validate cardinality, forwarding and shutdown invariants."""
 
@@ -94,7 +108,14 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(
             ValueError, "live room audio requires event and failure handlers"
         ):
-            RoomAudioRun(provider_factory=object)
+            RoomAudioRun(
+                live_output=RoomLiveOutput(
+                    provider_factory=object,
+                    speech_event_handler_factory=None,
+                    failure_handler=None,
+                    generation_invalidator=None,
+                )
+            )
 
     def test_signed_pipeline_selects_exactly_one_output(self):
         """Normal construction cannot silently open an undeclared output."""
@@ -113,8 +134,9 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             {"pipeline": "live"},
             live_output=RoomLiveOutput(
                 provider_factory=object,
-                speech_event_handler=handle_event,
+                speech_event_handler_factory=lambda: handle_event,
                 failure_handler=handle_failure,
+                generation_invalidator=invalidate_generation,
             ),
         )
 
@@ -127,8 +149,9 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 {"pipeline": "post"},
                 live_output=RoomLiveOutput(
                     provider_factory=object,
-                    speech_event_handler=handle_event,
+                    speech_event_handler_factory=lambda: handle_event,
                     failure_handler=handle_failure,
+                    generation_invalidator=invalidate_generation,
                 ),
                 artifact_sink=sink,
             )
@@ -164,9 +187,11 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             return None
 
         run = RoomAudioRun(
-            provider_factory=lambda: provider,
-            speech_event_handler=handle_event,
-            live_failure_handler=handle_failure,
+            live_output=live_output(
+                lambda: provider,
+                lambda: handle_event,
+                handle_failure,
+            ),
         )
 
         await run.start()
@@ -194,10 +219,8 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             return None
 
         run = RoomAudioRun(
-            provider_factory=factory,
-            speech_event_handler=handle_event,
+            live_output=live_output(factory, lambda: handle_event, handle_failure),
             artifact_sink=RoomAudioOggEncoder(),
-            live_failure_handler=handle_failure,
         )
 
         await run.start()
@@ -226,10 +249,12 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             return None
 
         run = RoomAudioRun(
-            provider_factory=lambda: provider,
-            speech_event_handler=handle_event,
+            live_output=live_output(
+                lambda: provider,
+                lambda: handle_event,
+                handle_failure,
+            ),
             artifact_sink=RoomAudioOggEncoder(),
-            live_failure_handler=handle_failure,
         )
 
         await run.start()
@@ -242,6 +267,115 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(received, [event])
 
+    async def test_restart_replaces_provider_and_event_generation(self):
+        """A recovered room connection cannot reuse the prior transcript leg."""
+        first_event = object()
+        second_event = object()
+        providers = [
+            FakeProvider(FakeSpeechStream([first_event])),
+            FakeProvider(FakeSpeechStream([second_event])),
+        ]
+        generations = []
+
+        def handler_factory():
+            received = []
+            generations.append(received)
+
+            async def handle_event(event):
+                received.append(event)
+
+            return handle_event
+
+        async def handle_failure(_error):
+            return None
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: providers.pop(0),
+                handler_factory,
+                handle_failure,
+            ),
+        )
+
+        await run.start()
+        for _ in range(100):
+            if generations[0]:
+                break
+            await asyncio.sleep(0)
+        await run.restart_live()
+        for _ in range(100):
+            if len(generations) > 1 and generations[1]:
+                break
+            await asyncio.sleep(0)
+        await run.aclose()
+
+        self.assertEqual(generations, [[first_event], [second_event]])
+
+    async def test_restart_invalidates_generation_before_closing_old_stream(self):
+        """Provider close cannot emit an event into the prior live leg."""
+        order = []
+
+        class OrderedCloseStream(FakeSpeechStream):
+            async def aclose(self):
+                order.append("close")
+                await super().aclose()
+
+        providers = [
+            FakeProvider(OrderedCloseStream()),
+            FakeProvider(FakeSpeechStream()),
+        ]
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        async def invalidate():
+            order.append("invalidate")
+
+        output = RoomLiveOutput(
+            provider_factory=lambda: providers.pop(0),
+            speech_event_handler_factory=lambda: handle_event,
+            failure_handler=handle_failure,
+            generation_invalidator=invalidate,
+        )
+        run = RoomAudioRun(live_output=output)
+
+        await run.start()
+        await run.restart_live()
+        await run.aclose()
+
+        self.assertEqual(order[:2], ["invalidate", "close"])
+
+    async def test_provider_failure_is_terminal_and_observable(self):
+        """A broken live stream cannot degrade into a silent successful run."""
+        stream = FakeSpeechStream(fail_push=True)
+        provider = FakeProvider(stream)
+        failures = []
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(error):
+            failures.append(str(error))
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: provider,
+                lambda: handle_event,
+                handle_failure,
+            ),
+        )
+
+        await run.start()
+        error = await asyncio.wait_for(run.wait_terminal_failure(), timeout=1)
+        await run.aclose()
+
+        self.assertEqual(str(error), "live backpressure")
+        self.assertEqual(failures, ["live backpressure"])
+        self.assertTrue(provider.closed)
+
     async def test_provider_start_failure_closes_partial_resources(self):
         """A failed stream creation leaves no billed provider resource open."""
         provider = FakeProvider(FakeSpeechStream(), fail_stream=True)
@@ -253,10 +387,12 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             return None
 
         run = RoomAudioRun(
-            provider_factory=lambda: provider,
-            speech_event_handler=handle_event,
+            live_output=live_output(
+                lambda: provider,
+                lambda: handle_event,
+                handle_failure,
+            ),
             artifact_sink=RoomAudioOggEncoder(),
-            live_failure_handler=handle_failure,
         )
 
         with self.assertRaisesRegex(RuntimeError, "provider stream failed"):
@@ -278,10 +414,12 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             failures.append(str(error))
 
         run = RoomAudioRun(
-            provider_factory=lambda: provider,
-            speech_event_handler=handle_event,
+            live_output=live_output(
+                lambda: provider,
+                lambda: handle_event,
+                handle_failure,
+            ),
             artifact_sink=RoomAudioOggEncoder(),
-            live_failure_handler=handle_failure,
         )
 
         await run.start()
@@ -309,10 +447,12 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             return None
 
         run = RoomAudioRun(
-            provider_factory=lambda: provider,
-            speech_event_handler=handle_event,
+            live_output=live_output(
+                lambda: provider,
+                lambda: handle_event,
+                handle_failure,
+            ),
             artifact_sink=RoomAudioOggEncoder(),
-            live_failure_handler=handle_failure,
         )
         await run.start()
 
@@ -333,6 +473,42 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(run.snapshot().pending_track_count, 1)
         await run.unobserve_track("TR_A")
         await wait_for_frames(provider_stream, 1)
+        await run.aclose()
+
+    async def test_forty_tracks_share_one_provider_session(self):
+        """Classroom cardinality changes mixer inputs, not ASR sessions."""
+        provider_stream = FakeSpeechStream()
+        provider = FakeProvider(provider_stream)
+        factory_calls = 0
+
+        def factory():
+            nonlocal factory_calls
+            factory_calls += 1
+            return provider
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        run = RoomAudioRun(
+            live_output=live_output(factory, lambda: handle_event, handle_failure),
+        )
+        await run.start()
+
+        streams = [FakeSpeechStream() for _index in range(40)]
+        with patch(
+            "room_audio_runtime.rtc.AudioStream.from_track",
+            side_effect=streams,
+        ):
+            for index in range(40):
+                run.observe_track(f"TR_{index:02d}", object())
+
+        self.assertEqual(run.snapshot().published_track_count, 40)
+        self.assertEqual(run.provider_session_count, 1)
+        self.assertEqual(factory_calls, 1)
+        self.assertEqual(provider.stream_calls, 1)
         await run.aclose()
 
 

@@ -254,6 +254,15 @@ Requires top level scope
 {{- end }}
 
 {{/*
+Full name for the live room-audio agent
+
+Requires top level scope
+*/}}
+{{- define "meet.agentRoomAudioLive.fullname" -}}
+{{ include "meet.fullname" . }}-agent-room-audio-live
+{{- end }}
+
+{{/*
 Usage : {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" .Values.path.to.the.image1) }}
 */}}
 {{- define "meet.secret.dockerconfigjson.name" }}

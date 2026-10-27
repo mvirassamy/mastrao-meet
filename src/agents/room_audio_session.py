@@ -43,6 +43,15 @@ class RoomAudioCompletion:
 
 
 CompletionHandler = Callable[[RoomAudioCompletion], Awaitable[None]]
+GapHandler = Callable[[str], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class RoomAudioSessionHandlers:
+    """Lifecycle outputs for one room session."""
+
+    complete: CompletionHandler
+    publish_gap: GapHandler | None = None
 
 
 class RoomAudioSession:
@@ -55,18 +64,19 @@ class RoomAudioSession:
         effect: dict,
         runtime: RoomAudioRun,
         authority: RoomAudioAuthority,
-        completion_handler: CompletionHandler,
+        handlers: RoomAudioSessionHandlers,
     ):
         """Prepare an inactive session without opening provider resources."""
         self._room = room
         self._effect = dict(effect)
         self._runtime = runtime
         self._authority = authority
-        self._completion_handler = completion_handler
+        self._handlers = handlers
         self._active_participants: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
         self._maximum_duration_task: asyncio.Task | None = None
         self._empty_room_task: asyncio.Task | None = None
+        self._runtime_failure_task: asyncio.Task | None = None
         self._close_lock = asyncio.Lock()
         self._closed = asyncio.Event()
         self._artifact: RoomAudioArtifact | None = None
@@ -104,6 +114,10 @@ class RoomAudioSession:
             )
         )
         self._refresh_empty_room_timer()
+        if self._runtime.has_live_output:
+            self._runtime_failure_task = asyncio.create_task(
+                self._fail_on_runtime_error()
+            )
 
     async def wait_closed(self) -> RoomAudioArtifact | None:
         """Wait until one lifecycle boundary finalizes the configured outputs."""
@@ -116,6 +130,15 @@ class RoomAudioSession:
 
     async def aclose(self, reason: str = "job-shutdown") -> RoomAudioArtifact | None:
         """Detach callbacks, stop work and finalize exactly once."""
+        return await self._finish(reason)
+
+    async def _finish(
+        self,
+        reason: str,
+        *,
+        terminal_error: Exception | None = None,
+    ) -> RoomAudioArtifact | None:
+        """Finalize one run and expose an optional terminal provider error."""
         async with self._close_lock:
             if self._completed:
                 return self._artifact
@@ -126,6 +149,7 @@ class RoomAudioSession:
             self._unregister_callbacks()
             self._cancel_timer(self._maximum_duration_task)
             self._cancel_timer(self._empty_room_task)
+            self._cancel_timer(self._runtime_failure_task)
             current = asyncio.current_task()
             pending = [task for task in self._tasks if task is not current]
             for task in pending:
@@ -137,7 +161,7 @@ class RoomAudioSession:
                 self._close_source_gap(ended_at_ms)
                 mixer = self._runtime.snapshot()
                 artifact = await self._runtime.aclose()
-                await self._completion_handler(
+                await self._handlers.complete(
                     RoomAudioCompletion(
                         effect=dict(self._effect),
                         artifact=artifact,
@@ -156,6 +180,7 @@ class RoomAudioSession:
             else:
                 self._artifact = artifact
                 self._completed = True
+                self._terminal_error = terminal_error
                 self._closed.set()
                 return artifact
 
@@ -186,6 +211,15 @@ class RoomAudioSession:
         """Stop consuming a physically absent track."""
         if not self._closed.is_set():
             self._spawn(self._runtime.unobserve_track(publication.sid))
+
+    def on_track_subscription_failed(
+        self,
+        _participant: rtc.RemoteParticipant,
+        _track_sid: str,
+        _error: str,
+    ) -> None:
+        """Publish a content-free gap when LiveKit cannot subscribe to audio."""
+        self._publish_gap("track-subscription-failed")
 
     def on_data_received(self, packet: rtc.DataPacket) -> None:
         """Apply only server-originated, signed Core track authority."""
@@ -223,10 +257,16 @@ class RoomAudioSession:
             return
         self._close_source_gap(self._now_ms())
         self._generation += 1
+        if self._runtime.has_live_output:
+            self._spawn(self._restart_live_after_reconnect())
 
     def _register_callbacks(self) -> None:
         self._room.on("track_subscribed", self.on_track_subscribed)
         self._room.on("track_unsubscribed", self.on_track_unsubscribed)
+        self._room.on(
+            "track_subscription_failed",
+            self.on_track_subscription_failed,
+        )
         self._room.on("data_received", self.on_data_received)
         self._room.on("participant_connected", self.on_participant_connected)
         self._room.on("participant_disconnected", self.on_participant_disconnected)
@@ -238,6 +278,10 @@ class RoomAudioSession:
             return
         self._room.off("track_subscribed", self.on_track_subscribed)
         self._room.off("track_unsubscribed", self.on_track_unsubscribed)
+        self._room.off(
+            "track_subscription_failed",
+            self.on_track_subscription_failed,
+        )
         self._room.off("data_received", self.on_data_received)
         self._room.off("participant_connected", self.on_participant_connected)
         self._room.off("participant_disconnected", self.on_participant_disconnected)
@@ -272,6 +316,28 @@ class RoomAudioSession:
         task = asyncio.create_task(awaitable)
         self._tasks.add(task)
         task.add_done_callback(self._task_done)
+
+    def _publish_gap(self, reason: str) -> None:
+        if self._closed.is_set() or self._handlers.publish_gap is None:
+            return
+        self._spawn(self._handlers.publish_gap(reason))
+
+    async def _restart_live_after_reconnect(self) -> None:
+        """Publish one gap and replace the provider generation atomically."""
+        try:
+            await self._runtime.restart_live()
+            if self._handlers.publish_gap is not None:
+                await self._handlers.publish_gap("source-reconnect")
+        except Exception as error:
+            await self._finish(
+                "source-reconnect-failed",
+                terminal_error=error,
+            )
+
+    async def _fail_on_runtime_error(self) -> None:
+        """Turn a permanent provider failure into a failed room run."""
+        error = await self._runtime.wait_terminal_failure()
+        await self._finish("live-provider-failed", terminal_error=error)
 
     def _task_done(self, task: asyncio.Task) -> None:
         self._tasks.discard(task)

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Compose one mixed Mistral live stream per authorized room, with
+  unattributed transcript segments, bounded gaps and no per-participant ASR.
+
 - 2026-10-27: Compose the post room-audio worker with exact LiveKit dispatch
   binding, private immutable storage and an inert-by-default Helm deployment.
 

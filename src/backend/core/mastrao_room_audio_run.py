@@ -68,6 +68,10 @@ LIVE_SOURCE_PROFILE = {
 }
 PROVIDER_TIMEOUT_SECONDS = 3
 DELIVERY_LEASE_SECONDS = 5
+ROOM_AUDIO_AGENT_NAMES = {
+    "post": "room-audio-worker",
+    "live": "room-audio-live-worker",
+}
 
 
 def read_room_audio_run_effect(compact):
@@ -137,11 +141,7 @@ def persist_room_audio_run_effect(effect, compact):
     digest = compact_digest(compact)
     existing = models.MastraoRoomAudioRunEffect.objects.filter(
         Q(effect_jti=effect["jti"])
-        | Q(
-            room_binding=binding,
-            audio_run_ref=effect["audio_run_ref"],
-            pipeline=effect["pipeline"],
-        )
+        | Q(room_binding=binding, pipeline=effect["pipeline"])
     ).first()
     if existing is not None:
         if existing.effect_digest != digest:
@@ -155,7 +155,9 @@ def persist_room_audio_run_effect(effect, compact):
             effect_jti=effect["jti"],
             effect_digest=digest,
             compact_effect=compact,
-            destination_identity=room_audio_worker_identity(effect["audio_run_ref"]),
+            destination_identity=room_audio_worker_identity(
+                effect["room_ref"], effect["pipeline"]
+            ),
             expires_at=datetime.fromtimestamp(effect["expires_at"], UTC),
         )
     except IntegrityError as error:
@@ -189,7 +191,8 @@ def claim_room_audio_run_effect(row_id):
     return row, True
 
 
-async def _ensure_dispatch(room_name, compact_effect):
+async def _ensure_dispatch(room_name, compact_effect, pipeline):
+    agent_name = ROOM_AUDIO_AGENT_NAMES[pipeline]
     client = utils.create_livekit_client()
     try:
         dispatches = list(
@@ -201,7 +204,7 @@ async def _ensure_dispatch(room_name, compact_effect):
         matching = [
             dispatch
             for dispatch in dispatches
-            if getattr(dispatch, "agent_name", None) == settings.ROOM_AUDIO_AGENT_NAME
+            if getattr(dispatch, "agent_name", None) == agent_name
             and getattr(dispatch, "metadata", None) == compact_effect
         ]
         if len(matching) > 1:
@@ -214,7 +217,7 @@ async def _ensure_dispatch(room_name, compact_effect):
         created = await asyncio.wait_for(
             client.agent_dispatch.create_dispatch(
                 CreateAgentDispatchRequest(
-                    agent_name=settings.ROOM_AUDIO_AGENT_NAME,
+                    agent_name=agent_name,
                     room=room_name,
                     metadata=compact_effect,
                 )
@@ -270,6 +273,7 @@ def deliver_room_audio_run_effect(row):
         dispatch_id = async_to_sync(_ensure_dispatch)(
             str(claimed.room_binding.room_id),
             claimed.compact_effect,
+            claimed.pipeline,
         )
     except RecordingContractRefused:
         _release_claim(claimed.pk, claimed.attempt_started_at)

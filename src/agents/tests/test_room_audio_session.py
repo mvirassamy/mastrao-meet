@@ -10,7 +10,11 @@ from livekit import rtc
 from room_audio_authority import RoomAudioAuthorityRefused
 from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
-from room_audio_session import RoomAudioCompletion, RoomAudioSession
+from room_audio_session import (
+    RoomAudioCompletion,
+    RoomAudioSession,
+    RoomAudioSessionHandlers,
+)
 
 
 class FakeRoom:
@@ -75,6 +79,13 @@ def _artifact():
     )
 
 
+def _handlers(completion_handler, gap_handler=None):
+    return RoomAudioSessionHandlers(
+        complete=completion_handler,
+        publish_gap=gap_handler,
+    )
+
+
 class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
     """Exercise tracks, authority, closure and host-independence."""
 
@@ -98,7 +109,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=effect,
             runtime=runtime,
             authority=authority,
-            completion_handler=completion_handler,
+            handlers=_handlers(completion_handler),
         )
 
         await session.start()
@@ -137,7 +148,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=effect,
             runtime=runtime,
             authority=Mock(),
-            completion_handler=completion_handler,
+            handlers=_handlers(completion_handler),
         )
 
         await session.start()
@@ -163,7 +174,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=_effect(grace=1),
             runtime=runtime,
             authority=Mock(),
-            completion_handler=AsyncMock(),
+            handlers=_handlers(AsyncMock()),
         )
 
         await session.start()
@@ -184,7 +195,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=_effect(),
             runtime=runtime,
             authority=authority,
-            completion_handler=AsyncMock(),
+            handlers=_handlers(AsyncMock()),
         )
 
         await session.start()
@@ -202,7 +213,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=_effect(),
             runtime=self._runtime(),
             authority=Mock(),
-            completion_handler=handler,
+            handlers=_handlers(handler),
         )
 
         await session.start()
@@ -225,7 +236,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=effect,
             runtime=runtime,
             authority=Mock(),
-            completion_handler=handler,
+            handlers=_handlers(handler),
         )
 
         await session.start()
@@ -245,19 +256,22 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         """A LiveKit reconnect produces one bounded, content-free source gap."""
         room = FakeRoom([_participant("human")])
         runtime = self._runtime()
+        runtime.has_live_output = True
         handler = AsyncMock()
+        gap_handler = AsyncMock()
         session = RoomAudioSession(
             room=room,
             effect=_effect(),
             runtime=runtime,
             authority=Mock(),
-            completion_handler=handler,
+            handlers=_handlers(handler, gap_handler),
         )
 
         await session.start()
         room.callbacks["reconnecting"]()
         room.callbacks["reconnecting"]()
         room.callbacks["reconnected"]()
+        await asyncio.sleep(0)
         await session.aclose("reconnected-run-complete")
 
         completion = handler.await_args.args[0]
@@ -268,6 +282,57 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(gap.reason, "source_reconnect")
         self.assertGreater(gap.ended_at_ms, gap.started_at_ms)
         self.assertEqual(completion.mixer, runtime.snapshot.return_value)
+        gap_handler.assert_awaited_once_with("source-reconnect")
+        runtime.restart_live.assert_awaited_once_with()
+
+    async def test_terminal_provider_failure_fails_the_live_session(self):
+        """A dead ASR stream cannot leave a silently successful room run."""
+        room = FakeRoom([_participant("human")])
+        runtime = self._runtime()
+        runtime.has_live_output = True
+        runtime.wait_terminal_failure.side_effect = None
+        runtime.wait_terminal_failure.return_value = RuntimeError("provider stopped")
+        handler = AsyncMock()
+        session = RoomAudioSession(
+            room=room,
+            effect=_effect(),
+            runtime=runtime,
+            authority=Mock(),
+            handlers=_handlers(handler),
+        )
+
+        await session.start()
+        with self.assertRaisesRegex(
+            RuntimeError, "room audio session finalization failed"
+        ):
+            await asyncio.wait_for(session.wait_closed(), timeout=1)
+
+        completion = handler.await_args.args[0]
+        self.assertEqual(completion.reason, "live-provider-failed")
+        runtime.aclose.assert_awaited_once_with()
+
+    async def test_subscription_failure_publishes_content_free_gap(self):
+        """A failed LiveKit subscription exposes no track or provider details."""
+        room = FakeRoom([_participant("human")])
+        gap_handler = AsyncMock()
+        session = RoomAudioSession(
+            room=room,
+            effect=_effect(),
+            runtime=self._runtime(),
+            authority=Mock(),
+            handlers=_handlers(AsyncMock(), gap_handler),
+        )
+
+        await session.start()
+        room.callbacks["track_subscription_failed"](
+            _participant("human"),
+            "TR_private",
+            "provider-private-detail",
+        )
+        await asyncio.sleep(0)
+
+        gap_handler.assert_awaited_once_with("track-subscription-failed")
+        await session.aclose()
 
     async def test_finalization_closes_an_open_reconnect_gap(self):
         """Shutdown while reconnecting retains the interrupted source interval."""
@@ -278,7 +343,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=_effect(),
             runtime=self._runtime(),
             authority=Mock(),
-            completion_handler=handler,
+            handlers=_handlers(handler),
         )
 
         await session.start()
@@ -294,8 +359,16 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
     def _runtime():
         artifact = _artifact()
         runtime = Mock()
+        never_fails = asyncio.Event()
+
+        async def wait_terminal_failure():
+            await never_fails.wait()
+
         runtime.start = AsyncMock()
         runtime.aclose = AsyncMock(return_value=artifact)
+        runtime.has_live_output = False
+        runtime.restart_live = AsyncMock()
+        runtime.wait_terminal_failure = AsyncMock(side_effect=wait_terminal_failure)
         runtime.snapshot = Mock(return_value=_mixer_snapshot())
         runtime.observe_track = Mock()
         runtime.unobserve_track = AsyncMock()

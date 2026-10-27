@@ -105,7 +105,10 @@ def _verify_worker_token(request):
         raise RecordingContractRefused() from error
     video = claims.video
     if (
-        not re.fullmatch(r"room-audio-worker-[a-f0-9]{32}", claims.identity or "")
+        not re.fullmatch(
+            r"room-audio-worker-post-[a-f0-9]{32}",
+            claims.identity or "",
+        )
         or video is None
         or not video.room_join
         or not video.room

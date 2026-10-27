@@ -1,0 +1,23 @@
+agentSubtitles:
+  replicas: 0
+
+agentRoomAudioLive:
+  enabled: true
+  image:
+    repository: rg.fr-par.scw.cloud/mastrao-staging/meet-agents
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  envVars:
+    ROOM_AUDIO_EFFECT_ISSUER: tenant-core
+    ROOM_AUDIO_EFFECT_AUDIENCE: meeting-room-audio-worker
+    ROOM_AUDIO_EFFECT_KEY_ID: room-audio-key-v1
+    ROOM_AUDIO_EFFECT_PUBLIC_JWK: '{"kty":"OKP","crv":"Ed25519","x":"fixture"}'
+    LIVEKIT_URL: wss://livekit.internal
+    LIVEKIT_API_KEY: livekit-public-key
+    LIVEKIT_API_SECRET:
+      secretKeyRef:
+        name: livekit-agent
+        key: api-secret
+    MISTRAL_ASR_API_KEY:
+      secretKeyRef:
+        name: room-audio-mistral
+        key: api-key
