@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-import base64
-import json
 import re
 import time
 from dataclasses import dataclass
 
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from room_audio_jws import (
+    RoomAudioJwsConfig,
+    RoomAudioJwsRefused,
+    RoomAudioJwsVerifier,
+)
 
 JOSE_TYPE = "mastrao-meeting-room-audio-start-effect+jws"
-MAX_COMPACT_JWS_BYTES = 16_384
 MAX_EFFECT_LIFETIME_SECONDS = 30
 MAX_AUDIO_DURATION_SECONDS = 14_400
 MAX_EMPTY_ROOM_GRACE_SECONDS = 300
-COMPACT_JWS_PART_COUNT = 3
 REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 FIELDS = {
@@ -78,39 +77,22 @@ class RoomAudioStartVerifier:
     def __init__(self, config: RoomAudioStartVerifierConfig):
         """Load the exact public key and room binding once."""
         self._config = config
-        self._public_key = self._load_public_key(config.public_jwk)
+        try:
+            self._jws = RoomAudioJwsVerifier(
+                RoomAudioJwsConfig(
+                    key_id=config.key_id,
+                    public_jwk=config.public_jwk,
+                )
+            )
+        except RoomAudioJwsRefused as error:
+            raise RoomAudioStartRefused(str(error)) from error
 
     def verify(self, compact: str, *, observed_at: int | None = None) -> dict:
         """Return the exact effect only when every signed invariant holds."""
-        if (
-            not isinstance(compact, str)
-            or len(compact.encode("utf-8")) > MAX_COMPACT_JWS_BYTES
-        ):
-            raise RoomAudioStartRefused("invalid start effect size")
-        parts = compact.split(".")
-        if len(parts) != COMPACT_JWS_PART_COUNT:
-            raise RoomAudioStartRefused("invalid compact JWS")
         try:
-            header_bytes = self._decode(parts[0])
-            payload_bytes = self._decode(parts[1])
-            signature = self._decode(parts[2])
-            header = json.loads(header_bytes)
-            effect = json.loads(payload_bytes)
-        except (UnicodeError, json.JSONDecodeError, ValueError, TypeError) as error:
-            raise RoomAudioStartRefused("invalid signed start effect") from error
-        expected_header = {
-            "alg": "EdDSA",
-            "kid": self._config.key_id,
-            "typ": JOSE_TYPE,
-        }
-        if header != expected_header or not isinstance(effect, dict):
-            raise RoomAudioStartRefused("unexpected start effect envelope")
-        if set(effect) != FIELDS or payload_bytes != self._canonical_json(effect):
-            raise RoomAudioStartRefused("non-canonical start effect")
-        try:
-            self._public_key.verify(signature, f"{parts[0]}.{parts[1]}".encode("ascii"))
-        except (InvalidSignature, ValueError, TypeError) as error:
-            raise RoomAudioStartRefused("invalid start effect signature") from error
+            effect = self._jws.verify(compact, jose_type=JOSE_TYPE, fields=FIELDS)
+        except RoomAudioJwsRefused as error:
+            raise RoomAudioStartRefused(str(error)) from error
         self._validate(effect, observed_at=observed_at)
         return effect
 
@@ -173,34 +155,3 @@ class RoomAudioStartVerifier:
         if pipeline == "post":
             return POST_SOURCE_PROFILE
         return LIVE_SOURCE_PROFILE
-
-    @staticmethod
-    def _load_public_key(value: str) -> Ed25519PublicKey:
-        try:
-            jwk = json.loads(value)
-            if set(jwk) != {"kty", "crv", "x"}:
-                raise ValueError
-            if jwk["kty"] != "OKP" or jwk["crv"] != "Ed25519":
-                raise ValueError
-            return Ed25519PublicKey.from_public_bytes(
-                RoomAudioStartVerifier._decode(jwk["x"])
-            )
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
-            raise RoomAudioStartRefused("invalid authority public key") from error
-
-    @staticmethod
-    def _decode(value: str) -> bytes:
-        return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-
-    @staticmethod
-    def _canonical_json(value: dict) -> bytes:
-        return (
-            json.dumps(
-                value,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-                allow_nan=False,
-            ).encode("utf-8")
-            + b"\n"
-        )
