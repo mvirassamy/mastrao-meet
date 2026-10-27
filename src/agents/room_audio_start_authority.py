@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
+from hashlib import sha256
 
 from room_audio_jws import (
     RoomAudioJwsConfig,
@@ -155,3 +156,9 @@ class RoomAudioStartVerifier:
         if pipeline == "post":
             return POST_SOURCE_PROFILE
         return LIVE_SOURCE_PROFILE
+
+
+def room_audio_worker_identity(audio_run_ref: str) -> str:
+    """Derive the exact opaque worker identity used by Meet dispatch."""
+    digest = sha256(audio_run_ref.encode("utf-8")).hexdigest()
+    return f"room-audio-worker-{digest[:32]}"

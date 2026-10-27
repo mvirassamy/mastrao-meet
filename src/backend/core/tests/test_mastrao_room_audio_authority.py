@@ -24,6 +24,12 @@ pytestmark = pytest.mark.django_db
 ENDPOINT = "/internal/mastrao/room-audio/tracks/dispatch/"
 
 
+def test_room_audio_worker_identity_is_stable():
+    assert room_audio_worker_identity("audio_run_fixture_12345678") == (
+        "room-audio-worker-9e24e32762536cd7f33e7b1d32c5a4a8"
+    )
+
+
 def _b64(raw):
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
