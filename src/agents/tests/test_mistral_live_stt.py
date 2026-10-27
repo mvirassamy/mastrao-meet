@@ -56,6 +56,7 @@ def detached_stream(config: MistralRealtimeConfig) -> MistralRealtimeStream:
     stream._output = asyncio.Queue()
     stream._closed = False
     stream._sequence = 0
+    stream._pending_text = ""
     return stream
 
 
@@ -123,20 +124,32 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session["language"], "fr")
         self.assertEqual(session["context_bias"], ["Mastrao", "LDS"])
 
-    async def test_append_only_deltas_become_final_livekit_events(self):
-        """Publish provider deltas once without false interim replacement."""
+    async def test_append_only_deltas_preserve_words_split_by_provider(self):
+        """Publish stable words without introducing spaces inside them."""
         stream = detached_stream(self.config)
         socket = FakeSocket(
             messages=[
                 SimpleNamespace(
                     type=aiohttp.WSMsgType.TEXT,
                     data=json.dumps(
-                        {"type": "transcription.text.delta", "text": "Bonjour"}
+                        {"type": "transcription.text.delta", "text": "Aur"}
                     ),
                 ),
                 SimpleNamespace(
                     type=aiohttp.WSMsgType.TEXT,
-                    data=json.dumps({"type": "transcription.text.delta", "text": ","}),
+                    data=json.dumps(
+                        {"type": "transcription.text.delta", "text": "ore "}
+                    ),
+                ),
+                SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=json.dumps(
+                        {"type": "transcription.text.delta", "text": "arrive"}
+                    ),
+                ),
+                SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=json.dumps({"type": "transcription.text.delta", "text": "."}),
                 ),
                 SimpleNamespace(
                     type=aiohttp.WSMsgType.TEXT,
@@ -150,9 +163,38 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
         first = stream._output.get_nowait()
         second = stream._output.get_nowait()
         self.assertEqual(first.type, stt.SpeechEventType.FINAL_TRANSCRIPT)
-        self.assertEqual(first.alternatives[0].text, "Bonjour")
-        self.assertEqual(second.alternatives[0].text, ",")
+        self.assertEqual(first.alternatives[0].text, "Aurore")
+        self.assertEqual(second.alternatives[0].text, "arrive.")
         self.assertNotEqual(first.request_id, second.request_id)
+
+    async def test_apostrophe_split_stays_inside_one_word(self):
+        """Do not turn an append-only apostrophe split into two UI words."""
+        stream = detached_stream(self.config)
+        socket = FakeSocket(
+            messages=[
+                SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=json.dumps(
+                        {"type": "transcription.text.delta", "text": "Aujourd'"}
+                    ),
+                ),
+                SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=json.dumps(
+                        {"type": "transcription.text.delta", "text": "hui "}
+                    ),
+                ),
+                SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=json.dumps({"type": "transcription.done", "text": ""}),
+                ),
+            ]
+        )
+
+        await stream._receive_events(socket)
+
+        event = stream._output.get_nowait()
+        self.assertEqual(event.alternatives[0].text, "Aujourd'hui")
 
     async def test_audio_frames_are_rejected_if_format_drifts(self):
         """Fail rather than silently sending an incompatible audio format."""

@@ -88,6 +88,7 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         self._task = asyncio.create_task(self._run())
         self._closed = False
         self._sequence = 0
+        self._pending_text = ""
 
     def push_frame(self, frame: rtc.AudioFrame) -> None:
         """Queue one PCM frame without hiding backpressure failures."""
@@ -178,7 +179,7 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
             )
 
     async def _receive_events(self, socket: aiohttp.ClientWebSocketResponse) -> None:
-        """Translate append-only provider deltas into LiveKit final events."""
+        """Translate provider deltas without splitting words between events."""
         async for message in socket:
             if message.type == aiohttp.WSMsgType.ERROR:
                 raise RuntimeError("Mistral realtime WebSocket failed")
@@ -189,26 +190,37 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
             if event_type == "error":
                 self._raise_provider_error(event)
             if event_type == "transcription.done":
+                await self._publish_text(self._pending_text)
+                self._pending_text = ""
                 return
             if event_type != "transcription.text.delta":
                 continue
             text = str(event.get("text", ""))
             if not text:
                 continue
-            self._sequence += 1
-            await self._output.put(
-                stt.SpeechEvent(
-                    type=stt.SpeechEventType.FINAL_TRANSCRIPT,
-                    request_id=f"mistral-{self._sequence}-{uuid.uuid4().hex}",
-                    alternatives=[
-                        stt.SpeechData(
-                            language=LanguageCode(self._config.language),
-                            text=text,
-                        )
-                    ],
-                )
-            )
+            self._pending_text += text
+            complete, self._pending_text = _split_complete_words(self._pending_text)
+            await self._publish_text(complete)
         raise RuntimeError("Mistral realtime WebSocket closed before completion")
+
+    async def _publish_text(self, text: str) -> None:
+        """Publish provider text only after its final word boundary is known."""
+        normalized = text.strip()
+        if not normalized:
+            return
+        self._sequence += 1
+        await self._output.put(
+            stt.SpeechEvent(
+                type=stt.SpeechEventType.FINAL_TRANSCRIPT,
+                request_id=f"mistral-{self._sequence}-{uuid.uuid4().hex}",
+                alternatives=[
+                    stt.SpeechData(
+                        language=LanguageCode(self._config.language),
+                        text=normalized,
+                    )
+                ],
+            )
+        )
 
     @staticmethod
     def _expect_event(event: dict[str, object], expected_type: str) -> None:
@@ -255,3 +267,13 @@ class MistralRealtimeSTT:
 def create_mistral_live_stt() -> MistralRealtimeSTT:
     """Create the configured Mistral realtime provider."""
     return MistralRealtimeSTT(load_config())
+
+
+def _split_complete_words(text: str) -> tuple[str, str]:
+    """Keep the last possibly partial word while releasing stable text."""
+    boundary = max(
+        (index for index, value in enumerate(text) if value.isspace()), default=-1
+    )
+    if boundary < 0:
+        return "", text
+    return text[:boundary], text[boundary + 1 :]
