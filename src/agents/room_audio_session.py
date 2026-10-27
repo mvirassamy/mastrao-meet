@@ -4,17 +4,45 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 
 from livekit import rtc
 
 from room_audio_authority import RoomAudioAuthority, RoomAudioAuthorityRefused
+from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 from room_audio_runtime import RoomAudioRun
 
 logger = logging.getLogger("room-audio-worker.session")
 
-CompletionHandler = Callable[[dict, RoomAudioArtifact | None, str], Awaitable[None]]
+
+@dataclass(frozen=True)
+class RoomAudioGap:
+    """One observed interruption of the room source connection."""
+
+    generation: int
+    started_at_ms: int
+    ended_at_ms: int
+    reason: str
+
+
+@dataclass(frozen=True)
+class RoomAudioCompletion:
+    """Content-free final receipt for one room-owned audio run."""
+
+    effect: dict
+    artifact: RoomAudioArtifact | None
+    reason: str
+    started_at_ms: int
+    ended_at_ms: int
+    generation_count: int
+    gaps: tuple[RoomAudioGap, ...]
+    mixer: RoomAudioMixerSnapshot
+
+
+CompletionHandler = Callable[[RoomAudioCompletion], Awaitable[None]]
 
 
 class RoomAudioSession:
@@ -45,6 +73,10 @@ class RoomAudioSession:
         self._terminal_error: Exception | None = None
         self._completed = False
         self._started = False
+        self._started_at_ms = 0
+        self._generation = 1
+        self._open_gap_started_at_ms: int | None = None
+        self._gaps: list[RoomAudioGap] = []
 
     @property
     def artifact(self) -> RoomAudioArtifact | None:
@@ -56,6 +88,7 @@ class RoomAudioSession:
         if self._started:
             return
         await self._runtime.start()
+        self._started_at_ms = self._now_ms()
         self._started = True
         self._register_callbacks()
         self._active_participants = {
@@ -100,8 +133,22 @@ class RoomAudioSession:
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)
             try:
+                ended_at_ms = self._now_ms()
+                self._close_source_gap(ended_at_ms)
+                mixer = self._runtime.snapshot()
                 artifact = await self._runtime.aclose()
-                await self._completion_handler(dict(self._effect), artifact, reason)
+                await self._completion_handler(
+                    RoomAudioCompletion(
+                        effect=dict(self._effect),
+                        artifact=artifact,
+                        reason=reason,
+                        started_at_ms=self._started_at_ms,
+                        ended_at_ms=max(self._started_at_ms, ended_at_ms),
+                        generation_count=self._generation,
+                        gaps=tuple(self._gaps),
+                        mixer=mixer,
+                    )
+                )
             except Exception as error:
                 self._terminal_error = error
                 self._closed.set()
@@ -164,12 +211,27 @@ class RoomAudioSession:
         self._active_participants.discard(participant.identity)
         self._refresh_empty_room_timer()
 
+    def on_reconnecting(self) -> None:
+        """Open one source gap while LiveKit restores the room connection."""
+        if self._closed.is_set() or self._open_gap_started_at_ms is not None:
+            return
+        self._open_gap_started_at_ms = self._now_ms()
+
+    def on_reconnected(self) -> None:
+        """Close the current source gap and advance the source generation."""
+        if self._closed.is_set() or self._open_gap_started_at_ms is None:
+            return
+        self._close_source_gap(self._now_ms())
+        self._generation += 1
+
     def _register_callbacks(self) -> None:
         self._room.on("track_subscribed", self.on_track_subscribed)
         self._room.on("track_unsubscribed", self.on_track_unsubscribed)
         self._room.on("data_received", self.on_data_received)
         self._room.on("participant_connected", self.on_participant_connected)
         self._room.on("participant_disconnected", self.on_participant_disconnected)
+        self._room.on("reconnecting", self.on_reconnecting)
+        self._room.on("reconnected", self.on_reconnected)
 
     def _unregister_callbacks(self) -> None:
         if not self._started:
@@ -179,6 +241,8 @@ class RoomAudioSession:
         self._room.off("data_received", self.on_data_received)
         self._room.off("participant_connected", self.on_participant_connected)
         self._room.off("participant_disconnected", self.on_participant_disconnected)
+        self._room.off("reconnecting", self.on_reconnecting)
+        self._room.off("reconnected", self.on_reconnected)
 
     def _observe_existing_tracks(self) -> None:
         for participant in self._room.remote_participants.values():
@@ -220,6 +284,20 @@ class RoomAudioSession:
                 exc_info=(type(error), error, error.__traceback__),
             )
 
+    def _close_source_gap(self, ended_at_ms: int) -> None:
+        started_at_ms = self._open_gap_started_at_ms
+        if started_at_ms is None:
+            return
+        self._gaps.append(
+            RoomAudioGap(
+                generation=self._generation,
+                started_at_ms=started_at_ms,
+                ended_at_ms=max(started_at_ms + 1, ended_at_ms),
+                reason="source_reconnect",
+            )
+        )
+        self._open_gap_started_at_ms = None
+
     @staticmethod
     def _cancel_timer(task: asyncio.Task | None) -> None:
         current = asyncio.current_task()
@@ -229,3 +307,7 @@ class RoomAudioSession:
     @staticmethod
     def _is_human(participant: rtc.RemoteParticipant) -> bool:
         return participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_AGENT
+
+    @staticmethod
+    def _now_ms() -> int:
+        return int(time.time() * 1_000)
