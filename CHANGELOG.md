@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-27: Verify the Tenant Core room-audio start effect before accepting
+  a room worker, including exact room, pipeline, source profile and bounded
+  lifetime checks.
+
 - 2026-10-27: Verify Tenant Core room-audio track authority inside the worker,
   rejecting lossy, participant-originated, expired, replayed or cross-room
   effects before any microphone can enter the consent-filtered room mix.
