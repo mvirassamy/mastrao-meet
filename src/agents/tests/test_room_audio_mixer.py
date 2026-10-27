@@ -205,6 +205,29 @@ class RoomAudioMixerTests(unittest.TestCase):
                 authorization_digest="c" * 64,
             )
 
+    def test_unobserved_track_is_removed_from_metrics_and_queues(self):
+        """A departed physical track contributes neither audio nor cardinality."""
+        self.mixer.observe_track("TR_departed")
+        self.mixer.admit_track(
+            "TR_departed",
+            generation=1,
+            expires_at_ms=2_000,
+            authorization_digest=AUTHORIZATION_DIGEST,
+        )
+        self.mixer.push_frame(
+            "TR_departed",
+            pcm(1_000, 1_000, 1_000, 1_000),
+            observed_at_ms=1_000,
+        )
+
+        self.mixer.unobserve_track("TR_departed")
+
+        self.assertEqual(
+            samples(self.mixer.mix_next_frame(observed_at_ms=1_001)),
+            [0, 0, 0, 0],
+        )
+        self.assertEqual(self.mixer.snapshot().published_track_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

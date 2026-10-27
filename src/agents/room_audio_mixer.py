@@ -77,6 +77,12 @@ class RoomAudioMixer:
             raise ValueError("track_ref is required")
         self._tracks.setdefault(track_ref, _TrackState())
 
+    def unobserve_track(self, track_ref: str) -> None:
+        """Remove a physically absent track and discard all queued media."""
+        state = self._tracks.pop(track_ref, None)
+        if state is not None:
+            state.frames.clear()
+
     def admit_track(
         self,
         track_ref: str,
