@@ -802,6 +802,84 @@ class MastraoRoomAudioTrackEffect(BaseModel):
         return f"Mastrao room audio track effect {self.effect_jti}"
 
 
+class MastraoRoomAudioRunEffect(BaseModel):
+    """Durable Core start authority reconciled with one LiveKit dispatch."""
+
+    class State(models.TextChoices):
+        """Delivery state with a short reclaimable provider lease."""
+
+        PENDING = "pending", _("Pending")
+        IN_FLIGHT = "in_flight", _("In flight")
+        DELIVERED = "delivered", _("Delivered")
+
+    room_binding = models.ForeignKey(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="room_audio_run_effects",
+    )
+    audio_run_ref = models.CharField(max_length=200)
+    pipeline = models.CharField(max_length=8)
+    effect_jti = models.CharField(max_length=200, unique=True)
+    effect_digest = models.CharField(max_length=64)
+    compact_effect = models.TextField(max_length=16_384)
+    destination_identity = models.CharField(max_length=80)
+    expires_at = models.DateTimeField()
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.PENDING,
+    )
+    attempt_count = models.PositiveIntegerField(default=0)
+    attempt_started_at = models.DateTimeField(null=True, blank=True)
+    dispatch_id = models.CharField(max_length=200, null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_room_audio_run_effect"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room_binding", "audio_run_ref", "pipeline"],
+                name="mastrao_audio_run_pipeline_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(effect_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_audio_run_effect_digest",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        state="pending",
+                        attempt_started_at__isnull=True,
+                        dispatch_id__isnull=True,
+                        delivered_at__isnull=True,
+                    )
+                    | models.Q(
+                        state="in_flight",
+                        attempt_started_at__isnull=False,
+                        dispatch_id__isnull=True,
+                        delivered_at__isnull=True,
+                    )
+                    | models.Q(
+                        state="delivered",
+                        attempt_started_at__isnull=True,
+                        dispatch_id__isnull=False,
+                        delivered_at__isnull=False,
+                    )
+                ),
+                name="mastrao_audio_run_delivery_shape",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["state", "expires_at"],
+                name="mastrao_audio_run_pending_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"Mastrao room audio run effect {self.effect_jti}"
+
+
 class MastraoRoomClosure(BaseModel):
     """Durable tombstone for one canonical Mastrao room closure effect."""
 
