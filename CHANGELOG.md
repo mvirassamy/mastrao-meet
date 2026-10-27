@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Complete post room-audio runs by validating the source bundle,
+  verifying private object persistence and only then publishing it to Core.
+
 - 2026-10-27: Persist completed room-audio artifacts under opaque immutable
   object keys, with idempotent replay and exact size/checksum readback.
 
