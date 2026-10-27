@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Refuse room-audio worker jobs unless their exact Core start
+  authority is current, room-bound and mapped to one deterministic identity.
+
 - 2026-10-27: Verify the Tenant Core room-audio start effect before accepting
   a room worker, including exact room, pipeline, source profile and bounded
   lifetime checks.
