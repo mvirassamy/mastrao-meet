@@ -41,6 +41,7 @@ from core.mastrao_recording_adapter import (
 from core.mastrao_room_adapter import ensure_mastrao_room
 from core.mastrao_room_audio_authority import dispatch_room_audio_track_effect
 from core.mastrao_room_audio_run import dispatch_room_audio_run_effect
+from core.mastrao_room_audio_source import complete_room_audio_source
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_speaker_evidence_adapter import capture_mastrao_speaker_evidence
 from core.mastrao_transcription_adapter import transcribe_mastrao_recording
@@ -86,6 +87,11 @@ external_router.register(
 )
 
 urlpatterns = [
+    path(
+        "internal/mastrao/room-audio/sources/complete/",
+        complete_room_audio_source,
+        name="complete_room_audio_source",
+    ),
     path(
         "internal/mastrao/room-audio/runs/dispatch/",
         dispatch_room_audio_run_effect,

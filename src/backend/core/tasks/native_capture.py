@@ -34,6 +34,21 @@ def process_native_sources(source_id=None, queued_claim=None, queued_attempts=No
     return transfer_native_source(source_id, queued_claim, queued_attempts)
 
 
+@task(name="core.process_room_audio_sources", queue="mastrao-transcription")
+def process_room_audio_sources(source_id, queued_claim, queued_attempts):
+    """Deliver the room-audio source named by an exact scheduler reservation."""
+
+    from core import models  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+    from core.mastrao_room_audio_source import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        deliver_room_audio_source,
+    )
+
+    row = models.MastraoRoomAudioSourceOutbox.objects.filter(pk=source_id).first()
+    if row is None:
+        return False
+    return deliver_room_audio_source(row, queued_claim, queued_attempts)
+
+
 @task(name="core.process_native_asr", queue="mastrao-native-asr-ready")
 def process_native_asr(capture_start_id=None, dispatch_ref=None):
     """Process the exact source named by its current dispatch reservation."""

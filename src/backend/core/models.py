@@ -880,6 +880,93 @@ class MastraoRoomAudioRunEffect(BaseModel):
         return f"Mastrao room audio run effect {self.effect_jti}"
 
 
+class MastraoRoomAudioSourceOutbox(BaseModel):
+    """Exact signed room-audio source retained until Tenant Core accepts it."""
+
+    class State(models.TextChoices):
+        """Terminal delivery state; a UUID lease owns each network attempt."""
+
+        PENDING = "pending", _("Pending")
+        DELIVERED = "delivered", _("Delivered")
+        EXHAUSTED = "exhausted", _("Exhausted")
+
+    run_effect = models.OneToOneField(
+        MastraoRoomAudioRunEffect,
+        on_delete=models.PROTECT,
+        related_name="source_outbox",
+    )
+    manifest = models.JSONField()
+    gaps = models.JSONField(default=list, blank=True)
+    manifest_digest = models.CharField(max_length=64)
+    receipt_jti = models.CharField(max_length=200, unique=True)
+    compact_receipt = models.TextField(max_length=16_384)
+    receipt_expires_at = models.DateTimeField()
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.PENDING,
+    )
+    attempt_count = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    claim_id = models.UUIDField(null=True, blank=True)
+    claim_until = models.DateTimeField(null=True, blank=True)
+    source_id = models.UUIDField(null=True, blank=True)
+    replayed = models.BooleanField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_room_audio_source_outbox"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(manifest_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_audio_source_manifest_digest",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        state="pending",
+                        source_id__isnull=True,
+                        replayed__isnull=True,
+                        delivered_at__isnull=True,
+                    )
+                    | models.Q(
+                        state="delivered",
+                        claim_id__isnull=True,
+                        claim_until__isnull=True,
+                        source_id__isnull=False,
+                        replayed__isnull=False,
+                        delivered_at__isnull=False,
+                    )
+                    | models.Q(
+                        state="exhausted",
+                        claim_id__isnull=True,
+                        claim_until__isnull=True,
+                        source_id__isnull=True,
+                        replayed__isnull=True,
+                        delivered_at__isnull=True,
+                    )
+                ),
+                name="mastrao_audio_source_delivery_shape",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(claim_id__isnull=True, claim_until__isnull=True)
+                    | models.Q(claim_id__isnull=False, claim_until__isnull=False)
+                ),
+                name="mastrao_audio_source_claim_shape",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["state", "next_attempt_at"],
+                name="mastrao_audio_src_pending_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"Mastrao room audio source {self.receipt_jti}"
+
+
 class MastraoRoomClosure(BaseModel):
     """Durable tombstone for one canonical Mastrao room closure effect."""
 

@@ -1514,6 +1514,21 @@ class Base(Configuration):
         environ_name="ROOM_AUDIO_AGENT_NAME",
         environ_prefix=None,
     )
+    ROOM_AUDIO_SOURCE_TRANSFER_ENABLED = values.BooleanValue(
+        False,
+        environ_name="ROOM_AUDIO_SOURCE_TRANSFER_ENABLED",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_ROOM_AUDIO_SOURCE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_ROOM_AUDIO_SOURCE_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_ROOM_AUDIO_SOURCE_TIMEOUT_SECONDS = values.FloatValue(
+        5.0,
+        environ_name="MASTRAO_CORE_ROOM_AUDIO_SOURCE_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
     ROOM_SUBTITLE_PROVIDER = values.Value(
         "legacy",
         environ_name="ROOM_SUBTITLE_PROVIDER",

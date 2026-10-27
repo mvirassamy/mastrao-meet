@@ -26,6 +26,7 @@ from core.mastrao_recording_failure import (
     FAILURE_STATES,
     report_mastrao_recording_failure,
 )
+from core.mastrao_room_audio_source import schedule_room_audio_source_delivery
 from core.mastrao_transcription_pipeline import reconcile_transcription_dispatches
 
 COMPLETION_STATES = {
@@ -100,6 +101,7 @@ def reconcile_native_recordings(limit=20):
         reconcile_native_captures(limit=limit)
         + reconcile_native_admissions(limit=limit)
         + schedule_native_source_transfer(limit=limit)
+        + schedule_room_audio_source_delivery(limit=limit)
         + schedule_native_asr(limit=limit)
     )
 
