@@ -21,13 +21,20 @@ from .factories import WorkerService
 logger = logging.getLogger(__name__)
 
 
-def _is_already_terminal_stop_error(error: Exception) -> bool:
-    """Return True when LiveKit reports the egress is already terminal."""
+def _already_terminal_stop_result(error: Exception) -> str | None:
+    """Map an already-terminal LiveKit stop error to the local result."""
 
     message = str(error)
-    return (
-        "EGRESS_ABORTED" in message or "EGRESS_FAILED" in message
-    ) and "cannot be stopped" in message
+    if "cannot be stopped" not in message:
+        return None
+
+    if "EGRESS_COMPLETE" in message or "EGRESS_LIMIT_REACHED" in message:
+        return "STOPPED"
+
+    if "EGRESS_ABORTED" in message or "EGRESS_FAILED" in message:
+        return "ABORTED"
+
+    return None
 
 
 class WorkerServiceMediator:
@@ -113,12 +120,14 @@ class WorkerServiceMediator:
         try:
             response = self._worker_service.stop(worker_id=recording.worker_id)
         except (WorkerConnectionError, WorkerResponseError) as e:
-            if _is_already_terminal_stop_error(e):
+            terminal_result = _already_terminal_stop_result(e)
+            if terminal_result is not None:
                 logger.info(
-                    "Recording egress for room %s was already terminal; treating stop as terminal.",
+                    "Recording egress for room %s was already terminal with result %s.",
                     recording.room.slug,
+                    terminal_result,
                 )
-                recording.status = RecordingStatusChoices.ABORTED
+                recording.status = RecordingStatusChoices[terminal_result]
                 recording.save()
                 return
             logger.exception(
