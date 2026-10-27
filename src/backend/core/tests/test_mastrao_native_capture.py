@@ -46,7 +46,10 @@ from core.mastrao_native_capture_contract import (
     RECEIPT_JOSE_TYPE,
     arguments_digest,
 )
-from core.mastrao_native_capture_drain import _source_manifest
+from core.mastrao_native_capture_drain import (
+    _source_manifest,
+    reconcile_native_captures,
+)
 from core.mastrao_room_contract import _base64url_decode, _canonical_json
 from core.tests.test_mastrao_media_token_binding import (
     _claims,
@@ -578,6 +581,110 @@ def test_signed_start_commits_intent_before_send_and_receipt_before_ack(
     assert repeated.content == response.content
     assert provider.egress.start_track_egress.await_count == 1
     provider.egress.list_egress.assert_not_called()
+
+
+def test_terminal_pre_source_failure_retries_once_before_receipt(
+    client, signer, effect, provider, settings
+):
+    start = provider.egress.start_track_egress.side_effect
+
+    async def fail_first_attempt(request):
+        job = await start(request)
+        if len(provider.jobs) == 1:
+            job.status = api.EgressStatus.EGRESS_FAILED
+            job.error = "could not connect after timeout"
+        return job
+
+    provider.egress.start_track_egress.side_effect = fail_first_attempt
+
+    response = _post(client, signer, effect)
+
+    assert response.status_code == 200
+    claims = _receipt(response, settings)
+    assert claims["provider_job_ref"] == "EG_nativefixture2"
+    assert claims["observed_status"] == api.EgressStatus.EGRESS_STARTING
+    assert provider.egress.start_track_egress.await_count == 2
+    intent = models.MastraoNativeCaptureStart.objects.get()
+    assert intent.provider_start_attempts == 2
+    assert intent.superseded_provider_job_refs == ["EG_nativefixture"]
+
+    final_job = provider.jobs[-1]
+    final_job.status = api.EgressStatus.EGRESS_COMPLETE
+    final_job.file_results.append(
+        api.FileInfo(
+            filename=f"recordings/{effect['capture_ref']}.ogg",
+            started_at=1_000_000_000,
+            ended_at=3_000_000_000,
+            duration=2_000_000_000,
+            size=4096,
+        )
+    )
+    assert reconcile_native_captures() == 1
+    intent.refresh_from_db()
+    assert intent.provider_job_ref == final_job.egress_id
+    assert intent.source_manifest is not None
+
+
+def test_terminal_pre_source_failure_retries_at_most_once(
+    client, signer, effect, provider, settings
+):
+    start = provider.egress.start_track_egress.side_effect
+
+    async def always_fail(request):
+        job = await start(request)
+        job.status = api.EgressStatus.EGRESS_FAILED
+        job.error = "could not connect after timeout"
+        return job
+
+    provider.egress.start_track_egress.side_effect = always_fail
+
+    response = _post(client, signer, effect)
+
+    assert response.status_code == 200
+    claims = _receipt(response, settings)
+    assert claims["provider_job_ref"] == "EG_nativefixture2"
+    assert claims["observed_status"] == api.EgressStatus.EGRESS_FAILED
+    assert provider.egress.start_track_egress.await_count == 2
+
+
+def test_concurrent_resolution_cannot_start_a_third_job(
+    client, signer, effect, provider
+):
+    second_entered, release_second = threading.Event(), threading.Event()
+    start = provider.egress.start_track_egress.side_effect
+
+    async def fail_then_hold_retry(request):
+        if len(provider.jobs) == 1:
+            second_entered.set()
+            assert release_second.wait(8), "retry fixture timed out"
+        job = await start(request)
+        if len(provider.jobs) == 1:
+            job.status = api.EgressStatus.EGRESS_FAILED
+            job.error = "could not connect after timeout"
+        return job
+
+    provider.egress.start_track_egress.side_effect = fail_then_hold_retry
+
+    def deliver():
+        close_old_connections()
+        try:
+            return _post(Client(), signer, effect)
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(deliver)
+        try:
+            assert second_entered.wait(8), "retry did not reach provider"
+            assert _post(client, signer, effect).status_code == 409
+        finally:
+            release_second.set()
+        assert first.result(timeout=8).status_code == 200
+
+    assert provider.egress.start_track_egress.await_count == 2
+    intent = models.MastraoNativeCaptureStart.objects.get()
+    assert intent.provider_start_attempts == 2
+    assert intent.provider_job_ref == "EG_nativefixture2"
 
 
 def test_signed_profile_matches_track_egress_request_and_manifest(

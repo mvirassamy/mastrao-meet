@@ -875,7 +875,7 @@ def test_queue_metrics_migration_recovers_existing_high_attempt_source(asr_inten
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
         asr_attempts=8
     )
-    current = [("core", "0056_native_asr_delivery_recovery")]
+    current = [("core", "0058_native_capture_connection_retry")]
     previous = [("core", "0055_native_asr_queue_metrics")]
     try:
         MigrationExecutor(connection).migrate(previous)

@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-27: Retry a native Track Egress start exactly once when LiveKit
+  proves that the first job failed before producing media because its source
+  connection timed out. Keep ambiguous delivery and unrelated duplicates
+  fail-closed, and retain the failed provider job for audit.
+
 - 2026-10-25: Update backend Brotli to 1.2.1 to fix the critical
   GHSA-9v8h-qqgm-4m35 decoder vulnerability in staging candidates.
 
