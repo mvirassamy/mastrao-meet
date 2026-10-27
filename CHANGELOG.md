@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Add a fixed-clock room audio runtime with one bounded live-ASR
+  provider, consent-filtered track readers and an independent post-audio sink.
+
 - 2026-10-27: Treat LiveKit egress jobs that completed or reached their limit
   during a concurrent stop as successfully stopped instead of recording a
   false `failed_to_stop` terminal state.
