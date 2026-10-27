@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Record room-audio source reconnect gaps, source generations and
+  final content-free mixer metrics in one completion receipt.
+
 - 2026-10-27: Make signed post and live room-audio runs open only their
   declared output while retaining an explicit comparison mode.
 
