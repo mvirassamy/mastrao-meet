@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Build strict room-audio source manifests and ordered reconnect
+  gap records from verified post-run completions.
+
 - 2026-10-27: Record room-audio source reconnect gaps, source generations and
   final content-free mixer metrics in one completion receipt.
 
