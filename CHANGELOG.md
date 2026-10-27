@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Bind room-audio tracks and Core authority to host-independent
+  empty-room and maximum-duration lifecycle boundaries.
+
 - 2026-10-27: Persist signed room-audio start authority before reconciling one
   exact LiveKit worker dispatch under a short reclaimable delivery lease.
 
