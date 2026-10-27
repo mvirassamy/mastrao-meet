@@ -729,6 +729,79 @@ class MastraoRoomBinding(BaseModel):
         return f"Mastrao room binding {self.effect_key}"
 
 
+class MastraoRoomAudioTrackEffect(BaseModel):
+    """Durable, short-lived Core authority waiting for exact worker delivery."""
+
+    class State(models.TextChoices):
+        """Provider delivery state; pending is safe to retry until expiry."""
+
+        PENDING = "pending", _("Pending")
+        DELIVERED = "delivered", _("Delivered")
+
+    room_binding = models.ForeignKey(
+        MastraoRoomBinding,
+        on_delete=models.PROTECT,
+        related_name="room_audio_track_effects",
+    )
+    audio_run_ref = models.CharField(max_length=200)
+    pipeline = models.CharField(max_length=8)
+    track_ref = models.CharField(max_length=200)
+    authorization_generation = models.PositiveBigIntegerField()
+    operation = models.CharField(max_length=48)
+    authorization_digest = models.CharField(max_length=64)
+    effect_jti = models.CharField(max_length=200, unique=True)
+    effect_digest = models.CharField(max_length=64)
+    compact_effect = models.TextField(max_length=16_384)
+    destination_identity = models.CharField(max_length=80)
+    expires_at = models.DateTimeField()
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.PENDING,
+    )
+    attempt_count = models.PositiveIntegerField(default=0)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "meet_mastrao_room_audio_track_effect"
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "room_binding",
+                    "audio_run_ref",
+                    "pipeline",
+                    "track_ref",
+                    "authorization_generation",
+                ],
+                name="mastrao_audio_track_generation_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(authorization_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_audio_track_auth_digest",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(effect_digest__regex=r"^[a-f0-9]{64}$"),
+                name="mastrao_audio_track_effect_digest",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(state="pending", delivered_at__isnull=True)
+                    | models.Q(state="delivered", delivered_at__isnull=False)
+                ),
+                name="mastrao_audio_track_delivery_shape",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["state", "expires_at"],
+                name="mastrao_audio_pending_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"Mastrao room audio track effect {self.effect_jti}"
+
+
 class MastraoRoomClosure(BaseModel):
     """Durable tombstone for one canonical Mastrao room closure effect."""
 

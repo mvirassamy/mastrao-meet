@@ -4,6 +4,10 @@
   rejecting lossy, participant-originated, expired, replayed or cross-room
   effects before any microphone can enter the consent-filtered room mix.
 
+- 2026-10-27: Persist canonical room-audio track authority before delivering
+  it to one exact worker identity, with signed binding checks and safe retry
+  after a provider delivery failure.
+
 - 2026-10-27: Add a fixed-clock room audio runtime with one bounded live-ASR
   provider, consent-filtered track readers and an independent post-audio sink.
 
