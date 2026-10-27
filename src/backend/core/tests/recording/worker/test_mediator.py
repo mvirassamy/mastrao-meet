@@ -156,11 +156,16 @@ def test_mediator_stop_recording_aborted(mediator, mock_worker_service):
 
 
 @pytest.mark.parametrize(
-    "provider_status",
-    ["EGRESS_ABORTED", "EGRESS_FAILED"],
+    "provider_status,expected_status",
+    [
+        ("EGRESS_ABORTED", RecordingStatusChoices.ABORTED),
+        ("EGRESS_FAILED", RecordingStatusChoices.ABORTED),
+        ("EGRESS_COMPLETE", RecordingStatusChoices.STOPPED),
+        ("EGRESS_LIMIT_REACHED", RecordingStatusChoices.STOPPED),
+    ],
 )
 def test_mediator_stop_recording_already_terminal_provider_error_is_terminal(
-    mediator, mock_worker_service, provider_status
+    mediator, mock_worker_service, provider_status, expected_status
 ):
     """LiveKit may reject stop when the egress is already terminal."""
 
@@ -176,7 +181,7 @@ def test_mediator_stop_recording_already_terminal_provider_error_is_terminal(
 
     mock_worker_service.stop.assert_called_once_with(worker_id=mock_recording.worker_id)
     mock_recording.refresh_from_db()
-    assert mock_recording.status == RecordingStatusChoices.ABORTED
+    assert mock_recording.status == expected_status
 
 
 @pytest.mark.parametrize("error_class", [WorkerConnectionError, WorkerResponseError])
