@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Persist completed room-audio artifacts under opaque immutable
+  object keys, with idempotent replay and exact size/checksum readback.
+
 - 2026-10-27: Build strict room-audio source manifests and ordered reconnect
   gap records from verified post-run completions.
 
