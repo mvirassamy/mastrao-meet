@@ -1,8 +1,8 @@
 """Core-signed native start consumer, opt-in and independent of video finalization.
 
-The committed row is a send-once fence, not a lease that permits another start.
-A crash before/during/after sending leaves an uncertain intent. Only an exact
-provider observation can resolve it; absence never authorizes retransmission.
+The committed row is a dispatch fence, not a lease that permits arbitrary starts.
+Only an explicit terminal connection failure without source output permits one
+audited replacement job. Ambiguous delivery never authorizes retransmission.
 """
 
 # Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
@@ -189,6 +189,75 @@ def _matches(job, request, room_sid):
     )
 
 
+def _is_retryable_connection_failure(job):
+    """Retry only the proven pre-source timeout observed during qualification."""
+    return (
+        job.status == api.EgressStatus.EGRESS_FAILED
+        and job.error == "could not connect after timeout"
+        and not job.backup_storage_used
+        and not job.file_results
+        and not job.stream_results
+        and not job.segment_results
+        and not job.image_results
+    )
+
+
+def _select_provider_job(intent, matches):
+    superseded = intent.superseded_provider_job_refs
+    if (
+        not isinstance(superseded, list)
+        or len(superseded) != len(set(superseded))
+        or any(
+            not isinstance(job_ref, str)
+            or re.fullmatch(r"EG_[A-Za-z0-9]{1,96}", job_ref) is None
+            for job_ref in superseded
+        )
+    ):
+        raise RecordingContractRefused(status=409)
+    superseded_matches = [job for job in matches if job.egress_id in superseded]
+    if any(not _is_retryable_connection_failure(job) for job in superseded_matches):
+        raise RecordingContractRefused(status=409)
+    current = [job for job in matches if job.egress_id not in superseded]
+    if intent.provider_job_ref:
+        if any(job.egress_id != intent.provider_job_ref for job in current):
+            raise RecordingContractRefused(status=409)
+        current = [job for job in current if job.egress_id == intent.provider_job_ref]
+    if len(current) != 1:
+        raise RecordingContractRefused(status=409 if matches else 503)
+    return current[0]
+
+
+@transaction.atomic
+def _claim_connection_retry(intent_id, failed_job):
+    locked = models.MastraoNativeCaptureStart.objects.select_for_update().get(
+        pk=intent_id
+    )
+    if (
+        locked.receipt_claims
+        or locked.provider_job_ref
+        or locked.provider_start_attempts != 1
+        or locked.superseded_provider_job_refs
+        or not _is_retryable_connection_failure(failed_job)
+    ):
+        return False
+    locked.provider_start_attempts = 2
+    locked.superseded_provider_job_refs = [failed_job.egress_id]
+    locked.save(
+        update_fields=[
+            "provider_start_attempts",
+            "superseded_provider_job_refs",
+            "updated_at",
+        ]
+    )
+    return True
+
+
+def _reload_intent(intent_id):
+    return models.MastraoNativeCaptureStart.objects.select_related(
+        "epoch__connection__room_binding",
+    ).get(pk=intent_id)
+
+
 @async_to_sync
 async def _provider_observation(intent, first_delivery):
     request = native_request(intent)
@@ -222,9 +291,7 @@ async def _provider_observation(intent, first_delivery):
                 intent.epoch.connection.room_sid,
             )
         ]
-        if len(matches) != 1:
-            raise RecordingContractRefused(status=409 if matches else 503)
-        return matches[0]
+        return _select_provider_job(intent, matches)
     except RecordingContractRefused:
         raise
     except Exception:  # noqa: BLE001 - upstream errors can contain credentials.
@@ -251,6 +318,13 @@ def apply_native_start(effect):
     if intent.stop_requested_at is not None:
         first_delivery = False
     job = _provider_observation(intent, first_delivery)
+    if _is_retryable_connection_failure(job):
+        if _claim_connection_retry(intent.pk, job):
+            intent = _reload_intent(intent.pk)
+            job = _provider_observation(intent, True)
+        elif intent.provider_start_attempts == 1:
+            intent = _reload_intent(intent.pk)
+            job = _provider_observation(intent, False)
     with transaction.atomic():
         locked = models.MastraoNativeCaptureStart.objects.select_for_update().get(
             pk=intent.pk

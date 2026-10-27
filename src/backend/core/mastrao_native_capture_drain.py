@@ -20,7 +20,11 @@ from asgiref.sync import async_to_sync
 from livekit import api
 
 from core import models, utils
-from core.mastrao_native_capture_adapter import _matches, native_request
+from core.mastrao_native_capture_adapter import (
+    _matches,
+    _select_provider_job,
+    native_request,
+)
 from core.mastrao_recording_contract import RecordingContractRefused
 
 TERMINAL = {
@@ -141,11 +145,7 @@ async def _observe_and_stop(intent):
             for job in result.items
             if _matches(job, request, intent.epoch.connection.room_sid)
         ]
-        if len(matches) != 1:
-            raise RecordingContractRefused(status=409 if matches else 503)
-        job = matches[0]
-        if intent.provider_job_ref and job.egress_id != intent.provider_job_ref:
-            raise RecordingContractRefused(status=409)
+        job = _select_provider_job(intent, matches)
         if job.status not in TERMINAL | RUNNING | {api.EgressStatus.EGRESS_ENDING}:
             raise RecordingContractRefused(status=503)
         if intent.stop_requested_at is not None and job.status in RUNNING:

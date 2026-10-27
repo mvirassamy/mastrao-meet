@@ -1102,8 +1102,9 @@ class MastraoRtcTrackEpoch(BaseModel):
 
 
 class MastraoNativeCaptureStart(BaseModel):
-    """One irreversible start attempt per RTC epoch, including ambiguous delivery.
+    """One capture lifecycle per RTC epoch, including ambiguous delivery.
 
+    A proven pre-source connection timeout permits one audited replacement job.
     Kept for reconciliation/drain even when new admission is disabled. This is
     an execution receipt, never a durable-media or ASR-ready declaration.
     """
@@ -1116,6 +1117,8 @@ class MastraoNativeCaptureStart(BaseModel):
     provider_job_ref = models.CharField(
         max_length=128, unique=True, null=True, blank=True
     )
+    provider_start_attempts = models.PositiveSmallIntegerField(default=1)
+    superseded_provider_job_refs = models.JSONField(default=list, blank=True)
     # No bearer retained. Claims are persisted before returning a signed receipt.
     receipt_claims = models.JSONField(default=dict, blank=True)
     retention_expires_at = models.DateTimeField(null=True, blank=True)
