@@ -15,7 +15,7 @@ from core.factories import RoomFactory, UserFactory
 
 
 class MetricsCursor:
-    """Small cursor fake returning the four operational aggregate queries."""
+    """Small cursor fake returning the operational aggregate queries."""
 
     def __init__(self, rows):
         """Store successive rows returned by the aggregate queries."""
@@ -46,6 +46,7 @@ def test_pipeline_metrics_only_accept_bounded_labels(monkeypatch):
             [("pending", "queued", 3), ("customer_state", "queued", 99)],
             [("rate_limited", 4), ("tenant_123", 99)],
             [(12.5, 42.5)],
+            [(10, 30, 3.0, 3.0, 3, 4)],
         ]
     )
 
@@ -66,6 +67,12 @@ def test_pipeline_metrics_only_accept_bounded_labels(monkeypatch):
     assert metrics.transcription_effects[("pending", "queued")] == 3
     assert metrics.transcription_attempts["rate_limited"] == 4
     assert metrics.closure_to_transcription_seconds == {"0.5": 12.5, "0.95": 42.5}
+    assert metrics.native_capture_topology == observability.NativeCaptureTopology(
+        room_count=10,
+        track_job_count=30,
+        tracks_per_room={"0.5": 3.0, "0.95": 3.0, "max": 3.0},
+        active_track_job_count=4,
+    )
     assert "meeting_ref" not in "".join(cursor.queries)
     assert "participant" not in "".join(cursor.queries)
     history_start = now - timedelta(days=7)
@@ -74,12 +81,15 @@ def test_pipeline_metrics_only_accept_bounded_labels(monkeypatch):
         (history_start,),
         (history_start,),
         (history_start, history_start),
+        (history_start,),
     ]
     assert "WHERE created_at >= %s" in cursor.queries[1]
     assert "WHERE created_at >= %s" in cursor.queries[2]
     assert "state = 'available'" in cursor.queries[3]
     assert "updated_at >= %s" in cursor.queries[3]
     assert "closure.applied_at >= %s" in cursor.queries[3]
+    assert "GROUP BY connection.room_binding_id" in cursor.queries[4]
+    assert "capture.created_at >= %s" in cursor.queries[4]
 
 
 def test_metrics_endpoint_exposes_only_aggregate_labels(monkeypatch):
@@ -94,6 +104,7 @@ def test_metrics_endpoint_exposes_only_aggregate_labels(monkeypatch):
         },
         transcription_attempts=dict.fromkeys(observability.ATTEMPT_STATES, 0),
         closure_to_transcription_seconds=dict.fromkeys(observability.QUANTILES, 0.0),
+        native_capture_topology=observability.NativeCaptureTopology.empty(),
     )
     monkeypatch.setattr(observability, "pipeline_metrics", lambda: metrics)
 
@@ -104,6 +115,10 @@ def test_metrics_endpoint_exposes_only_aggregate_labels(monkeypatch):
     assert 'lane="ready"' in body
     assert 'state="rate_limited"' in body
     assert 'quantile="0.95"' in body
+    assert "mastrao_native_capture_rooms_observed 0.0" in body
+    assert "mastrao_native_capture_track_jobs_observed 0.0" in body
+    assert 'mastrao_native_capture_tracks_per_room{quantile="max"} 0.0' in body
+    assert "mastrao_native_capture_active_track_jobs 0.0" in body
     assert "meeting_ref" not in body
     assert "room_ref" not in body
     assert "participant_ref" not in body

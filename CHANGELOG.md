@@ -4,6 +4,9 @@
   during a concurrent stop as successfully stopped instead of recording a
   false `failed_to_stop` terminal state.
 
+- 2026-10-27: Expose privacy-safe room and TrackEgress topology metrics for
+  comparing participant-track capture with the room-mixed audio pipeline.
+
 - 2026-10-27: Add a French Mistral realtime transcription path with one
   bounded provider stream per microphone, secret-only configuration and an
   explicit OpenAI rollback. Preserve words split across append-only provider
