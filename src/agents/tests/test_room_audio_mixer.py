@@ -206,7 +206,7 @@ class RoomAudioMixerTests(unittest.TestCase):
             )
 
     def test_unobserved_track_is_removed_from_metrics_and_queues(self):
-        """A departed physical track contributes neither audio nor cardinality."""
+        """A departed track keeps its generation but leaves live metrics."""
         self.mixer.observe_track("TR_departed")
         self.mixer.admit_track(
             "TR_departed",
@@ -227,6 +227,36 @@ class RoomAudioMixerTests(unittest.TestCase):
             [0, 0, 0, 0],
         )
         self.assertEqual(self.mixer.snapshot().published_track_count, 0)
+
+        self.mixer.observe_track("TR_departed")
+        with self.assertRaises(TrackAuthorizationError):
+            self.mixer.admit_track(
+                "TR_departed",
+                generation=1,
+                expires_at_ms=3_000,
+                authorization_digest=AUTHORIZATION_DIGEST,
+            )
+        self.assertFalse(
+            self.mixer.push_frame(
+                "TR_departed",
+                pcm(1_000, 1_000, 1_000, 1_000),
+                observed_at_ms=1_500,
+            )
+        )
+
+        self.mixer.admit_track(
+            "TR_departed",
+            generation=2,
+            expires_at_ms=3_000,
+            authorization_digest="b" * 64,
+        )
+        self.assertTrue(
+            self.mixer.push_frame(
+                "TR_departed",
+                pcm(1_000, 1_000, 1_000, 1_000),
+                observed_at_ms=1_500,
+            )
+        )
 
 
 if __name__ == "__main__":

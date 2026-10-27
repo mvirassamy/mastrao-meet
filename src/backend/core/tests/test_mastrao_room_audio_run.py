@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from core import models
 from core.factories import RoomFactory, UserFactory
 from core.mastrao_room_audio_run import (
+    LIVE_SOURCE_PROFILE,
     POST_SOURCE_PROFILE,
     _release_claim,
     claim_room_audio_run_effect,
@@ -62,7 +63,6 @@ def authority_key(settings):
     settings.MASTRAO_RECORDING_EFFECT_PUBLIC_JWK = json.dumps(
         {"kty": "OKP", "crv": "Ed25519", "x": _b64(public)}
     )
-    settings.ROOM_AUDIO_AGENT_NAME = "room-audio-worker"
     return key
 
 
@@ -152,6 +152,30 @@ def test_start_is_persisted_then_dispatched(authority_key, binding):
     assert request.metadata == compact
 
 
+def test_live_start_targets_the_live_worker(authority_key, binding):
+    compact = _signed(
+        authority_key,
+        _effect(
+            binding,
+            pipeline="live",
+            source_profile=LIVE_SOURCE_PROFILE,
+        ),
+    )
+    livekit = _livekit_client()
+
+    with patch(
+        "core.mastrao_room_audio_run.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        response = _post(compact)
+
+    assert response.status_code == 200
+    request = livekit.agent_dispatch.create_dispatch.await_args.args[0]
+    assert request.agent_name == "room-audio-live-worker"
+    row = models.MastraoRoomAudioRunEffect.objects.get()
+    assert row.destination_identity.startswith("room-audio-worker-live-")
+
+
 def test_timeout_reconciles_existing_exact_dispatch(authority_key, binding):
     compact = _signed(authority_key, _effect(binding))
     unavailable = _livekit_client(error=asyncio.TimeoutError())
@@ -205,6 +229,54 @@ def test_conflicting_same_run_is_rejected(authority_key, binding):
 
     assert livekit.agent_dispatch.create_dispatch.await_count == 1
     assert models.MastraoRoomAudioRunEffect.objects.count() == 1
+
+
+def test_conflicting_room_pipeline_with_another_run_is_rejected(authority_key, binding):
+    first = _signed(authority_key, _effect(binding))
+    second = _signed(
+        authority_key,
+        _effect(
+            binding,
+            audio_run_ref="audio_run_fixture_87654321",
+            jti="effect_audio_run_fixture_87654321",
+        ),
+    )
+    livekit = _livekit_client()
+
+    with patch(
+        "core.mastrao_room_audio_run.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        assert _post(first).status_code == 200
+        assert _post(second).status_code == 409
+
+    assert livekit.agent_dispatch.create_dispatch.await_count == 1
+    assert models.MastraoRoomAudioRunEffect.objects.count() == 1
+
+
+def test_post_and_live_runs_can_coexist_for_one_room(authority_key, binding):
+    post = _signed(authority_key, _effect(binding))
+    live = _signed(
+        authority_key,
+        _effect(
+            binding,
+            pipeline="live",
+            source_profile=LIVE_SOURCE_PROFILE,
+            audio_run_ref="audio_run_live_fixture_12345678",
+            jti="effect_audio_run_live_fixture_12345678",
+        ),
+    )
+    livekit = _livekit_client()
+
+    with patch(
+        "core.mastrao_room_audio_run.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        assert _post(post).status_code == 200
+        assert _post(live).status_code == 200
+
+    assert livekit.agent_dispatch.create_dispatch.await_count == 2
+    assert models.MastraoRoomAudioRunEffect.objects.count() == 2
 
 
 def test_cross_room_effect_is_rejected_before_provider(authority_key, binding):

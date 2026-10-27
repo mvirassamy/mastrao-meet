@@ -1456,6 +1456,57 @@ agentRoomAudio:
   ## @param agentRoomAudio.affinity Room-audio Pod affinity
   affinity: {}
 
+## @section agentRoomAudioLive
+
+agentRoomAudioLive:
+  ## @param agentRoomAudioLive.enabled Render the isolated live room-audio worker deployment
+  enabled: false
+
+  ## @param agentRoomAudioLive.image.repository Room-audio live worker image repository
+  ## @param agentRoomAudioLive.image.digest Immutable image digest; takes precedence over tag
+  ## @param agentRoomAudioLive.image.tag Room-audio live worker image tag
+  ## @param agentRoomAudioLive.image.pullPolicy Room-audio live worker image pull policy
+  image:
+    repository: lasuite/meet-agents
+    pullPolicy: IfNotPresent
+    digest: ""
+    tag: "latest"
+
+  ## @param agentRoomAudioLive.command Room-audio live worker command
+  command: ["python", "room_audio_worker.py", "start"]
+
+  ## @param agentRoomAudioLive.args Additional room-audio live worker arguments
+  args: []
+
+  ## @param agentRoomAudioLive.replicas Amount of room-audio live worker replicas
+  replicas: 1
+
+  ## @param agentRoomAudioLive.envVars Explicit live trust and provider environment
+  ## @skip agentRoomAudioLive.envVars
+  envVars:
+    <<: *commonEnvVars
+
+  ## @param agentRoomAudioLive.podAnnotations Annotations for the live Pod
+  podAnnotations: {}
+
+  ## @param agentRoomAudioLive.securityContext Live container security context
+  securityContext: null
+
+  ## @param agentRoomAudioLive.podSecurityContext Live Pod security context
+  podSecurityContext: null
+
+  ## @param agentRoomAudioLive.resources Live worker resource requirements
+  resources: {}
+
+  ## @param agentRoomAudioLive.nodeSelector Live Pod node selector
+  nodeSelector: {}
+
+  ## @param agentRoomAudioLive.tolerations Live Pod tolerations
+  tolerations: []
+
+  ## @param agentRoomAudioLive.affinity Live Pod affinity
+  affinity: {}
+
 ## @section agentSubtitles
 
 agentSubtitles:

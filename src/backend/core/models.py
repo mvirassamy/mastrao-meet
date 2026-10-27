@@ -838,7 +838,7 @@ class MastraoRoomAudioRunEffect(BaseModel):
         db_table = "meet_mastrao_room_audio_run_effect"
         constraints = [
             models.UniqueConstraint(
-                fields=["room_binding", "audio_run_ref", "pipeline"],
+                fields=["room_binding", "pipeline"],
                 name="mastrao_audio_run_pipeline_unique",
             ),
             models.CheckConstraint(

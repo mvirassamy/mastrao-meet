@@ -1,4 +1,4 @@
-"""Run one authorized post-meeting room-audio capture."""
+"""Run one authorized post or live meeting-room audio pipeline."""
 
 from __future__ import annotations
 
@@ -16,14 +16,20 @@ from livekit.agents import (
 )
 from minio import Minio
 
+from mistral_live_stt import create_mistral_live_stt
 from observability import configure_sentry, set_job_context
 from room_audio_authority import RoomAudioAuthority, RoomAudioAuthorityConfig
 from room_audio_job import handle_room_audio_job_request, verify_room_audio_job
+from room_audio_live_output import RoomLiveTranscriptionOutput
 from room_audio_object_store import RoomAudioObjectStore
 from room_audio_ogg import RoomAudioOggEncoder
 from room_audio_post_completion import RoomAudioPostCompletion
-from room_audio_runtime import create_room_audio_run_for_effect
-from room_audio_session import RoomAudioSession
+from room_audio_runtime import (
+    RoomAudioRun,
+    RoomLiveOutput,
+    create_room_audio_run_for_effect,
+)
+from room_audio_session import RoomAudioSession, RoomAudioSessionHandlers
 from room_audio_source_publisher import (
     DurableRoomAudioSourcePublisher,
     RoomAudioSourcePublisherConfig,
@@ -36,7 +42,7 @@ ROOM_AUDIO_AGENT_NAME = "room-audio-worker"
 ROOM_AUDIO_WORKER_PERMISSIONS = WorkerPermissions(
     can_publish=False,
     can_subscribe=True,
-    can_publish_data=False,
+    can_publish_data=True,
     can_update_metadata=False,
     hidden=True,
 )
@@ -44,13 +50,9 @@ DISPATCH_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,200}$")
 
 
 @dataclass(frozen=True)
-class RoomAudioWorkerConfig:
-    """Trusted runtime configuration for one post-audio worker process."""
+class RoomAudioPostConfig:
+    """Secrets and endpoints used only by the durable post pipeline."""
 
-    effect_issuer: str
-    effect_audience: str
-    effect_key_id: str
-    effect_public_jwk: str
     callback_endpoint: str
     callback_timeout_seconds: float
     livekit_url: str
@@ -62,28 +64,29 @@ class RoomAudioWorkerConfig:
     object_store_secure: bool
     object_store_bucket: str
 
+
+@dataclass(frozen=True)
+class RoomAudioWorkerConfig:
+    """Trusted runtime configuration for one pipeline-specific worker."""
+
+    pipeline: str
+    effect_issuer: str
+    effect_audience: str
+    effect_key_id: str
+    effect_public_jwk: str
+    post: RoomAudioPostConfig | None
+
     @classmethod
     def from_environment(cls) -> RoomAudioWorkerConfig:
         """Load every required boundary explicitly and reject partial setup."""
+        pipeline = _required_pipeline_environment()
         return cls(
+            pipeline=pipeline,
             effect_issuer=_required_environment("ROOM_AUDIO_EFFECT_ISSUER"),
             effect_audience=_required_environment("ROOM_AUDIO_EFFECT_AUDIENCE"),
             effect_key_id=_required_environment("ROOM_AUDIO_EFFECT_KEY_ID"),
             effect_public_jwk=_required_environment("ROOM_AUDIO_EFFECT_PUBLIC_JWK"),
-            callback_endpoint=_required_environment(
-                "ROOM_AUDIO_SOURCE_CALLBACK_ENDPOINT"
-            ),
-            callback_timeout_seconds=_positive_float_environment(
-                "ROOM_AUDIO_SOURCE_CALLBACK_TIMEOUT_SECONDS"
-            ),
-            livekit_url=_required_environment("LIVEKIT_URL"),
-            livekit_api_key=_required_environment("LIVEKIT_API_KEY"),
-            livekit_api_secret=_required_environment("LIVEKIT_API_SECRET"),
-            object_store_endpoint=_required_environment("AWS_S3_ENDPOINT_URL"),
-            object_store_access_key=_required_environment("AWS_S3_ACCESS_KEY_ID"),
-            object_store_secret_key=_required_environment("AWS_S3_SECRET_ACCESS_KEY"),
-            object_store_secure=_boolean_environment("AWS_S3_SECURE_ACCESS"),
-            object_store_bucket=_required_environment("AWS_STORAGE_BUCKET_NAME"),
+            post=_load_post_config() if pipeline == "post" else None,
         )
 
 
@@ -92,6 +95,30 @@ def _required_environment(name: str) -> str:
     if not value or value.strip() != value:
         raise ValueError(f"missing or invalid {name}")
     return value
+
+
+def _required_pipeline_environment() -> str:
+    pipeline = _required_environment("ROOM_AUDIO_PIPELINE")
+    if pipeline not in {"post", "live"}:
+        raise ValueError("invalid ROOM_AUDIO_PIPELINE")
+    return pipeline
+
+
+def _load_post_config() -> RoomAudioPostConfig:
+    return RoomAudioPostConfig(
+        callback_endpoint=_required_environment("ROOM_AUDIO_SOURCE_CALLBACK_ENDPOINT"),
+        callback_timeout_seconds=_positive_float_environment(
+            "ROOM_AUDIO_SOURCE_CALLBACK_TIMEOUT_SECONDS"
+        ),
+        livekit_url=_required_environment("LIVEKIT_URL"),
+        livekit_api_key=_required_environment("LIVEKIT_API_KEY"),
+        livekit_api_secret=_required_environment("LIVEKIT_API_SECRET"),
+        object_store_endpoint=_required_environment("AWS_S3_ENDPOINT_URL"),
+        object_store_access_key=_required_environment("AWS_S3_ACCESS_KEY_ID"),
+        object_store_secret_key=_required_environment("AWS_S3_SECRET_ACCESS_KEY"),
+        object_store_secure=_boolean_environment("AWS_S3_SECURE_ACCESS"),
+        object_store_bucket=_required_environment("AWS_STORAGE_BUCKET_NAME"),
+    )
 
 
 def _positive_float_environment(name: str) -> float:
@@ -123,6 +150,9 @@ def create_post_room_audio_session(
     """Compose one post-only session from explicit trusted collaborators."""
     if effect.get("pipeline") != "post":
         raise ValueError("room-audio worker currently supports only post pipeline")
+    if config.pipeline != "post" or config.post is None:
+        raise ValueError("post effect requires post worker configuration")
+    post = config.post
     dispatch_id = getattr(ctx.job, "dispatch_id", "")
     if not isinstance(dispatch_id, str) or not DISPATCH_REFERENCE.fullmatch(
         dispatch_id
@@ -133,38 +163,28 @@ def create_post_room_audio_session(
         effect,
         artifact_sink=RoomAudioOggEncoder(),
     )
-    authority = RoomAudioAuthority(
-        config=RoomAudioAuthorityConfig(
-            issuer=config.effect_issuer,
-            audience=config.effect_audience,
-            key_id=config.effect_key_id,
-            public_jwk=config.effect_public_jwk,
-            organization_external_id=effect["organization_external_id"],
-            meeting_ref=effect["meeting_ref"],
-            room_ref=effect["room_ref"],
-            audio_run_ref=effect["audio_run_ref"],
-            pipeline=effect["pipeline"],
-        ),
-        runtime=runtime,
-    )
+    authority = _create_authority(config, effect, runtime)
     object_store = RoomAudioObjectStore(
         Minio(
-            endpoint=config.object_store_endpoint,
-            access_key=config.object_store_access_key,
-            secret_key=config.object_store_secret_key,
-            secure=config.object_store_secure,
+            endpoint=post.object_store_endpoint,
+            access_key=post.object_store_access_key,
+            secret_key=post.object_store_secret_key,
+            secure=post.object_store_secure,
         ),
-        bucket_name=config.object_store_bucket,
+        bucket_name=post.object_store_bucket,
     )
-    worker_identity = room_audio_worker_identity(effect["audio_run_ref"])
+    worker_identity = room_audio_worker_identity(
+        effect["room_ref"],
+        effect["pipeline"],
+    )
     publisher = DurableRoomAudioSourcePublisher(
         config=RoomAudioSourcePublisherConfig(
-            endpoint=config.callback_endpoint,
+            endpoint=post.callback_endpoint,
             room_name=ctx.room.name,
             worker_identity=worker_identity,
-            livekit_api_key=config.livekit_api_key,
-            livekit_api_secret=config.livekit_api_secret,
-            timeout_seconds=config.callback_timeout_seconds,
+            livekit_api_key=post.livekit_api_key,
+            livekit_api_secret=post.livekit_api_secret,
+            timeout_seconds=post.callback_timeout_seconds,
         ),
         compact_start_effect=compact_effect,
     )
@@ -178,7 +198,83 @@ def create_post_room_audio_session(
         effect=effect,
         runtime=runtime,
         authority=authority,
-        completion_handler=completion,
+        handlers=RoomAudioSessionHandlers(complete=completion),
+    )
+
+
+def create_live_room_audio_session(
+    ctx: JobContext,
+    *,
+    effect: dict,
+    config: RoomAudioWorkerConfig,
+) -> RoomAudioSession:
+    """Compose one room-wide Mistral stream with unattributed output."""
+    if effect.get("pipeline") != "live":
+        raise ValueError("live room-audio session requires live pipeline")
+    if config.pipeline != "live" or config.post is not None:
+        raise ValueError("live effect requires live worker configuration")
+    output = RoomLiveTranscriptionOutput(ctx.room)
+    runtime = create_room_audio_run_for_effect(
+        effect,
+        live_output=RoomLiveOutput(
+            provider_factory=create_mistral_live_stt,
+            speech_event_handler_factory=output.create_event_handler,
+            failure_handler=output.handle_failure,
+            generation_invalidator=output.invalidate_generation,
+        ),
+    )
+    return RoomAudioSession(
+        room=ctx.room,
+        effect=effect,
+        runtime=runtime,
+        authority=_create_authority(config, effect, runtime),
+        handlers=RoomAudioSessionHandlers(
+            complete=output.complete,
+            publish_gap=output.publish_gap,
+        ),
+    )
+
+
+def create_room_audio_session(
+    ctx: JobContext,
+    *,
+    effect: dict,
+    compact_effect: str,
+    config: RoomAudioWorkerConfig,
+) -> RoomAudioSession:
+    """Compose exactly the output selected by the verified Core effect."""
+    pipeline = effect.get("pipeline")
+    if pipeline == "post":
+        return create_post_room_audio_session(
+            ctx,
+            effect=effect,
+            compact_effect=compact_effect,
+            config=config,
+        )
+    if pipeline == "live":
+        return create_live_room_audio_session(ctx, effect=effect, config=config)
+    raise ValueError("unsupported room-audio pipeline")
+
+
+def _create_authority(
+    config: RoomAudioWorkerConfig,
+    effect: dict,
+    runtime: RoomAudioRun,
+) -> RoomAudioAuthority:
+    """Bind one runtime to the exact signed Core track authority."""
+    return RoomAudioAuthority(
+        config=RoomAudioAuthorityConfig(
+            issuer=config.effect_issuer,
+            audience=config.effect_audience,
+            key_id=config.effect_key_id,
+            public_jwk=config.effect_public_jwk,
+            organization_external_id=effect["organization_external_id"],
+            meeting_ref=effect["meeting_ref"],
+            room_ref=effect["room_ref"],
+            audio_run_ref=effect["audio_run_ref"],
+            pipeline=effect["pipeline"],
+        ),
+        runtime=runtime,
     )
 
 
@@ -188,7 +284,9 @@ async def entrypoint(ctx: JobContext) -> None:
     compact_effect = ctx.job.metadata
     effect, _identity = verify_room_audio_job(ctx.room.name, compact_effect)
     config = RoomAudioWorkerConfig.from_environment()
-    session = create_post_room_audio_session(
+    if effect["pipeline"] != config.pipeline:
+        raise ValueError("room-audio effect targets a different worker pipeline")
+    session = create_room_audio_session(
         ctx,
         effect=effect,
         compact_effect=compact_effect,
@@ -204,19 +302,20 @@ async def entrypoint(ctx: JobContext) -> None:
     try:
         await session.wait_closed()
     except Exception:
-        logger.exception("Room-audio post session failed")
-        ctx.shutdown("room-audio-post-failed")
+        logger.exception("Room-audio %s session failed", effect["pipeline"])
+        ctx.shutdown(f"room-audio-{effect['pipeline']}-failed")
         raise
-    ctx.shutdown("room-audio-post-completed")
+    ctx.shutdown(f"room-audio-{effect['pipeline']}-completed")
 
 
 if __name__ == "__main__":
-    configure_sentry(ROOM_AUDIO_AGENT_NAME)
+    configured_agent_name = _required_environment("ROOM_AUDIO_AGENT_NAME")
+    configure_sentry(configured_agent_name)
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             request_fnc=handle_room_audio_job_request,
-            agent_name=ROOM_AUDIO_AGENT_NAME,
+            agent_name=configured_agent_name,
             permissions=ROOM_AUDIO_WORKER_PERMISSIONS,
         )
     )

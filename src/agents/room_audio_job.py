@@ -16,6 +16,7 @@ from room_audio_start_authority import (
 )
 
 logger = logging.getLogger("room-audio-worker")
+LEGACY_TRANSCRIBER_PREFIX = "multi-user-transcriber-"
 
 
 def _required_environment(name: str) -> str:
@@ -37,7 +38,15 @@ def verify_room_audio_job(room_name: str, compact_effect: str) -> tuple[dict, st
         )
     )
     effect = verifier.verify(compact_effect)
-    return effect, room_audio_worker_identity(effect["audio_run_ref"])
+    expected_pipeline = _required_environment("ROOM_AUDIO_PIPELINE")
+    if expected_pipeline not in {"post", "live"}:
+        raise RoomAudioStartRefused("invalid ROOM_AUDIO_PIPELINE")
+    if effect["pipeline"] != expected_pipeline:
+        raise RoomAudioStartRefused("start effect targets another worker pipeline")
+    return effect, room_audio_worker_identity(
+        effect["room_ref"],
+        effect["pipeline"],
+    )
 
 
 async def handle_room_audio_job_request(job_request: JobRequest) -> None:
@@ -48,17 +57,16 @@ async def handle_room_audio_job_request(job_request: JobRequest) -> None:
             room_name,
             job_request.job.metadata,
         )
-        if effect["pipeline"] != "post":
-            logger.info("Refused unsupported room-audio pipeline for %s", room_name)
-            await job_request.reject()
-            return
         async with api.LiveKitAPI() as livekit:
             response = await livekit.room.list_participants(
                 list=api.ListParticipantsRequest(room=room_name)
             )
+        conflicting_identities = {identity}
+        if effect["pipeline"] == "live":
+            conflicting_identities.add(f"{LEGACY_TRANSCRIBER_PREFIX}{room_name}")
         already_present = any(
             participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_AGENT
-            and participant.identity == identity
+            and participant.identity in conflicting_identities
             for participant in response.participants
         )
         if already_present:

@@ -107,10 +107,12 @@ def verify_room_audio_track_effect(compact):
     return effect
 
 
-def room_audio_worker_identity(audio_run_ref):
-    """Derive a bounded opaque worker identity without exposing Core refs."""
-    digest = hashlib.sha256(audio_run_ref.encode("utf-8")).hexdigest()
-    return f"room-audio-worker-{digest[:32]}"
+def room_audio_worker_identity(room_ref, pipeline):
+    """Derive one opaque worker identity for a room and pipeline."""
+    if pipeline not in {"post", "live"}:
+        raise ValueError("unsupported room audio pipeline")
+    digest = hashlib.sha256(room_ref.encode("utf-8")).hexdigest()
+    return f"room-audio-worker-{pipeline}-{digest[:32]}"
 
 
 @transaction.atomic(durable=True)
@@ -155,7 +157,9 @@ def persist_room_audio_track_effect(effect, compact):
             effect_jti=effect["jti"],
             effect_digest=digest,
             compact_effect=compact,
-            destination_identity=room_audio_worker_identity(effect["audio_run_ref"]),
+            destination_identity=room_audio_worker_identity(
+                effect["room_ref"], effect["pipeline"]
+            ),
             expires_at=datetime.fromtimestamp(effect["expires_at"], UTC),
         )
     except IntegrityError as error:

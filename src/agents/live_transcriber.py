@@ -105,10 +105,12 @@ class TranscriptionEvent:
 class TranscriptionPublisher:
     """Publish ordered, replaceable transcription envelopes to a LiveKit room."""
 
-    def __init__(self, room: rtc.Room):
+    def __init__(self, room: rtc.Room, *, initial_sequence: int = 0):
         """Initialize a publisher for one worker session."""
+        if initial_sequence < 0:
+            raise ValueError("initial_sequence must be non-negative")
         self._room = room
-        self._sequence = 0
+        self._sequence = initial_sequence
         self._lock = asyncio.Lock()
 
     @property
@@ -168,6 +170,74 @@ class TranscriptionPublisher:
         )
 
 
+class SpeechEventOutput:
+    """Map one provider stream to ordered LiveKit transcript revisions."""
+
+    def __init__(
+        self,
+        *,
+        publisher: TranscriptionPublisher,
+        participant_identity: str,
+        track_sid: str,
+        leg_id: str | None = None,
+    ):
+        """Bind provider events to one explicit presentation identity."""
+        if not participant_identity or not track_sid:
+            raise ValueError("transcription presentation identity is required")
+        self._publisher = publisher
+        self._participant_identity = participant_identity
+        self._track_sid = track_sid
+        self._leg_id = leg_id or uuid.uuid4().hex
+        self._revisions: dict[str, int] = {}
+        self._item_start_times: dict[str, int] = {}
+
+    @property
+    def leg_id(self) -> str:
+        """Return the stable leg identifier for this provider stream."""
+        return self._leg_id
+
+    async def consume(self, event: stt.SpeechEvent) -> None:
+        """Publish transcript-bearing events and ignore lifecycle events."""
+        if event.type not in (
+            stt.SpeechEventType.INTERIM_TRANSCRIPT,
+            stt.SpeechEventType.FINAL_TRANSCRIPT,
+        ):
+            return
+        if not event.alternatives:
+            return
+        item_id = event.request_id or uuid.uuid4().hex
+        revision = self._revisions.get(item_id, 0) + 1
+        self._revisions[item_id] = revision
+        received_at = int(time.time() * 1000)
+        start_time = _milliseconds(event.alternatives[0].start_time)
+        end_time = _milliseconds(event.alternatives[0].end_time)
+        start_time = start_time or self._item_start_times.setdefault(
+            item_id, received_at
+        )
+        if event.speech_start_time is not None:
+            start_time = int(event.speech_start_time * 1000)
+        if event.speech_end_time is not None:
+            end_time = int(event.speech_end_time * 1000)
+        elif event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
+            end_time = received_at
+        await self._publisher.publish_segment(
+            TranscriptionEvent(
+                participant_identity=self._participant_identity,
+                track_sid=self._track_sid,
+                leg_id=self._leg_id,
+                item_id=item_id,
+                revision=revision,
+                final=event.type == stt.SpeechEventType.FINAL_TRANSCRIPT,
+                data=event.alternatives[0],
+                start_time=start_time,
+                end_time=end_time,
+            )
+        )
+        if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
+            self._revisions.pop(item_id, None)
+            self._item_start_times.pop(item_id, None)
+
+
 class TrackTranscriber:
     """Transcribe one participant audio track and preserve its identity."""
 
@@ -187,15 +257,18 @@ class TrackTranscriber:
         self.track_sid = track_sid
         self._publisher = publisher
         self._provider_factory = provider_factory
-        self.leg_id = uuid.uuid4().hex
+        self._output = SpeechEventOutput(
+            publisher=publisher,
+            participant_identity=self.participant_identity,
+            track_sid=track_sid,
+        )
+        self.leg_id = self._output.leg_id
         self._speech_stream: LiveSpeechStream | None = None
         self._audio_stream: rtc.AudioStream | None = None
         self._provider: LiveSTTProvider | None = None
         self._resource_lock = asyncio.Lock()
         self._resources_closed = False
         self._closing = False
-        self._revisions: dict[str, int] = {}
-        self._item_start_times: dict[str, int] = {}
 
     async def run(self) -> None:
         """Pump one LiveKit audio track into one realtime provider stream."""
@@ -268,44 +341,7 @@ class TrackTranscriber:
 
     async def _handle_event(self, event: stt.SpeechEvent) -> None:
         """Publish transcript-bearing events and ignore lifecycle events."""
-        if event.type not in (
-            stt.SpeechEventType.INTERIM_TRANSCRIPT,
-            stt.SpeechEventType.FINAL_TRANSCRIPT,
-        ):
-            return
-        if not event.alternatives:
-            return
-        item_id = event.request_id or uuid.uuid4().hex
-        revision = self._revisions.get(item_id, 0) + 1
-        self._revisions[item_id] = revision
-        received_at = int(time.time() * 1000)
-        start_time = _milliseconds(event.alternatives[0].start_time)
-        end_time = _milliseconds(event.alternatives[0].end_time)
-        start_time = start_time or self._item_start_times.setdefault(
-            item_id, received_at
-        )
-        if event.speech_start_time is not None:
-            start_time = int(event.speech_start_time * 1000)
-        if event.speech_end_time is not None:
-            end_time = int(event.speech_end_time * 1000)
-        elif event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
-            end_time = received_at
-        await self._publisher.publish_segment(
-            TranscriptionEvent(
-                participant_identity=self.participant_identity,
-                track_sid=self.track_sid,
-                leg_id=self.leg_id,
-                item_id=item_id,
-                revision=revision,
-                final=event.type == stt.SpeechEventType.FINAL_TRANSCRIPT,
-                data=event.alternatives[0],
-                start_time=start_time,
-                end_time=end_time,
-            )
-        )
-        if event.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
-            self._revisions.pop(item_id, None)
-            self._item_start_times.pop(item_id, None)
+        await self._output.consume(event)
 
 
 class LiveTranscriber:

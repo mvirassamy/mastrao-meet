@@ -25,8 +25,8 @@ ENDPOINT = "/internal/mastrao/room-audio/tracks/dispatch/"
 
 
 def test_room_audio_worker_identity_is_stable():
-    assert room_audio_worker_identity("audio_run_fixture_12345678") == (
-        "room-audio-worker-9e24e32762536cd7f33e7b1d32c5a4a8"
+    assert room_audio_worker_identity("room_audio_fixture", "post") == (
+        "room-audio-worker-post-92e2b6959c485ddf6e511997ceb9681f"
     )
 
 
@@ -144,7 +144,7 @@ def test_effect_is_persisted_then_delivered_to_exact_worker(authority_key, bindi
     assert request.kind == 0
     assert request.topic == TOPIC
     assert request.destination_identities == [
-        room_audio_worker_identity("audio_run_fixture_12345678")
+        room_audio_worker_identity("room_audio_fixture", "post")
     ]
 
 

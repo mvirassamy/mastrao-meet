@@ -50,7 +50,9 @@ class RoomAudioSink(Protocol):
 
 
 SpeechEventHandler = Callable[[stt.SpeechEvent], Awaitable[None]]
+SpeechEventHandlerFactory = Callable[[], SpeechEventHandler]
 LiveFailureHandler = Callable[[Exception], Awaitable[None]]
+LiveGenerationInvalidator = Callable[[], Awaitable[None]]
 ProviderFactory = Callable[[], RoomLiveProvider]
 
 
@@ -71,8 +73,9 @@ class RoomLiveOutput:
     """Exact dependencies for one live provider output."""
 
     provider_factory: ProviderFactory
-    speech_event_handler: SpeechEventHandler
+    speech_event_handler_factory: SpeechEventHandlerFactory
     failure_handler: LiveFailureHandler
+    generation_invalidator: LiveGenerationInvalidator
 
 
 def create_room_audio_run_for_effect(
@@ -91,12 +94,7 @@ def create_room_audio_run_for_effect(
     if pipeline == "live":
         if artifact_sink is not None or live_output is None:
             raise ValueError("live room audio requires only a provider")
-        return RoomAudioRun(
-            provider_factory=live_output.provider_factory,
-            speech_event_handler=live_output.speech_event_handler,
-            live_failure_handler=live_output.failure_handler,
-            config=config,
-        )
+        return RoomAudioRun(live_output=live_output, config=config)
     raise ValueError("unsupported room audio pipeline")
 
 
@@ -106,23 +104,32 @@ class RoomAudioRun:
     def __init__(
         self,
         *,
-        provider_factory: ProviderFactory | None = None,
-        speech_event_handler: SpeechEventHandler | None = None,
+        live_output: RoomLiveOutput | None = None,
         artifact_sink: RoomAudioSink | None = None,
-        live_failure_handler: LiveFailureHandler | None = None,
         config: RoomAudioRuntimeConfig = DEFAULT_RUNTIME_CONFIG,
     ):
         """Prepare a stopped room run; no provider opens before start()."""
-        if provider_factory is None and artifact_sink is None:
+        if live_output is None and artifact_sink is None:
             raise ValueError("room audio run requires a live or post output")
-        if provider_factory is not None and (
-            speech_event_handler is None or live_failure_handler is None
+        if live_output is not None and (
+            live_output.provider_factory is None
+            or live_output.speech_event_handler_factory is None
+            or live_output.failure_handler is None
+            or live_output.generation_invalidator is None
         ):
             raise ValueError("live room audio requires event and failure handlers")
-        self._provider_factory = provider_factory
-        self._speech_event_handler = speech_event_handler
+        self._provider_factory = live_output.provider_factory if live_output else None
+        self._speech_event_handler_factory = (
+            live_output.speech_event_handler_factory if live_output else None
+        )
+        self._speech_event_handler: SpeechEventHandler | None = None
         self._artifact_sink = artifact_sink
-        self._live_failure_handler = live_failure_handler
+        self._live_failure_handler = (
+            live_output.failure_handler if live_output else None
+        )
+        self._live_generation_invalidator = (
+            live_output.generation_invalidator if live_output else None
+        )
         self._frame_samples = config.frame_samples
         self._sample_rate_hz = config.sample_rate_hz
         self._maximum_buffered_frames = config.maximum_buffered_frames
@@ -138,6 +145,9 @@ class RoomAudioRun:
         self._speech_stream: RoomSpeechStream | None = None
         self._clock_task: asyncio.Task | None = None
         self._event_task: asyncio.Task | None = None
+        self._provider_lock = asyncio.Lock()
+        self._terminal_failure = asyncio.Event()
+        self._terminal_error: Exception | None = None
         self._started = False
         self._closed = False
         self._live_failed = False
@@ -146,6 +156,11 @@ class RoomAudioRun:
     def provider_session_count(self) -> int:
         """Expose the bounded provider cardinality for qualification."""
         return int(self._provider is not None)
+
+    @property
+    def has_live_output(self) -> bool:
+        """Return whether this run owns a realtime provider boundary."""
+        return self._provider_factory is not None
 
     def snapshot(self) -> RoomAudioMixerSnapshot:
         """Return content-free mixer metrics."""
@@ -158,17 +173,36 @@ class RoomAudioRun:
         if self._started:
             return
         if self._provider_factory is not None:
-            self._provider = self._provider_factory()
-            try:
-                self._speech_stream = self._provider.stream()
-            except Exception:
-                await self._provider.aclose()
-                self._provider = None
-                raise
+            await self._open_live_provider()
         self._started = True
         self._clock_task = asyncio.create_task(self._run_clock())
         if self._speech_stream is not None:
             self._event_task = asyncio.create_task(self._consume_speech_events())
+
+    async def restart_live(self) -> None:
+        """Replace one provider generation after a recovered room connection."""
+        if not self._started or self._closed or self._provider_factory is None:
+            raise RuntimeError("live room audio run is not restartable")
+        if self._terminal_failure.is_set():
+            raise RuntimeError("failed live room audio run is not restartable")
+        async with self._provider_lock:
+            await self._live_generation_invalidator()
+            await self._close_live_provider()
+            try:
+                await self._open_live_provider()
+            except Exception as error:
+                await self._record_terminal_failure(error)
+                return
+            self._event_task = asyncio.create_task(self._consume_speech_events())
+
+    async def wait_terminal_failure(self) -> Exception:
+        """Wait until the realtime provider has failed permanently."""
+        if self._provider_factory is None:
+            raise RuntimeError("post room audio has no live failure boundary")
+        await self._terminal_failure.wait()
+        if self._terminal_error is None:
+            raise RuntimeError("live provider failed without a terminal error")
+        return self._terminal_error
 
     def observe_track(self, track_ref: str, track: rtc.Track) -> None:
         """Subscribe to one track as pending until exact Core admission."""
@@ -238,13 +272,8 @@ class RoomAudioRun:
             return_exceptions=True,
         )
         await self._cancel_task(self._clock_task)
-        if self._speech_stream is not None:
-            await self._speech_stream.aclose()
-        await self._cancel_task(self._event_task)
-        if self._provider is not None:
-            await self._provider.aclose()
-        self._provider = None
-        self._speech_stream = None
+        async with self._provider_lock:
+            await self._close_live_provider()
         return self._artifact_sink.finish() if self._artifact_sink else None
 
     async def _pump_track(self, track_ref: str, stream: rtc.AudioStream) -> None:
@@ -275,19 +304,13 @@ class RoomAudioRun:
                     await self._fail_live(error)
 
     async def _fail_live(self, error: Exception) -> None:
-        """Fence a broken live provider while post-audio keeps its room clock."""
-        if self._live_failed:
-            return
-        self._live_failed = True
-        if self._speech_stream is not None:
-            await self._speech_stream.aclose()
-        if self._provider is not None:
-            await self._provider.aclose()
-        self._speech_stream = None
-        self._provider = None
-        if self._live_failure_handler is None:
-            raise RuntimeError("live failure handler is unavailable")
-        await self._live_failure_handler(error)
+        """Fence a broken provider and expose one terminal run failure."""
+        async with self._provider_lock:
+            if self._live_failed or self._closed:
+                return
+            self._live_failed = True
+            await self._close_live_provider()
+            await self._record_terminal_failure(error)
 
     async def _consume_speech_events(self) -> None:
         """Forward provider output to the room-owned publisher."""
@@ -304,6 +327,52 @@ class RoomAudioRun:
             raise
         except Exception as error:  # provider SDK boundary
             await self._fail_live(error)
+
+    async def _open_live_provider(self) -> None:
+        """Open one provider generation and bind a fresh output leg."""
+        if self._provider_factory is None or self._speech_event_handler_factory is None:
+            raise RuntimeError("live provider configuration is incomplete")
+        provider = self._provider_factory()
+        try:
+            stream = provider.stream()
+            handler = self._speech_event_handler_factory()
+        except Exception:
+            await provider.aclose()
+            raise
+        self._provider = provider
+        self._speech_stream = stream
+        self._speech_event_handler = handler
+        self._live_failed = False
+
+    async def _close_live_provider(self) -> None:
+        """Close the current provider generation and drain its event task."""
+        stream = self._speech_stream
+        provider = self._provider
+        event_task = self._event_task
+        self._speech_stream = None
+        self._provider = None
+        self._speech_event_handler = None
+        self._event_task = None
+        if stream is not None:
+            await stream.aclose()
+        if event_task is not None and event_task is not asyncio.current_task():
+            await self._cancel_task(event_task)
+        if provider is not None:
+            await provider.aclose()
+
+    async def _record_terminal_failure(self, error: Exception) -> None:
+        """Publish one redacted gap and make the run fail closed."""
+        if self._terminal_failure.is_set():
+            return
+        if self._live_failure_handler is None:
+            error = RuntimeError("live failure handler is unavailable")
+        else:
+            try:
+                await self._live_failure_handler(error)
+            except Exception as handler_error:
+                error = handler_error
+        self._terminal_error = error
+        self._terminal_failure.set()
 
     @staticmethod
     async def _cancel_task(task: asyncio.Task | None) -> None:

@@ -41,6 +41,7 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
             format=serialization.PublicFormat.Raw,
         )
         self.environment = {
+            "ROOM_AUDIO_PIPELINE": "post",
             "ROOM_AUDIO_EFFECT_ISSUER": "tenant-core",
             "ROOM_AUDIO_EFFECT_AUDIENCE": "meeting-room-audio-worker",
             "ROOM_AUDIO_EFFECT_KEY_ID": "room-audio-key-v1",
@@ -53,10 +54,10 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
         """A current signed effect produces the backend-compatible identity."""
         request = self._request(self._sign(self._effect()))
         livekit = self._livekit(participants=[])
-        identity = room_audio_worker_identity("audio_run_fixture_12345678")
+        identity = room_audio_worker_identity("room_legal", "post")
         self.assertEqual(
             identity,
-            "room-audio-worker-9e24e32762536cd7f33e7b1d32c5a4a8",
+            "room-audio-worker-post-40fd4bef1c3df4daa837a0d37b0dd585",
         )
 
         with patch.dict("os.environ", self.environment, clear=True):
@@ -72,7 +73,7 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
     async def test_rejects_duplicate_exact_worker(self):
         """A retry cannot admit a second worker for the same audio run."""
         request = self._request(self._sign(self._effect()))
-        identity = room_audio_worker_identity("audio_run_fixture_12345678")
+        identity = room_audio_worker_identity("room_legal", "post")
         participant = SimpleNamespace(
             kind=rtc.ParticipantKind.PARTICIPANT_KIND_AGENT,
             identity=identity,
@@ -86,8 +87,88 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
         request.reject.assert_awaited_once_with()
         request.accept.assert_not_awaited()
 
-    async def test_rejects_live_pipeline_until_its_worker_is_composed(self):
-        """The post-only executable cannot silently accept a live run."""
+    async def test_accepts_exact_live_effect(self):
+        """The composed worker accepts one exact live room run."""
+        request = self._request(
+            self._sign(
+                self._effect(
+                    pipeline="live",
+                    source_profile=LIVE_SOURCE_PROFILE,
+                )
+            )
+        )
+        livekit = self._livekit(participants=[])
+
+        environment = {**self.environment, "ROOM_AUDIO_PIPELINE": "live"}
+        with patch.dict("os.environ", environment, clear=True):
+            with patch("room_audio_job.api.LiveKitAPI", return_value=livekit):
+                await handle_room_audio_job_request(request)
+
+        request.accept.assert_awaited_once_with(
+            identity=room_audio_worker_identity("room_legal", "live"),
+            metadata=request.job.metadata,
+        )
+        request.reject.assert_not_awaited()
+
+    async def test_rejects_second_run_for_same_room_and_pipeline(self):
+        """A new run reference cannot open another worker for one pipeline."""
+        cases = (
+            (
+                self._effect(audio_run_ref="audio_run_post_other_12345678"),
+                self.environment,
+                room_audio_worker_identity("room_legal", "post"),
+            ),
+            (
+                self._effect(
+                    audio_run_ref="audio_run_live_other_12345678",
+                    pipeline="live",
+                    source_profile=LIVE_SOURCE_PROFILE,
+                ),
+                {**self.environment, "ROOM_AUDIO_PIPELINE": "live"},
+                room_audio_worker_identity("room_legal", "live"),
+            ),
+        )
+        for effect, environment, identity in cases:
+            with self.subTest(pipeline=effect["pipeline"]):
+                request = self._request(self._sign(effect))
+                participant = SimpleNamespace(
+                    kind=rtc.ParticipantKind.PARTICIPANT_KIND_AGENT,
+                    identity=identity,
+                )
+                livekit = self._livekit(participants=[participant])
+                with patch.dict("os.environ", environment, clear=True):
+                    with patch("room_audio_job.api.LiveKitAPI", return_value=livekit):
+                        await handle_room_audio_job_request(request)
+
+                request.reject.assert_awaited_once_with()
+                request.accept.assert_not_awaited()
+
+    async def test_live_worker_rejects_legacy_transcriber_in_same_room(self):
+        """The room mixer and per-track rollback path never run together."""
+        request = self._request(
+            self._sign(
+                self._effect(
+                    pipeline="live",
+                    source_profile=LIVE_SOURCE_PROFILE,
+                )
+            )
+        )
+        participant = SimpleNamespace(
+            kind=rtc.ParticipantKind.PARTICIPANT_KIND_AGENT,
+            identity="multi-user-transcriber-room_legal",
+        )
+        livekit = self._livekit(participants=[participant])
+        environment = {**self.environment, "ROOM_AUDIO_PIPELINE": "live"}
+
+        with patch.dict("os.environ", environment, clear=True):
+            with patch("room_audio_job.api.LiveKitAPI", return_value=livekit):
+                await handle_room_audio_job_request(request)
+
+        request.reject.assert_awaited_once_with()
+        request.accept.assert_not_awaited()
+
+    async def test_rejects_effect_for_another_pipeline_worker(self):
+        """A post-only process cannot consume a live worker dispatch."""
         request = self._request(
             self._sign(
                 self._effect(

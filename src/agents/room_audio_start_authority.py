@@ -158,7 +158,9 @@ class RoomAudioStartVerifier:
         return LIVE_SOURCE_PROFILE
 
 
-def room_audio_worker_identity(audio_run_ref: str) -> str:
-    """Derive the exact opaque worker identity used by Meet dispatch."""
-    digest = sha256(audio_run_ref.encode("utf-8")).hexdigest()
-    return f"room-audio-worker-{digest[:32]}"
+def room_audio_worker_identity(room_ref: str, pipeline: str) -> str:
+    """Derive one opaque room-and-pipeline worker identity."""
+    if pipeline not in {"post", "live"}:
+        raise ValueError("unsupported room audio pipeline")
+    digest = sha256(room_ref.encode("utf-8")).hexdigest()
+    return f"room-audio-worker-{pipeline}-{digest[:32]}"

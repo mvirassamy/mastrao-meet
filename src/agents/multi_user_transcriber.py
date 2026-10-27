@@ -210,7 +210,10 @@ async def handle_transcriber_job_request(job_req: JobRequest) -> None:
 
             transcriber_exists = any(
                 p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_AGENT
-                and p.identity == transcriber_id
+                and (
+                    p.identity == transcriber_id
+                    or p.identity.startswith("room-audio-worker-live-")
+                )
                 for p in response.participants
             )
 
