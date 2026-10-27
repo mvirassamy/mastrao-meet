@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Persist signed room-audio start authority before reconciling one
+  exact LiveKit worker dispatch under a short reclaimable delivery lease.
+
 - 2026-10-27: Refuse room-audio worker jobs unless their exact Core start
   authority is current, room-bound and mapped to one deterministic identity.
 

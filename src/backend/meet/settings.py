@@ -1509,6 +1509,11 @@ class Base(Configuration):
         environ_name="ROOM_SUBTITLE_AGENT_NAME",
         environ_prefix=None,
     )
+    ROOM_AUDIO_AGENT_NAME = values.Value(
+        "room-audio-worker",
+        environ_name="ROOM_AUDIO_AGENT_NAME",
+        environ_prefix=None,
+    )
     ROOM_SUBTITLE_PROVIDER = values.Value(
         "legacy",
         environ_name="ROOM_SUBTITLE_PROVIDER",
