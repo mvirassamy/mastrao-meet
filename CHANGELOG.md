@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-10-27: Add a French Mistral realtime transcription path with one
+  bounded provider stream per microphone, secret-only configuration and an
+  explicit OpenAI rollback. Join append-only punctuation correctly in the
+  live transcript.
+
 - 2026-10-27: Retry a native Track Egress start exactly once when LiveKit
   proves that the first job failed before producing media because its source
   connection timed out. Keep ambiguous delivery and unrelated duplicates

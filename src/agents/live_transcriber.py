@@ -1,4 +1,4 @@
-"""Track-scoped LiveKit transcription with OpenAI's live model."""
+"""Track-scoped LiveKit realtime transcription."""
 
 from __future__ import annotations
 
@@ -9,8 +9,9 @@ import logging
 import os
 import time
 import uuid
-from collections.abc import Awaitable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
+from typing import Protocol
 
 from livekit import rtc
 from livekit.agents import JobContext, stt
@@ -24,6 +25,29 @@ TRANSCRIPTION_TOPIC = "lk.transcription"
 GAP_TOPIC = "mastrao.transcription.gap.v1"
 SCHEMA_VERSION = 1
 MODEL = "gpt-live-transcribe"
+
+
+class LiveSpeechStream(AsyncIterator[stt.SpeechEvent], Protocol):
+    """Provider stream operations used by the track transcriber."""
+
+    def push_frame(self, frame: rtc.AudioFrame) -> None:
+        """Accept one decoded audio frame."""
+
+    async def aclose(self) -> None:
+        """Close the provider stream."""
+
+
+class LiveSTTProvider(Protocol):
+    """Provider operations required by one track session."""
+
+    def stream(self) -> LiveSpeechStream:
+        """Create one realtime stream."""
+
+    async def aclose(self) -> None:
+        """Close provider resources."""
+
+
+ProviderFactory = Callable[[], LiveSTTProvider]
 
 
 def configured_languages() -> str | list[str]:
@@ -154,19 +178,19 @@ class TrackTranscriber:
         participant: object,
         track_sid: str,
         publisher: TranscriptionPublisher,
-        vad: object,
+        provider_factory: ProviderFactory,
     ):
-        """Initialize an isolated OpenAI stream for a single track."""
+        """Initialize an isolated provider stream for a single track."""
         self.track = track
         self.participant = participant
         self.participant_identity = getattr(participant, "identity", "unknown")
         self.track_sid = track_sid
         self._publisher = publisher
-        self._vad = vad
+        self._provider_factory = provider_factory
         self.leg_id = uuid.uuid4().hex
-        self._speech_stream: stt.RecognizeStream | None = None
+        self._speech_stream: LiveSpeechStream | None = None
         self._audio_stream: rtc.AudioStream | None = None
-        self._provider: openai.STT | None = None
+        self._provider: LiveSTTProvider | None = None
         self._resource_lock = asyncio.Lock()
         self._resources_closed = False
         self._closing = False
@@ -174,12 +198,12 @@ class TrackTranscriber:
         self._item_start_times: dict[str, int] = {}
 
     async def run(self) -> None:
-        """Pump one LiveKit audio track into one OpenAI realtime stream."""
+        """Pump one LiveKit audio track into one realtime provider stream."""
         if self._closing:
             return
         audio_task: asyncio.Task | None = None
         try:
-            self._provider = create_openai_live_stt(self._vad)
+            self._provider = self._provider_factory()
             self._audio_stream = rtc.AudioStream.from_track(
                 track=self.track,
                 sample_rate=24000,
@@ -219,7 +243,7 @@ class TrackTranscriber:
             self._provider = None
             await self._close_resource(speech_stream, "speech stream")
             await self._close_resource(audio_stream, "audio stream")
-            await self._close_resource(provider, "OpenAI provider")
+            await self._close_resource(provider, "realtime provider")
 
     @staticmethod
     async def _close_resource(resource: object | None, label: str) -> None:
@@ -236,7 +260,7 @@ class TrackTranscriber:
     async def _push_audio(
         self,
         audio_stream: rtc.AudioStream,
-        speech_stream: stt.RecognizeStream,
+        speech_stream: LiveSpeechStream,
     ) -> None:
         """Forward decoded LiveKit frames to the provider."""
         async for audio_event in audio_stream:
@@ -285,13 +309,23 @@ class TrackTranscriber:
 
 
 class LiveTranscriber:
-    """Manage one independent OpenAI stream per subscribed audio track."""
+    """Manage one independent provider stream per subscribed audio track."""
 
-    def __init__(self, ctx: JobContext):
+    def __init__(
+        self,
+        ctx: JobContext,
+        *,
+        provider_factory: ProviderFactory | None = None,
+        requires_vad: bool = True,
+    ):
         """Initialize track lifecycle management for one LiveKit job."""
         self.ctx = ctx
         self._publisher = TranscriptionPublisher(ctx.room)
         self._vad = ctx.proc.userdata.get("vad")
+        self._provider_factory = provider_factory or (
+            lambda: create_openai_live_stt(self._vad)
+        )
+        self._requires_vad = requires_vad
         self._sessions: dict[tuple[str, str], TrackTranscriber] = {}
         self._session_tasks: dict[tuple[str, str], asyncio.Task] = {}
         self._session_task_set: set[asyncio.Task] = set()
@@ -403,8 +437,8 @@ class LiveTranscriber:
         participant: rtc.RemoteParticipant,
     ) -> None:
         """Replace a stale session and launch a fresh one for a track."""
-        if self._vad is None:
-            raise RuntimeError("Silero VAD is required for gpt-live-transcribe")
+        if self._requires_vad and self._vad is None:
+            raise RuntimeError("Silero VAD is required by the live STT provider")
         async with self._lifecycle_lock:
             await self._ensure_session_unlocked(track, track_sid, participant)
 
@@ -425,7 +459,7 @@ class LiveTranscriber:
             participant=participant,
             track_sid=track_sid,
             publisher=self._publisher,
-            vad=self._vad,
+            provider_factory=self._provider_factory,
         )
         self._sessions[key] = session
         task = asyncio.create_task(self._run_session(key, session))

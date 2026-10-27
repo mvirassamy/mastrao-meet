@@ -146,8 +146,9 @@ and verified. No new release coordinator or staging apply is installed here.
 `src/agents/Dockerfile`, the `production` target and an unprivileged
 `DOCKER_USER`. Publication does not update Helm values or Kubernetes. A later,
 serialized staging change must set `agentSubtitles.image.repository` and
-`agentSubtitles.image.digest` from the receipt, and provide `OPENAI_API_KEY`
-through a Kubernetes `secretKeyRef` rather than a literal value.
+`agentSubtitles.image.digest` from the receipt, and provide the selected
+provider credential through a Kubernetes `secretKeyRef` rather than a literal
+value.
 
 ## Canary activation and rollback
 
@@ -161,9 +162,9 @@ record that evidence with R0. Then apply the canary in this order:
 
 1. Set `agentSubtitles.image.repository` and
    `agentSubtitles.image.digest` to the immutable image from the receipt.
-2. Set the agent environment to `STT_PROVIDER=openai-live` and
-   `OPENAI_STT_LANGUAGES=fr,en`.
-3. Project `OPENAI_API_KEY` into the agent through a Kubernetes
+2. Set the agent environment to `STT_PROVIDER=mistral-live`,
+   `MISTRAL_STT_LANGUAGE=fr`, and the measured streaming delay.
+3. Project `MISTRAL_ASR_API_KEY` into the agent through a Kubernetes
    `secretKeyRef`. Do not put its value in Helm values, Git, workflow inputs
    or the candidate receipt.
 4. Deploy and verify the agent while `ROOM_SUBTITLE_ENABLED` remains off.

@@ -12,6 +12,16 @@
 {{- fail "agentSubtitles.envVars.OPENAI_API_KEY must be only a secretKeyRef with name and key" }}
 {{- end }}
 {{- end }}
+{{- if hasKey $agentEnv "MISTRAL_ASR_API_KEY" }}
+{{- $mistralKey := get $agentEnv "MISTRAL_ASR_API_KEY" }}
+{{- $mistralRef := dict }}
+{{- if and (kindIs "map" $mistralKey) (eq (len $mistralKey) 1) (hasKey $mistralKey "secretKeyRef") }}
+{{- $mistralRef = get $mistralKey "secretKeyRef" }}
+{{- end }}
+{{- if not (and (kindIs "map" $mistralRef) (get $mistralRef "name") (get $mistralRef "key")) }}
+{{- fail "agentSubtitles.envVars.MISTRAL_ASR_API_KEY must be only a secretKeyRef with name and key" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
