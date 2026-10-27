@@ -55,6 +55,11 @@ def speech_event(event_type: stt.SpeechEventType, text: str, item_id: str):
     )
 
 
+def unused_provider_factory():
+    """Fail if an event-only contract test unexpectedly starts a provider."""
+    raise AssertionError("provider must not start in this test")
+
+
 class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
     """Verify identity, replacement and gap semantics without network I/O."""
 
@@ -67,14 +72,14 @@ class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
             participant=SimpleNamespace(identity="alice"),
             track_sid="TR_A",
             publisher=publisher,
-            vad=object(),
+            provider_factory=unused_provider_factory,
         )
         second = TrackTranscriber(
             track=object(),
             participant=SimpleNamespace(identity="bob"),
             track_sid="TR_B",
             publisher=publisher,
-            vad=object(),
+            provider_factory=unused_provider_factory,
         )
 
         await first._handle_event(
@@ -131,7 +136,7 @@ class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
             participant=SimpleNamespace(identity="alice"),
             track_sid="TR_A",
             publisher=TranscriptionPublisher(FakeRoom()),
-            vad=object(),
+            provider_factory=unused_provider_factory,
         )
 
         class CloseCounter:
@@ -172,7 +177,7 @@ class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
             participant=SimpleNamespace(identity="alice"),
             track_sid="TR_A",
             publisher=manager._publisher,
-            vad=object(),
+            provider_factory=unused_provider_factory,
         )
         key = ("alice", "TR_A")
         manager._sessions[key] = replacement
@@ -200,15 +205,14 @@ class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
             participant=SimpleNamespace(identity="alice"),
             track_sid="TR_A",
             publisher=TranscriptionPublisher(FakeRoom()),
-            vad=object(),
+            provider_factory=lambda: provider,
         )
-        with patch("live_transcriber.create_openai_live_stt", return_value=provider):
-            with patch(
-                "live_transcriber.rtc.AudioStream.from_track",
-                side_effect=RuntimeError("audio init failed"),
-            ):
-                with self.assertRaisesRegex(RuntimeError, "audio init failed"):
-                    await track.run()
+        with patch(
+            "live_transcriber.rtc.AudioStream.from_track",
+            side_effect=RuntimeError("audio init failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "audio init failed"):
+                await track.run()
 
         self.assertEqual(provider.close_calls, 1)
 
@@ -244,7 +248,7 @@ class LiveTranscriptionContractTests(unittest.IsolatedAsyncioTestCase):
             participant=SimpleNamespace(identity="alice"),
             track_sid="TR_A",
             publisher=manager._publisher,
-            vad=object(),
+            provider_factory=unused_provider_factory,
         )
         manager._sessions[("alice", "TR_A")] = session
 

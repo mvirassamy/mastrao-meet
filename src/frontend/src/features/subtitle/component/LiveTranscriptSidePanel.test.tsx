@@ -261,6 +261,47 @@ describe('LiveTranscriptSidePanel', () => {
     )
   })
 
+  it('attaches append-only punctuation without an extra space', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [
+        { ...segment, state: 'final', text: "Aujourd'", receivedAt: 1_000 },
+        {
+          ...segment,
+          key: 'segment-2',
+          itemId: 'item-2',
+          state: 'final',
+          text: 'hui',
+          receivedAt: 1_100,
+        },
+        {
+          ...segment,
+          key: 'segment-3',
+          itemId: 'item-3',
+          state: 'final',
+          text: ',',
+          receivedAt: 1_200,
+        },
+        {
+          ...segment,
+          key: 'segment-4',
+          itemId: 'item-4',
+          state: 'final',
+          text: 'comment allez-vous ?',
+          receivedAt: 1_300,
+        },
+      ],
+      syncSubtitleState,
+      resolveSpeaker,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText("Aujourd'hui, comment allez-vous ?")).toBeTruthy()
+  })
+
   it('does not expose a technical identity after the participant leaves', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',

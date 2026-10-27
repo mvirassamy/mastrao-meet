@@ -1,5 +1,5 @@
 #!/bin/sh
-# Prove immutable agent images and secret-only OpenAI credentials render safely.
+# Prove immutable agent images and secret-only provider credentials render safely.
 set -eu
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -51,11 +51,20 @@ if printf '%s\n' "$digest_rendered" | grep -A 1 'name: "OPENAI_API_KEY"' | grep 
   echo "openai_key_rendered_as_plain_value" >&2
   exit 1
 fi
+printf '%s\n' "$digest_rendered" | grep -A 5 'name: "MISTRAL_ASR_API_KEY"' | grep -Fq 'secretKeyRef:'
+printf '%s\n' "$digest_rendered" | grep -A 5 'name: "MISTRAL_ASR_API_KEY"' | grep -Fq 'name: mastrao-asr-mistral-v2'
+printf '%s\n' "$digest_rendered" | grep -A 5 'name: "MISTRAL_ASR_API_KEY"' | grep -Fq 'key: MISTRAL_ASR_API_KEY'
+if printf '%s\n' "$digest_rendered" | grep -A 1 'name: "MISTRAL_ASR_API_KEY"' | grep -Fq 'value:'; then
+  echo "mistral_key_rendered_as_plain_value" >&2
+  exit 1
+fi
 printf '%s\n' "$tag_rendered" | grep -Fq 'image: "lasuite/meet-agents:latest"'
 
 digest_error="agentSubtitles.image.digest must be sha256"
 secret_error="OPENAI_API_KEY must be only a secretKeyRef with name and key"
 secret_ref="agentSubtitles.envVars.OPENAI_API_KEY.secretKeyRef"
+mistral_secret_error="MISTRAL_ASR_API_KEY must be only a secretKeyRef with name and key"
+mistral_secret_ref="agentSubtitles.envVars.MISTRAL_ASR_API_KEY.secretKeyRef"
 
 expect_render_failure "$digest_error" --set agentSubtitles.image.digest=latest
 expect_render_failure "$secret_error" \
@@ -66,5 +75,10 @@ expect_render_failure "$secret_error" \
   --set "$secret_ref.name=meet-agent-openai" \
   --set "$secret_ref.key=OPENAI_API_KEY" \
   --set-string agentSubtitles.envVars.OPENAI_API_KEY.value=sk-leak
+expect_render_failure "$mistral_secret_error" \
+  --set-string agentSubtitles.envVars.MISTRAL_ASR_API_KEY=secret-literal
+expect_render_failure "$mistral_secret_error" \
+  --set "$mistral_secret_ref.name=mastrao-asr-mistral-v2" \
+  --set-string agentSubtitles.envVars.MISTRAL_ASR_API_KEY.value=secret-leak
 
-echo "agent_subtitles_image_and_openai_secret_ok"
+echo "agent_subtitles_image_and_provider_secrets_ok"

@@ -8,3 +8,7 @@ agentSubtitles:
       secretKeyRef:
         name: meet-agent-openai
         key: OPENAI_API_KEY
+    MISTRAL_ASR_API_KEY:
+      secretKeyRef:
+        name: mastrao-asr-mistral-v2
+        key: MISTRAL_ASR_API_KEY

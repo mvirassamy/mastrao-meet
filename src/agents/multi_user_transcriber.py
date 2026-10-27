@@ -26,6 +26,7 @@ from livekit.agents import (
 from livekit.plugins import deepgram, silero
 
 from live_transcriber import LiveTranscriber
+from mistral_live_stt import create_mistral_live_stt
 from observability import configure_sentry, set_job_context
 from tasks import done_callback
 
@@ -37,6 +38,21 @@ TRANSCRIBER_AGENT_NAME = os.getenv("TRANSCRIBER_AGENT_NAME", "multi-user-transcr
 STT_PROVIDER = os.getenv("STT_PROVIDER", "deepgram")
 ENABLE_SILERO_VAD = os.getenv("ENABLE_SILERO_VAD", "true").lower() == "true"
 OPENAI_LIVE_PROVIDER = "openai-live"
+MISTRAL_LIVE_PROVIDER = "mistral-live"
+TRACK_SCOPED_LIVE_PROVIDERS = {OPENAI_LIVE_PROVIDER, MISTRAL_LIVE_PROVIDER}
+
+
+def create_live_transcriber(ctx: JobContext) -> LiveTranscriber:
+    """Create the configured track-scoped realtime transcriber."""
+    if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
+        return LiveTranscriber(ctx, requires_vad=True)
+    if STT_PROVIDER == MISTRAL_LIVE_PROVIDER:
+        return LiveTranscriber(
+            ctx,
+            provider_factory=create_mistral_live_stt,
+            requires_vad=False,
+        )
+    raise ValueError(f"Unknown live STT_PROVIDER: {STT_PROVIDER}")
 
 
 def create_stt_provider():
@@ -162,14 +178,14 @@ async def entrypoint(ctx: JobContext):
     """Initialize and run the multi-user transcriber."""
     set_job_context(room=ctx.room.name, job_id=ctx.job.id)
 
-    if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
-        transcriber = LiveTranscriber(ctx)
+    if STT_PROVIDER in TRACK_SCOPED_LIVE_PROVIDERS:
+        transcriber = create_live_transcriber(ctx)
     else:
         transcriber = MultiUserTranscriber(ctx)
     transcriber.start()
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    if STT_PROVIDER == OPENAI_LIVE_PROVIDER:
+    if STT_PROVIDER in TRACK_SCOPED_LIVE_PROVIDERS:
         transcriber.start_existing_tracks()
     else:
         for participant in ctx.room.remote_participants.values():
