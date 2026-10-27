@@ -7,6 +7,9 @@
 - 2026-10-27: Expose privacy-safe room and TrackEgress topology metrics for
   comparing participant-track capture with the room-mixed audio pipeline.
 
+- 2026-10-27: Add a fail-closed, consent-filtered room PCM mixer and a
+  browser-free mono Ogg/Opus encoder for the staged room-audio migration.
+
 - 2026-10-27: Add a French Mistral realtime transcription path with one
   bounded provider stream per microphone, secret-only configuration and an
   explicit OpenAI rollback. Preserve words split across append-only provider
