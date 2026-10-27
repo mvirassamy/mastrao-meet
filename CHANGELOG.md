@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-27: Verify Tenant Core room-audio track authority inside the worker,
+  rejecting lossy, participant-originated, expired, replayed or cross-room
+  effects before any microphone can enter the consent-filtered room mix.
+
 - 2026-10-27: Add a fixed-clock room audio runtime with one bounded live-ASR
   provider, consent-filtered track readers and an independent post-audio sink.
 
