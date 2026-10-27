@@ -66,19 +66,59 @@ class RoomAudioRuntimeConfig:
 DEFAULT_RUNTIME_CONFIG = RoomAudioRuntimeConfig()
 
 
+@dataclass(frozen=True)
+class RoomLiveOutput:
+    """Exact dependencies for one live provider output."""
+
+    provider_factory: ProviderFactory
+    speech_event_handler: SpeechEventHandler
+    failure_handler: LiveFailureHandler
+
+
+def create_room_audio_run_for_effect(
+    effect: dict,
+    *,
+    live_output: RoomLiveOutput | None = None,
+    artifact_sink: RoomAudioSink | None = None,
+    config: RoomAudioRuntimeConfig = DEFAULT_RUNTIME_CONFIG,
+) -> RoomAudioRun:
+    """Create only the output declared by one verified Core start effect."""
+    pipeline = effect.get("pipeline")
+    if pipeline == "post":
+        if artifact_sink is None or live_output is not None:
+            raise ValueError("post room audio requires only an artifact sink")
+        return RoomAudioRun(artifact_sink=artifact_sink, config=config)
+    if pipeline == "live":
+        if artifact_sink is not None or live_output is None:
+            raise ValueError("live room audio requires only a provider")
+        return RoomAudioRun(
+            provider_factory=live_output.provider_factory,
+            speech_event_handler=live_output.speech_event_handler,
+            live_failure_handler=live_output.failure_handler,
+            config=config,
+        )
+    raise ValueError("unsupported room audio pipeline")
+
+
 class RoomAudioRun:
     """Own one room clock, one live provider and one post-audio artifact."""
 
     def __init__(
         self,
         *,
-        provider_factory: ProviderFactory,
-        speech_event_handler: SpeechEventHandler,
-        artifact_sink: RoomAudioSink,
-        live_failure_handler: LiveFailureHandler,
+        provider_factory: ProviderFactory | None = None,
+        speech_event_handler: SpeechEventHandler | None = None,
+        artifact_sink: RoomAudioSink | None = None,
+        live_failure_handler: LiveFailureHandler | None = None,
         config: RoomAudioRuntimeConfig = DEFAULT_RUNTIME_CONFIG,
     ):
         """Prepare a stopped room run; no provider opens before start()."""
+        if provider_factory is None and artifact_sink is None:
+            raise ValueError("room audio run requires a live or post output")
+        if provider_factory is not None and (
+            speech_event_handler is None or live_failure_handler is None
+        ):
+            raise ValueError("live room audio requires event and failure handlers")
         self._provider_factory = provider_factory
         self._speech_event_handler = speech_event_handler
         self._artifact_sink = artifact_sink
@@ -117,16 +157,18 @@ class RoomAudioRun:
             raise RuntimeError("room audio run is closed")
         if self._started:
             return
-        self._provider = self._provider_factory()
-        try:
-            self._speech_stream = self._provider.stream()
-        except Exception:
-            await self._provider.aclose()
-            self._provider = None
-            raise
+        if self._provider_factory is not None:
+            self._provider = self._provider_factory()
+            try:
+                self._speech_stream = self._provider.stream()
+            except Exception:
+                await self._provider.aclose()
+                self._provider = None
+                raise
         self._started = True
         self._clock_task = asyncio.create_task(self._run_clock())
-        self._event_task = asyncio.create_task(self._consume_speech_events())
+        if self._speech_stream is not None:
+            self._event_task = asyncio.create_task(self._consume_speech_events())
 
     def observe_track(self, track_ref: str, track: rtc.Track) -> None:
         """Subscribe to one track as pending until exact Core admission."""
@@ -185,10 +227,10 @@ class RoomAudioRun:
             authorization_digest=authorization_digest,
         )
 
-    async def aclose(self) -> RoomAudioArtifact:
-        """Stop all inputs, close the provider and finalize one artifact."""
+    async def aclose(self) -> RoomAudioArtifact | None:
+        """Stop inputs and finalize the configured post output, when present."""
         if self._closed:
-            return self._artifact_sink.finish()
+            return self._artifact_sink.finish() if self._artifact_sink else None
         self._closed = True
         tracks = list(self._track_streams)
         await asyncio.gather(
@@ -203,7 +245,7 @@ class RoomAudioRun:
             await self._provider.aclose()
         self._provider = None
         self._speech_stream = None
-        return self._artifact_sink.finish()
+        return self._artifact_sink.finish() if self._artifact_sink else None
 
     async def _pump_track(self, track_ref: str, stream: rtc.AudioStream) -> None:
         """Copy decoded frames into the bounded mixer queue."""
@@ -212,15 +254,14 @@ class RoomAudioRun:
 
     async def _run_clock(self) -> None:
         """Produce one room frame on a monotonic fixed-rate clock."""
-        if self._speech_stream is None:
-            raise RuntimeError("room speech stream is unavailable")
         deadline = time.monotonic()
         while True:
             deadline += self._frame_duration_seconds
             await asyncio.sleep(max(0, deadline - time.monotonic()))
             pcm = self._mixer.mix_next_frame()
-            self._artifact_sink.write_frame(pcm)
-            if not self._live_failed:
+            if self._artifact_sink is not None:
+                self._artifact_sink.write_frame(pcm)
+            if self._speech_stream is not None and not self._live_failed:
                 try:
                     self._speech_stream.push_frame(
                         rtc.AudioFrame(
@@ -244,12 +285,16 @@ class RoomAudioRun:
             await self._provider.aclose()
         self._speech_stream = None
         self._provider = None
+        if self._live_failure_handler is None:
+            raise RuntimeError("live failure handler is unavailable")
         await self._live_failure_handler(error)
 
     async def _consume_speech_events(self) -> None:
         """Forward provider output to the room-owned publisher."""
         if self._speech_stream is None:
             raise RuntimeError("room speech stream is unavailable")
+        if self._speech_event_handler is None:
+            raise RuntimeError("room speech event handler is unavailable")
         try:
             async for event in self._speech_stream:
                 await self._speech_event_handler(event)

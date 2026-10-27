@@ -14,7 +14,7 @@ from room_audio_runtime import RoomAudioRun
 
 logger = logging.getLogger("room-audio-worker.session")
 
-ArtifactHandler = Callable[[dict, RoomAudioArtifact, str], Awaitable[None]]
+CompletionHandler = Callable[[dict, RoomAudioArtifact | None, str], Awaitable[None]]
 
 
 class RoomAudioSession:
@@ -27,14 +27,14 @@ class RoomAudioSession:
         effect: dict,
         runtime: RoomAudioRun,
         authority: RoomAudioAuthority,
-        artifact_handler: ArtifactHandler,
+        completion_handler: CompletionHandler,
     ):
         """Prepare an inactive session without opening provider resources."""
         self._room = room
         self._effect = dict(effect)
         self._runtime = runtime
         self._authority = authority
-        self._artifact_handler = artifact_handler
+        self._completion_handler = completion_handler
         self._active_participants: set[str] = set()
         self._tasks: set[asyncio.Task] = set()
         self._maximum_duration_task: asyncio.Task | None = None
@@ -43,6 +43,7 @@ class RoomAudioSession:
         self._closed = asyncio.Event()
         self._artifact: RoomAudioArtifact | None = None
         self._terminal_error: Exception | None = None
+        self._completed = False
         self._started = False
 
     @property
@@ -71,21 +72,19 @@ class RoomAudioSession:
         )
         self._refresh_empty_room_timer()
 
-    async def wait_closed(self) -> RoomAudioArtifact:
-        """Wait until one lifecycle boundary finalizes the room artifact."""
+    async def wait_closed(self) -> RoomAudioArtifact | None:
+        """Wait until one lifecycle boundary finalizes the configured outputs."""
         await self._closed.wait()
         if self._terminal_error is not None:
             raise RuntimeError("room audio session finalization failed") from (
                 self._terminal_error
             )
-        if self._artifact is None:
-            raise RuntimeError("room audio session closed without an artifact")
         return self._artifact
 
-    async def aclose(self, reason: str = "job-shutdown") -> RoomAudioArtifact:
+    async def aclose(self, reason: str = "job-shutdown") -> RoomAudioArtifact | None:
         """Detach callbacks, stop work and finalize exactly once."""
         async with self._close_lock:
-            if self._artifact is not None:
+            if self._completed:
                 return self._artifact
             if self._terminal_error is not None:
                 raise RuntimeError("room audio session finalization failed") from (
@@ -102,13 +101,14 @@ class RoomAudioSession:
                 await asyncio.gather(*pending, return_exceptions=True)
             try:
                 artifact = await self._runtime.aclose()
-                await self._artifact_handler(dict(self._effect), artifact, reason)
+                await self._completion_handler(dict(self._effect), artifact, reason)
             except Exception as error:
                 self._terminal_error = error
                 self._closed.set()
                 raise
             else:
                 self._artifact = artifact
+                self._completed = True
                 self._closed.set()
                 return artifact
 
