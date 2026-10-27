@@ -2,10 +2,14 @@
 
 import asyncio
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from room_audio_ogg import RoomAudioOggEncoder
-from room_audio_runtime import RoomAudioRun
+from room_audio_runtime import (
+    RoomAudioRun,
+    RoomLiveOutput,
+    create_room_audio_run_for_effect,
+)
 
 
 class FakeSpeechStream:
@@ -77,6 +81,100 @@ async def wait_for_frames(stream, count):
 
 class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
     """Validate cardinality, forwarding and shutdown invariants."""
+
+    def test_requires_at_least_one_pipeline_output(self):
+        """A run cannot consume room audio without a declared output."""
+        with self.assertRaisesRegex(
+            ValueError, "room audio run requires a live or post output"
+        ):
+            RoomAudioRun()
+
+    def test_live_pipeline_requires_both_handlers(self):
+        """Live output cannot start without explicit publication and failure paths."""
+        with self.assertRaisesRegex(
+            ValueError, "live room audio requires event and failure handlers"
+        ):
+            RoomAudioRun(provider_factory=object)
+
+    def test_signed_pipeline_selects_exactly_one_output(self):
+        """Normal construction cannot silently open an undeclared output."""
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        sink = Mock()
+        post = create_room_audio_run_for_effect(
+            {"pipeline": "post"}, artifact_sink=sink
+        )
+        live = create_room_audio_run_for_effect(
+            {"pipeline": "live"},
+            live_output=RoomLiveOutput(
+                provider_factory=object,
+                speech_event_handler=handle_event,
+                failure_handler=handle_failure,
+            ),
+        )
+
+        self.assertEqual(post.provider_session_count, 0)
+        self.assertEqual(live.provider_session_count, 0)
+        with self.assertRaisesRegex(
+            ValueError, "post room audio requires only an artifact sink"
+        ):
+            create_room_audio_run_for_effect(
+                {"pipeline": "post"},
+                live_output=RoomLiveOutput(
+                    provider_factory=object,
+                    speech_event_handler=handle_event,
+                    failure_handler=handle_failure,
+                ),
+                artifact_sink=sink,
+            )
+        with self.assertRaisesRegex(ValueError, "unsupported room audio pipeline"):
+            create_room_audio_run_for_effect(
+                {"pipeline": "combined"},
+                artifact_sink=sink,
+            )
+
+    async def test_post_only_run_creates_no_provider_session(self):
+        """The signed post pipeline writes one artifact without live ASR."""
+        run = RoomAudioRun(
+            artifact_sink=RoomAudioOggEncoder(),
+        )
+
+        await run.start()
+        await asyncio.sleep(0.05)
+        artifact = await run.aclose()
+
+        self.assertEqual(run.provider_session_count, 0)
+        self.assertIsNotNone(artifact)
+        self.assertGreaterEqual(artifact.duration_ms, 40)
+
+    async def test_live_only_run_creates_no_post_artifact(self):
+        """The signed live pipeline opens one provider without stray storage."""
+        stream = FakeSpeechStream()
+        provider = FakeProvider(stream)
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        run = RoomAudioRun(
+            provider_factory=lambda: provider,
+            speech_event_handler=handle_event,
+            live_failure_handler=handle_failure,
+        )
+
+        await run.start()
+        await wait_for_frames(stream, 2)
+        artifact = await run.aclose()
+
+        self.assertIsNone(artifact)
+        self.assertTrue(provider.closed)
 
     async def test_start_opens_one_provider_and_close_returns_one_artifact(self):
         """Repeated start never creates a provider session per participant."""

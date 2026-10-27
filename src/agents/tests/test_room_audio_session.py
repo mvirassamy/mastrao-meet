@@ -90,14 +90,14 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         )
         runtime = self._runtime()
         authority = Mock()
-        artifact_handler = AsyncMock()
+        completion_handler = AsyncMock()
         effect = _effect()
         session = RoomAudioSession(
             room=room,
             effect=effect,
             runtime=runtime,
             authority=authority,
-            artifact_handler=artifact_handler,
+            completion_handler=completion_handler,
         )
 
         await session.start()
@@ -111,7 +111,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         authority.consume.assert_called_once()
         runtime.start.assert_awaited_once_with()
         runtime.aclose.assert_awaited_once_with()
-        artifact_handler.assert_awaited_once_with(
+        completion_handler.assert_awaited_once_with(
             effect,
             first,
             "test-complete",
@@ -125,14 +125,14 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         guest = _participant("guest")
         room = FakeRoom([host, guest])
         runtime = self._runtime()
-        artifact_handler = AsyncMock()
+        completion_handler = AsyncMock()
         effect = _effect(grace=0)
         session = RoomAudioSession(
             room=room,
             effect=effect,
             runtime=runtime,
             authority=Mock(),
-            artifact_handler=artifact_handler,
+            completion_handler=completion_handler,
         )
 
         await session.start()
@@ -144,7 +144,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         artifact = await asyncio.wait_for(session.wait_closed(), timeout=1)
 
         runtime.aclose.assert_awaited_once_with()
-        artifact_handler.assert_awaited_once_with(
+        completion_handler.assert_awaited_once_with(
             effect,
             artifact,
             "empty-room-grace",
@@ -159,7 +159,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=_effect(grace=1),
             runtime=runtime,
             authority=Mock(),
-            artifact_handler=AsyncMock(),
+            completion_handler=AsyncMock(),
         )
 
         await session.start()
@@ -180,7 +180,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=_effect(),
             runtime=runtime,
             authority=authority,
-            artifact_handler=AsyncMock(),
+            completion_handler=AsyncMock(),
         )
 
         await session.start()
@@ -198,7 +198,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             effect=_effect(),
             runtime=self._runtime(),
             authority=Mock(),
-            artifact_handler=handler,
+            completion_handler=handler,
         )
 
         await session.start()
@@ -208,6 +208,31 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             RuntimeError, "room audio session finalization failed"
         ):
             await session.wait_closed()
+
+    async def test_live_completion_is_idempotent_without_post_artifact(self):
+        """A live-only run completes successfully without creating an object."""
+        room = FakeRoom([_participant("human")])
+        runtime = self._runtime()
+        runtime.aclose.return_value = None
+        handler = AsyncMock()
+        effect = _effect()
+        session = RoomAudioSession(
+            room=room,
+            effect=effect,
+            runtime=runtime,
+            authority=Mock(),
+            completion_handler=handler,
+        )
+
+        await session.start()
+        first = await session.aclose("live-complete")
+        second = await session.aclose("ignored-second-close")
+
+        self.assertIsNone(first)
+        self.assertIsNone(second)
+        self.assertIsNone(await session.wait_closed())
+        runtime.aclose.assert_awaited_once_with()
+        handler.assert_awaited_once_with(effect, None, "live-complete")
 
     @staticmethod
     def _runtime():

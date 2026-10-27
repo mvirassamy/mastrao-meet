@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Make signed post and live room-audio runs open only their
+  declared output while retaining an explicit comparison mode.
+
 - 2026-10-27: Bind room-audio tracks and Core authority to host-independent
   empty-room and maximum-duration lifecycle boundaries.
 
