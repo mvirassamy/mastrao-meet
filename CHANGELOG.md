@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-27: Publish completed room-audio sources through a durable signed
+  Meet outbox, with room-bound worker authentication, exact replay and
+  reclaimable Celery delivery leases.
+
 - 2026-10-27: Complete post room-audio runs by validating the source bundle,
   verifying private object persistence and only then publishing it to Core.
 

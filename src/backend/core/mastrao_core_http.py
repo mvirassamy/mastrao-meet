@@ -97,7 +97,15 @@ def _public_core_error_code(body):
     return body["code"]
 
 
-def _raise_refusal(refusal, status, outcome=None, *, http_status=None, core_code=None):
+def _raise_refusal(  # noqa: PLR0913 - explicit sanitized error metadata  # pylint: disable=too-many-arguments
+    refusal,
+    status,
+    outcome=None,
+    *,
+    http_status=None,
+    core_code=None,
+    core_reason_codes=(),
+):
     try:
         error = refusal(status=status, outcome=outcome)
     except TypeError:
@@ -105,6 +113,8 @@ def _raise_refusal(refusal, status, outcome=None, *, http_status=None, core_code
     # Only closed transport metadata survives the response-body boundary.
     error.core_http_status = http_status
     error.core_error_code = core_code
+    if core_reason_codes:
+        error.core_reason_codes = tuple(core_reason_codes)
     raise error
 
 
@@ -142,6 +152,7 @@ def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaul
         )
         outcome = None
         core_code = None
+        core_reason_codes = ()
         try:
             body = _read_core_body(response, refusal)
             core_code = _public_core_error_code(body)
@@ -150,6 +161,8 @@ def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaul
                 and body.get("outcome") in TRANSCRIPTION_CALLBACK_OUTCOMES
             ):
                 outcome = body["outcome"]
+            if core_code is not None:
+                core_reason_codes = tuple(body.get("reason_codes", ()))
         except (UnicodeDecodeError, ValueError, json.JSONDecodeError, TypeError):
             outcome = None
         finally:
@@ -160,6 +173,7 @@ def read_bounded_core_json(  # noqa: PLR0913 - explicit transport bounds, defaul
             outcome,
             http_status=response.status_code,
             core_code=core_code,
+            core_reason_codes=core_reason_codes,
         )
     try:
         body = _read_core_body(response, refusal, maximum_bytes)

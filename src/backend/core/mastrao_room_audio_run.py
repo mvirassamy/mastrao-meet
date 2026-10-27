@@ -70,10 +70,9 @@ PROVIDER_TIMEOUT_SECONDS = 3
 DELIVERY_LEASE_SECONDS = 5
 
 
-def verify_room_audio_run_effect(compact):
-    """Verify one exact Core start effect before it enters the outbox."""
+def read_room_audio_run_effect(compact):
+    """Verify one exact Core start effect without requiring current freshness."""
     effect = _verify(compact, JOSE_TYPE, FIELDS)
-    _validate_time(effect, maximum=30)
     pipeline = effect["pipeline"]
     expected_profile = (
         POST_SOURCE_PROFILE if pipeline == "post" else LIVE_SOURCE_PROFILE
@@ -110,6 +109,13 @@ def verify_room_audio_run_effect(compact):
     for name in ("policy_digest", "notice_digest", "provider_binding_digest"):
         if not re.fullmatch(r"[a-f0-9]{64}", effect[name]):
             raise RecordingContractRefused()
+    return effect
+
+
+def verify_room_audio_run_effect(compact):
+    """Verify one fresh Core start effect before it enters the outbox."""
+    effect = read_room_audio_run_effect(compact)
+    _validate_time(effect, maximum=30)
     return effect
 
 
