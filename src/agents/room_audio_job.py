@@ -48,6 +48,10 @@ async def handle_room_audio_job_request(job_request: JobRequest) -> None:
             room_name,
             job_request.job.metadata,
         )
+        if effect["pipeline"] != "post":
+            logger.info("Refused unsupported room-audio pipeline for %s", room_name)
+            await job_request.reject()
+            return
         async with api.LiveKitAPI() as livekit:
             response = await livekit.room.list_participants(
                 list=api.ListParticipantsRequest(room=room_name)

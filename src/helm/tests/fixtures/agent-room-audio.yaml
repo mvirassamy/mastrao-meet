@@ -1,0 +1,29 @@
+agentRoomAudio:
+  enabled: true
+  image:
+    repository: rg.fr-par.scw.cloud/mastrao-staging/meet-agents
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  envVars:
+    ROOM_AUDIO_EFFECT_ISSUER: tenant-core
+    ROOM_AUDIO_EFFECT_AUDIENCE: meeting-room-audio-worker
+    ROOM_AUDIO_EFFECT_KEY_ID: room-audio-key-v1
+    ROOM_AUDIO_EFFECT_PUBLIC_JWK: '{"kty":"OKP","crv":"Ed25519","x":"fixture"}'
+    ROOM_AUDIO_SOURCE_CALLBACK_ENDPOINT: http://meet-backend/internal/mastrao/room-audio/sources/complete/
+    ROOM_AUDIO_SOURCE_CALLBACK_TIMEOUT_SECONDS: "5"
+    LIVEKIT_URL: wss://livekit.internal
+    LIVEKIT_API_KEY: livekit-public-key
+    LIVEKIT_API_SECRET:
+      secretKeyRef:
+        name: livekit-agent
+        key: api-secret
+    AWS_S3_ENDPOINT_URL: minio.meet.svc.cluster.local:9000
+    AWS_S3_ACCESS_KEY_ID:
+      secretKeyRef:
+        name: room-audio-storage
+        key: access-key
+    AWS_S3_SECRET_ACCESS_KEY:
+      secretKeyRef:
+        name: room-audio-storage
+        key: secret-key
+    AWS_S3_SECURE_ACCESS: "false"
+    AWS_STORAGE_BUCKET_NAME: room-audio-private

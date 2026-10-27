@@ -14,6 +14,7 @@ from livekit import rtc
 from room_audio_job import handle_room_audio_job_request
 from room_audio_start_authority import (
     JOSE_TYPE,
+    LIVE_SOURCE_PROFILE,
     POST_SOURCE_PROFILE,
     room_audio_worker_identity,
 )
@@ -81,6 +82,23 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict("os.environ", self.environment, clear=True):
             with patch("room_audio_job.api.LiveKitAPI", return_value=livekit):
                 await handle_room_audio_job_request(request)
+
+        request.reject.assert_awaited_once_with()
+        request.accept.assert_not_awaited()
+
+    async def test_rejects_live_pipeline_until_its_worker_is_composed(self):
+        """The post-only executable cannot silently accept a live run."""
+        request = self._request(
+            self._sign(
+                self._effect(
+                    pipeline="live",
+                    source_profile=LIVE_SOURCE_PROFILE,
+                )
+            )
+        )
+
+        with patch.dict("os.environ", self.environment, clear=True):
+            await handle_room_audio_job_request(request)
 
         request.reject.assert_awaited_once_with()
         request.accept.assert_not_awaited()

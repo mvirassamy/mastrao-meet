@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-27: Compose the post room-audio worker with exact LiveKit dispatch
+  binding, private immutable storage and an inert-by-default Helm deployment.
+
 - 2026-10-27: Publish completed room-audio sources through a durable signed
   Meet outbox, with room-bound worker authentication, exact replay and
   reclaimable Celery delivery leases.

@@ -97,6 +97,8 @@ jobs:
         run: python src/helm/tests/meet-immutable-gitops.py
       - name: Verify agent subtitles Helm rendering
         run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh
+      - name: Verify inert room-audio worker rendering
+        run: src/helm/tests/agent-room-audio-inert.sh
       - name: Verify native ASR alert policy rendering without cluster access
         run: python src/helm/tests/native-asr-alerts.py -v
       - name: Verify Mastrao recording routes and worker isolation

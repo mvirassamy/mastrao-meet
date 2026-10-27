@@ -1,0 +1,83 @@
+{{- if .Values.agentRoomAudio.enabled }}
+{{- $settings := .Values.agentRoomAudio -}}
+{{- $envVars := include "meet.common.env" (list . $settings) -}}
+{{- $fullName := include "meet.agentRoomAudio.fullname" . -}}
+{{- $component := "agent-room-audio" -}}
+{{- $required := list "ROOM_AUDIO_EFFECT_ISSUER" "ROOM_AUDIO_EFFECT_AUDIENCE" "ROOM_AUDIO_EFFECT_KEY_ID" "ROOM_AUDIO_EFFECT_PUBLIC_JWK" "ROOM_AUDIO_SOURCE_CALLBACK_ENDPOINT" "ROOM_AUDIO_SOURCE_CALLBACK_TIMEOUT_SECONDS" "LIVEKIT_URL" "LIVEKIT_API_KEY" "LIVEKIT_API_SECRET" "AWS_S3_ENDPOINT_URL" "AWS_S3_ACCESS_KEY_ID" "AWS_S3_SECRET_ACCESS_KEY" "AWS_S3_SECURE_ACCESS" "AWS_STORAGE_BUCKET_NAME" -}}
+{{- range $name := $required }}
+{{- if not (hasKey $settings.envVars $name) }}
+{{- fail (printf "agentRoomAudio.envVars.%s is required when enabled" $name) }}
+{{- end }}
+{{- end }}
+{{- range $name := list "LIVEKIT_API_SECRET" "AWS_S3_ACCESS_KEY_ID" "AWS_S3_SECRET_ACCESS_KEY" }}
+{{- $value := get $settings.envVars $name -}}
+{{- $reference := dict -}}
+{{- if and (kindIs "map" $value) (eq (len $value) 1) (hasKey $value "secretKeyRef") -}}
+{{- $reference = get $value "secretKeyRef" -}}
+{{- end -}}
+{{- if not (and (kindIs "map" $reference) (get $reference "name") (get $reference "key")) -}}
+{{- fail (printf "agentRoomAudio.envVars.%s must be only a secretKeyRef with name and key" $name) -}}
+{{- end -}}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . $component) | nindent 4 }}
+spec:
+  replicas: {{ $settings.replicas }}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with $settings.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "meet.common.selectorLabels" (list . $component) | nindent 8 }}
+    spec:
+      {{- if $.Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" $.Values.image.credentials) }}
+      {{- end }}
+      {{- with $settings.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "meet.image" (dict "image" $settings.image "path" "agentRoomAudio.image") | quote }}
+          imagePullPolicy: {{ $settings.image.pullPolicy }}
+          command:
+            {{- toYaml $settings.command | nindent 12 }}
+          {{- with $settings.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            {{- $envVars | indent 12 }}
+          {{- with $settings.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $settings.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $settings.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $settings.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $settings.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
