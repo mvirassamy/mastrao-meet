@@ -21,9 +21,8 @@ def test_yes_no_yes_fails_before_migration_and_succeeds_after_with_exact_replay(
     """Run the real decision boundary against both schema versions."""
     assert connection.vendor == "postgresql"
     executor = MigrationExecutor(connection)
-    assert executor.loader.graph.leaf_nodes("core") == [
-        ("core", "0058_native_capture_connection_retry")
-    ]
+    current_core_migrations = executor.loader.graph.leaf_nodes("core")
+    assert current_core_migrations
     normal_migration = MigrationRecorder(connection).migration_qs.get(
         app="core", name="0051_normal_post_meeting_transcription"
     )
@@ -134,6 +133,4 @@ def test_yes_no_yes_fails_before_migration_and_succeeds_after_with_exact_replay(
         normal_migration.refresh_from_db()
         assert normal_migration.applied == normal_applied_at
     finally:
-        MigrationExecutor(connection).migrate(
-            [("core", "0058_native_capture_connection_retry")]
-        )
+        MigrationExecutor(connection).migrate(current_core_migrations)

@@ -39,6 +39,7 @@ from core.mastrao_recording_adapter import (
     stop_mastrao_recording,
 )
 from core.mastrao_room_adapter import ensure_mastrao_room
+from core.mastrao_room_audio_authority import dispatch_room_audio_track_effect
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_speaker_evidence_adapter import capture_mastrao_speaker_evidence
 from core.mastrao_transcription_adapter import transcribe_mastrao_recording
@@ -84,6 +85,11 @@ external_router.register(
 )
 
 urlpatterns = [
+    path(
+        "internal/mastrao/room-audio/tracks/dispatch/",
+        dispatch_room_audio_track_effect,
+        name="dispatch_room_audio_track_effect",
+    ),
     path(
         "internal/mastrao/captures/native/stop/",
         stop_native_capture,
