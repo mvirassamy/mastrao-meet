@@ -29,6 +29,7 @@ constraint-dependencies = [
     "aiohttp==3.14.4",
     "anyio==4.14.2",
     "certifi==2026.10.19",
+    "msgpack==1.2.3",
     "pillow==13.0.0",
     "PyJWT==2.14.0",
     "urllib3==2.8.0",
