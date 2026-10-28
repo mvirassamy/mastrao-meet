@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-28: Require msgpack 1.2.3 in the agents image to fix the
+  high-severity CVE-2026-114613 deserialization memory leak.
+
 - 2026-10-28: Persist content-free room RTC packet loss, concealment, jitter
   and round-trip evidence with mixer counters in the room-audio manifest v2.
 
