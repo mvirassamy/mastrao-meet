@@ -285,11 +285,10 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         gap_handler.assert_awaited_once_with("source-reconnect")
         runtime.restart_live.assert_awaited_once_with()
 
-    async def test_terminal_provider_failure_fails_the_live_session(self):
-        """A dead ASR stream cannot leave a silently successful room run."""
+    async def test_terminal_runtime_failure_fails_the_session(self):
+        """A dead clock or ASR stream cannot leave a successful room run."""
         room = FakeRoom([_participant("human")])
         runtime = self._runtime()
-        runtime.has_live_output = True
         runtime.wait_terminal_failure.side_effect = None
         runtime.wait_terminal_failure.return_value = RuntimeError("provider stopped")
         handler = AsyncMock()
@@ -308,7 +307,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(session.wait_closed(), timeout=1)
 
         completion = handler.await_args.args[0]
-        self.assertEqual(completion.reason, "live-provider-failed")
+        self.assertEqual(completion.reason, "audio-runtime-failed")
         runtime.aclose.assert_awaited_once_with()
 
     async def test_subscription_failure_publishes_content_free_gap(self):
