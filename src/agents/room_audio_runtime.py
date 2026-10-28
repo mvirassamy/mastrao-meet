@@ -65,6 +65,7 @@ class RoomAudioRuntimeConfig:
     frame_samples: int = 480
     sample_rate_hz: int = 24_000
     maximum_buffered_frames: int = 10
+    maximum_clock_lag_seconds: float = 0.25
 
 
 DEFAULT_RUNTIME_CONFIG = RoomAudioRuntimeConfig()
@@ -136,6 +137,9 @@ class RoomAudioRun:
         self._sample_rate_hz = config.sample_rate_hz
         self._maximum_buffered_frames = config.maximum_buffered_frames
         self._frame_duration_seconds = config.frame_samples / config.sample_rate_hz
+        if config.maximum_clock_lag_seconds <= self._frame_duration_seconds:
+            raise ValueError("room audio clock lag bound must exceed one frame")
+        self._maximum_clock_lag_seconds = config.maximum_clock_lag_seconds
         self._mixer = RoomAudioMixer(
             frame_samples=config.frame_samples,
             sample_rate_hz=config.sample_rate_hz,
@@ -198,12 +202,10 @@ class RoomAudioRun:
             self._event_task = asyncio.create_task(self._consume_speech_events())
 
     async def wait_terminal_failure(self) -> Exception:
-        """Wait until the realtime provider has failed permanently."""
-        if self._provider_factory is None:
-            raise RuntimeError("post room audio has no live failure boundary")
+        """Wait until the room clock or realtime provider fails permanently."""
         await self._terminal_failure.wait()
         if self._terminal_error is None:
-            raise RuntimeError("live provider failed without a terminal error")
+            raise RuntimeError("room audio failed without a terminal error")
         return self._terminal_error
 
     def observe_track(self, track_ref: str, track: rtc.Track) -> None:
@@ -292,6 +294,9 @@ class RoomAudioRun:
         while True:
             deadline += self._frame_duration_seconds
             await asyncio.sleep(max(0, deadline - time.monotonic()))
+            if self._clock_lag_exceeded(deadline, time.monotonic()):
+                await self._fail_clock()
+                return
             pcm = self._mixer.mix_next_frame()
             if self._artifact_sink is not None:
                 self._artifact_sink.write_frame(pcm)
@@ -307,6 +312,18 @@ class RoomAudioRun:
                     )
                 except Exception as error:  # provider SDK boundary
                     await self._fail_live(error)
+
+    async def _fail_clock(self) -> None:
+        """Stop a run whose fixed clock can no longer prove audio continuity."""
+        error = RuntimeError("room audio clock exceeded maximum lag")
+        if self._provider_factory is not None:
+            await self._fail_live(error)
+            return
+        await self._record_terminal_failure(error)
+
+    def _clock_lag_exceeded(self, deadline: float, observed_at: float) -> bool:
+        """Return whether one clock observation crossed the continuity bound."""
+        return observed_at - deadline > self._maximum_clock_lag_seconds
 
     async def _fail_live(self, error: Exception) -> None:
         """Fence a broken provider and expose one terminal run failure."""
@@ -366,12 +383,10 @@ class RoomAudioRun:
             await provider.aclose()
 
     async def _record_terminal_failure(self, error: Exception) -> None:
-        """Publish one redacted gap and make the run fail closed."""
+        """Publish an optional redacted gap and make the run fail closed."""
         if self._terminal_failure.is_set():
             return
-        if self._live_failure_handler is None:
-            error = RuntimeError("live failure handler is unavailable")
-        else:
+        if self._live_failure_handler is not None:
             try:
                 await self._live_failure_handler(error)
             except Exception as handler_error:

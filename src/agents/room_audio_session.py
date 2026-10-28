@@ -114,10 +114,7 @@ class RoomAudioSession:
             )
         )
         self._refresh_empty_room_timer()
-        if self._runtime.has_live_output:
-            self._runtime_failure_task = asyncio.create_task(
-                self._fail_on_runtime_error()
-            )
+        self._runtime_failure_task = asyncio.create_task(self._fail_on_runtime_error())
 
     async def wait_closed(self) -> RoomAudioArtifact | None:
         """Wait until one lifecycle boundary finalizes the configured outputs."""
@@ -335,9 +332,9 @@ class RoomAudioSession:
             )
 
     async def _fail_on_runtime_error(self) -> None:
-        """Turn a permanent provider failure into a failed room run."""
+        """Turn a permanent clock or provider failure into a failed room run."""
         error = await self._runtime.wait_terminal_failure()
-        await self._finish("live-provider-failed", terminal_error=error)
+        await self._finish("audio-runtime-failed", terminal_error=error)
 
     def _task_done(self, task: asyncio.Task) -> None:
         self._tasks.discard(task)

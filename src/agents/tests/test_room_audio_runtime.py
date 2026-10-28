@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from room_audio_ogg import RoomAudioOggEncoder
 from room_audio_runtime import (
     RoomAudioRun,
+    RoomAudioRuntimeConfig,
     RoomLiveOutput,
     create_room_audio_run_for_effect,
 )
@@ -102,6 +103,16 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             ValueError, "room audio run requires a live or post output"
         ):
             RoomAudioRun()
+
+    def test_clock_lag_bound_must_exceed_one_frame(self):
+        """A watchdog threshold cannot be shorter than the room clock tick."""
+        with self.assertRaisesRegex(
+            ValueError, "room audio clock lag bound must exceed one frame"
+        ):
+            RoomAudioRun(
+                artifact_sink=Mock(),
+                config=RoomAudioRuntimeConfig(maximum_clock_lag_seconds=0.02),
+            )
 
     def test_live_pipeline_requires_both_handlers(self):
         """Live output cannot start without explicit publication and failure paths."""
@@ -375,6 +386,19 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(str(error), "live backpressure")
         self.assertEqual(failures, ["live backpressure"])
         self.assertTrue(provider.closed)
+
+    async def test_clock_lag_is_terminal_for_post_audio(self):
+        """A stalled event loop cannot produce a deceptively complete artifact."""
+        run = RoomAudioRun(artifact_sink=Mock())
+
+        self.assertFalse(run._clock_lag_exceeded(10.0, 10.25))
+        self.assertTrue(run._clock_lag_exceeded(10.0, 10.251))
+
+        await run._fail_clock()
+        error = await asyncio.wait_for(run.wait_terminal_failure(), timeout=1)
+
+        await run.aclose()
+        self.assertEqual(str(error), "room audio clock exceeded maximum lag")
 
     async def test_provider_start_failure_closes_partial_resources(self):
         """A failed stream creation leaves no billed provider resource open."""

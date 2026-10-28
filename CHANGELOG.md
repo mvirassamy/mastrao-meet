@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-28: Fail room-audio runs when event-loop lag exceeds the fixed-clock
+  continuity bound, for both post and live pipelines.
+
 - 2026-10-28: Remove the silent bounded LiveKit audio queue from the room
   mixer path so every SDK-delivered frame reaches the explicitly counted
   application buffer.
