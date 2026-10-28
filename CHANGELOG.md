@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-28: Persist content-free room RTC packet loss, concealment, jitter
+  and round-trip evidence with mixer counters in the room-audio manifest v2.
+
 - 2026-10-28: Fail room-audio runs when event-loop lag exceeds the fixed-clock
   continuity bound, for both post and live pipelines.
 

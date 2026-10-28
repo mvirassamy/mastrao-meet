@@ -6,6 +6,7 @@ from hashlib import sha256
 from room_audio_manifest import build_room_audio_source_bundle
 from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
+from room_audio_rtc import RoomAudioRtcSnapshot
 from room_audio_session import RoomAudioCompletion, RoomAudioGap
 
 
@@ -61,6 +62,15 @@ def _completion(*, pipeline="post", duration_ms=10_000, gaps=()):
         generation_count=2 if gaps else 1,
         gaps=tuple(gaps),
         mixer=_snapshot(),
+        rtc=RoomAudioRtcSnapshot(
+            sample_count=3,
+            collection_error_count=0,
+            packets_received=1_000,
+            packets_lost=2,
+            concealed_samples=40,
+            maximum_jitter_ms=7,
+            maximum_round_trip_time_ms=30,
+        ),
     )
 
 
@@ -90,6 +100,10 @@ class RoomAudioManifestTests(unittest.TestCase):
         self.assertEqual(bundle.manifest["generation_count"], 2)
         self.assertEqual(bundle.manifest["gap_count"], 1)
         self.assertEqual(bundle.manifest["total_gap_ms"], 120)
+        self.assertEqual(bundle.manifest["version"], 2)
+        self.assertEqual(bundle.manifest["mixer_underrun_frame_count"], 2)
+        self.assertEqual(bundle.manifest["rtc_packets_received"], 1_000)
+        self.assertEqual(bundle.manifest["rtc_maximum_round_trip_time_ms"], 30)
         self.assertEqual(bundle.manifest["checksum_digest"], sha256(b"ogg").hexdigest())
         self.assertEqual(
             bundle.gaps,

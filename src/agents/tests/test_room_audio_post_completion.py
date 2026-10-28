@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock, call
 from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 from room_audio_post_completion import RoomAudioPostCompletion
+from room_audio_rtc import RoomAudioRtcSnapshot
 from room_audio_session import RoomAudioCompletion
 
 
@@ -55,6 +56,15 @@ def _completion(pipeline="post"):
             dropped_frame_count=0,
             track_underrun_frame_count=0,
             mixer_queue_peak_frames=3,
+        ),
+        rtc=RoomAudioRtcSnapshot(
+            sample_count=2,
+            collection_error_count=0,
+            packets_received=100,
+            packets_lost=0,
+            concealed_samples=0,
+            maximum_jitter_ms=2,
+            maximum_round_trip_time_ms=10,
         ),
     )
 
