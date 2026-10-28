@@ -30,6 +30,7 @@ from core.mastrao_room_audio_run import (
     verify_room_audio_run_effect,
 )
 from core.mastrao_room_audio_source import (
+    MANIFEST_V2_METRIC_FIELDS,
     MAX_ATTEMPTS,
     SOURCE_JOSE_TYPE,
     _mark_delivered,
@@ -168,7 +169,7 @@ def source_run(settings):
 def _manifest(source_run, **changes):
     effect = source_run["effect"]
     manifest = {
-        "version": 1,
+        "version": 2,
         "type": "mastrao.meeting-room-audio-source",
         **{
             name: effect[name]
@@ -199,6 +200,17 @@ def _manifest(source_run, **changes):
         "generation_count": 1,
         "gap_count": 0,
         "total_gap_ms": 0,
+        "mixer_output_frame_count": 3_000,
+        "mixer_dropped_frame_count": 0,
+        "mixer_underrun_frame_count": 0,
+        "mixer_queue_peak_frames": 3,
+        "rtc_sample_count": 61,
+        "rtc_collection_error_count": 0,
+        "rtc_packets_received": 3_000,
+        "rtc_packets_lost": 0,
+        "rtc_concealed_samples": 0,
+        "rtc_maximum_jitter_ms": 5,
+        "rtc_maximum_round_trip_time_ms": 20,
     }
     manifest.update(changes)
     return manifest
@@ -263,6 +275,36 @@ def test_source_is_signed_persisted_and_delivered_once(source_run):
     assert row.state == models.MastraoRoomAudioSourceOutbox.State.DELIVERED
     assert row.manifest_digest == _sha256_canonical(_manifest(source_run))
     assert row.attempt_count == 1
+
+
+def test_v1_manifest_remains_accepted_during_worker_rollout(source_run):
+    manifest = _manifest(source_run)
+    manifest["version"] = 1
+    for field in MANIFEST_V2_METRIC_FIELDS:
+        manifest.pop(field)
+    delivered = _core_success(body={"source_receipt": "unused"})
+    delivered.pop("compact")
+
+    with patch("core.mastrao_room_audio_source.post_core_json", return_value=delivered):
+        response = _post(source_run, manifest)
+
+    assert response.status_code == 200
+    assert models.MastraoRoomAudioSourceOutbox.objects.get().manifest == manifest
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("rtc_sample_count", 0),
+        ("rtc_packets_lost", -1),
+        ("mixer_dropped_frame_count", True),
+    ],
+)
+def test_v2_metrics_are_non_negative_integers(source_run, field, value):
+    response = _post(source_run, _manifest(source_run, **{field: value}))
+
+    assert response.status_code == 404
+    assert models.MastraoRoomAudioSourceOutbox.objects.count() == 0
 
 
 def test_network_retry_reuses_the_same_signed_receipt(source_run):

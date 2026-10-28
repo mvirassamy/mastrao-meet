@@ -41,7 +41,7 @@ def build_room_audio_source_bundle(
     provider_session_ref: str,
     object_ref: str,
 ) -> RoomAudioSourceBundle:
-    """Convert one verified post completion into the shared v1 contract."""
+    """Convert one verified post completion into the shared v2 contract."""
     artifact = completion.artifact
     if completion.effect.get("pipeline") != "post" or artifact is None:
         raise ValueError("post room audio completion with artifact is required")
@@ -66,7 +66,7 @@ def build_room_audio_source_bundle(
     if total_gap_ms > artifact.duration_ms:
         raise ValueError("room audio gaps exceed artifact duration")
     manifest = {
-        "version": 1,
+        "version": 2,
         "type": "mastrao.meeting-room-audio-source",
         **binding,
         "pipeline": "post",
@@ -84,6 +84,17 @@ def build_room_audio_source_bundle(
         "generation_count": completion.generation_count,
         "gap_count": len(gaps),
         "total_gap_ms": total_gap_ms,
+        "mixer_output_frame_count": completion.mixer.output_frame_count,
+        "mixer_dropped_frame_count": completion.mixer.dropped_frame_count,
+        "mixer_underrun_frame_count": completion.mixer.track_underrun_frame_count,
+        "mixer_queue_peak_frames": completion.mixer.mixer_queue_peak_frames,
+        "rtc_sample_count": completion.rtc.sample_count,
+        "rtc_collection_error_count": completion.rtc.collection_error_count,
+        "rtc_packets_received": completion.rtc.packets_received,
+        "rtc_packets_lost": completion.rtc.packets_lost,
+        "rtc_concealed_samples": completion.rtc.concealed_samples,
+        "rtc_maximum_jitter_ms": completion.rtc.maximum_jitter_ms,
+        "rtc_maximum_round_trip_time_ms": (completion.rtc.maximum_round_trip_time_ms),
     }
     return RoomAudioSourceBundle(manifest=manifest, gaps=gaps)
 

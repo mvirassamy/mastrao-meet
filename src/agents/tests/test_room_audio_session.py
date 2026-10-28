@@ -36,6 +36,10 @@ class FakeRoom:
         if self.callbacks.get(event) == callback:
             self.callbacks.pop(event)
 
+    async def get_rtc_stats(self):
+        """Return a valid empty public RTC snapshot for lifecycle tests."""
+        return SimpleNamespace(subscriber_stats=[])
+
 
 def _participant(identity, *, agent=False, publications=()):
     kind = (
@@ -131,6 +135,8 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completion.generation_count, 1)
         self.assertEqual(completion.gaps, ())
         self.assertEqual(completion.mixer, runtime.snapshot.return_value)
+        self.assertEqual(completion.rtc.sample_count, 2)
+        self.assertEqual(completion.rtc.collection_error_count, 0)
         self.assertGreaterEqual(completion.ended_at_ms, completion.started_at_ms)
         self.assertIs(first, second)
         self.assertEqual(room.callbacks, {})

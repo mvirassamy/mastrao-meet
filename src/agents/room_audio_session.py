@@ -13,6 +13,7 @@ from livekit import rtc
 from room_audio_authority import RoomAudioAuthority, RoomAudioAuthorityRefused
 from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
+from room_audio_rtc import RoomAudioRtcObserver, RoomAudioRtcSnapshot
 from room_audio_runtime import RoomAudioRun
 
 logger = logging.getLogger("room-audio-worker.session")
@@ -40,6 +41,7 @@ class RoomAudioCompletion:
     generation_count: int
     gaps: tuple[RoomAudioGap, ...]
     mixer: RoomAudioMixerSnapshot
+    rtc: RoomAudioRtcSnapshot
 
 
 CompletionHandler = Callable[[RoomAudioCompletion], Awaitable[None]]
@@ -70,6 +72,7 @@ class RoomAudioSession:
         self._room = room
         self._effect = dict(effect)
         self._runtime = runtime
+        self._rtc_observer = RoomAudioRtcObserver(room)
         self._authority = authority
         self._handlers = handlers
         self._active_participants: set[str] = set()
@@ -97,7 +100,15 @@ class RoomAudioSession:
         """Start the room clock and register exact LiveKit callbacks once."""
         if self._started:
             return
-        await self._runtime.start()
+        await self._rtc_observer.start()
+        try:
+            await self._runtime.start()
+        except Exception:
+            try:
+                await self._rtc_observer.finish()
+            except Exception:
+                logger.exception("RTC observer cleanup failed after runtime start")
+            raise
         self._started_at_ms = self._now_ms()
         self._started = True
         self._register_callbacks()
@@ -157,6 +168,7 @@ class RoomAudioSession:
                 ended_at_ms = self._now_ms()
                 self._close_source_gap(ended_at_ms)
                 mixer = self._runtime.snapshot()
+                rtc_snapshot = await self._rtc_observer.finish()
                 artifact = await self._runtime.aclose()
                 await self._handlers.complete(
                     RoomAudioCompletion(
@@ -168,6 +180,7 @@ class RoomAudioSession:
                         generation_count=self._generation,
                         gaps=tuple(self._gaps),
                         mixer=mixer,
+                        rtc=rtc_snapshot,
                     )
                 )
             except Exception as error:

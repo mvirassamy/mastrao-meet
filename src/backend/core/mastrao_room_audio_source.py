@@ -47,7 +47,7 @@ MAX_AUDIO_BYTES = 20_000_000_000
 PROVIDER_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,200}$")
 OBJECT_REFERENCE = re.compile(r"^[A-Za-z0-9._/-]{16,1024}$")
 DIGEST = re.compile(r"^[a-f0-9]{64}$")
-MANIFEST_FIELDS = {
+MANIFEST_V1_FIELDS = {
     "version",
     "type",
     "organization_external_id",
@@ -75,6 +75,20 @@ MANIFEST_FIELDS = {
     "gap_count",
     "total_gap_ms",
 }
+MANIFEST_V2_METRIC_FIELDS = {
+    "mixer_output_frame_count",
+    "mixer_dropped_frame_count",
+    "mixer_underrun_frame_count",
+    "mixer_queue_peak_frames",
+    "rtc_sample_count",
+    "rtc_collection_error_count",
+    "rtc_packets_received",
+    "rtc_packets_lost",
+    "rtc_concealed_samples",
+    "rtc_maximum_jitter_ms",
+    "rtc_maximum_round_trip_time_ms",
+}
+MANIFEST_V2_FIELDS = MANIFEST_V1_FIELDS | MANIFEST_V2_METRIC_FIELDS
 GAP_FIELDS = {"sequence", "generation", "started_at_ms", "ended_at_ms", "reason"}
 BINDING_FIELDS = {
     "organization_external_id",
@@ -175,7 +189,9 @@ def _delivery_claim_seconds():
 
 
 def _validate_manifest_shape(manifest, effect, dispatch_id):
-    if set(manifest) != MANIFEST_FIELDS:
+    version = manifest.get("version")
+    expected_fields = MANIFEST_V2_FIELDS if version == 2 else MANIFEST_V1_FIELDS
+    if set(manifest) != expected_fields:
         raise RecordingContractRefused()
     if any(manifest[name] != effect[name] for name in BINDING_FIELDS):
         raise RecordingContractRefused(status=409)
@@ -183,7 +199,7 @@ def _validate_manifest_shape(manifest, effect, dispatch_id):
     duration_ms = manifest["duration_ms"]
     if (
         not _is_int(manifest["version"])
-        or manifest["version"] != 1
+        or version not in {1, 2}
         or manifest["type"] != "mastrao.meeting-room-audio-source"
         or manifest["pipeline"] != "post"
         or effect["pipeline"] != "post"
@@ -215,6 +231,13 @@ def _validate_manifest_shape(manifest, effect, dispatch_id):
         or not _is_int(manifest["total_gap_ms"])
         or not 0 <= manifest["total_gap_ms"] <= duration_ms
     ):
+        raise RecordingContractRefused()
+    if version == 2 and any(
+        not _is_int(manifest[name]) or manifest[name] < 0
+        for name in MANIFEST_V2_METRIC_FIELDS
+    ):
+        raise RecordingContractRefused()
+    if version == 2 and manifest["rtc_sample_count"] < 1:
         raise RecordingContractRefused()
 
 
