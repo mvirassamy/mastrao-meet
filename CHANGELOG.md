@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-10-28: Remove the silent bounded LiveKit audio queue from the room
+  mixer path so every SDK-delivered frame reaches the explicitly counted
+  application buffer.
+
 - 2026-10-27: Compose one mixed Mistral live stream per authorized room, with
   unattributed transcript segments, bounded gaps and no per-participant ASR.
 

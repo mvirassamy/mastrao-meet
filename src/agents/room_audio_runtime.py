@@ -15,6 +15,8 @@ from livekit.agents import stt
 from room_audio_mixer import RoomAudioMixer, RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 
+LIVEKIT_AUDIO_STREAM_CAPACITY = 0
+
 
 class RoomSpeechStream(Protocol):
     """Single realtime provider stream used by one room run."""
@@ -58,7 +60,7 @@ ProviderFactory = Callable[[], RoomLiveProvider]
 
 @dataclass(frozen=True)
 class RoomAudioRuntimeConfig:
-    """Fixed room clock and per-track buffer bounds."""
+    """Fixed room clock and application-owned per-track buffer bounds."""
 
     frame_samples: int = 480
     sample_rate_hz: int = 24_000
@@ -212,7 +214,10 @@ class RoomAudioRun:
             raise ValueError("track is already observed")
         stream = rtc.AudioStream.from_track(
             track=track,
-            capacity=self._maximum_buffered_frames,
+            # LiveKit drops the oldest frame silently when this public SDK queue
+            # is bounded. Keep it unbounded so every SDK-delivered frame reaches
+            # the application queue, where eviction is explicit and counted.
+            capacity=LIVEKIT_AUDIO_STREAM_CAPACITY,
             sample_rate=self._sample_rate_hz,
             num_channels=1,
             frame_size_ms=round(self._frame_duration_seconds * 1_000),
