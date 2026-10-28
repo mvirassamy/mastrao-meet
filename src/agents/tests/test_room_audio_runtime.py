@@ -434,8 +434,8 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(run.provider_session_count, 0)
         self.assertGreaterEqual(artifact.duration_ms, 40)
 
-    async def test_observed_track_uses_bounded_twenty_millisecond_frames(self):
-        """The LiveKit reader matches mixer geometry and has finite capacity."""
+    async def test_observed_track_uses_lossless_sdk_queue_and_bounded_mixer(self):
+        """Only the counted application queue may evict a decoded frame."""
         provider_stream = FakeSpeechStream()
         provider = FakeProvider(provider_stream)
         track_stream = FakeSpeechStream()
@@ -465,7 +465,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
 
         from_track.assert_called_once_with(
             track=track,
-            capacity=10,
+            capacity=0,
             sample_rate=24_000,
             num_channels=1,
             frame_size_ms=20,
