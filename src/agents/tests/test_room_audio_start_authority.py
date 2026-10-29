@@ -47,7 +47,7 @@ class RoomAudioStartVerifierTests(unittest.TestCase):
                 public_jwk=json.dumps(
                     {"kty": "OKP", "crv": "Ed25519", "x": _encode(public)}
                 ),
-                room_name="room_legal",
+                room_sid="RM_roomlegal",
             )
         )
 
@@ -70,7 +70,8 @@ class RoomAudioStartVerifierTests(unittest.TestCase):
     def test_refuses_cross_room_profile_expiry_and_unbounded_duration(self):
         """A worker never starts from ambiguous or unsafe signed metadata."""
         cases = (
-            self._effect(room_ref="room_other"),
+            self._effect(provider_room_sid="RM_roomother"),
+            self._effect(provider_room_sid="room_legal"),
             self._effect(source_profile=LIVE_SOURCE_PROFILE),
             self._effect(expires_at=self.now),
             self._effect(maximum_duration_seconds=14_401),
@@ -98,7 +99,7 @@ class RoomAudioStartVerifierTests(unittest.TestCase):
 
     def _effect(self, **overrides):
         effect = {
-            "version": 1,
+            "version": 2,
             "type": "mastrao.core-meeting-room-audio-start-effect",
             "issuer": "tenant-core",
             "audience": "meeting-room-audio-worker",
@@ -112,6 +113,7 @@ class RoomAudioStartVerifierTests(unittest.TestCase):
             "policy_digest": "a" * 64,
             "notice_digest": "b" * 64,
             "provider_binding_digest": "c" * 64,
+            "provider_room_sid": "RM_roomlegal",
             "retention_expires_at": self.now + 3_600,
             "pipeline": "post",
             "source_profile": POST_SOURCE_PROFILE,

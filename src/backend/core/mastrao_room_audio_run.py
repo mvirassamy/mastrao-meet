@@ -47,6 +47,7 @@ FIELDS = {
     "policy_digest",
     "notice_digest",
     "provider_binding_digest",
+    "provider_room_sid",
     "retention_expires_at",
     "pipeline",
     "source_profile",
@@ -97,13 +98,15 @@ def read_room_audio_run_effect(compact):
     )
     if (
         type(effect["version"]) is not int
-        or effect["version"] != 1
+        or effect["version"] != 2
         or effect["type"] != "mastrao.core-meeting-room-audio-start-effect"
         or type(effect["operation_version"]) is not int
         or effect["operation_version"] != 1
         or effect["operation"] != "start_meeting_room_audio_run"
         or effect["issuer"] != settings.MASTRAO_RECORDING_EFFECT_ISSUER
         or effect["audience"] != settings.MASTRAO_RECORDING_EFFECT_AUDIENCE
+        or not isinstance(effect["provider_room_sid"], str)
+        or not re.fullmatch(r"RM_[A-Za-z0-9]{1,96}", effect["provider_room_sid"])
         or pipeline not in {"post", "live"}
         or effect["source_profile"] != expected_profile
         or type(effect["maximum_duration_seconds"]) is not int
@@ -117,6 +120,7 @@ def read_room_audio_run_effect(compact):
     for name in (
         "meeting_ref",
         "room_ref",
+        "provider_room_sid",
         "audio_run_ref",
         "policy_ref",
         "jti",

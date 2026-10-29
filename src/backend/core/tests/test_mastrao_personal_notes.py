@@ -459,6 +459,14 @@ def test_invalid_write_is_rejected_before_core(binding, core_transport, body):
         (b"{" + b" " * MAX_WRITE_BODY_BYTES, "application/json"),
         (b'{"content":"text","expected_revision":0}', "text/plain"),
     ],
+    ids=[
+        "duplicate-json-key",
+        "invalid-utf8",
+        "non-finite-revision",
+        "excessive-json-depth",
+        "oversized-body",
+        "unsupported-content-type",
+    ],
 )
 def test_malformed_or_oversized_envelope_is_rejected(
     binding, core_transport, body, content_type

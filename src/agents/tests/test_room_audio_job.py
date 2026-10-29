@@ -155,7 +155,7 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
         )
         participant = SimpleNamespace(
             kind=rtc.ParticipantKind.PARTICIPANT_KIND_AGENT,
-            identity="multi-user-transcriber-room_legal",
+            identity="multi-user-transcriber-room_provider_legal",
         )
         livekit = self._livekit(participants=[participant])
         environment = {**self.environment, "ROOM_AUDIO_PIPELINE": "live"}
@@ -187,7 +187,7 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
     async def test_rejects_cross_room_and_missing_key(self):
         """Room mismatch and incomplete trust configuration both fail closed."""
         cases = (
-            (self.environment, self._effect(room_ref="room_other")),
+            (self.environment, self._effect(provider_room_sid="RM_roomother")),
             ({}, self._effect()),
         )
         for environment, effect in cases:
@@ -200,7 +200,7 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
 
     def _effect(self, **overrides):
         effect = {
-            "version": 1,
+            "version": 2,
             "type": "mastrao.core-meeting-room-audio-start-effect",
             "issuer": "tenant-core",
             "audience": "meeting-room-audio-worker",
@@ -214,6 +214,7 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
             "policy_digest": "a" * 64,
             "notice_digest": "b" * 64,
             "provider_binding_digest": "c" * 64,
+            "provider_room_sid": "RM_roomlegal",
             "retention_expires_at": self.now + 3_600,
             "pipeline": "post",
             "source_profile": POST_SOURCE_PROFILE,
@@ -237,7 +238,7 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
     @staticmethod
     def _request(metadata):
         return SimpleNamespace(
-            room=SimpleNamespace(name="room_legal"),
+            room=SimpleNamespace(name="room_provider_legal", sid="RM_roomlegal"),
             job=SimpleNamespace(metadata=metadata),
             accept=AsyncMock(),
             reject=AsyncMock(),

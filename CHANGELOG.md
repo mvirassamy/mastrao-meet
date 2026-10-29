@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Bind room-audio start admission to the signed LiveKit room SID
+  instead of comparing the provider room name with the Core business room ref.
+
 - 2026-10-29: Retry semantically identical room-audio effects with refreshed
   signed envelopes without creating duplicate worker dispatches.
 

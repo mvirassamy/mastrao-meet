@@ -110,7 +110,7 @@ def source_run(settings):
     )
     now = int(time.time())
     effect = {
-        "version": 1,
+        "version": 2,
         "type": "mastrao.core-meeting-room-audio-start-effect",
         "issuer": "tenant-core-test",
         "audience": "mastrao-meet-test",
@@ -124,6 +124,7 @@ def source_run(settings):
         "policy_digest": "c" * 64,
         "notice_digest": "d" * 64,
         "provider_binding_digest": binding.provider_binding_digest,
+        "provider_room_sid": "RM_roomaudio1234",
         "retention_expires_at": now + 3_600,
         "pipeline": "post",
         "source_profile": POST_SOURCE_PROFILE,

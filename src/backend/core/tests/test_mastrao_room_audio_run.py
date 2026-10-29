@@ -83,7 +83,7 @@ def binding():
 def _effect(binding, **changes):
     now = int(time.time())
     effect = {
-        "version": 1,
+        "version": 2,
         "type": "mastrao.core-meeting-room-audio-start-effect",
         "issuer": "tenant-core-test",
         "audience": "mastrao-meet-test",
@@ -97,6 +97,7 @@ def _effect(binding, **changes):
         "policy_digest": "c" * 64,
         "notice_digest": "d" * 64,
         "provider_binding_digest": binding.provider_binding_digest,
+        "provider_room_sid": "RM_roomaudio1234",
         "retention_expires_at": now + 3_600,
         "pipeline": "post",
         "source_profile": POST_SOURCE_PROFILE,
