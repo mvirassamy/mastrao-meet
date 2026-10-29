@@ -26,7 +26,7 @@ def _required_environment(name: str) -> str:
     return value
 
 
-def verify_room_audio_job(room_name: str, compact_effect: str) -> tuple[dict, str]:
+def verify_room_audio_job(room_sid: str, compact_effect: str) -> tuple[dict, str]:
     """Verify one dispatch metadata value and derive its exact identity."""
     verifier = RoomAudioStartVerifier(
         RoomAudioStartVerifierConfig(
@@ -34,7 +34,7 @@ def verify_room_audio_job(room_name: str, compact_effect: str) -> tuple[dict, st
             audience=_required_environment("ROOM_AUDIO_EFFECT_AUDIENCE"),
             key_id=_required_environment("ROOM_AUDIO_EFFECT_KEY_ID"),
             public_jwk=_required_environment("ROOM_AUDIO_EFFECT_PUBLIC_JWK"),
-            room_name=room_name,
+            room_sid=room_sid,
         )
     )
     effect = verifier.verify(compact_effect)
@@ -54,7 +54,7 @@ async def handle_room_audio_job_request(job_request: JobRequest) -> None:
     room_name = job_request.room.name
     try:
         effect, identity = verify_room_audio_job(
-            room_name,
+            job_request.room.sid,
             job_request.job.metadata,
         )
         async with api.LiveKitAPI() as livekit:

@@ -14,10 +14,12 @@ from room_audio_jws import (
 )
 
 JOSE_TYPE = "mastrao-meeting-room-audio-start-effect+jws"
+EFFECT_VERSION = 2
 MAX_EFFECT_LIFETIME_SECONDS = 30
 MAX_AUDIO_DURATION_SECONDS = 14_400
 MAX_EMPTY_ROOM_GRACE_SECONDS = 300
 REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
+PROVIDER_ROOM_SID = re.compile(r"^RM_[A-Za-z0-9]{1,96}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 FIELDS = {
     "version",
@@ -34,6 +36,7 @@ FIELDS = {
     "policy_digest",
     "notice_digest",
     "provider_binding_digest",
+    "provider_room_sid",
     "retention_expires_at",
     "pipeline",
     "source_profile",
@@ -69,7 +72,7 @@ class RoomAudioStartVerifierConfig:
     audience: str
     key_id: str
     public_jwk: str
-    room_name: str
+    room_sid: str
 
 
 class RoomAudioStartVerifier:
@@ -106,14 +109,16 @@ class RoomAudioStartVerifier:
         pipeline = effect["pipeline"]
         if (
             type(effect["version"]) is not int
-            or effect["version"] != 1
+            or effect["version"] != EFFECT_VERSION
             or effect["type"] != "mastrao.core-meeting-room-audio-start-effect"
             or type(effect["operation_version"]) is not int
             or effect["operation_version"] != 1
             or effect["operation"] != "start_meeting_room_audio_run"
             or effect["issuer"] != self._config.issuer
             or effect["audience"] != self._config.audience
-            or effect["room_ref"] != self._config.room_name
+            or effect["provider_room_sid"] != self._config.room_sid
+            or not isinstance(effect["provider_room_sid"], str)
+            or not PROVIDER_ROOM_SID.fullmatch(effect["provider_room_sid"])
             or pipeline not in {"post", "live"}
             or effect["source_profile"] != self._source_profile(pipeline)
             or type(maximum_duration) is not int
@@ -135,6 +140,7 @@ class RoomAudioStartVerifier:
             "organization_external_id",
             "meeting_ref",
             "room_ref",
+            "provider_room_sid",
             "audio_run_ref",
             "policy_ref",
             "jti",
