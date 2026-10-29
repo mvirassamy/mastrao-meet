@@ -124,7 +124,7 @@ def source_run(settings):
         "policy_digest": "c" * 64,
         "notice_digest": "d" * 64,
         "provider_binding_digest": binding.provider_binding_digest,
-        "provider_room_sid": "RM_roomaudio123",
+        "provider_room_sid": "RM_roomaudio1234",
         "retention_expires_at": now + 3_600,
         "pipeline": "post",
         "source_profile": POST_SOURCE_PROFILE,
