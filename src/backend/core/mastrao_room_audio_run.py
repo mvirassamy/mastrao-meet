@@ -4,6 +4,8 @@
 # pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
 
 import asyncio
+import hashlib
+import json
 import re
 from datetime import UTC, datetime, timedelta
 
@@ -72,6 +74,18 @@ ROOM_AUDIO_AGENT_NAMES = {
     "post": "room-audio-worker",
     "live": "room-audio-live-worker",
 }
+
+
+def _semantic_digest(effect):
+    """Hash the durable run binding, excluding the renewable JWS envelope."""
+    binding = {
+        name: value
+        for name, value in effect.items()
+        if name not in {"issuer", "audience", "issued_at", "expires_at", "jti"}
+    }
+    return hashlib.sha256(
+        json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def read_room_audio_run_effect(compact):
@@ -144,8 +158,22 @@ def persist_room_audio_run_effect(effect, compact):
         | Q(room_binding=binding, pipeline=effect["pipeline"])
     ).first()
     if existing is not None:
-        if existing.effect_digest != digest:
+        existing_effect = read_room_audio_run_effect(existing.compact_effect)
+        if _semantic_digest(existing_effect) != _semantic_digest(effect):
             raise RecordingContractRefused(status=409)
+        if existing.state == models.MastraoRoomAudioRunEffect.State.PENDING:
+            existing.effect_jti = effect["jti"]
+            existing.effect_digest = digest
+            existing.compact_effect = compact
+            existing.expires_at = datetime.fromtimestamp(effect["expires_at"], UTC)
+            existing.save(
+                update_fields=[
+                    "effect_jti",
+                    "effect_digest",
+                    "compact_effect",
+                    "expires_at",
+                ]
+            )
         return existing
     try:
         return models.MastraoRoomAudioRunEffect.objects.create(
@@ -193,6 +221,9 @@ def claim_room_audio_run_effect(row_id):
 
 async def _ensure_dispatch(room_name, compact_effect, pipeline):
     agent_name = ROOM_AUDIO_AGENT_NAMES[pipeline]
+    expected_semantic_digest = _semantic_digest(
+        read_room_audio_run_effect(compact_effect)
+    )
     client = utils.create_livekit_client()
     try:
         dispatches = list(
@@ -201,12 +232,19 @@ async def _ensure_dispatch(room_name, compact_effect, pipeline):
                 timeout=PROVIDER_TIMEOUT_SECONDS,
             )
         )
-        matching = [
-            dispatch
-            for dispatch in dispatches
-            if getattr(dispatch, "agent_name", None) == agent_name
-            and getattr(dispatch, "metadata", None) == compact_effect
-        ]
+        matching = []
+        for dispatch in dispatches:
+            if getattr(dispatch, "agent_name", None) != agent_name:
+                continue
+            metadata = getattr(dispatch, "metadata", None)
+            if not isinstance(metadata, str):
+                continue
+            try:
+                observed_digest = _semantic_digest(read_room_audio_run_effect(metadata))
+            except RecordingContractRefused:
+                continue
+            if observed_digest == expected_semantic_digest:
+                matching.append(dispatch)
         if len(matching) > 1:
             raise RecordingContractRefused(status=409)
         if matching:

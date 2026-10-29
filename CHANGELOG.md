@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-29: Retry semantically identical room-audio effects with refreshed
+  signed envelopes without creating duplicate worker dispatches.
+
 - 2026-10-28: Require msgpack 1.2.3 in the agents image to fix the
   high-severity CVE-2026-114613 deserialization memory leak.
 

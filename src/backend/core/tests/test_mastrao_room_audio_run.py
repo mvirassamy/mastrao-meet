@@ -196,19 +196,43 @@ def test_timeout_reconciles_existing_exact_dispatch(authority_key, binding):
         agent_name="room-audio-worker",
         metadata=compact,
     )
+    refreshed = _signed(
+        authority_key,
+        _effect(binding, jti="effect_audio_run_fixture_refreshed"),
+    )
     recovered = _livekit_client(dispatches=[existing])
     with patch(
         "core.mastrao_room_audio_run.utils.create_livekit_client",
         return_value=recovered,
     ):
-        response = _post(compact)
+        response = _post(refreshed)
 
     assert response.status_code == 200
     row.refresh_from_db()
     assert row.state == models.MastraoRoomAudioRunEffect.State.DELIVERED
     assert row.attempt_count == 2
     assert row.dispatch_id == "AD_reconciled"
+    assert row.compact_effect == refreshed
     recovered.agent_dispatch.create_dispatch.assert_not_awaited()
+    assert models.MastraoRoomAudioRunEffect.objects.count() == 1
+
+
+def test_refreshed_envelope_replays_the_same_delivered_run(authority_key, binding):
+    first = _signed(authority_key, _effect(binding))
+    second = _signed(
+        authority_key,
+        _effect(binding, jti="effect_audio_run_fixture_87654321"),
+    )
+    livekit = _livekit_client()
+
+    with patch(
+        "core.mastrao_room_audio_run.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        assert _post(first).status_code == 200
+        assert _post(second).status_code == 200
+
+    assert livekit.agent_dispatch.create_dispatch.await_count == 1
     assert models.MastraoRoomAudioRunEffect.objects.count() == 1
 
 
@@ -216,7 +240,11 @@ def test_conflicting_same_run_is_rejected(authority_key, binding):
     first = _signed(authority_key, _effect(binding))
     second = _signed(
         authority_key,
-        _effect(binding, jti="effect_audio_run_fixture_87654321"),
+        _effect(
+            binding,
+            maximum_duration_seconds=900,
+            jti="effect_audio_run_fixture_87654321",
+        ),
     )
     livekit = _livekit_client()
 
