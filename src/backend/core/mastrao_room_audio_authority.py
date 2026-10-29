@@ -4,6 +4,7 @@
 # pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
 
 import hashlib
+import json
 import re
 from datetime import UTC, datetime
 
@@ -58,10 +59,21 @@ FIELDS = {
 }
 
 
-def verify_room_audio_track_effect(compact):
-    """Verify one exact Core effect before it can enter the outbox."""
+def _semantic_digest(effect):
+    """Hash track authority while excluding its renewable JWS envelope."""
+    binding = {
+        name: value
+        for name, value in effect.items()
+        if name not in {"issuer", "audience", "issued_at", "expires_at", "jti"}
+    }
+    return hashlib.sha256(
+        json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def read_room_audio_track_effect(compact):
+    """Verify one Core effect without requiring current freshness."""
     effect = _verify(compact, JOSE_TYPE, FIELDS)
-    _validate_time(effect, maximum=30)
     if (
         type(effect["version"]) is not int
         or effect["version"] != 1
@@ -107,6 +119,13 @@ def verify_room_audio_track_effect(compact):
     return effect
 
 
+def verify_room_audio_track_effect(compact):
+    """Verify one fresh Core effect before it can enter the outbox."""
+    effect = read_room_audio_track_effect(compact)
+    _validate_time(effect, maximum=30)
+    return effect
+
+
 def room_audio_worker_identity(room_ref, pipeline):
     """Derive one opaque worker identity for a room and pipeline."""
     if pipeline not in {"post", "live"}:
@@ -142,8 +161,22 @@ def persist_room_audio_track_effect(effect, compact):
         )
     ).first()
     if existing is not None:
-        if existing.effect_digest != digest:
+        existing_effect = read_room_audio_track_effect(existing.compact_effect)
+        if _semantic_digest(existing_effect) != _semantic_digest(effect):
             raise RecordingContractRefused(status=409)
+        if existing.state == models.MastraoRoomAudioTrackEffect.State.PENDING:
+            existing.effect_jti = effect["jti"]
+            existing.effect_digest = digest
+            existing.compact_effect = compact
+            existing.expires_at = datetime.fromtimestamp(effect["expires_at"], UTC)
+            existing.save(
+                update_fields=[
+                    "effect_jti",
+                    "effect_digest",
+                    "compact_effect",
+                    "expires_at",
+                ]
+            )
         return existing
     try:
         return models.MastraoRoomAudioTrackEffect.objects.create(

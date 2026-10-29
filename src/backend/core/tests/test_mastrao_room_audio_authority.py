@@ -177,11 +177,36 @@ def test_delivery_failure_keeps_one_pending_effect_for_retry(authority_key, bind
     assert models.MastraoRoomAudioTrackEffect.objects.count() == 1
 
 
-def test_same_generation_with_different_effect_is_rejected(authority_key, binding):
+def test_refreshed_envelope_replays_the_same_delivered_authority(
+    authority_key, binding
+):
     first = _signed(authority_key, _effect(binding))
     second = _signed(
         authority_key,
         _effect(binding, jti="effect_audio_fixture_87654321"),
+    )
+    livekit = _livekit_client()
+
+    with patch(
+        "core.mastrao_room_audio_authority.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        assert _post(first).status_code == 200
+        assert _post(second).status_code == 200
+
+    assert livekit.room.send_data.await_count == 1
+    assert models.MastraoRoomAudioTrackEffect.objects.count() == 1
+
+
+def test_same_generation_with_conflicting_authority_is_rejected(authority_key, binding):
+    first = _signed(authority_key, _effect(binding))
+    second = _signed(
+        authority_key,
+        _effect(
+            binding,
+            authorization_digest="f" * 64,
+            jti="effect_audio_fixture_87654321",
+        ),
     )
     livekit = _livekit_client()
 
