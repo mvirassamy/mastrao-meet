@@ -19,6 +19,8 @@ from room_audio_runtime import RoomAudioRun
 AUTHORITY_TOPIC = "mastrao.room-audio.track-authority.v1"
 JOSE_TYPE = "mastrao-meeting-room-audio-track-effect+jws"
 MAX_EFFECT_LIFETIME_SECONDS = 30
+MAX_AUTHORIZATION_LIFETIME_SECONDS = 14_400
+CONTRACT_VERSION = 2
 REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 TRACK_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,200}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
@@ -44,6 +46,7 @@ FIELDS = {
     "media_token_binding_ref",
     "authorization_ref",
     "authorization_digest",
+    "authorization_expires_at",
     "issued_at",
     "expires_at",
     "jti",
@@ -124,7 +127,7 @@ class RoomAudioAuthority:
         expires_at = effect["expires_at"]
         generation = effect["authorization_generation"]
         if (
-            effect["version"] != 1
+            effect["version"] != CONTRACT_VERSION
             or effect["type"] != "mastrao.core-meeting-room-audio-track-effect"
             or effect["operation_version"] != 1
             or effect["operation"]
@@ -149,6 +152,11 @@ class RoomAudioAuthority:
             or not 1 <= expires_at - issued_at <= MAX_EFFECT_LIFETIME_SECONDS
             or type(effect["retention_expires_at"]) is not int
             or effect["retention_expires_at"] <= expires_at
+            or type(effect["authorization_expires_at"]) is not int
+            or effect["authorization_expires_at"] <= expires_at
+            or effect["authorization_expires_at"] > effect["retention_expires_at"]
+            or effect["authorization_expires_at"] - issued_at
+            > MAX_AUTHORIZATION_LIFETIME_SECONDS
         ):
             raise RoomAudioAuthorityRefused("authority binding refused")
         for name in (
@@ -186,7 +194,7 @@ class RoomAudioAuthority:
         if effect["operation"] == "admit_meeting_room_audio_track":
             self._runtime.admit_track(
                 effect["track_ref"],
-                expires_at_ms=effect["expires_at"] * 1_000,
+                expires_at_ms=effect["authorization_expires_at"] * 1_000,
                 **arguments,
             )
             return

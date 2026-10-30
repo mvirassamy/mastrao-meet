@@ -100,7 +100,7 @@ def binding():
 def _effect(binding, **changes):
     now = int(time.time())
     return {
-        "version": 1,
+        "version": 2,
         "type": "mastrao.core-meeting-room-audio-track-effect",
         "issuer": "tenant-core-test",
         "audience": "mastrao-meet-test",
@@ -121,6 +121,7 @@ def _effect(binding, **changes):
         "media_token_binding_ref": "media_token_binding_fixture_12345678",
         "authorization_ref": "authorization_audio_fixture_12345678",
         "authorization_digest": "e" * 64,
+        "authorization_expires_at": now + 1_800,
         "issued_at": now,
         "expires_at": now + 30,
         "jti": "effect_audio_fixture_12345678",

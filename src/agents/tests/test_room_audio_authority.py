@@ -66,7 +66,7 @@ class RoomAudioAuthorityTests(unittest.TestCase):
         self.runtime.admit_track.assert_called_once_with(
             "TR_legaltrack",
             generation=1,
-            expires_at_ms=(self.now + 20) * 1_000,
+            expires_at_ms=(self.now + 1_800) * 1_000,
             authorization_digest="d" * 64,
         )
         with self.assertRaises(RoomAudioAuthorityRefused):
@@ -116,6 +116,7 @@ class RoomAudioAuthorityTests(unittest.TestCase):
         cases = (
             self._effect(room_ref="room_other"),
             self._effect(expires_at=self.now),
+            self._effect(authorization_expires_at=self.now + 20),
         )
         for effect in cases:
             with self.subTest(effect=effect):
@@ -133,7 +134,7 @@ class RoomAudioAuthorityTests(unittest.TestCase):
 
     def _effect(self, **overrides):
         effect = {
-            "version": 1,
+            "version": 2,
             "type": "mastrao.core-meeting-room-audio-track-effect",
             "issuer": "tenant-core",
             "audience": "meeting-room-audio-worker",
@@ -154,6 +155,7 @@ class RoomAudioAuthorityTests(unittest.TestCase):
             "media_token_binding_ref": "media_binding_legal",
             "authorization_ref": "authorization_legal",
             "authorization_digest": "d" * 64,
+            "authorization_expires_at": self.now + 1_800,
             "issued_at": self.now,
             "expires_at": self.now + 20,
             "jti": "authority_admit_1",

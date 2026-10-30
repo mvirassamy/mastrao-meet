@@ -1,5 +1,8 @@
 # Changelog
 
+- Separate the 30-second signed transport envelope from the bounded
+  room-audio track authorization lifetime so long meetings do not turn silent.
+
 - Wait for the exact active room-audio worker before delivering track
   authority.
 
