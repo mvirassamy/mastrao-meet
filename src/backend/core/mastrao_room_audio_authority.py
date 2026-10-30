@@ -38,6 +38,8 @@ JOSE_TYPE = "mastrao-meeting-room-audio-track-effect+jws"
 TOPIC = "mastrao.room-audio.track-authority.v1"
 DESTINATION_READY_ATTEMPTS = 12
 DESTINATION_READY_INTERVAL_SECONDS = 0.25
+MAX_AUTHORIZATION_LIFETIME_SECONDS = 14_400
+CONTRACT_VERSION = 2
 FIELDS = {
     "version",
     "type",
@@ -60,6 +62,7 @@ FIELDS = {
     "media_token_binding_ref",
     "authorization_ref",
     "authorization_digest",
+    "authorization_expires_at",
     "issued_at",
     "expires_at",
     "jti",
@@ -84,7 +87,7 @@ def read_room_audio_track_effect(compact):
     effect = _verify(compact, JOSE_TYPE, FIELDS)
     if (
         type(effect["version"]) is not int
-        or effect["version"] != 1
+        or effect["version"] != CONTRACT_VERSION
         or effect["type"] != "mastrao.core-meeting-room-audio-track-effect"
         or type(effect["operation_version"]) is not int
         or effect["operation_version"] != 1
@@ -100,6 +103,11 @@ def read_room_audio_track_effect(compact):
         or effect["authorization_generation"] <= 0
         or type(effect["retention_expires_at"]) is not int
         or effect["retention_expires_at"] <= effect["expires_at"]
+        or type(effect["authorization_expires_at"]) is not int
+        or effect["authorization_expires_at"] <= effect["expires_at"]
+        or effect["authorization_expires_at"] > effect["retention_expires_at"]
+        or effect["authorization_expires_at"] - effect["issued_at"]
+        > MAX_AUTHORIZATION_LIFETIME_SECONDS
     ):
         raise RecordingContractRefused()
     for name in (
