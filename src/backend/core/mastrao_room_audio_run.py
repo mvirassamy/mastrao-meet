@@ -87,9 +87,10 @@ def _semantic_digest(effect):
         for name, value in effect.items()
         if name not in {"issuer", "audience", "issued_at", "expires_at", "jti"}
     }
-    return hashlib.sha256(
-        json.dumps(binding, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    canonical_binding = (
+        json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\n"
+    )
+    return hashlib.sha256(canonical_binding.encode()).hexdigest()
 
 
 def read_room_audio_run_effect(compact):

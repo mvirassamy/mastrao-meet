@@ -35,6 +35,22 @@ pytestmark = pytest.mark.django_db
 ENDPOINT = "/internal/mastrao/room-audio/runs/dispatch/"
 
 
+def test_semantic_digest_matches_tenant_core_canonical_json():
+    effect = {
+        "version": 2,
+        "operation": "start",
+        "issuer": "renewable-issuer",
+        "audience": "renewable-audience",
+        "issued_at": 10,
+        "expires_at": 20,
+        "jti": "renewable-jti",
+    }
+
+    assert _semantic_digest(effect) == (
+        "e8f37e9da0aa9a3b2d984232fa87b4b1fed9e989e564d53e57403a5cba44fa5f"
+    )
+
+
 def _b64(raw):
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
