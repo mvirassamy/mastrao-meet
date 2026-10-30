@@ -87,7 +87,12 @@ def _gateway_target():
     token = settings.MASTRAO_ROOM_AUDIO_ASR_GATEWAY_AUTH_TOKEN
     if parsed.scheme != "http":
         raise RecordingContractRefused(status=503)
-    if parsed.hostname not in {"127.0.0.1", "localhost", "::1", "asr-gateway"}:
+    if parsed.hostname not in {
+        "127.0.0.1",
+        "localhost",
+        "::1",
+        "asr-gateway-room-audio",
+    }:
         raise RecordingContractRefused(status=503)
     if parsed.path != GATEWAY_PATH:
         raise RecordingContractRefused(status=503)

@@ -1,5 +1,8 @@
 # Changelog
 
+- Route mixed room-audio transcription only through its dedicated ASR gateway,
+  keeping native and post-meeting gateway traffic isolated.
+
 - Deliver each verified mixed room-audio source through a durable, retriable
   post-meeting ASR outbox without inventing participant recording identities.
 
