@@ -70,7 +70,7 @@ def _context(dispatch_id="AD_room_audio_12345678"):
         ),
         room=SimpleNamespace(
             name="room_fixture_12345678",
-            sid="RM_providerfixture",
+            sid=AsyncMock(return_value="RM_providerfixture"),
         ),
         connect=AsyncMock(),
         add_shutdown_callback=Mock(),
@@ -329,6 +329,7 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
             "RM_providerfixture",
             "compact.start.effect",
         )
+        ctx.room.sid.assert_awaited_once_with()
         ctx.connect.assert_awaited_once_with(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
         session.start.assert_awaited_once_with()
         session.wait_closed.assert_awaited_once_with()

@@ -1,7 +1,7 @@
 # Changelog
 
-- 2026-10-30: Bind room-audio worker execution to the observed LiveKit room
-  SID instead of the provider room name.
+- 2026-10-30: Await the observed LiveKit room SID when binding room-audio
+  worker execution instead of passing the SDK coroutine.
 
 - 2026-10-30: Accept valid short LiveKit room SIDs in Room Audio start
   effects instead of applying the business-reference minimum length.
