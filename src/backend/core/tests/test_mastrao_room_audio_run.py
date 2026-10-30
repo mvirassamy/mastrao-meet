@@ -153,6 +153,24 @@ def test_start_is_persisted_then_dispatched(authority_key, binding):
     assert request.metadata == compact
 
 
+def test_start_accepts_a_short_livekit_room_sid(authority_key, binding):
+    compact = _signed(
+        authority_key,
+        _effect(binding, provider_room_sid="RM_123456789012"),
+    )
+    livekit = _livekit_client()
+
+    with patch(
+        "core.mastrao_room_audio_run.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        response = _post(compact)
+
+    assert response.status_code == 200
+    request = livekit.agent_dispatch.create_dispatch.await_args.args[0]
+    assert request.room == str(binding.room_id)
+
+
 def test_live_start_targets_the_live_worker(authority_key, binding):
     compact = _signed(
         authority_key,

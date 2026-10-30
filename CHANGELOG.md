@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Accept valid short LiveKit room SIDs in Room Audio start
+  effects instead of applying the business-reference minimum length.
+
 - 2026-10-30: Report the bounded processing stage when a Room Audio start
   effect is refused, without logging signed payloads or secret values.
 
