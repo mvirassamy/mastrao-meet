@@ -85,7 +85,10 @@ class DurableRoomAudioSourcePublisher:
                 async with session.post(
                     self._endpoint,
                     json=body,
-                    headers={"Authorization": f"Bearer {authorization}"},
+                    headers={
+                        "Authorization": f"Bearer {authorization}",
+                        "X-Forwarded-Proto": "https",
+                    },
                     allow_redirects=False,
                 ) as response:
                     raw = await response.content.read(MAX_RESPONSE_BYTES + 1)
