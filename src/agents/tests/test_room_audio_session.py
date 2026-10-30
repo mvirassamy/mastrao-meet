@@ -190,6 +190,29 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         runtime.aclose.assert_not_awaited()
         await session.aclose()
 
+    async def test_room_disconnect_finalizes_before_job_shutdown(self):
+        """A permanently closed provider room does not wait for empty grace."""
+        room = FakeRoom([_participant("human")])
+        runtime = self._runtime()
+        completion_handler = AsyncMock()
+        session = RoomAudioSession(
+            room=room,
+            effect=_effect(grace=300),
+            runtime=runtime,
+            authority=Mock(),
+            handlers=_handlers(completion_handler),
+        )
+
+        await session.start()
+        room.callbacks["disconnected"](rtc.DisconnectReason.ROOM_DELETED)
+        artifact = await asyncio.wait_for(session.wait_closed(), timeout=1)
+
+        self.assertIs(artifact, runtime.aclose.return_value)
+        runtime.aclose.assert_awaited_once_with()
+        completion = completion_handler.await_args.args[0]
+        self.assertEqual(completion.reason, "room-disconnected")
+        self.assertEqual(room.callbacks, {})
+
     async def test_refused_authority_leaves_track_pending(self):
         """A bad authority packet is ignored rather than crashing the run."""
         room = FakeRoom([_participant("human")])

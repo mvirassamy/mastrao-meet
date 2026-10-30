@@ -1,5 +1,8 @@
 # Changelog
 
+- Finalize room-audio artifacts immediately when LiveKit permanently closes
+  a room instead of waiting for an empty-room timer the job cannot outlive.
+
 - Preserve the post room-audio worker through room-empty grace, artifact
   upload and Core publication instead of ending it after ten seconds.
 

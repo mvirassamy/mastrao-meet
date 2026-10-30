@@ -270,6 +270,12 @@ class RoomAudioSession:
         if self._runtime.has_live_output:
             self._spawn(self._restart_live_after_reconnect())
 
+    def on_disconnected(self, _reason: rtc.DisconnectReason) -> None:
+        """Finalize immediately when LiveKit permanently closes the room."""
+        if self._closed.is_set():
+            return
+        self._spawn(self.aclose("room-disconnected"))
+
     def _register_callbacks(self) -> None:
         self._room.on("track_subscribed", self.on_track_subscribed)
         self._room.on("track_unsubscribed", self.on_track_unsubscribed)
@@ -280,6 +286,7 @@ class RoomAudioSession:
         self._room.on("data_received", self.on_data_received)
         self._room.on("participant_connected", self.on_participant_connected)
         self._room.on("participant_disconnected", self.on_participant_disconnected)
+        self._room.on("disconnected", self.on_disconnected)
         self._room.on("reconnecting", self.on_reconnecting)
         self._room.on("reconnected", self.on_reconnected)
 
@@ -295,6 +302,7 @@ class RoomAudioSession:
         self._room.off("data_received", self.on_data_received)
         self._room.off("participant_connected", self.on_participant_connected)
         self._room.off("participant_disconnected", self.on_participant_disconnected)
+        self._room.off("disconnected", self.on_disconnected)
         self._room.off("reconnecting", self.on_reconnecting)
         self._room.off("reconnected", self.on_reconnected)
 
