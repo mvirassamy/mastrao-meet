@@ -308,7 +308,7 @@ def test_post_and_live_runs_can_coexist_for_one_room(authority_key, binding):
     assert models.MastraoRoomAudioRunEffect.objects.count() == 2
 
 
-def test_cross_room_effect_is_rejected_before_provider(authority_key, binding):
+def test_cross_room_effect_is_rejected_before_provider(authority_key, binding, caplog):
     compact = _signed(
         authority_key,
         _effect(binding, provider_binding_digest="f" * 64),
@@ -322,6 +322,7 @@ def test_cross_room_effect_is_rejected_before_provider(authority_key, binding):
         response = _post(compact)
 
     assert response.status_code == 404
+    assert "Room audio run effect refused at stage=persistence" in caplog.text
     livekit.agent_dispatch.list_dispatch.assert_not_awaited()
     livekit.agent_dispatch.create_dispatch.assert_not_awaited()
     assert not models.MastraoRoomAudioRunEffect.objects.exists()

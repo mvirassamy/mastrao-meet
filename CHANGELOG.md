@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Report the bounded processing stage when a Room Audio start
+  effect is refused, without logging signed payloads or secret values.
+
 - 2026-10-30: Bind room-audio start admission to the signed LiveKit room SID
   instead of comparing the provider room name with the Core business room ref.
 
