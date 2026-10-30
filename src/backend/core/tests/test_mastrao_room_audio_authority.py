@@ -14,6 +14,7 @@ from django.test import Client
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from livekit.protocol.models import ParticipantInfo
 
 from core import models
 from core.factories import RoomFactory, UserFactory
@@ -127,10 +128,23 @@ def _effect(binding, **changes):
     }
 
 
-def _livekit_client(*, error=None):
+def _livekit_client(*, error=None, worker_active=True):
     send_data = AsyncMock(side_effect=error)
+    participants = []
+    if worker_active:
+        participants.append(
+            SimpleNamespace(
+                identity=room_audio_worker_identity("room_audio_fixture", "post"),
+                state=ParticipantInfo.ACTIVE,
+            )
+        )
     return SimpleNamespace(
-        room=SimpleNamespace(send_data=send_data),
+        room=SimpleNamespace(
+            list_participants=AsyncMock(
+                return_value=SimpleNamespace(participants=participants)
+            ),
+            send_data=send_data,
+        ),
         aclose=AsyncMock(),
     )
 
@@ -197,6 +211,25 @@ def test_delivery_failure_keeps_one_pending_effect_for_retry(authority_key, bind
     assert row.state == models.MastraoRoomAudioTrackEffect.State.DELIVERED
     assert row.attempt_count == 2
     assert models.MastraoRoomAudioTrackEffect.objects.count() == 1
+
+
+@patch("core.mastrao_room_audio_authority.asyncio.sleep", new_callable=AsyncMock)
+def test_delivery_waits_for_active_worker_before_sending(sleep, authority_key, binding):
+    compact = _signed(authority_key, _effect(binding))
+    livekit = _livekit_client(worker_active=False)
+
+    with patch(
+        "core.mastrao_room_audio_authority.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        response = _post(compact)
+
+    assert response.status_code == 503
+    assert livekit.room.list_participants.await_count == 12
+    assert sleep.await_count == 11
+    livekit.room.send_data.assert_not_awaited()
+    row = models.MastraoRoomAudioTrackEffect.objects.get()
+    assert row.state == models.MastraoRoomAudioTrackEffect.State.PENDING
 
 
 def test_refreshed_envelope_replays_the_same_delivered_authority(
