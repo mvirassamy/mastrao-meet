@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Await the LiveKit room SID property directly when binding
+  room-audio worker execution to the observed provider room.
+
 - 2026-10-30: Await the observed LiveKit room SID when binding room-audio
   worker execution instead of passing the SDK coroutine.
 
