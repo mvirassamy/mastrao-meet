@@ -282,7 +282,7 @@ async def entrypoint(ctx: JobContext) -> None:
     """Verify, capture, persist and publish one authorized room mix."""
     set_job_context(room=ctx.room.name, job_id=ctx.job.id)
     compact_effect = ctx.job.metadata
-    provider_room_sid = await ctx.room.sid
+    provider_room_sid = ctx.job.room.sid
     effect, _identity = verify_room_audio_job(provider_room_sid, compact_effect)
     config = RoomAudioWorkerConfig.from_environment()
     if effect["pipeline"] != config.pipeline:
