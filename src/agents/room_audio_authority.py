@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -15,6 +16,8 @@ from room_audio_jws import (
     RoomAudioJwsVerifier,
 )
 from room_audio_runtime import RoomAudioRun
+
+logger = logging.getLogger("room-audio-worker.authority")
 
 AUTHORITY_TOPIC = "mastrao.room-audio.track-authority.v1"
 JOSE_TYPE = "mastrao-meeting-room-audio-track-effect+jws"
@@ -112,6 +115,10 @@ class RoomAudioAuthority:
             raise RoomAudioAuthorityRefused("authority replayed")
         self._apply(effect)
         self._seen_jti.add(jti)
+        logger.info(
+            "Applied room-audio track authority operation=%s",
+            effect["operation"],
+        )
 
     def _verify(self, compact: str, *, observed_at: int | None) -> dict:
         try:

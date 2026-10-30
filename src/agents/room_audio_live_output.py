@@ -88,3 +88,15 @@ class RoomLiveTranscriptionOutput:
             raise ValueError("room live completion requires live pipeline")
         if completion.artifact is not None:
             raise ValueError("room live completion cannot contain an artifact")
+        logger.info(
+            "Completed room live transcription authorized_tracks=%d "
+            "pending_tracks=%d excluded_tracks=%d output_frames=%d "
+            "audio_bytes=%d dropped_frames=%d underrun_frames=%d",
+            completion.mixer.authorized_track_count,
+            completion.mixer.pending_track_count,
+            completion.mixer.excluded_track_count,
+            completion.mixer.output_frame_count,
+            completion.mixer.audio_bytes,
+            completion.mixer.dropped_frame_count,
+            completion.mixer.track_underrun_frame_count,
+        )

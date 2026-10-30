@@ -30,6 +30,18 @@ def _event(*, request_id="room-item-1", text="Bonjour la salle"):
     )
 
 
+def _mixer_snapshot():
+    return SimpleNamespace(
+        authorized_track_count=3,
+        pending_track_count=0,
+        excluded_track_count=0,
+        output_frame_count=500,
+        audio_bytes=480_000,
+        dropped_frame_count=0,
+        track_underrun_frame_count=4,
+    )
+
+
 class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
     """Keep one mixed room stream ordered, anonymous and content-safe."""
 
@@ -106,7 +118,11 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
             )
 
         await output.complete(
-            SimpleNamespace(effect={"pipeline": "live"}, artifact=None)
+            SimpleNamespace(
+                effect={"pipeline": "live"},
+                artifact=None,
+                mixer=_mixer_snapshot(),
+            )
         )
 
 

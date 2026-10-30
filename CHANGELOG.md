@@ -1,5 +1,9 @@
 # Changelog
 
+- Log only content-free room-audio authority acceptance and final mixer
+  counters so staging can prove authorization lifetime without exposing room,
+  participant, transcript or credential data.
+
 - Separate the 30-second signed transport envelope from the bounded
   room-audio track authorization lifetime so long meetings do not turn silent.
 
