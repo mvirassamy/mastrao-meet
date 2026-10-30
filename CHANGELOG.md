@@ -1,5 +1,8 @@
 # Changelog
 
+- Preserve the post room-audio worker through room-empty grace, artifact
+  upload and Core publication instead of ending it after ten seconds.
+
 - Log only content-free room-audio authority acceptance and final mixer
   counters so staging can prove authorization lifetime without exposing room,
   participant, transcript or credential data.

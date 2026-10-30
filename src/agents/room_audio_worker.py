@@ -39,6 +39,7 @@ from room_audio_start_authority import room_audio_worker_identity
 logger = logging.getLogger("room-audio-worker")
 
 ROOM_AUDIO_AGENT_NAME = "room-audio-worker"
+ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS = 360.0
 ROOM_AUDIO_WORKER_PERMISSIONS = WorkerPermissions(
     can_publish=False,
     can_subscribe=True,
@@ -309,14 +310,18 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.shutdown(f"room-audio-{effect['pipeline']}-completed")
 
 
+def create_worker_options(agent_name: str) -> WorkerOptions:
+    """Keep the job alive through the longest room grace and final upload."""
+    return WorkerOptions(
+        entrypoint_fnc=entrypoint,
+        request_fnc=handle_room_audio_job_request,
+        agent_name=agent_name,
+        permissions=ROOM_AUDIO_WORKER_PERMISSIONS,
+        shutdown_process_timeout=ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
+    )
+
+
 if __name__ == "__main__":
     configured_agent_name = _required_environment("ROOM_AUDIO_AGENT_NAME")
     configure_sentry(configured_agent_name)
-    cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            request_fnc=handle_room_audio_job_request,
-            agent_name=configured_agent_name,
-            permissions=ROOM_AUDIO_WORKER_PERMISSIONS,
-        )
-    )
+    cli.run_app(create_worker_options(configured_agent_name))

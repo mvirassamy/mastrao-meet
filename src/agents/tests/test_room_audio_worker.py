@@ -9,12 +9,14 @@ from livekit.agents import AutoSubscribe
 from room_audio_session import RoomAudioSessionHandlers
 from room_audio_worker import (
     ROOM_AUDIO_AGENT_NAME,
+    ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
     ROOM_AUDIO_WORKER_PERMISSIONS,
     RoomAudioPostConfig,
     RoomAudioWorkerConfig,
     create_live_room_audio_session,
     create_post_room_audio_session,
     create_room_audio_session,
+    create_worker_options,
     entrypoint,
 )
 
@@ -353,6 +355,16 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
         session.start.assert_awaited_once_with()
         session.wait_closed.assert_awaited_once_with()
         ctx.shutdown.assert_called_once_with("room-audio-post-completed")
+
+    def test_worker_shutdown_budget_covers_room_grace_and_finalization(self):
+        """LiveKit must not kill the process while post audio is being persisted."""
+        options = create_worker_options(ROOM_AUDIO_AGENT_NAME)
+
+        self.assertEqual(
+            options.shutdown_process_timeout,
+            ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
+        )
+        self.assertGreater(options.shutdown_process_timeout, 300)
 
 
 if __name__ == "__main__":
