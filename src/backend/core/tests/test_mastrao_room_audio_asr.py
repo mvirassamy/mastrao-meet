@@ -12,11 +12,36 @@ import pytest
 
 from core import models
 from core.mastrao_recording_contract import RecordingContractRefused
-from core.mastrao_room_audio_asr_client import upload_room_audio_asr_result
+from core.mastrao_room_audio_asr_client import (
+    _gateway_target,
+    upload_room_audio_asr_result,
+)
 from core.mastrao_room_audio_asr_worker import process_room_audio_asr_source
 from core.tests.test_mastrao_room_audio_source import _core_success, _post, source_run
 
 pytestmark = pytest.mark.django_db
+
+
+def test_room_audio_uses_its_dedicated_gateway(settings):
+    settings.MASTRAO_ROOM_AUDIO_ASR_GATEWAY_ENDPOINT = (
+        "http://asr-gateway-room-audio:8787/v1/room/transcribe"
+    )
+    settings.MASTRAO_ROOM_AUDIO_ASR_GATEWAY_AUTH_TOKEN = "t" * 32
+
+    assert _gateway_target() == (
+        "http://asr-gateway-room-audio:8787/v1/room/transcribe",
+        "t" * 32,
+    )
+
+
+def test_room_audio_refuses_the_native_gateway(settings):
+    settings.MASTRAO_ROOM_AUDIO_ASR_GATEWAY_ENDPOINT = (
+        "http://asr-gateway:8787/v1/room/transcribe"
+    )
+    settings.MASTRAO_ROOM_AUDIO_ASR_GATEWAY_AUTH_TOKEN = "t" * 32
+
+    with pytest.raises(RecordingContractRefused):
+        _gateway_target()
 
 
 @pytest.fixture
