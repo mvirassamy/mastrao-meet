@@ -6,6 +6,7 @@ from core.tasks.native_capture import (
     process_native_admissions,
     process_native_asr,
     process_native_sources,
+    process_room_audio_sources,
 )
 from core.tasks.subtitle import (
     process_subtitle_reconciliation,
@@ -19,6 +20,7 @@ __all__ = (
     "process_native_admissions",
     "process_native_asr",
     "process_native_sources",
+    "process_room_audio_sources",
     "process_subtitle_reconciliation",
     "process_subtitle_snapshot_publication",
     "process_mastrao_transcription",

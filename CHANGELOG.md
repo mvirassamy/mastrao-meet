@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Register the durable room-audio outbox delivery task during
+  Celery autodiscovery so queued source transfers reach Tenant Core.
+
 - 2026-10-30: Mark the bounded in-cluster room-audio callback as HTTPS at
   Django's trusted proxy boundary without following redirects.
 
