@@ -22,6 +22,7 @@ CALLBACK_HOSTS = {
     "::1",
     "host.docker.internal",
     "localhost",
+    "meet-api",
     "meet-backend",
 }
 MAX_RESPONSE_BYTES = 16_384
