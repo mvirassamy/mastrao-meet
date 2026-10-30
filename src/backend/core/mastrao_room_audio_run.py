@@ -123,7 +123,6 @@ def read_room_audio_run_effect(compact):
     for name in (
         "meeting_ref",
         "room_ref",
-        "provider_room_sid",
         "audio_run_ref",
         "policy_ref",
         "jti",
