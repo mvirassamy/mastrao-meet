@@ -1,5 +1,8 @@
 # Changelog
 
+- Upgrade `joserfc` to 1.7.7 to clear CVE-2026-119283 from the backend
+  candidate image.
+
 - Read each retained room-audio object from Meet private storage and verify its
   published size and SHA-256 before sending it under the Core-signed ASR grant.
 
