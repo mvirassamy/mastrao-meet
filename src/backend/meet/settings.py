@@ -1524,6 +1524,31 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_ROOM_AUDIO_SOURCE_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
+    ROOM_AUDIO_ASR_ENABLED = values.BooleanValue(
+        False,
+        environ_name="ROOM_AUDIO_ASR_ENABLED",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_ROOM_AUDIO_ASR_PREPARE_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_ROOM_AUDIO_ASR_PREPARE_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_CORE_ROOM_AUDIO_ASR_RESULT_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_ROOM_AUDIO_ASR_RESULT_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_ROOM_AUDIO_ASR_GATEWAY_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_ROOM_AUDIO_ASR_GATEWAY_ENDPOINT",
+        environ_prefix=None,
+    )
+    MASTRAO_ROOM_AUDIO_ASR_GATEWAY_AUTH_TOKEN = values.Value(
+        "",
+        environ_name="MASTRAO_ROOM_AUDIO_ASR_GATEWAY_AUTH_TOKEN",
+        environ_prefix=None,
+    )
     ROOM_SUBTITLE_PROVIDER = values.Value(
         "legacy",
         environ_name="ROOM_SUBTITLE_PROVIDER",

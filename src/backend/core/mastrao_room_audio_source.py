@@ -560,6 +560,12 @@ def deliver_room_audio_source(row, queued_claim=None, queued_attempts=None):
         raise
     if not _mark_delivered(claimed.pk, claim_id, source_id, replayed):
         raise RecordingContractRefused(status=409)
+    if settings.ROOM_AUDIO_ASR_ENABLED:
+        from core.mastrao_room_audio_asr_worker import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+            schedule_room_audio_asr,
+        )
+
+        transaction.on_commit(lambda: schedule_room_audio_asr(limit=1))
     return True
 
 

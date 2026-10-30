@@ -1,0 +1,193 @@
+"""Durable ASR delivery for a verified mixed room source."""
+
+# Fixtures are imported from the source-publication suite to preserve one setup.
+# pylint: disable=missing-function-docstring,redefined-outer-name,unused-import
+
+import base64
+import json
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
+
+from core import models
+from core.mastrao_recording_contract import RecordingContractRefused
+from core.mastrao_room_audio_asr_client import upload_room_audio_asr_result
+from core.mastrao_room_audio_asr_worker import process_room_audio_asr_source
+from core.tests.test_mastrao_room_audio_source import _core_success, _post, source_run
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def delivered_room_source(source_run, settings):
+    settings.ROOM_AUDIO_ASR_ENABLED = False
+    delivered = _core_success(body={"source_receipt": "unused"})
+    delivered.pop("compact")
+    with patch("core.mastrao_room_audio_source.post_core_json", return_value=delivered):
+        assert _post(source_run).status_code == 200
+    return models.MastraoRoomAudioSourceOutbox.objects.get()
+
+
+def test_room_mix_is_transcribed_and_acknowledged(
+    delivered_room_source,
+    settings,
+):
+    settings.ROOM_AUDIO_ASR_ENABLED = True
+    prepared = {
+        "source_id": str(delivered_room_source.source_id),
+        "metadata": {"attempt_ref": "room_asr_attempt_123", "fingerprint": "a" * 64},
+    }
+    receipt = {
+        "core": {"result_ref": "room_asr_result_123"},
+        "attempt_ref": "room_asr_attempt_123",
+        "fingerprint": "a" * 64,
+    }
+
+    with (
+        patch(
+            "core.mastrao_room_audio_asr_worker.prepare_room_audio_asr",
+            return_value=(prepared, b"ogg"),
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_worker.transcribe_room_audio",
+            return_value={"transcript": {}},
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_worker.upload_room_audio_asr_result",
+            return_value=receipt,
+        ),
+        patch("core.mastrao_room_audio_asr_worker.ack_room_audio_asr") as ack,
+    ):
+        assert process_room_audio_asr_source(delivered_room_source.pk) is True
+
+    delivered_room_source.refresh_from_db()
+    assert delivered_room_source.asr_acknowledged is True
+    assert delivered_room_source.asr_receipt == receipt
+    assert delivered_room_source.asr_error == ""
+    ack.assert_called_once_with(receipt)
+
+
+def test_room_mix_failure_keeps_source_for_retry(delivered_room_source, settings):
+    settings.ROOM_AUDIO_ASR_ENABLED = True
+    with patch(
+        "core.mastrao_room_audio_asr_worker.prepare_room_audio_asr",
+        side_effect=RecordingContractRefused(status=503),
+    ):
+        assert process_room_audio_asr_source(delivered_room_source.pk) is False
+
+    delivered_room_source.refresh_from_db()
+    assert delivered_room_source.asr_acknowledged is False
+    assert delivered_room_source.asr_claim is None
+    assert delivered_room_source.asr_error == "room_audio_asr_delivery_failed"
+
+
+def test_ack_failure_keeps_core_receipt_for_retry(delivered_room_source, settings):
+    settings.ROOM_AUDIO_ASR_ENABLED = True
+    prepared = {
+        "source_id": str(delivered_room_source.source_id),
+        "metadata": {"attempt_ref": "room_asr_attempt_123", "fingerprint": "a" * 64},
+    }
+    receipt = {
+        "core": {"result_ref": "room_asr_result_123"},
+        "attempt_ref": "room_asr_attempt_123",
+        "fingerprint": "a" * 64,
+    }
+
+    with (
+        patch(
+            "core.mastrao_room_audio_asr_worker.prepare_room_audio_asr",
+            return_value=(prepared, b"ogg"),
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_worker.transcribe_room_audio",
+            return_value={"transcript": {}},
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_worker.upload_room_audio_asr_result",
+            return_value=receipt,
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_worker.ack_room_audio_asr",
+            side_effect=RecordingContractRefused(status=503),
+        ),
+    ):
+        assert process_room_audio_asr_source(delivered_room_source.pk) is False
+
+    delivered_room_source.refresh_from_db()
+    assert delivered_room_source.asr_acknowledged is False
+    assert delivered_room_source.asr_receipt == receipt
+    assert delivered_room_source.asr_error == "room_audio_asr_delivery_failed"
+
+
+def test_result_upload_preserves_gateway_cost_and_provenance():
+    prepared = {
+        "source_id": "11111111-1111-4111-8111-111111111111",
+        "run_id": "22222222-2222-4222-8222-222222222222",
+        "metadata": {
+            "attempt_ref": "room_asr_attempt_123",
+            "fingerprint": "f" * 64,
+        },
+    }
+    result = {
+        "transcript": {
+            "audio_digest": "a" * 64,
+            "language": "fr",
+            "segments": [
+                {
+                    "segment_id": "segment_1",
+                    "start_ms": 0,
+                    "end_ms": 1_000,
+                    "text": "Bonjour depuis la salle.",
+                }
+            ],
+        },
+        "usage": {
+            "usage_audio_seconds": 90,
+            "estimated_cost_micros": 4_950,
+            "currency": "USD",
+            "tariff_version": "asr-tariff-v2",
+        },
+        "provenance": {
+            "grant_semantic_digest": "c" * 64,
+            "provider_egress_opened_at": 1_000,
+            "provider_completed_at": 1_001,
+        },
+    }
+    source = SimpleNamespace(
+        manifest={"organization_external_id": "organization_room_audio_fixture"}
+    )
+
+    def accept_result(**kwargs):
+        uploaded = json.loads(
+            base64.b64decode(kwargs["body"]["result_base64"], validate=True)
+        )
+        return {
+            "result_ref": uploaded["result_ref"],
+            "source_id": prepared["source_id"],
+            "coverage": "room_mix",
+            "speaker_attribution": "none",
+            "outcome": "verified",
+        }
+
+    with (
+        patch(
+            "core.mastrao_room_audio_asr_client._sign",
+            return_value="signed-room-audio-result",
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.post_core_json",
+            side_effect=accept_result,
+        ) as post_core,
+    ):
+        receipt = upload_room_audio_asr_result(source, prepared, result)
+
+    body = post_core.call_args.kwargs["body"]
+    artifact = json.loads(base64.b64decode(body["result_base64"], validate=True))
+    assert artifact["estimated_cost_micros"] == 4_950
+    assert artifact["grant_semantic_digest"] == "c" * 64
+    assert artifact["provider_egress_opened_at"] == 1_000
+    assert artifact["provider_completed_at"] == 1_001
+    assert receipt["attempt_ref"] == "room_asr_attempt_123"
+    assert receipt["fingerprint"] == "f" * 64
+    assert receipt["core"]["result_ref"] == artifact["result_ref"]

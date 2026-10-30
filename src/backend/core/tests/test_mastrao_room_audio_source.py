@@ -278,6 +278,30 @@ def test_source_is_signed_persisted_and_delivered_once(source_run):
     assert row.attempt_count == 1
 
 
+def test_delivered_source_schedules_room_asr(source_run, settings):
+    settings.ROOM_AUDIO_ASR_ENABLED = True
+    delivered = _core_success(body={"source_receipt": "unused"})
+    delivered.pop("compact")
+
+    with (
+        patch(
+            "core.mastrao_room_audio_source.post_core_json",
+            return_value=delivered,
+        ),
+        patch(
+            "core.mastrao_room_audio_source.transaction.on_commit",
+            side_effect=lambda callback: callback(),
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_worker.schedule_room_audio_asr",
+            return_value=1,
+        ) as schedule,
+    ):
+        assert _post(source_run).status_code == 200
+
+    schedule.assert_called_once_with(limit=1)
+
+
 def test_v1_manifest_remains_accepted_during_worker_rollout(source_run):
     manifest = _manifest(source_run)
     manifest["version"] = 1
