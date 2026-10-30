@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Distinguish topic, reliability, sender and size failures when
+  rejecting room-audio track authority transport.
+
 - 2026-10-30: Include the content-free refusal reason when a room-audio
   worker rejects signed track authority, without logging authority payloads.
 
