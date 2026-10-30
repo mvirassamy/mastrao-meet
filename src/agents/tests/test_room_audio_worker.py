@@ -68,7 +68,10 @@ def _context(dispatch_id="AD_room_audio_12345678"):
             dispatch_id=dispatch_id,
             metadata="compact.start.effect",
         ),
-        room=SimpleNamespace(name="room_fixture_12345678"),
+        room=SimpleNamespace(
+            name="room_fixture_12345678",
+            sid="RM_providerfixture",
+        ),
         connect=AsyncMock(),
         add_shutdown_callback=Mock(),
         shutdown=Mock(),
@@ -298,6 +301,9 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
     async def test_entrypoint_connects_audio_only_and_closes_the_job(self):
         """A completed session exits its dedicated LiveKit job cleanly."""
         ctx = _context()
+        verify_job = Mock(
+            return_value=(_effect(), "room-audio-worker-identity"),
+        )
         session = SimpleNamespace(
             start=AsyncMock(),
             wait_closed=AsyncMock(),
@@ -306,7 +312,7 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch(
                 "room_audio_worker.verify_room_audio_job",
-                return_value=(_effect(), "room-audio-worker-identity"),
+                verify_job,
             ),
             patch(
                 "room_audio_worker.RoomAudioWorkerConfig.from_environment",
@@ -319,6 +325,10 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
         ):
             await entrypoint(ctx)
 
+        verify_job.assert_called_once_with(
+            "RM_providerfixture",
+            "compact.start.effect",
+        )
         ctx.connect.assert_awaited_once_with(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
         session.start.assert_awaited_once_with()
         session.wait_closed.assert_awaited_once_with()
