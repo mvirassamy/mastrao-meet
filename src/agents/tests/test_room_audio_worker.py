@@ -61,6 +61,24 @@ def _config(pipeline="post"):
     )
 
 
+class AwaitableRoomSid:
+    """Model LiveKit's awaitable room SID property."""
+
+    def __init__(self, value: str):
+        """Store the provider SID and its await count."""
+        self.value = value
+        self.await_count = 0
+
+    def __await__(self):
+        """Resolve the provider SID like LiveKit's property."""
+
+        async def resolve():
+            self.await_count += 1
+            return self.value
+
+        return resolve().__await__()
+
+
 def _context(dispatch_id="AD_room_audio_12345678"):
     return SimpleNamespace(
         job=SimpleNamespace(
@@ -70,7 +88,7 @@ def _context(dispatch_id="AD_room_audio_12345678"):
         ),
         room=SimpleNamespace(
             name="room_fixture_12345678",
-            sid=AsyncMock(return_value="RM_providerfixture"),
+            sid=AwaitableRoomSid("RM_providerfixture"),
         ),
         connect=AsyncMock(),
         add_shutdown_callback=Mock(),
@@ -329,7 +347,7 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
             "RM_providerfixture",
             "compact.start.effect",
         )
-        ctx.room.sid.assert_awaited_once_with()
+        self.assertEqual(ctx.room.sid.await_count, 1)
         ctx.connect.assert_awaited_once_with(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
         session.start.assert_awaited_once_with()
         session.wait_closed.assert_awaited_once_with()
