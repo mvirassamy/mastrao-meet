@@ -1,5 +1,8 @@
 # Changelog
 
+- Deliver each verified mixed room-audio source through a durable, retriable
+  post-meeting ASR outbox without inventing participant recording identities.
+
 - Finalize room-audio artifacts immediately when LiveKit permanently closes
   a room instead of waiting for an empty-room timer the job cannot outlive.
 

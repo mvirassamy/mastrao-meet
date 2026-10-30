@@ -49,6 +49,20 @@ def process_room_audio_sources(source_id, queued_claim, queued_attempts):
     return deliver_room_audio_source(row, queued_claim, queued_attempts)
 
 
+@task(name="core.process_room_audio_asr", queue="mastrao-transcription")
+def process_room_audio_asr(source_id=None):
+    """Transcribe one exact delivered room-audio source."""
+
+    from core.mastrao_room_audio_asr_worker import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        process_room_audio_asr_source,
+        schedule_room_audio_asr,
+    )
+
+    if source_id is None:
+        return schedule_room_audio_asr(limit=1)
+    return process_room_audio_asr_source(source_id)
+
+
 @task(name="core.process_native_asr", queue="mastrao-native-asr-ready")
 def process_native_asr(capture_start_id=None, dispatch_ref=None):
     """Process the exact source named by its current dispatch reservation."""

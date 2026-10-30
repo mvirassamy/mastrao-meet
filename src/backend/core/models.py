@@ -913,6 +913,13 @@ class MastraoRoomAudioSourceOutbox(BaseModel):
     source_id = models.UUIDField(null=True, blank=True)
     replayed = models.BooleanField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
+    asr_acknowledged = models.BooleanField(default=False)
+    asr_attempts = models.PositiveIntegerField(default=0)
+    asr_next_at = models.DateTimeField(default=timezone.now)
+    asr_claim = models.UUIDField(null=True, blank=True)
+    asr_claim_until = models.DateTimeField(null=True, blank=True)
+    asr_receipt = models.JSONField(null=True, blank=True)
+    asr_error = models.CharField(max_length=64, blank=True, default="")
 
     class Meta:
         db_table = "meet_mastrao_room_audio_source_outbox"
@@ -955,12 +962,26 @@ class MastraoRoomAudioSourceOutbox(BaseModel):
                 ),
                 name="mastrao_audio_source_claim_shape",
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(asr_claim__isnull=True, asr_claim_until__isnull=True)
+                    | models.Q(
+                        asr_claim__isnull=False,
+                        asr_claim_until__isnull=False,
+                    )
+                ),
+                name="mastrao_room_audio_asr_claim_shape",
+            ),
         ]
         indexes = [
             models.Index(
                 fields=["state", "next_attempt_at"],
                 name="mastrao_audio_src_pending_idx",
-            )
+            ),
+            models.Index(
+                fields=["state", "asr_acknowledged", "asr_next_at"],
+                name="mastrao_room_asr_pending_idx",
+            ),
         ]
 
     def __str__(self):
