@@ -256,7 +256,7 @@ def dispatch_room_audio_track_effect(request):
         if not deliver_room_audio_track_effect(row):
             raise RecordingContractRefused(status=409)
         return _safe_response(
-            {"state": "delivered", "effect_digest": row.effect_digest}
+            {"state": "delivered", "effect_digest": _semantic_digest(effect)}
         )
     except RecordingContractRefused as error:
         return _safe_response(

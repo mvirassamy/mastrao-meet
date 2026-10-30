@@ -345,7 +345,7 @@ def dispatch_room_audio_run_effect(request):
         return _safe_response(
             {
                 "state": "delivered",
-                "effect_digest": row.effect_digest,
+                "effect_digest": _semantic_digest(effect),
                 "dispatch_id": row.dispatch_id,
             }
         )

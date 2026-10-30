@@ -1,5 +1,9 @@
 # Changelog
 
+- Fix room-audio dispatch receipts to return the stable semantic effect digest
+  expected by Tenant Core, allowing the coupled start and track transition to
+  complete after LiveKit accepts the worker run.
+
 - 2026-10-30: Renew expired room-audio source receipts locally before
   retrying their durable transfer to Tenant Core.
 

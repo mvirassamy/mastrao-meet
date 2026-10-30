@@ -24,6 +24,7 @@ from core.mastrao_room_audio_run import (
     LIVE_SOURCE_PROFILE,
     POST_SOURCE_PROFILE,
     _release_claim,
+    _semantic_digest,
     claim_room_audio_run_effect,
     persist_room_audio_run_effect,
     verify_room_audio_run_effect,
@@ -133,7 +134,8 @@ def _livekit_client(*, dispatches=(), dispatch_id="AD_room_audio", error=None):
 
 
 def test_start_is_persisted_then_dispatched(authority_key, binding):
-    compact = _signed(authority_key, _effect(binding))
+    effect = _effect(binding)
+    compact = _signed(authority_key, effect)
     livekit = _livekit_client()
 
     with patch(
@@ -143,6 +145,7 @@ def test_start_is_persisted_then_dispatched(authority_key, binding):
         response = _post(compact)
 
     assert response.status_code == 200
+    assert response.json()["effect_digest"] == _semantic_digest(effect)
     row = models.MastraoRoomAudioRunEffect.objects.get()
     assert row.state == models.MastraoRoomAudioRunEffect.State.DELIVERED
     assert row.attempt_count == 1

@@ -17,7 +17,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from core import models
 from core.factories import RoomFactory, UserFactory
-from core.mastrao_room_audio_authority import TOPIC, room_audio_worker_identity
+from core.mastrao_room_audio_authority import (
+    TOPIC,
+    _semantic_digest,
+    room_audio_worker_identity,
+)
 from core.mastrao_room_contract import _canonical_json
 
 pytestmark = pytest.mark.django_db
@@ -124,7 +128,8 @@ def _post(compact):
 
 
 def test_effect_is_persisted_then_delivered_to_exact_worker(authority_key, binding):
-    compact = _signed(authority_key, _effect(binding))
+    effect = _effect(binding)
+    compact = _signed(authority_key, effect)
     livekit = _livekit_client()
 
     with patch(
@@ -134,6 +139,7 @@ def test_effect_is_persisted_then_delivered_to_exact_worker(authority_key, bindi
         response = _post(compact)
 
     assert response.status_code == 200
+    assert response.json()["effect_digest"] == _semantic_digest(effect)
     row = models.MastraoRoomAudioTrackEffect.objects.get()
     assert row.state == models.MastraoRoomAudioTrackEffect.State.DELIVERED
     assert row.attempt_count == 1
