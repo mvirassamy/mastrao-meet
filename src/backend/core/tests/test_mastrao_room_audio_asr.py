@@ -49,12 +49,13 @@ def test_room_audio_refuses_the_native_gateway(settings):
 
 def _local_room_audio_prepare_fixture(audio=b"verified-room-audio"):
     audio_digest = hashlib.sha256(audio).hexdigest()
+    object_key = hashlib.sha256(b"room-audio-run-fixture").hexdigest()
     source_id = "11111111-1111-4111-8111-111111111111"
     source = SimpleNamespace(
         source_id=source_id,
         manifest={
             "organization_external_id": "organization_room_audio_fixture",
-            "object_ref": f"room-audio/v1/{audio_digest}.ogg",
+            "object_ref": f"room-audio/v1/{object_key}.ogg",
             "byte_size": len(audio),
             "checksum_digest": audio_digest,
         },
@@ -119,6 +120,30 @@ def test_prepare_refuses_changed_room_audio_bytes():
         pytest.raises(RecordingContractRefused),
     ):
         prepare_room_audio_asr(source)
+
+
+def test_prepare_refuses_room_audio_outside_the_private_namespace():
+    source, prepared, audio = _local_room_audio_prepare_fixture()
+    source.manifest["object_ref"] = "recordings/private-room-audio.ogg"
+
+    with (
+        patch(
+            "core.mastrao_room_audio_asr_client._sign",
+            return_value="signed-prepare-request",
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.post_core_json",
+            return_value=prepared,
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.default_storage.open",
+            return_value=io.BytesIO(audio),
+        ) as storage,
+        pytest.raises(RecordingContractRefused),
+    ):
+        prepare_room_audio_asr(source)
+
+    storage.assert_not_called()
 
 
 def test_prepare_refuses_missing_room_audio_object():

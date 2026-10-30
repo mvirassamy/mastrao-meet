@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+import re
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -24,6 +25,8 @@ RESULT_JOSE = "mastrao-room-audio-asr-result+jws"
 GATEWAY_PATH = "/v1/room/transcribe"
 MAX_AUDIO_BYTES = 16 * 1024**2
 MAX_REPLY_BYTES = 24 * 1024**2
+SHA256_DIGEST = re.compile(r"^[a-f0-9]{64}$")
+ROOM_AUDIO_OBJECT_REF = re.compile(r"^room-audio/v1/[a-f0-9]{64}\.ogg$")
 
 
 def _room_audio_object_identity(source, metadata):
@@ -31,9 +34,13 @@ def _room_audio_object_identity(source, metadata):
     object_ref = manifest.get("object_ref")
     byte_size = manifest.get("byte_size")
     checksum_digest = manifest.get("checksum_digest")
-    if not isinstance(checksum_digest, str) or len(checksum_digest) != 64:
+    if not isinstance(checksum_digest, str) or not SHA256_DIGEST.fullmatch(
+        checksum_digest
+    ):
         raise RecordingContractRefused(status=503)
-    if object_ref != f"room-audio/v1/{checksum_digest}.ogg":
+    if not isinstance(object_ref, str) or not ROOM_AUDIO_OBJECT_REF.fullmatch(
+        object_ref
+    ):
         raise RecordingContractRefused(status=503)
     if isinstance(byte_size, bool) or not isinstance(byte_size, int):
         raise RecordingContractRefused(status=503)

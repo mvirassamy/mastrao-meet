@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Fix room-audio ASR reads for opaque run-derived object keys while
+  preserving namespace, size, metadata and byte-digest verification.
+
 - Upgrade `joserfc` to 1.7.7 to clear CVE-2026-119283 from the backend
   candidate image.
 
