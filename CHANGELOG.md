@@ -1,5 +1,8 @@
 # Changelog
 
+- Read each retained room-audio object from Meet private storage and verify its
+  published size and SHA-256 before sending it under the Core-signed ASR grant.
+
 - Route mixed room-audio transcription only through its dedicated ASR gateway,
   keeping native and post-meeting gateway traffic isolated.
 

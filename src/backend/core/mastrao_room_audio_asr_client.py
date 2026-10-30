@@ -7,8 +7,10 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 
 import requests
+from botocore.exceptions import BotoCoreError, ClientError
 
 from core.mastrao_core_http import post_core_json, read_bounded_core_json
 from core.mastrao_native_asr_client import _read_native_gateway_response
@@ -22,6 +24,43 @@ RESULT_JOSE = "mastrao-room-audio-asr-result+jws"
 GATEWAY_PATH = "/v1/room/transcribe"
 MAX_AUDIO_BYTES = 16 * 1024**2
 MAX_REPLY_BYTES = 24 * 1024**2
+
+
+def _room_audio_object_identity(source, metadata):
+    manifest = source.manifest
+    object_ref = manifest.get("object_ref")
+    byte_size = manifest.get("byte_size")
+    checksum_digest = manifest.get("checksum_digest")
+    if not isinstance(checksum_digest, str) or len(checksum_digest) != 64:
+        raise RecordingContractRefused(status=503)
+    if object_ref != f"room-audio/v1/{checksum_digest}.ogg":
+        raise RecordingContractRefused(status=503)
+    if isinstance(byte_size, bool) or not isinstance(byte_size, int):
+        raise RecordingContractRefused(status=503)
+    if not 1 <= byte_size <= MAX_AUDIO_BYTES:
+        raise RecordingContractRefused(status=503)
+    if metadata.get("audio_sha256") != checksum_digest:
+        raise RecordingContractRefused(status=503)
+    return object_ref, byte_size, checksum_digest
+
+
+def _read_verified_room_audio(source, metadata):
+    """Read one Meet-owned room mix and prove its published byte identity."""
+    object_ref, byte_size, checksum_digest = _room_audio_object_identity(
+        source, metadata
+    )
+    try:
+        with default_storage.open(object_ref, "rb") as stored_audio:
+            audio = stored_audio.read(MAX_AUDIO_BYTES + 1)
+    except (OSError, BotoCoreError, ClientError) as error:
+        raise RecordingContractRefused(status=503) from error
+    if (
+        not isinstance(audio, bytes)
+        or len(audio) != byte_size
+        or hashlib.sha256(audio).hexdigest() != checksum_digest
+    ):
+        raise RecordingContractRefused(status=503)
+    return audio
 
 
 def prepare_room_audio_asr(source):
@@ -47,7 +86,6 @@ def prepare_room_audio_asr(source):
         "speaker_attribution",
         "metadata",
         "room_audio_source_egress_grant",
-        "audio_base64",
     }
     if set(prepared) != required:
         raise RecordingContractRefused(status=503)
@@ -65,19 +103,14 @@ def prepare_room_audio_asr(source):
         raise RecordingContractRefused(status=503)
     if not isinstance(prepared["room_audio_source_egress_grant"], str):
         raise RecordingContractRefused(status=503)
-    try:
-        audio = base64.b64decode(prepared["audio_base64"], validate=True)
-    except (ValueError, TypeError) as error:
-        raise RecordingContractRefused(status=503) from error
     metadata = prepared["metadata"]
     if (
-        not 1 <= len(audio) <= MAX_AUDIO_BYTES
-        or hashlib.sha256(audio).hexdigest() != metadata.get("audio_sha256")
-        or metadata.get("provider") != "mistral"
+        metadata.get("provider") != "mistral"
         or metadata.get("model") != "voxtral-mini-2602"
         or metadata.get("audio_codec") != "ogg"
     ):
         raise RecordingContractRefused(status=503)
+    audio = _read_verified_room_audio(source, metadata)
     return prepared, audio
 
 
