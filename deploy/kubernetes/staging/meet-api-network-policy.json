@@ -50,6 +50,22 @@
             "ports": [{"port": "8000", "protocol": "TCP"}]
           }
         ]
+      },
+      {
+        "fromEndpoints": [
+          {
+            "matchLabels": {
+              "k8s:app.kubernetes.io/component": "agent-room-audio",
+              "k8s:app.kubernetes.io/name": "room-audio-worker",
+              "k8s:io.kubernetes.pod.namespace": "mastrao-staging"
+            }
+          }
+        ],
+        "toPorts": [
+          {
+            "ports": [{"port": "8000", "protocol": "TCP"}]
+          }
+        ]
       }
     ],
     "egress": [

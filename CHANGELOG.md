@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Allow the in-cluster `meet-api` service as the durable
+  room-audio source callback host.
+
 - 2026-10-30: Bind room-audio verification to the provider SID carried by
   the LiveKit job request before connecting to the RTC room.
 

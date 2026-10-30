@@ -70,6 +70,37 @@ class StagingNetworkPolicyTests(unittest.TestCase):
             [{"ports": [{"port": "443", "protocol": "TCP"}]}],
         )
 
+    def test_allows_only_room_audio_worker_to_publish_on_meet_api(self):
+        room_audio_rules = [
+            rule
+            for rule in self.spec["ingress"]
+            if any(
+                endpoint.get("matchLabels", {}).get(
+                    "k8s:app.kubernetes.io/component"
+                )
+                == "agent-room-audio"
+                for endpoint in rule.get("fromEndpoints", [])
+            )
+        ]
+
+        self.assertEqual(len(room_audio_rules), 1)
+        self.assertEqual(
+            room_audio_rules[0]["fromEndpoints"],
+            [
+                {
+                    "matchLabels": {
+                        "k8s:app.kubernetes.io/component": "agent-room-audio",
+                        "k8s:app.kubernetes.io/name": "room-audio-worker",
+                        "k8s:io.kubernetes.pod.namespace": "mastrao-staging",
+                    }
+                }
+            ],
+        )
+        self.assertEqual(
+            room_audio_rules[0]["toPorts"],
+            [{"ports": [{"port": "8000", "protocol": "TCP"}]}],
+        )
+
     def test_routes_core_egress_through_the_bounded_relay(self):
         core_rules = [
             rule

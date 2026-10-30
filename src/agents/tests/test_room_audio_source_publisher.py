@@ -81,7 +81,7 @@ class DurableRoomAudioSourcePublisherTests(unittest.IsolatedAsyncioTestCase):
         self.manifest = _manifest()
         self.bundle = RoomAudioSourceBundle(manifest=self.manifest, gaps=())
         self.endpoint = (
-            "http://meet-backend/internal/mastrao/room-audio/sources/complete/"
+            "http://meet-api:8000/internal/mastrao/room-audio/sources/complete/"
         )
         self.publisher = DurableRoomAudioSourcePublisher(
             config=RoomAudioSourcePublisherConfig(
