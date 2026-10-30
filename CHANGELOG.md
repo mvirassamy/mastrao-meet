@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Mark the bounded in-cluster room-audio callback as HTTPS at
+  Django's trusted proxy boundary without following redirects.
+
 - 2026-10-30: Allow the in-cluster `meet-api` service as the durable
   room-audio source callback host.
 

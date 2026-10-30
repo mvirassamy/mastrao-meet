@@ -123,6 +123,7 @@ class DurableRoomAudioSourcePublisherTests(unittest.IsolatedAsyncioTestCase):
         assert claims.video.can_publish is False
         assert claims.video.can_publish_data is False
         assert claims.video.can_subscribe is False
+        assert kwargs["headers"]["X-Forwarded-Proto"] == "https"
         assert kwargs == {
             "json": {
                 "room_audio_start_effect": "signed.start.effect",
