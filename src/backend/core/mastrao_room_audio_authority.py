@@ -3,6 +3,7 @@
 # Generated protobuf members and strict effect checks are intentional here.
 # pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
 
+import asyncio
 import hashlib
 import json
 import re
@@ -17,7 +18,11 @@ from django.views.decorators.http import require_POST
 
 from asgiref.sync import async_to_sync
 from livekit import api
-from livekit.api import SendDataRequest  # pylint: disable=E0611
+from livekit.api import (  # pylint: disable=E0611
+    ListParticipantsRequest,
+    SendDataRequest,
+)
+from livekit.protocol.models import ParticipantInfo
 
 from core import models, utils
 from core.mastrao_recording_adapter import _read_effect, _safe_response
@@ -31,6 +36,8 @@ from core.mastrao_recording_contract import (
 
 JOSE_TYPE = "mastrao-meeting-room-audio-track-effect+jws"
 TOPIC = "mastrao.room-audio.track-authority.v1"
+DESTINATION_READY_ATTEMPTS = 12
+DESTINATION_READY_INTERVAL_SECONDS = 0.25
 FIELDS = {
     "version",
     "type",
@@ -200,9 +207,27 @@ def persist_room_audio_track_effect(effect, compact):
         raise RecordingContractRefused(status=409) from error
 
 
+async def _wait_for_destination(client, room_name, destination_identity):
+    """Wait until LiveKit reports the exact worker as active."""
+    for attempt in range(DESTINATION_READY_ATTEMPTS):
+        response = await client.room.list_participants(
+            ListParticipantsRequest(room=room_name)
+        )
+        if any(
+            participant.identity == destination_identity
+            and participant.state == ParticipantInfo.ACTIVE
+            for participant in response.participants
+        ):
+            return
+        if attempt + 1 < DESTINATION_READY_ATTEMPTS:
+            await asyncio.sleep(DESTINATION_READY_INTERVAL_SECONDS)
+    raise TimeoutError("room-audio worker is not active")
+
+
 async def _publish(room_name, compact_effect, destination_identity):
     client = utils.create_livekit_client()
     try:
+        await _wait_for_destination(client, room_name, destination_identity)
         await client.room.send_data(
             SendDataRequest(
                 room=room_name,

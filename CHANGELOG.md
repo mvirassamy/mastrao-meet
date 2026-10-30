@@ -1,5 +1,8 @@
 # Changelog
 
+- Wait for the exact active room-audio worker before delivering track
+  authority.
+
 - 2026-10-30: Distinguish topic, reliability, sender and size failures when
   rejecting room-audio track authority transport.
 
