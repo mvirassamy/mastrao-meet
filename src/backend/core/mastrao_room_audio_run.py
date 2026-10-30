@@ -6,6 +6,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 import re
 from datetime import UTC, datetime, timedelta
 
@@ -75,6 +76,8 @@ ROOM_AUDIO_AGENT_NAMES = {
     "post": "room-audio-worker",
     "live": "room-audio-live-worker",
 }
+
+logger = logging.getLogger(__name__)
 
 
 def _semantic_digest(effect):
@@ -330,10 +333,14 @@ def deliver_room_audio_run_effect(row):
 @require_POST
 def dispatch_room_audio_run_effect(request):
     """Accept a Core start effect only after persistence and reconciliation."""
+    stage = "request"
     try:
         compact = _read_effect(request, "room_audio_start_effect", lambda value: value)
+        stage = "verification"
         effect = verify_room_audio_run_effect(compact)
+        stage = "persistence"
         row = persist_room_audio_run_effect(effect, compact)
+        stage = "provider_delivery"
         deliver_room_audio_run_effect(row)
         row.refresh_from_db()
         return _safe_response(
@@ -344,6 +351,7 @@ def dispatch_room_audio_run_effect(request):
             }
         )
     except RecordingContractRefused as error:
+        logger.warning("Room audio run effect refused at stage=%s", stage)
         return _safe_response(
             {"error": "room_audio_run_effect_refused"}, status=error.status
         )
