@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Renew expired room-audio source receipts locally before
+  retrying their durable transfer to Tenant Core.
+
 - 2026-10-30: Register the durable room-audio outbox delivery task during
   Celery autodiscovery so queued source transfers reach Tenant Core.
 
