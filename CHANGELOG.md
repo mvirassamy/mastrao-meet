@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Bind room-audio verification to the provider SID carried by
+  the LiveKit job request before connecting to the RTC room.
+
 - 2026-10-30: Await the LiveKit room SID property directly when binding
   room-audio worker execution to the observed provider room.
 

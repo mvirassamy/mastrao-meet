@@ -85,6 +85,7 @@ def _context(dispatch_id="AD_room_audio_12345678"):
             id="AJ_room_audio_12345678",
             dispatch_id=dispatch_id,
             metadata="compact.start.effect",
+            room=SimpleNamespace(sid="RM_providerfixture"),
         ),
         room=SimpleNamespace(
             name="room_fixture_12345678",
@@ -347,7 +348,7 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
             "RM_providerfixture",
             "compact.start.effect",
         )
-        self.assertEqual(ctx.room.sid.await_count, 1)
+        self.assertEqual(ctx.room.sid.await_count, 0)
         ctx.connect.assert_awaited_once_with(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
         session.start.assert_awaited_once_with()
         session.wait_closed.assert_awaited_once_with()
