@@ -4,6 +4,8 @@
 # pylint: disable=missing-function-docstring,redefined-outer-name,unused-import
 
 import base64
+import hashlib
+import io
 import json
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -14,6 +16,7 @@ from core import models
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_room_audio_asr_client import (
     _gateway_target,
+    prepare_room_audio_asr,
     upload_room_audio_asr_result,
 )
 from core.mastrao_room_audio_asr_worker import process_room_audio_asr_source
@@ -42,6 +45,101 @@ def test_room_audio_refuses_the_native_gateway(settings):
 
     with pytest.raises(RecordingContractRefused):
         _gateway_target()
+
+
+def _local_room_audio_prepare_fixture(audio=b"verified-room-audio"):
+    audio_digest = hashlib.sha256(audio).hexdigest()
+    source_id = "11111111-1111-4111-8111-111111111111"
+    source = SimpleNamespace(
+        source_id=source_id,
+        manifest={
+            "organization_external_id": "organization_room_audio_fixture",
+            "object_ref": f"room-audio/v1/{audio_digest}.ogg",
+            "byte_size": len(audio),
+            "checksum_digest": audio_digest,
+        },
+    )
+    prepared = {
+        "version": 1,
+        "source_id": source_id,
+        "run_id": "22222222-2222-4222-8222-222222222222",
+        "coverage": "room_mix",
+        "speaker_attribution": "none",
+        "metadata": {
+            "audio_sha256": audio_digest,
+            "provider": "mistral",
+            "model": "voxtral-mini-2602",
+            "audio_codec": "ogg",
+        },
+        "room_audio_source_egress_grant": "signed-room-source-grant",
+    }
+    return source, prepared, audio
+
+
+def test_prepare_reads_and_verifies_the_meet_owned_room_audio_object():
+    source, prepared, audio = _local_room_audio_prepare_fixture()
+
+    with (
+        patch(
+            "core.mastrao_room_audio_asr_client._sign",
+            return_value="signed-prepare-request",
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.post_core_json",
+            return_value=prepared,
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.default_storage.open",
+            return_value=io.BytesIO(audio),
+        ) as storage,
+    ):
+        response, verified_audio = prepare_room_audio_asr(source)
+
+    assert response == prepared
+    assert verified_audio == audio
+    storage.assert_called_once_with(source.manifest["object_ref"], "rb")
+
+
+def test_prepare_refuses_changed_room_audio_bytes():
+    source, prepared, _audio = _local_room_audio_prepare_fixture()
+
+    with (
+        patch(
+            "core.mastrao_room_audio_asr_client._sign",
+            return_value="signed-prepare-request",
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.post_core_json",
+            return_value=prepared,
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.default_storage.open",
+            return_value=io.BytesIO(b"changed-room-audio"),
+        ),
+        pytest.raises(RecordingContractRefused),
+    ):
+        prepare_room_audio_asr(source)
+
+
+def test_prepare_refuses_missing_room_audio_object():
+    source, prepared, _audio = _local_room_audio_prepare_fixture()
+
+    with (
+        patch(
+            "core.mastrao_room_audio_asr_client._sign",
+            return_value="signed-prepare-request",
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.post_core_json",
+            return_value=prepared,
+        ),
+        patch(
+            "core.mastrao_room_audio_asr_client.default_storage.open",
+            side_effect=OSError("object unavailable"),
+        ),
+        pytest.raises(RecordingContractRefused),
+    ):
+        prepare_room_audio_asr(source)
 
 
 @pytest.fixture
