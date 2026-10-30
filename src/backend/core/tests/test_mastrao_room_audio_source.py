@@ -354,6 +354,35 @@ def test_explicit_expiry_refusal_remints_before_retry(source_run):
     assert row.attempt_count == 1
 
 
+def test_locally_expired_receipt_remints_before_network_call(source_run):
+    unavailable = RecordingContractRefused(status=503)
+    delivered = _core_success(body={"source_receipt": "unused"})
+    delivered.pop("compact")
+    observed = []
+
+    def core(**kwargs):
+        observed.append(kwargs["body"]["source_receipt"])
+        if len(observed) == 1:
+            raise unavailable
+        return delivered
+
+    with patch("core.mastrao_room_audio_source.post_core_json", side_effect=core):
+        assert _post(source_run).status_code == 503
+        row = models.MastraoRoomAudioSourceOutbox.objects.get()
+        original_receipt = row.compact_receipt
+        row.receipt_expires_at = timezone.now() - timedelta(seconds=1)
+        row.next_attempt_at = timezone.now()
+        row.save(update_fields=["receipt_expires_at", "next_attempt_at"])
+
+        assert _post(source_run).status_code == 200
+
+    assert observed == [
+        original_receipt,
+        models.MastraoRoomAudioSourceOutbox.objects.get().compact_receipt,
+    ]
+    assert observed[0] != observed[1]
+
+
 def test_transport_retains_only_validated_expiry_reason():
     response = type(
         "Response",

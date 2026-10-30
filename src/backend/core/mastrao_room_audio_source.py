@@ -540,6 +540,12 @@ def deliver_room_audio_source(row, queued_claim=None, queued_attempts=None):
     if not should_deliver:
         return claimed.state == models.MastraoRoomAudioSourceOutbox.State.DELIVERED
     claim_id = claimed.claim_id
+    if claimed.receipt_expires_at <= timezone.now():
+        claimed = _renew_expired_receipt(
+            claimed.pk,
+            claim_id,
+            claimed.compact_receipt,
+        )
     try:
         try:
             source_id, replayed = _send_source(claimed)
