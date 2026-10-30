@@ -237,8 +237,8 @@ class RoomAudioSession:
             return
         try:
             self._authority.consume(packet)
-        except RoomAudioAuthorityRefused:
-            logger.warning("Refused room-audio track authority")
+        except RoomAudioAuthorityRefused as error:
+            logger.warning("Refused room-audio track authority: %s", error)
 
     def on_participant_connected(self, participant: rtc.RemoteParticipant) -> None:
         """Cancel empty-room closure when a human joins."""

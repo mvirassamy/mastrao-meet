@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-30: Include the content-free refusal reason when a room-audio
+  worker rejects signed track authority, without logging authority payloads.
+
 - Fix room-audio dispatch receipts to return the stable semantic effect digest
   expected by Tenant Core, including its canonical trailing newline, allowing
   the coupled start and track transition to complete after LiveKit accepts the
