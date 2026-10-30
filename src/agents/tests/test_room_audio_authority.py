@@ -91,13 +91,23 @@ class RoomAudioAuthorityTests(unittest.TestCase):
     def test_refuses_non_server_or_lossy_transport(self):
         """Only reliable packets emitted by LiveKit server APIs are accepted."""
         compact = self._sign(self._effect())
-        for packet in (
-            self._packet(compact, kind=rtc.DataPacketKind.KIND_LOSSY),
-            self._packet(compact, participant=Mock()),
-            self._packet(compact, topic="wrong"),
-        ):
-            with self.subTest(packet=packet):
-                with self.assertRaises(RoomAudioAuthorityRefused):
+        cases = (
+            (
+                self._packet(compact, kind=rtc.DataPacketKind.KIND_LOSSY),
+                "authority transport is not reliable",
+            ),
+            (
+                self._packet(compact, participant=Mock()),
+                "authority is participant-originated",
+            ),
+            (
+                self._packet(compact, topic="wrong"),
+                "unexpected authority topic",
+            ),
+        )
+        for packet, refusal in cases:
+            with self.subTest(packet=packet, refusal=refusal):
+                with self.assertRaisesRegex(RoomAudioAuthorityRefused, refusal):
                     self.authority.consume(packet, observed_at=self.now)
         self.runtime.admit_track.assert_not_called()
 

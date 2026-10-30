@@ -91,13 +91,14 @@ class RoomAudioAuthority:
         self, packet: rtc.DataPacket, *, observed_at: int | None = None
     ) -> None:
         """Verify one LiveKit packet and apply its exact track transition."""
-        if (
-            packet.topic != AUTHORITY_TOPIC
-            or packet.kind != rtc.DataPacketKind.KIND_RELIABLE
-            or packet.participant is not None
-            or len(packet.data) > MAX_COMPACT_JWS_BYTES
-        ):
-            raise RoomAudioAuthorityRefused("invalid authority transport")
+        if packet.topic != AUTHORITY_TOPIC:
+            raise RoomAudioAuthorityRefused("unexpected authority topic")
+        if packet.kind != rtc.DataPacketKind.KIND_RELIABLE:
+            raise RoomAudioAuthorityRefused("authority transport is not reliable")
+        if packet.participant is not None:
+            raise RoomAudioAuthorityRefused("authority is participant-originated")
+        if len(packet.data) > MAX_COMPACT_JWS_BYTES:
+            raise RoomAudioAuthorityRefused("authority payload exceeds size bound")
         try:
             compact = packet.data.decode("ascii")
         except UnicodeDecodeError as error:
