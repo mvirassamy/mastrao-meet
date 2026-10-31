@@ -41,6 +41,7 @@ vi.mock('react-i18next', () => ({
         retry: 'Retry',
         refreshing: 'Refreshing',
         unknown: 'Unknown participant',
+        roomAudio: 'Meeting audio',
       })[key] ?? key,
   }),
 }))
@@ -176,6 +177,28 @@ describe('LiveTranscriptSidePanel', () => {
 
     expect(screen.getByText('Alice Martin')).toBeTruthy()
     expect(screen.queryByText('alice')).toBeNull()
+  })
+
+  it('labels the mixed room stream without claiming a human speaker', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      resyncStatus: 'idle',
+      segments: [
+        {
+          ...segment,
+          participantIdentity: 'unknown-participant',
+          trackSid: 'room-mix',
+        },
+      ],
+      syncSubtitleState,
+      resolveSpeaker,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Meeting audio')).toBeTruthy()
+    expect(screen.queryByText('Unknown participant')).toBeNull()
   })
 
   it('groups consecutive segments from the same microphone into one speaker turn', () => {

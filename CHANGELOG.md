@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-31: Label unattributed mixed room-audio transcript segments as
+  meeting audio instead of an unknown participant.
+
 - 2026-10-31: Fall back to selection-based clipboard copying when browser
   clipboard permissions block guest invitation sharing.
 
