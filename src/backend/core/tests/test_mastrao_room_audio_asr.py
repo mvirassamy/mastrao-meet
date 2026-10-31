@@ -326,12 +326,21 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
         manifest={"organization_external_id": "organization_room_audio_fixture"}
     )
 
+    historical_result_ref = "44444444-4444-4444-8444-444444444444"
+    accepted_result_count = 0
+
     def accept_result(**kwargs):
+        nonlocal accepted_result_count
         uploaded = json.loads(
             base64.b64decode(kwargs["body"]["result_base64"], validate=True)
         )
+        accepted_result_count += 1
         return {
-            "result_ref": uploaded["result_ref"],
+            "result_ref": (
+                uploaded["result_ref"]
+                if accepted_result_count == 1
+                else historical_result_ref
+            ),
             "source_id": prepared["source_id"],
             "coverage": "room_mix",
             "speaker_attribution": "none",
@@ -362,5 +371,7 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
     assert receipt["attempt_ref"] == "room_asr_attempt_123"
     assert receipt["fingerprint"] == "f" * 64
     assert receipt["core"]["result_ref"] == artifact["result_ref"]
-    assert retry_receipt == receipt
+    assert retry_receipt["core"]["result_ref"] == historical_result_ref
+    assert retry_receipt["attempt_ref"] == receipt["attempt_ref"]
+    assert retry_receipt["fingerprint"] == receipt["fingerprint"]
     assert retry_body == first_body

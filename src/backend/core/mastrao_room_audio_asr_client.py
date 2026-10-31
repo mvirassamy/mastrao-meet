@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 from urllib.parse import urlparse
-from uuid import NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -277,7 +277,11 @@ def upload_room_audio_asr_result(source, prepared, result):
         raise RecordingContractRefused(status=503)
     if receipt["source_id"] != prepared["source_id"]:
         raise RecordingContractRefused(status=503)
-    if receipt["result_ref"] != artifact["result_ref"]:
+    try:
+        UUID(receipt["result_ref"])
+    except (AttributeError, TypeError, ValueError) as error:
+        raise RecordingContractRefused(status=503) from error
+    if not isinstance(receipt["result_ref"], str):
         raise RecordingContractRefused(status=503)
     if receipt["coverage"] != "room_mix":
         raise RecordingContractRefused(status=503)
