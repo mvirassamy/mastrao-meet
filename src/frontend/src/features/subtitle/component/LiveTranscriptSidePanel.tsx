@@ -12,25 +12,9 @@ import type {
   LiveTranscriptionStatus,
 } from '../store/liveTranscriptionTypes'
 import { groupConsecutiveSpeakerSegments } from './liveTranscriptTurns'
+import { getLiveTranscriptSpeakerLabel } from './liveTranscriptSpeakerLabel'
 
 type EmptyTranscriptNotice = 'starting' | 'waiting' | 'stopped' | 'unavailable'
-const ROOM_MIX_TRACK_SID = 'room-mix'
-
-const transcriptSpeakerLabel = ({
-  segment,
-  participantLabel,
-  roomAudioLabel,
-  unknownParticipantLabel,
-}: {
-  segment: LiveTranscriptionSegment
-  participantLabel?: string
-  roomAudioLabel: string
-  unknownParticipantLabel: string
-}) => {
-  if (segment.trackSid === ROOM_MIX_TRACK_SID) return roomAudioLabel
-  if (participantLabel) return participantLabel
-  return unknownParticipantLabel
-}
 
 /** What to say while no one has been transcribed yet, in plain words. */
 const emptyTranscriptNotice = (
@@ -298,7 +282,7 @@ export const LiveTranscriptSidePanel = () => {
         {hasSegments &&
           speakerTurns.map((segment) => {
             const speaker = resolveSpeaker(segment.participantIdentity)
-            const speakerLabel = transcriptSpeakerLabel({
+            const speakerLabel = getLiveTranscriptSpeakerLabel({
               segment,
               participantLabel: speaker?.label,
               roomAudioLabel: t('roomAudio'),
