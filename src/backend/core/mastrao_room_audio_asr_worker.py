@@ -128,22 +128,23 @@ def process_room_audio_asr_source(source_id):
         return False
 
 
-def schedule_room_audio_asr(limit=20):
+def schedule_room_audio_asr(source_id=None, limit=20):
     """Enqueue eligible room sources without taking provider work inline."""
     if not settings.ROOM_AUDIO_ASR_ENABLED or not settings.CELERY_ENABLED:
         return 0
     now = timezone.now()
+    eligible = _eligible(now)
+    if source_id is not None:
+        eligible = eligible.filter(pk=source_id)
     source_ids = list(
-        _eligible(now)
-        .order_by("asr_next_at", "pk")
-        .values_list("pk", flat=True)[:limit]
+        eligible.order_by("asr_next_at", "pk").values_list("pk", flat=True)[:limit]
     )
     dispatched = 0
-    for source_id in source_ids:
+    for eligible_source_id in source_ids:
         try:
             current_app.send_task(
                 "core.process_room_audio_asr",
-                args=[str(source_id)],
+                args=[str(eligible_source_id)],
                 queue="mastrao-transcription",
             )
             dispatched += 1

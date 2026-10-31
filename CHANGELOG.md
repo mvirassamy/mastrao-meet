@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-31: Dispatch post-meeting ASR for the exact room-audio source just
+  delivered instead of waking an older backlog entry.
+
 - 2026-10-31: Label mixed room audio consistently in both transcript panels
   and overlaid captions.
 
