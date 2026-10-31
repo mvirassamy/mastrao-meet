@@ -180,6 +180,10 @@ describe('LiveTranscriptSidePanel', () => {
   })
 
   it('labels the mixed room stream without claiming a human speaker', () => {
+    resolveSpeaker.mockReturnValue({
+      identity: 'unknown-participant',
+      label: 'unknown-participant',
+    })
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
       connectionStatus: 'connected',

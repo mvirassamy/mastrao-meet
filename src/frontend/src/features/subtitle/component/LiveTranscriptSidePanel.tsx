@@ -27,8 +27,8 @@ const transcriptSpeakerLabel = ({
   roomAudioLabel: string
   unknownParticipantLabel: string
 }) => {
-  if (participantLabel) return participantLabel
   if (segment.trackSid === ROOM_MIX_TRACK_SID) return roomAudioLabel
+  if (participantLabel) return participantLabel
   return unknownParticipantLabel
 }
 
