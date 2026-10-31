@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 from urllib.parse import urlparse
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid5
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -194,7 +194,18 @@ def upload_room_audio_asr_result(source, prepared, result):
     artifact = {
         "version": 1,
         "type": "mastrao.room-mix-asr-result",
-        "result_ref": str(uuid4()),
+        "result_ref": str(
+            uuid5(
+                NAMESPACE_URL,
+                ":".join(
+                    (
+                        "mastrao-room-audio-asr-result-v1",
+                        prepared["source_id"],
+                        prepared["metadata"]["attempt_ref"],
+                    )
+                ),
+            )
+        ),
         "attempt_ref": prepared["metadata"]["attempt_ref"],
         "run_id": prepared["run_id"],
         "source_id": prepared["source_id"],
