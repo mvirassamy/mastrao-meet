@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-31: Keep post-meeting room-audio result uploads idempotent when a
+  successful Core response is lost and the worker retries the same attempt.
+
 - 2026-10-31: Dispatch post-meeting ASR for the exact room-audio source just
   delivered instead of waking an older backlog entry.
 

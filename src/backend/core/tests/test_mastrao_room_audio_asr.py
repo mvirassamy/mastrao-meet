@@ -349,9 +349,12 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
         ) as post_core,
     ):
         receipt = upload_room_audio_asr_result(source, prepared, result)
+        retry_receipt = upload_room_audio_asr_result(source, prepared, result)
 
     body = post_core.call_args.kwargs["body"]
     artifact = json.loads(base64.b64decode(body["result_base64"], validate=True))
+    first_body = post_core.call_args_list[0].kwargs["body"]
+    retry_body = post_core.call_args_list[1].kwargs["body"]
     assert artifact["estimated_cost_micros"] == 4_950
     assert artifact["grant_semantic_digest"] == "c" * 64
     assert artifact["provider_egress_opened_at"] == 1_000
@@ -359,3 +362,5 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
     assert receipt["attempt_ref"] == "room_asr_attempt_123"
     assert receipt["fingerprint"] == "f" * 64
     assert receipt["core"]["result_ref"] == artifact["result_ref"]
+    assert retry_receipt == receipt
+    assert retry_body == first_body
