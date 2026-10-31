@@ -544,6 +544,7 @@
       "interrupted": "Verbindung wird wiederhergestellt…"
     },
     "segmentsLabel": "Live-Transkriptsegmente",
+    "roomAudio": "Meeting-Audio",
     "interim": "Vorläufig",
     "final": "Final",
     "error": "Die Transkription ist vorübergehend nicht verfügbar.",

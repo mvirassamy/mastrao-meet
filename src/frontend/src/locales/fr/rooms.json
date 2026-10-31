@@ -544,6 +544,7 @@
       "interrupted": "Reconnexion…"
     },
     "segmentsLabel": "Segments de transcription en direct",
+    "roomAudio": "Audio de la réunion",
     "interim": "En cours",
     "final": "Définitif",
     "error": "La transcription est momentanément indisponible.",
