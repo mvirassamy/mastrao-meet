@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-31: Accept Core's verified historical room-audio result reference
+  when recovering a successful upload whose response was lost.
+
 - 2026-10-31: Keep post-meeting room-audio result uploads idempotent when a
   successful Core response is lost and the worker retries the same attempt.
 
