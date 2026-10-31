@@ -8,6 +8,7 @@ import { useRoomContext } from '@livekit/components-react'
 import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
 import type { Participant } from 'livekit-client'
 import { useSnapshot } from 'valtio'
+import { useTranslation } from 'react-i18next'
 import {
   accessibilityStore,
   CAPTION_TEXT_SIZE_OPTIONS,
@@ -20,6 +21,7 @@ import {
   DEFAULT_PARTICIPANT_COLOR,
   getParticipantColor,
 } from '@/features/rooms/utils/getParticipantColor'
+import { getLiveTranscriptSpeakerLabel } from './liveTranscriptSpeakerLabel'
 const FONT_SIZE_CONFIG: Record<
   CaptionTextSize,
   { fontSize: string; lineHeight: string }
@@ -36,6 +38,7 @@ const CAPTION_FONT_SIZES = Object.fromEntries(
 export interface TranscriptionRow {
   id: string
   participantIdentity: string
+  trackSid: string
   participant?: Participant
   segments: string[]
 }
@@ -43,9 +46,18 @@ export interface TranscriptionRow {
 const Transcription = ({ row }: { row: TranscriptionRow }) => {
   const { captionTextSize, captionFontColor, captionBackgroundColor } =
     useSnapshot(accessibilityStore)
-  const participantName = row.participant
-    ? getParticipantName(row.participant)
-    : row.participantIdentity
+  const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
+  const { t: tParticipants } = useTranslation('rooms', {
+    keyPrefix: 'participants',
+  })
+  const participantName = getLiveTranscriptSpeakerLabel({
+    segment: row,
+    participantLabel: row.participant
+      ? getParticipantName(row.participant)
+      : row.participantIdentity,
+    roomAudioLabel: t('roomAudio'),
+    unknownParticipantLabel: tParticipants('unknown'),
+  })
   const participantColor = row.participant
     ? getParticipantColor(row.participant)
     : DEFAULT_PARTICIPANT_COLOR
@@ -136,7 +148,8 @@ export const Subtitles = () => {
     for (const segment of transcriptionSegments) {
       const shouldStartNewRow =
         !currentRow ||
-        currentRow.participantIdentity !== segment.participantIdentity
+        currentRow.participantIdentity !== segment.participantIdentity ||
+        currentRow.trackSid !== segment.trackSid
 
       if (shouldStartNewRow) {
         const participant = getParticipantForTranscription(
@@ -146,6 +159,7 @@ export const Subtitles = () => {
         currentRow = {
           id: `${segment.participantIdentity}-${segment.sequence}`,
           participantIdentity: segment.participantIdentity,
+          trackSid: segment.trackSid,
           participant,
           segments: [segment.text],
         }

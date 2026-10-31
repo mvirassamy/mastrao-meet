@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-31: Label mixed room audio consistently in both transcript panels
+  and overlaid captions.
+
 - 2026-10-31: Keep the meeting-audio label authoritative when the mixed track
   also resolves to a technical participant identity.
 
