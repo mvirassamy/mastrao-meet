@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-31: Fall back to selection-based clipboard copying when browser
+  clipboard permissions block guest invitation sharing.
+
 - 2026-10-30: Fix room-audio ASR reads for opaque run-derived object keys while
   preserving namespace, size, metadata and byte-digest verification.
 
