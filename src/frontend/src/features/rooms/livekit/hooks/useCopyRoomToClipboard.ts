@@ -5,6 +5,7 @@ import { formatPinCode } from '@/features/rooms/utils/telephony'
 import type { ApiRoom } from '@/features/rooms/api/ApiRoom'
 import { reportError } from '@/features/analytics/telemetry'
 import { useRoomShareLink } from './useRoomShareLink'
+import { copyTextToClipboard } from '@/features/rooms/utils/copyTextToClipboard'
 
 const COPY_SUCCESS_TIMEOUT = 3000
 
@@ -59,7 +60,7 @@ export const useCopyRoomToClipboard = (room: ApiRoom | undefined) => {
   const copyRoomToClipboard = async () => {
     if (!content) return
     try {
-      await navigator.clipboard.writeText(content)
+      await copyTextToClipboard(content)
       setIsCopied(true)
     } catch (error) {
       reportError('clipboard_failure', error, {
@@ -71,7 +72,7 @@ export const useCopyRoomToClipboard = (room: ApiRoom | undefined) => {
   const copyRoomUrlToClipboard = async () => {
     if (!shareUrl) return
     try {
-      await navigator.clipboard.writeText(shareUrl)
+      await copyTextToClipboard(shareUrl)
       setIsRoomUrlCopied(true)
     } catch (error) {
       reportError('clipboard_failure', error, {
