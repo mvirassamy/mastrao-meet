@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-10-31: Keep the meeting-audio label authoritative when the mixed track
+  also resolves to a technical participant identity.
+
 - 2026-10-31: Label unattributed mixed room-audio transcript segments as
   meeting audio instead of an unknown participant.
 
