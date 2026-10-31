@@ -19,7 +19,10 @@ from core.mastrao_room_audio_asr_client import (
     prepare_room_audio_asr,
     upload_room_audio_asr_result,
 )
-from core.mastrao_room_audio_asr_worker import process_room_audio_asr_source
+from core.mastrao_room_audio_asr_worker import (
+    process_room_audio_asr_source,
+    schedule_room_audio_asr,
+)
 from core.tests.test_mastrao_room_audio_source import _core_success, _post, source_run
 
 pytestmark = pytest.mark.django_db
@@ -228,6 +231,23 @@ def test_room_mix_failure_keeps_source_for_retry(delivered_room_source, settings
     assert delivered_room_source.asr_acknowledged is False
     assert delivered_room_source.asr_claim is None
     assert delivered_room_source.asr_error == "room_audio_asr_delivery_failed"
+
+
+def test_room_asr_scheduler_dispatches_the_requested_source(
+    delivered_room_source,
+    settings,
+):
+    settings.ROOM_AUDIO_ASR_ENABLED = True
+    settings.CELERY_ENABLED = True
+
+    with patch("core.mastrao_room_audio_asr_worker.current_app.send_task") as send_task:
+        assert schedule_room_audio_asr(delivered_room_source.pk, limit=1) == 1
+
+    send_task.assert_called_once_with(
+        "core.process_room_audio_asr",
+        args=[str(delivered_room_source.pk)],
+        queue="mastrao-transcription",
+    )
 
 
 def test_ack_failure_keeps_core_receipt_for_retry(delivered_room_source, settings):

@@ -299,7 +299,8 @@ def test_delivered_source_schedules_room_asr(source_run, settings):
     ):
         assert _post(source_run).status_code == 200
 
-    schedule.assert_called_once_with(limit=1)
+    delivered_source = models.MastraoRoomAudioSourceOutbox.objects.get()
+    schedule.assert_called_once_with(source_id=delivered_source.pk, limit=1)
 
 
 def test_v1_manifest_remains_accepted_during_worker_rollout(source_run):

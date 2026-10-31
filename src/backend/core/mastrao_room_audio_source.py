@@ -565,7 +565,9 @@ def deliver_room_audio_source(row, queued_claim=None, queued_attempts=None):
             schedule_room_audio_asr,
         )
 
-        transaction.on_commit(lambda: schedule_room_audio_asr(limit=1))
+        transaction.on_commit(
+            lambda: schedule_room_audio_asr(source_id=claimed.pk, limit=1)
+        )
     return True
 
 
