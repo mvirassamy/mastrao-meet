@@ -5,11 +5,13 @@
 # pylint: disable=redefined-outer-name,too-many-arguments,too-many-positional-arguments
 # pylint: disable=unused-argument,unused-import
 
+import copy
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from io import StringIO
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 from django.core.management import call_command
 from django.db import DatabaseError, close_old_connections, connection
@@ -389,6 +391,38 @@ def test_claim_fences_stale_results_and_recovers_after_expiry(
     assert _finish(first, provider.jobs[0]) is False
     assert models.MastraoNativeCaptureStart.objects.get().drained_at is None
     assert _finish(second, provider.jobs[0]) is True
+
+
+def test_live_capture_is_claimed_before_older_expired_backlog(
+    client, signer, effect, provider
+):
+    assert _post(client, signer, effect).status_code == 200
+    expired = models.MastraoNativeCaptureStart.objects.get()
+    expired.retention_expires_at = timezone.now() - timedelta(minutes=1)
+    expired.next_check_at = timezone.now() - timedelta(days=1)
+    expired.save(update_fields=["retention_expires_at", "next_check_at", "updated_at"])
+
+    live_epoch = models.MastraoRtcTrackEpoch.objects.create(
+        connection=expired.epoch.connection,
+        track_sid=f"TR_{uuid4().hex}",
+    )
+    live = copy.copy(expired)
+    live.pk = uuid4()
+    live.epoch = live_epoch
+    live.capture_ref = uuid4()
+    live.effect_key = f"effect_native_{uuid4().hex}"
+    live.provider_job_ref = f"EG_{uuid4().hex}"
+    live.retention_expires_at = timezone.now() + timedelta(hours=1)
+    live.next_check_at = timezone.now() - timedelta(minutes=1)
+    live.drain_claim = None
+    live.drain_claim_until = None
+    live.save(force_insert=True)
+
+    claimed = _claim_next()
+
+    assert claimed.pk == live.pk
+    expired.refresh_from_db()
+    assert expired.drain_claim is None
 
 
 @pytest.mark.parametrize("native_only", [False, True])

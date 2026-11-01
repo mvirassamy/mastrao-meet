@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-01: Prioritize captures whose retention window is still valid so
+  expired backlog cannot starve fresh post-meeting transcription.
+
 - 2026-10-31: Accept Core's verified historical room-audio result reference
   when recovering a successful upload whose response was lost.
 
