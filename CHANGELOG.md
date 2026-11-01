@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-01: Emit content-free Mistral transport counters so staging can
+  distinguish provider-input continuity from stalled provider output.
+
 - 2026-11-01: Emit periodic content-free live mixer counters so staging can
   distinguish missing participant audio from downstream ASR failures.
 

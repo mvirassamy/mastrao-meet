@@ -60,6 +60,10 @@ def detached_stream(config: MistralRealtimeConfig) -> MistralRealtimeStream:
     stream._closed = False
     stream._sequence = 0
     stream._pending_text = ""
+    stream._sent_chunk_count = 0
+    stream._sent_byte_count = 0
+    stream._non_silent_chunk_count = 0
+    stream._provider_delta_count = 0
     return stream
 
 
@@ -233,6 +237,20 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
             [PROVIDER_CHUNK_BYTES, 960],
         )
         self.assertEqual(socket.sent[-1], {"type": "input_audio.end"})
+
+    def test_transport_health_is_content_free(self):
+        """Expose only counts while proving that provider input is non-silent."""
+        stream = detached_stream(self.config)
+        chunk = bytes([0, 1]) * (PROVIDER_CHUNK_BYTES // 2)
+
+        with self.assertLogs("room-audio-worker.mistral", level="INFO") as logs:
+            for _ in range(100):
+                stream._record_sent_chunk(chunk)
+
+        self.assertIn("sent_chunks=100", logs.output[0])
+        self.assertIn(f"sent_bytes={PROVIDER_CHUNK_BYTES * 100}", logs.output[0])
+        self.assertIn("non_silent_chunks=100", logs.output[0])
+        self.assertIn("provider_deltas=0 published_events=0", logs.output[0])
 
     async def test_unexpected_socket_close_is_an_error(self):
         """Surface a provider disconnect so the room receives a gap marker."""
