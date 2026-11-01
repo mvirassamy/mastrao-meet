@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-01: Retry eligible mixed room-audio ASR sources from the durable
+  native reconciler so a lost or disabled initial Celery dispatch cannot leave
+  post-meeting transcription stuck indefinitely.
+
 - 2026-11-01: Prioritize captures whose retention window is still valid so
   expired backlog cannot starve fresh post-meeting transcription.
 
