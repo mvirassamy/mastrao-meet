@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils import timezone
 
 from asgiref.sync import async_to_sync
@@ -99,11 +99,16 @@ def _stop_reason(intent, now):
 @transaction.atomic
 def _claim_next():
     now = timezone.now()
+    retention_priority = Case(
+        When(retention_expires_at__gt=now, then=Value(0)),
+        default=Value(1),
+        output_field=IntegerField(),
+    )
     intent = (
         models.MastraoNativeCaptureStart.objects.select_for_update(skip_locked=True)
         .filter(drained_at__isnull=True, next_check_at__lte=now)
         .filter(Q(drain_claim_until__isnull=True) | Q(drain_claim_until__lte=now))
-        .order_by("next_check_at", "pk")
+        .order_by(retention_priority, "next_check_at", "pk")
         .first()
     )
     if intent is None:
