@@ -212,6 +212,34 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(artifact)
         self.assertTrue(provider.closed)
 
+    def test_live_pipeline_logs_periodic_content_free_mixer_health(self):
+        """Live diagnosis exposes mixer counters without meeting content."""
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: FakeProvider(FakeSpeechStream()),
+                lambda: handle_event,
+                handle_failure,
+            ),
+        )
+        run._mixer.mix_next_frame()
+
+        with (
+            patch("room_audio_runtime.LIVE_METRICS_INTERVAL_FRAMES", 1),
+            self.assertLogs("room-audio-worker.runtime", level="INFO") as logs,
+        ):
+            run._log_live_metrics()
+
+        self.assertIn("output_frames=1", logs.output[0])
+        self.assertIn("authorized_tracks=0", logs.output[0])
+        self.assertIn("speaking_tracks=0", logs.output[0])
+
     async def test_start_opens_one_provider_and_close_returns_one_artifact(self):
         """Repeated start never creates a provider session per participant."""
         stream = FakeSpeechStream()
