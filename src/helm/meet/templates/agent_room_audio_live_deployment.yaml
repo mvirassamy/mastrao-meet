@@ -1,7 +1,4 @@
 {{- if .Values.agentRoomAudioLive.enabled }}
-{{- if gt (int .Values.agentSubtitles.replicas) 0 -}}
-{{- fail "agentRoomAudioLive requires agentSubtitles.replicas=0" -}}
-{{- end -}}
 {{- $settings := .Values.agentRoomAudioLive -}}
 {{- $envVars := include "meet.common.env" (list . $settings) -}}
 {{- $fullName := include "meet.agentRoomAudioLive.fullname" . -}}

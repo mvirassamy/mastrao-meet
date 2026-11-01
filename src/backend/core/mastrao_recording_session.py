@@ -27,25 +27,17 @@ from core.mastrao_recording_contract import (
     PURPOSE,
     SCOPE,
     STOP_REQUEST_TYPE,
+    TRANSCRIPTION_DECISION_TYPE,
+    TRANSCRIPTION_PURPOSE,
+    TRANSCRIPTION_SCOPE,
     RecordingContractRefused,
     compact_digest,
     sign_activation_assertion,
     sign_decision_assertion,
     sign_stop_request_assertion,
-)
-from core.mastrao_room_contract import DIGEST, OPAQUE_REFERENCE
-from core.mastrao_transcription_contract import (
-    DECISION_TYPE as TRANSCRIPTION_DECISION_TYPE,
-)
-from core.mastrao_transcription_contract import (
-    PURPOSE as TRANSCRIPTION_PURPOSE,
-)
-from core.mastrao_transcription_contract import (
-    SCOPE as TRANSCRIPTION_SCOPE,
-)
-from core.mastrao_transcription_contract import (
     sign_transcription_decision_assertion,
 )
+from core.mastrao_room_contract import DIGEST, OPAQUE_REFERENCE
 from core.mastrao_video_participant import bind_video_invitation
 from core.mastrao_video_roster import snapshot_video_roster
 
@@ -293,11 +285,11 @@ def recording_session_status(request, room):
         return None
     if not hasattr(room, "mastrao_binding"):
         return None
-    # Native preentry also needs the authoritative policy and technical binding.
+    # Room Audio always needs the authoritative policy and technical binding.
     # Reading/synchronizing it never enables the independently gated video Start.
     if not (
         settings.MASTRAO_MEETING_RECORDING_ENABLED
-        or settings.MASTRAO_NATIVE_PREENTRY_ENABLED
+        or settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
     ) and not (
         models.MastraoRecordingBinding.objects.filter(
             room_binding=room.mastrao_binding

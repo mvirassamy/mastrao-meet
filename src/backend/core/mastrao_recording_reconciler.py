@@ -12,10 +12,6 @@ from django.utils import timezone
 from livekit import api as livekit_api
 
 from core import models
-from core.mastrao_native_admission import reconcile_native_admissions
-from core.mastrao_native_asr_worker import schedule_native_asr
-from core.mastrao_native_capture_drain import reconcile_native_captures
-from core.mastrao_native_source_transfer import schedule_native_source_transfer
 from core.mastrao_recording_adapter import (
     _exact_provider_egress,
     fail_stale_starting_provider_egress,
@@ -26,9 +22,9 @@ from core.mastrao_recording_failure import (
     FAILURE_STATES,
     report_mastrao_recording_failure,
 )
+from core.mastrao_room_audio_admission import reconcile_room_audio_admissions
 from core.mastrao_room_audio_asr_worker import schedule_room_audio_asr
 from core.mastrao_room_audio_source import schedule_room_audio_source_delivery
-from core.mastrao_transcription_pipeline import reconcile_transcription_dispatches
 
 COMPLETION_STATES = {
     livekit_api.EgressStatus.EGRESS_COMPLETE,
@@ -96,15 +92,12 @@ def reconcile_mastrao_recording(binding):
     return adopted
 
 
-def reconcile_native_recordings(limit=20):
-    """Advance native audio without invoking or waiting for video finalization."""
+def reconcile_room_audio(limit=20):
+    """Advance the canonical room mix independently from video finalization."""
     return (
-        reconcile_native_captures(limit=limit)
-        + reconcile_native_admissions(limit=limit)
-        + schedule_native_source_transfer(limit=limit)
+        reconcile_room_audio_admissions(limit=limit)
         + schedule_room_audio_source_delivery(limit=limit)
         + schedule_room_audio_asr(limit=limit)
-        + schedule_native_asr(limit=limit)
     )
 
 
@@ -149,8 +142,4 @@ def reconcile_mastrao_recordings(limit=20):
             models.MastraoRecordingBinding.objects.filter(pk=binding.pk).update(
                 updated_at=timezone.now()
             )
-    return (
-        reconciled
-        + reconcile_transcription_dispatches(limit=limit)
-        + reconcile_native_recordings(limit=limit)
-    )
+    return reconciled + reconcile_room_audio(limit=limit)

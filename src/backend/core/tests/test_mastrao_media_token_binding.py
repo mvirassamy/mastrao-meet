@@ -272,6 +272,7 @@ def test_request_entry_http_returns_persisted_host_binding(host, client, wrong_s
         session[SESSION_NONCE_KEY] = "different-browser-nonce-" * 3
     session.save()
     with (
+        mock.patch("core.api.viewsets.recording_session_status", return_value=None),
         mock.patch("core.services.lobby.ensure_livekit_room"),
         mock.patch("core.utils.notify_participants") as notify,
     ):

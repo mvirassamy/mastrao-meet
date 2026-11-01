@@ -172,7 +172,7 @@ def test_prepare_refuses_missing_room_audio_object():
 
 @pytest.fixture
 def delivered_room_source(source_run, settings):
-    settings.ROOM_AUDIO_ASR_ENABLED = False
+    _ = settings
     delivered = _core_success(body={"source_receipt": "unused"})
     delivered.pop("compact")
     with patch("core.mastrao_room_audio_source.post_core_json", return_value=delivered):
@@ -180,11 +180,7 @@ def delivered_room_source(source_run, settings):
     return models.MastraoRoomAudioSourceOutbox.objects.get()
 
 
-def test_room_mix_is_transcribed_and_acknowledged(
-    delivered_room_source,
-    settings,
-):
-    settings.ROOM_AUDIO_ASR_ENABLED = True
+def test_room_mix_is_transcribed_and_acknowledged(delivered_room_source):
     prepared = {
         "source_id": str(delivered_room_source.source_id),
         "metadata": {"attempt_ref": "room_asr_attempt_123", "fingerprint": "a" * 64},
@@ -219,8 +215,7 @@ def test_room_mix_is_transcribed_and_acknowledged(
     ack.assert_called_once_with(receipt)
 
 
-def test_room_mix_failure_keeps_source_for_retry(delivered_room_source, settings):
-    settings.ROOM_AUDIO_ASR_ENABLED = True
+def test_room_mix_failure_keeps_source_for_retry(delivered_room_source):
     with patch(
         "core.mastrao_room_audio_asr_worker.prepare_room_audio_asr",
         side_effect=RecordingContractRefused(status=503),
@@ -237,7 +232,6 @@ def test_room_asr_scheduler_dispatches_the_requested_source(
     delivered_room_source,
     settings,
 ):
-    settings.ROOM_AUDIO_ASR_ENABLED = True
     settings.CELERY_ENABLED = True
 
     with patch("core.mastrao_room_audio_asr_worker.current_app.send_task") as send_task:
@@ -246,12 +240,11 @@ def test_room_asr_scheduler_dispatches_the_requested_source(
     send_task.assert_called_once_with(
         "core.process_room_audio_asr",
         args=[str(delivered_room_source.pk)],
-        queue="mastrao-transcription",
+        queue="mastrao-room-audio-processing",
     )
 
 
-def test_ack_failure_keeps_core_receipt_for_retry(delivered_room_source, settings):
-    settings.ROOM_AUDIO_ASR_ENABLED = True
+def test_ack_failure_keeps_core_receipt_for_retry(delivered_room_source):
     prepared = {
         "source_id": str(delivered_room_source.source_id),
         "metadata": {"attempt_ref": "room_asr_attempt_123", "fingerprint": "a" * 64},

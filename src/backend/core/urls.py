@@ -29,8 +29,6 @@ from core.mastrao_meeting_history import (
     meeting_history_detail,
     meeting_summary,
 )
-from core.mastrao_native_capture_adapter import start_native_capture
-from core.mastrao_native_capture_stop import stop_native_capture
 from core.mastrao_note_enrichment import personal_note_enrichment
 from core.mastrao_personal_notes import history_personal_note, room_personal_note
 from core.mastrao_recording_access import recording_access, recording_download
@@ -44,7 +42,6 @@ from core.mastrao_room_audio_run import dispatch_room_audio_run_effect
 from core.mastrao_room_audio_source import complete_room_audio_source
 from core.mastrao_room_close_adapter import close_mastrao_room
 from core.mastrao_speaker_evidence_adapter import capture_mastrao_speaker_evidence
-from core.mastrao_transcription_adapter import transcribe_mastrao_recording
 from core.mastrao_usage_budget import usage_budget
 from core.roomkit import viewsets as roomkit_viewsets
 
@@ -102,16 +99,6 @@ urlpatterns = [
         dispatch_room_audio_track_effect,
         name="dispatch_room_audio_track_effect",
     ),
-    path(
-        "internal/mastrao/captures/native/stop/",
-        stop_native_capture,
-        name="stop_native_capture",
-    ),
-    path(
-        "internal/mastrao/captures/native/start/",
-        start_native_capture,
-        name="start_native_capture",
-    ),
     path("recordings/access/", recording_access, name="mastrao_recording_access"),
     path(
         "recordings/download/current",
@@ -167,11 +154,6 @@ urlpatterns = [
         "internal/mastrao/recordings/stop/",
         stop_mastrao_recording,
         name="stop_mastrao_recording",
-    ),
-    path(
-        "internal/mastrao/transcriptions/transcribe/",
-        transcribe_mastrao_recording,
-        name="transcribe_mastrao_recording",
     ),
     path(
         "internal/mastrao/speaker-evidence/capture/",

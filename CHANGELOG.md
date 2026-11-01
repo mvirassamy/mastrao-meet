@@ -1,5 +1,13 @@
 # Changelog
 
+- 2026-11-01: Make Room Audio admission the only transcribed-meeting path,
+  remove the native pre-entry feature flag and legacy epoch admission fields,
+  and bind Meet to the explicit Room Audio Core endpoints.
+
+- 2026-11-01: Move durable Room Audio source delivery and ASR onto their own
+  processing task module and queue so the mixed-audio pipeline no longer
+  depends on the legacy native-capture worker.
+
 - 2026-11-01: Emit content-free Mistral transport counters so staging can
   distinguish provider-input continuity from stalled provider output.
 

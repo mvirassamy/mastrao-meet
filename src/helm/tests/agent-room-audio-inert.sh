@@ -77,12 +77,6 @@ expect_render_failure "$live_secret_error" \
   --set-string agentRoomAudio.envVars.MISTRAL_ASR_API_KEY=forbidden \
   -s "$post_template"
 
-legacy_error="agentRoomAudioLive requires agentSubtitles.replicas=0"
-expect_render_failure "$legacy_error" \
-  -f "$live_fixture" \
-  --set agentSubtitles.replicas=1 \
-  -s "$live_template"
-
 missing_error="agentRoomAudio.envVars.ROOM_AUDIO_EFFECT_ISSUER is required"
 expect_render_failure "$missing_error" \
   --set agentRoomAudio.enabled=true \

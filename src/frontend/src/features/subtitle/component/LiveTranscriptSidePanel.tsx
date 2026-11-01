@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Text } from '@/primitives'
+import { Text } from '@/primitives'
 import { Spinner } from '@/primitives/Spinner'
 import { css } from '@/styled-system/css'
 import { Avatar } from '@/components/Avatar'
 import { DEFAULT_PARTICIPANT_COLOR } from '@/features/rooms/utils/getParticipantColor'
 import { useLiveTranscription } from '../store/liveTranscriptionContext'
-import { useSubtitles } from '../hooks/useSubtitles'
 import type {
   LiveTranscriptionSegment,
   LiveTranscriptionStatus,
@@ -147,51 +145,12 @@ export const LiveTranscriptSidePanel = () => {
   const { t: tParticipants } = useTranslation('rooms', {
     keyPrefix: 'participants',
   })
-  const [isRetryingLocally, setIsRetryingLocally] = useState(false)
-  const [hasStartFailed, setHasStartFailed] = useState(false)
-  const { ensureSubtitlesStarted } = useSubtitles()
-  const {
-    status,
-    connectionStatus,
-    resyncStatus,
-    segments,
-    syncSubtitleState,
-    resolveSpeaker,
-  } = useLiveTranscription()
+  const { status, connectionStatus, segments, resolveSpeaker } =
+    useLiveTranscription()
 
-  const isRetrying = resyncStatus === 'pending' || isRetryingLocally
   const hasSegments = segments.length > 0
   const speakerTurns = groupConsecutiveSpeakerSegments(segments)
-  const hasFailed = hasStartFailed || resyncStatus === 'failed'
   const isInterrupted = connectionStatus !== 'connected'
-
-  useEffect(() => {
-    let isCurrent = true
-    ensureSubtitlesStarted().catch(() => {
-      if (isCurrent) setHasStartFailed(true)
-    })
-    return () => {
-      isCurrent = false
-    }
-  }, [ensureSubtitlesStarted])
-
-  const handleRetry = async () => {
-    if (isRetrying) return
-    setIsRetryingLocally(true)
-    try {
-      if (hasStartFailed) {
-        try {
-          await ensureSubtitlesStarted()
-          setHasStartFailed(false)
-        } catch {
-          return
-        }
-      }
-      await syncSubtitleState()
-    } finally {
-      setIsRetryingLocally(false)
-    }
-  }
 
   return (
     <div
@@ -209,48 +168,6 @@ export const LiveTranscriptSidePanel = () => {
       <span role="status" aria-live="polite" className={css({ srOnly: true })}>
         {t('statusLabel')}: {t(`status.${status}`)}
       </span>
-
-      {hasFailed && (
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.75rem',
-            margin: '0.75rem 1.25rem 0',
-            padding: '0.625rem 0.75rem',
-            borderRadius: '10px',
-            backgroundColor: 'danger.subtle',
-            color: 'danger.subtle-text',
-          })}
-          role="alert"
-        >
-          <Text as="span" variant="warning" margin={false}>
-            {t(hasStartFailed ? 'startError' : 'error')}
-          </Text>
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={() => void handleRetry()}
-            isDisabled={isRetrying}
-          >
-            {t('retry')}
-          </Button>
-        </div>
-      )}
-
-      {isRetrying && (
-        <Text
-          as="p"
-          variant="note"
-          margin={false}
-          padding={false}
-          className={css({ padding: '0.75rem 1.25rem 0' })}
-          role="status"
-        >
-          {t('refreshing')}
-        </Text>
-      )}
 
       <div
         className={css({

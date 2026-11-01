@@ -34,7 +34,7 @@ from core.mastrao_speaker_evidence_adapter import (
     _sidecar_digest,
 )
 from core.mastrao_speaker_evidence_contract import validate_artifact_receipt_claims
-from core.mastrao_transcription_artifact import _canonical_artifact, map_speakers
+from core.mastrao_speaker_mapping import canonical_transcript, map_speakers
 from core.models import RoomAccessLevel
 from core.utils import generate_token
 
@@ -464,7 +464,7 @@ def _single_voice_speaker(evidence):
         },
         evidence,
     )
-    artifact = _canonical_artifact("transcription_0123456789ab", mapped)
+    artifact = canonical_transcript("transcription_0123456789ab", mapped)
     return artifact["segments"][0]["speaker"]
 
 

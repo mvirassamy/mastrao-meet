@@ -95,17 +95,12 @@ jobs:
           version: v3.18.4
       - name: Verify immutable images and bounded GitOps migration rendering
         run: python src/helm/tests/meet-immutable-gitops.py
-      - name: Verify agent subtitles Helm rendering
-        run: src/helm/tests/agent-subtitles-image-and-openai-secret.sh
       - name: Verify inert room-audio worker rendering
         run: src/helm/tests/agent-room-audio-inert.sh
-      - name: Verify native ASR alert policy rendering without cluster access
-        run: python src/helm/tests/native-asr-alerts.py -v
       - name: Verify Mastrao recording routes and worker isolation
         run: |
           src/helm/tests/recording-rollout-handoff.sh
           src/helm/tests/recording-public-route.sh
-          src/helm/tests/mastrao-transcription-queue.sh
 
   build-mails:
     runs-on: ubuntu-latest

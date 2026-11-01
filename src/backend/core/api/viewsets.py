@@ -54,10 +54,6 @@ from core.mastrao_guest_handoff import decide_guest_admission
 from core.mastrao_host_contract import HostHandoffRefused
 from core.mastrao_host_grant import active_host_close_grant_for_room_ref
 from core.mastrao_meeting_close import request_meeting_close
-from core.mastrao_native_authorization import (
-    authorize_native_policy,
-    native_policy_required,
-)
 from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_recording_session import (
     activate_recording,
@@ -66,6 +62,10 @@ from core.mastrao_recording_session import (
     record_transcription_decision,
     recording_session_status,
     request_recording_stop,
+)
+from core.mastrao_room_audio_authorization import (
+    authorize_room_audio_policy,
+    room_audio_policy_required,
 )
 from core.mastrao_room_close_contract import RoomCloseRefused
 from core.mastrao_room_lifecycle import MastraoRoomClosed
@@ -125,12 +125,6 @@ from core.services.room_roles import (
     RoomRoleError,
     RoomRoleService,
 )
-from core.services.subtitle import (
-    SubtitleAlreadyActive,
-    SubtitleException,
-    SubtitleService,
-)
-from core.services.subtitle_control import get_subtitle_snapshot
 from core.tasks.connection_test import delete_connection_test_room
 from core.tasks.file import process_file_deletion
 from core.utils import generate_token
@@ -293,10 +287,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
 
         response = super().finalize_response(request, response, *args, **kwargs)
         action = getattr(self, "action", None)
-        if action == "subtitle_state" or (
-            settings.MASTRAO_NATIVE_PREENTRY_ENABLED
-            and action in ("retrieve", "request_entry")
-        ):
+        if action in ("subtitle_state", "retrieve", "request_entry"):
             response["Cache-Control"] = "private, no-store"
         if getattr(self, "action", None) == "mastrao_meeting_lifecycle":
             response["Cache-Control"] = "no-store"
@@ -588,7 +579,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
 
         try:
             recording_status = recording_session_status(request, room)
-            if native_policy_required(recording_status):
+            if room_audio_policy_required(recording_status):
                 participant, livekit = lobby_service.request_entry(
                     room=room,
                     request=request,
@@ -596,7 +587,7 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
                     **serializer.validated_data,
                 )
                 if participant.status == LobbyParticipantStatus.ACCEPTED:
-                    authorize_native_policy(request, room, recording_status)
+                    authorize_room_audio_policy(request, room, recording_status)
                     participant, livekit = lobby_service.request_entry(
                         room=room,
                         request=request,
@@ -994,80 +985,6 @@ class RoomViewSet(  # pylint: disable=too-many-public-methods
             return drf_response.Response({"error": str(e)}, status=e.status_code)
 
         return drf_response.Response(result, status=drf_status.HTTP_200_OK)
-
-    @decorators.action(
-        detail=True,
-        methods=["get"],
-        url_path="subtitle-state",
-        permission_classes=[permissions.CanViewSubtitleState],
-        authentication_classes=[LiveKitTokenAuthentication],
-    )
-    def subtitle_state(self, request, pk=None):  # pylint: disable=unused-argument
-        """Return the public room-scoped subtitle control snapshot."""
-
-        room = self.get_object()
-        return drf_response.Response(
-            {"subtitle": get_subtitle_snapshot(room)},
-            status=drf_status.HTTP_200_OK,
-        )
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
-        url_path="start-subtitle",
-        permission_classes=[
-            permissions.HasLiveKitRoomAccess,
-        ],
-        authentication_classes=[LiveKitTokenAuthentication],
-    )
-    @FeatureFlag.require("subtitle")
-    def start_subtitle(self, request, pk=None):  # pylint: disable=unused-argument
-        """Start realtime transcription for the room.
-
-        Requires valid LiveKit token for room authorization.
-        Anonymous users can start subtitles if they have room access tokens.
-        """
-
-        room = self.get_object()
-
-        try:
-            SubtitleService().start_subtitle(room)
-        except SubtitleAlreadyActive as error:
-            return drf_response.Response(
-                {"error": str(error)}, status=drf_status.HTTP_409_CONFLICT
-            )
-        except SubtitleException:
-            return drf_response.Response(
-                {"error": f"Subtitles failed to start for room {room.slug}"},
-                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        return drf_response.Response(
-            {"status": "success"}, status=drf_status.HTTP_200_OK
-        )
-
-    @decorators.action(
-        detail=True,
-        methods=["post"],
-        url_path="stop-subtitle",
-        permission_classes=[permissions.CanControlSubtitles],
-        authentication_classes=[LiveKitTokenAuthentication],
-    )
-    @FeatureFlag.require("subtitle")
-    def stop_subtitle(self, request, pk=None):  # pylint: disable=unused-argument
-        """Stop the room subtitle agent and persist the OFF intent."""
-
-        room = self.get_object()
-        try:
-            SubtitleService().stop_subtitle(room)
-        except SubtitleException:
-            return drf_response.Response(
-                {"error": f"Subtitles failed to stop for room {room.slug}"},
-                status=drf_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        return drf_response.Response(
-            {"status": "success"}, status=drf_status.HTTP_200_OK
-        )
 
     @decorators.action(
         detail=True,

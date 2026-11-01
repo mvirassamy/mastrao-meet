@@ -13,10 +13,10 @@ from django.core.files.storage import default_storage
 import requests
 from botocore.exceptions import BotoCoreError, ClientError
 
+from core.mastrao_asr_gateway_response import read_asr_gateway_response
 from core.mastrao_core_http import post_core_json, read_bounded_core_json
-from core.mastrao_native_asr_client import _read_native_gateway_response
-from core.mastrao_native_authorization import native_envelope
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
+from core.mastrao_room_audio_authorization import room_audio_envelope
 
 PREPARE_PATH = "/internal/v1/meetings/room-audio/asr/prepare"
 RESULT_PATH = "/internal/v1/meetings/room-audio/asr/result"
@@ -73,7 +73,7 @@ def _read_verified_room_audio(source, metadata):
 def prepare_room_audio_asr(source):
     """Request one Core-authorized room-mix source and verify its binding."""
     assertion = {
-        **native_envelope("mastrao.meet-room-audio-asr-prepare"),
+        **room_audio_envelope("mastrao.meet-room-audio-asr-prepare"),
         "organization_external_id": source.manifest["organization_external_id"],
         "source_id": str(source.source_id),
     }
@@ -168,7 +168,7 @@ def transcribe_room_audio(prepared, audio):
             allow_redirects=False,
             stream=True,
         )
-        result = _read_native_gateway_response(response)
+        result = read_asr_gateway_response(response)
     if result.get("outcome") != "succeeded" or not isinstance(
         result.get("transcript"), dict
     ):
@@ -247,7 +247,7 @@ def upload_room_audio_asr_result(source, prepared, result):
     ).encode("utf-8")
     digest = hashlib.sha256(raw).hexdigest()
     assertion = {
-        **native_envelope("mastrao.meet-room-audio-asr-result"),
+        **room_audio_envelope("mastrao.meet-room-audio-asr-result"),
         "organization_external_id": source.manifest["organization_external_id"],
         "source_id": prepared["source_id"],
         "attempt_ref": prepared["metadata"]["attempt_ref"],

@@ -49,7 +49,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["python", "multi_user_transcriber.py", "dev"]
+CMD ["python", "room_audio_worker.py", "dev"]
 
 
 # ---- Production image ----
@@ -69,7 +69,7 @@ RUN pip uninstall -y pip
 ARG DOCKER_USER
 USER ${DOCKER_USER}
 
-CMD ["python", "multi_user_transcriber.py", "start"]
+CMD ["python", "room_audio_worker.py", "start"]
 
 
 # ---- Metadata collector image ----

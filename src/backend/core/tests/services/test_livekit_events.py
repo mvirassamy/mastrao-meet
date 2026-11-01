@@ -10,7 +10,6 @@ from django.utils import timezone
 
 import pytest
 from livekit.api import EgressStatus
-from livekit.protocol.models import ParticipantInfo
 
 from core import models
 from core.factories import RecordingFactory, RoomFactory, UserFactory
@@ -29,7 +28,6 @@ from core.services.sip_management import (
     SIPException,
     SIPManagement,
 )
-from core.services.subtitle_reconciliation import subtitle_agent_identity
 from core.utils import NotificationError
 
 pytestmark = pytest.mark.django_db
@@ -155,23 +153,6 @@ def test_handle_egress_updated_non_handled(
     mock_update_metadata.assert_not_called()
 
 
-@mock.patch(
-    "core.services.livekit_events.models.MastraoNativeCaptureStart.objects.filter"
-)
-def test_handle_egress_updated_ignores_native_capture(mock_native_filter, service):
-    """Native capture updates are handled by the native drain pipeline."""
-
-    mock_native_filter.return_value.exists.return_value = True
-    service.recording_events.handle_update = mock.Mock()
-    mock_data = mock.MagicMock()
-    mock_data.egress_info.egress_id = "EG_native"
-
-    service._handle_egress_updated(mock_data)
-
-    mock_native_filter.assert_called_once_with(provider_job_ref="EG_native")
-    service.recording_events.handle_update.assert_not_called()
-
-
 def test_handle_egress_updated_unknown_recording_fails(service):
     """Unknown egress updates still fail so LiveKit can retry races."""
 
@@ -267,28 +248,6 @@ def test_handle_egress_ended_recording_not_found(
 
     recording.refresh_from_db()
     assert recording.status == "active"
-
-
-@mock.patch("core.utils.notify_participants")
-@mock.patch("core.services.room_management.RoomManagement.update_metadata")
-@mock.patch(
-    "core.services.livekit_events.models.MastraoNativeCaptureStart.objects.filter"
-)
-def test_handle_egress_ended_ignores_native_capture(
-    mock_native_filter, mock_update_metadata, mock_notify, service
-):
-    """Native capture end events are handled by the native drain pipeline."""
-
-    mock_native_filter.return_value.exists.return_value = True
-    mock_data = mock.MagicMock()
-    mock_data.egress_info.egress_id = "EG_native"
-    mock_data.egress_info.status = EgressStatus.EGRESS_COMPLETE
-
-    service._handle_egress_ended(mock_data)
-
-    mock_native_filter.assert_called_once_with(provider_job_ref="EG_native")
-    mock_notify.assert_not_called()
-    mock_update_metadata.assert_not_called()
 
 
 @mock.patch("core.utils.notify_participants")
@@ -547,51 +506,6 @@ def test_handle_room_finished_clears_cache_and_deletes_dispatch_rule(
 
     mock_delete_dispatch_rule.assert_called_once_with(mock_room_name)
     mock_clear_cache.assert_called_once_with(mock_room_name)
-
-
-@mock.patch("core.services.livekit_events.schedule_subtitle_reconciliation")
-@mock.patch("core.services.livekit_events.observe_subtitle_agent")
-def test_handle_subtitle_agent_join_and_leave(mock_observe, mock_schedule, service):
-    """Route verified agent presence events to the durable subtitle observer."""
-
-    mock_observe.return_value = mock.Mock(room_sid="RM_event")
-    mock_data = mock.MagicMock()
-    mock_data.room.sid = "RM_event"
-    mock_data.room.name = str(uuid.uuid4())
-    mock_data.participant.kind = ParticipantInfo.AGENT
-    mock_data.participant.identity = subtitle_agent_identity(mock_data.room.name)
-
-    service._handle_participant_joined(mock_data)
-    service._handle_participant_left(mock_data)
-
-    assert mock_observe.call_args_list == [
-        mock.call(
-            "RM_event",
-            participant_identity=mock_data.participant.identity,
-            present=True,
-        ),
-        mock.call(
-            "RM_event",
-            participant_identity=mock_data.participant.identity,
-            present=False,
-        ),
-    ]
-    mock_schedule.assert_called_once_with("RM_event")
-
-
-@mock.patch("core.services.livekit_events.observe_subtitle_agent")
-def test_metadata_collector_agent_is_not_subtitle_agent(mock_observe, service):
-    """A different LiveKit agent identity cannot mutate subtitle state."""
-
-    mock_data = mock.MagicMock()
-    mock_data.room.sid = "RM_event"
-    mock_data.room.name = str(uuid.uuid4())
-    mock_data.participant.kind = ParticipantInfo.AGENT
-    mock_data.participant.identity = "metadata-collector"
-
-    service._handle_participant_joined(mock_data)
-
-    mock_observe.assert_not_called()
 
 
 @mock.patch.object(LobbyService, "clear_room_cache")

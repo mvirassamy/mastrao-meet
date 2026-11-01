@@ -9,7 +9,7 @@ import time
 from livekit import rtc
 from livekit.agents import stt
 
-from live_transcriber import SpeechEventOutput, TranscriptionPublisher
+from live_transcription_publisher import SpeechEventOutput, TranscriptionPublisher
 from room_audio_session import RoomAudioCompletion
 
 logger = logging.getLogger("room-audio-worker.live-output")

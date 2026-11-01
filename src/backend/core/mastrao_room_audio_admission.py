@@ -11,7 +11,7 @@ same epoch. Core owns idempotence. The recording reconciler recovers broker loss
 import logging
 import unicodedata
 from datetime import timedelta
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from django.conf import settings
 from django.db import transaction
@@ -22,21 +22,19 @@ from livekit import api
 
 from core import models
 from core.mastrao_core_http import post_core_json
-from core.mastrao_native_authorization import native_envelope
-from core.mastrao_native_capture_adapter import _assert_epoch_authority
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
+from core.mastrao_room_audio_authorization import room_audio_envelope
+from core.mastrao_room_contract import OPAQUE_REFERENCE
+from core.mastrao_track_authority import assert_track_authority
 
 logger = logging.getLogger(__name__)
-OBSERVED_PATH = "/internal/v1/meetings/capture/native/observed"
-OBSERVED_JOSE = "mastrao-native-observed-microphone+jws"
+OBSERVED_PATH = "/internal/v1/meetings/room-audio/track/observed"
+OBSERVED_JOSE = "mastrao-room-audio-track-observed+jws"
 
 
 def admission_enabled():
-    """New candidates require both explicit preentry and trusted RTC provenance."""
-    return (
-        settings.MASTRAO_NATIVE_PREENTRY_ENABLED
-        and settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
-    )
+    """Room Audio candidates require the complete trusted meeting integration."""
+    return settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED
 
 
 def _session_label(epoch):
@@ -59,9 +57,9 @@ def _session_label(epoch):
 def _claim_next(connection_id=None):
     now = timezone.now()
     pending = models.MastraoRtcTrackEpoch.objects.filter(
-        native_admission_capture_ref__isnull=True,
-        native_admission_blocked=False,
-        native_admission_next_at__lte=now,
+        room_audio_admitted_at__isnull=True,
+        room_audio_admission_blocked=False,
+        room_audio_admission_next_at__lte=now,
         ended=False,
         conflict=False,
         connection__ended=False,
@@ -69,27 +67,27 @@ def _claim_next(connection_id=None):
         first_publication__track_type=api.TrackType.AUDIO,
         first_publication__track_source=api.TrackSource.MICROPHONE,
     ).filter(
-        Q(native_admission_claim_until__isnull=True)
-        | Q(native_admission_claim_until__lte=now)
+        Q(room_audio_admission_claim_until__isnull=True)
+        | Q(room_audio_admission_claim_until__lte=now)
     )
     if connection_id is not None:
         pending = pending.filter(connection_id=connection_id)
     epoch = (
         pending.select_for_update(skip_locked=True, of=("self",))
-        .order_by("native_admission_next_at", "pk")
+        .order_by("room_audio_admission_next_at", "pk")
         .first()
     )
     if epoch is None:
         return None
-    if epoch.native_participant_label is None:
-        epoch.native_participant_label = _session_label(epoch)
-    epoch.native_admission_claim = uuid4()
-    epoch.native_admission_claim_until = now + timedelta(seconds=45)
+    if epoch.room_audio_participant_label is None:
+        epoch.room_audio_participant_label = _session_label(epoch)
+    epoch.room_audio_admission_claim = uuid4()
+    epoch.room_audio_admission_claim_until = now + timedelta(seconds=45)
     epoch.save(
         update_fields=[
-            "native_admission_claim",
-            "native_admission_claim_until",
-            "native_participant_label",
+            "room_audio_admission_claim",
+            "room_audio_admission_claim_until",
+            "room_audio_participant_label",
             "updated_at",
         ]
     )
@@ -122,7 +120,7 @@ def _observed(epoch):
     if grant is None:
         raise RecordingContractRefused()
     observed = {
-        **native_envelope("mastrao.meet-native-observed-microphone"),
+        **room_audio_envelope("mastrao.meet-room-audio-track-observed"),
         "organization_external_id": recording.organization_external_id,
         "meeting_ref": binding.meeting_ref,
         "room_ref": binding.room_ref,
@@ -140,18 +138,18 @@ def _observed(epoch):
         if issued.host_grant_id
         else grant.guest_ref,
         **(
-            {"participant_label": epoch.native_participant_label}
-            if epoch.native_participant_label is not None
+            {"participant_label": epoch.room_audio_participant_label}
+            if epoch.room_audio_participant_label is not None
             else {}
         ),
     }
-    _assert_epoch_authority(epoch, binding, observed)
+    assert_track_authority(epoch, binding, observed)
     return observed
 
 
 def _send(epoch):
     result = post_core_json(
-        endpoint=settings.MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT,
+        endpoint=settings.MASTRAO_CORE_ROOM_AUDIO_OBSERVED_ENDPOINT,
         expected_path=OBSERVED_PATH,
         body={"candidate": _sign(_observed(epoch), OBSERVED_JOSE)},
         timeout=min(settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS, 10),
@@ -159,46 +157,48 @@ def _send(epoch):
         passthrough_statuses={409},
         expected_fields={
             "version",
-            "capture_ref",
             "epoch_ref",
+            "audio_run_refs",
             "state",
-            "media_durability_proven",
         },
     )
-    try:
-        capture = UUID(result["capture_ref"])
-    except (ValueError, TypeError, AttributeError) as error:
-        raise RecordingContractRefused(status=503) from error
+    run_refs = result["audio_run_refs"]
     if (
         type(result["version"]) is not int
         or result["version"] != 1
         or result["epoch_ref"] != str(epoch.pk)
-        or str(capture) != result["capture_ref"]
-        or result["state"] not in ("pending", "attempted", "confirmed", "blocked")
-        or result["media_durability_proven"] is not False
+        or result["state"] != "authorized"
+        or not isinstance(run_refs, list)
+        or not 1 <= len(run_refs) <= 2
+        or len(set(run_refs)) != len(run_refs)
+        or any(
+            not isinstance(run_ref, str) or not OPAQUE_REFERENCE.fullmatch(run_ref)
+            for run_ref in run_refs
+        )
     ):
         raise RecordingContractRefused(status=503)
-    return capture, result["state"] == "blocked"
+    return run_refs
 
 
-def _finish(epoch, capture_ref, blocked):
+def _finish(epoch, run_refs, blocked):
     """An expired claimant cannot overwrite another worker's delivery result."""
     now = timezone.now()
     return models.MastraoRtcTrackEpoch.objects.filter(
         pk=epoch.pk,
-        native_admission_claim=epoch.native_admission_claim,
-        native_admission_claim_until__gt=now,
+        room_audio_admission_claim=epoch.room_audio_admission_claim,
+        room_audio_admission_claim_until__gt=now,
     ).update(
-        native_admission_capture_ref=capture_ref,
-        native_admission_blocked=blocked,
-        native_admission_claim=None,
-        native_admission_claim_until=None,
-        native_admission_next_at=now + timedelta(seconds=30),
+        room_audio_run_refs=run_refs,
+        room_audio_admitted_at=now if run_refs else None,
+        room_audio_admission_blocked=blocked,
+        room_audio_admission_claim=None,
+        room_audio_admission_claim_until=None,
+        room_audio_admission_next_at=now + timedelta(seconds=30),
         updated_at=now,
     )
 
 
-def reconcile_native_admissions(limit=20, connection_id=None):
+def reconcile_room_audio_admissions(limit=20, connection_id=None):
     """Bounded independent deliveries, safe to retry from the existing scheduler."""
     if not admission_enabled():
         return 0
@@ -207,27 +207,27 @@ def reconcile_native_admissions(limit=20, connection_id=None):
         epoch = _claim_next(connection_id)
         if epoch is None:
             break
-        capture_ref, blocked = None, False
+        run_refs, blocked = [], False
         try:
-            capture_ref, blocked = _send(epoch)
+            run_refs = _send(epoch)
         except RecordingContractRefused as error:
             # Authority denials need a fresh epoch/authority, not a retry storm.
             blocked = error.status in (400, 403, 404, 409)
-        committed = _finish(epoch, capture_ref, blocked)
-        admitted += int(bool(committed and capture_ref and not blocked))
+        committed = _finish(epoch, run_refs, blocked)
+        admitted += int(bool(committed and run_refs and not blocked))
     return admitted
 
 
-def wake_native_admissions(connection_id):
+def wake_room_audio_admissions(connection_id):
     """Never execute the synchronous task fallback in the webhook request."""
     if not admission_enabled() or not settings.CELERY_ENABLED:
         return
-    from core.tasks.native_capture import (  # noqa: PLC0415  # pylint: disable=cyclic-import
-        process_native_admissions,
+    from core.tasks.room_audio import (  # noqa: PLC0415  # pylint: disable=cyclic-import
+        process_room_audio_admissions,
     )
 
     try:
-        process_native_admissions.delay(str(connection_id))
+        process_room_audio_admissions.delay(str(connection_id))
     except Exception:  # noqa: BLE001  # Broker loss must not undo committed RTC intake.
         # No payload/credential logging; the epoch remains durable and pending.
-        logger.warning("Native admission wakeup unavailable; reconciler will retry")
+        logger.warning("Room Audio admission wakeup unavailable; reconciler will retry")
