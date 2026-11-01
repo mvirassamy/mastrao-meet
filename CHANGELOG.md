@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-01: Emit periodic content-free live mixer counters so staging can
+  distinguish missing participant audio from downstream ASR failures.
+
 - 2026-11-01: Send Mistral realtime PCM in documented 100 ms chunks while
   preserving the final partial chunk at meeting end.
 

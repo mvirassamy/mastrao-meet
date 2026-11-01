@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -16,6 +17,9 @@ from room_audio_mixer import RoomAudioMixer, RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 
 LIVEKIT_AUDIO_STREAM_CAPACITY = 0
+LIVE_METRICS_INTERVAL_FRAMES = 500
+
+logger = logging.getLogger("room-audio-worker.runtime")
 
 
 class RoomSpeechStream(Protocol):
@@ -298,6 +302,7 @@ class RoomAudioRun:
                 await self._fail_clock()
                 return
             pcm = self._mixer.mix_next_frame()
+            self._log_live_metrics()
             if self._artifact_sink is not None:
                 self._artifact_sink.write_frame(pcm)
             if self._speech_stream is not None and not self._live_failed:
@@ -312,6 +317,26 @@ class RoomAudioRun:
                     )
                 except Exception as error:  # provider SDK boundary
                     await self._fail_live(error)
+
+    def _log_live_metrics(self) -> None:
+        """Publish periodic content-free mixer health for live diagnosis."""
+        if self._provider_factory is None:
+            return
+        snapshot = self._mixer.snapshot()
+        if snapshot.output_frame_count % LIVE_METRICS_INTERVAL_FRAMES != 0:
+            return
+        logger.info(
+            "Room live mixer health output_frames=%d authorized_tracks=%d "
+            "pending_tracks=%d excluded_tracks=%d speaking_tracks=%d "
+            "dropped_frames=%d underrun_frames=%d",
+            snapshot.output_frame_count,
+            snapshot.authorized_track_count,
+            snapshot.pending_track_count,
+            snapshot.excluded_track_count,
+            snapshot.speaking_track_count,
+            snapshot.dropped_frame_count,
+            snapshot.track_underrun_frame_count,
+        )
 
     async def _fail_clock(self) -> None:
         """Stop a run whose fixed clock can no longer prove audio continuity."""
