@@ -6,6 +6,7 @@ import asyncio
 import base64
 import contextlib
 import json
+import logging
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -32,6 +33,9 @@ PROVIDER_CHUNK_BYTES: Final = (
 INPUT_QUEUE_SIZE: Final = 200
 OUTPUT_QUEUE_SIZE: Final = 200
 CLOSE_TIMEOUT_SECONDS: Final = 10
+TRANSPORT_LOG_INTERVAL_CHUNKS: Final = 100
+
+logger = logging.getLogger("room-audio-worker.mistral")
 
 _INPUT_END = object()
 _OUTPUT_END = object()
@@ -94,6 +98,10 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         self._closed = False
         self._sequence = 0
         self._pending_text = ""
+        self._sent_chunk_count = 0
+        self._sent_byte_count = 0
+        self._non_silent_chunk_count = 0
+        self._provider_delta_count = 0
 
     def push_frame(self, frame: rtc.AudioFrame) -> None:
         """Queue one PCM frame without hiding backpressure failures."""
@@ -183,6 +191,7 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
                 chunk = bytes(pending[:PROVIDER_CHUNK_BYTES])
                 del pending[:PROVIDER_CHUNK_BYTES]
                 await self._send_audio_chunk(socket, chunk)
+                self._record_sent_chunk(chunk)
 
     @staticmethod
     async def _send_audio_chunk(
@@ -218,6 +227,7 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
             text = str(event.get("text", ""))
             if not text:
                 continue
+            self._provider_delta_count += 1
             self._pending_text += text
             complete, self._pending_text = _split_complete_words(self._pending_text)
             await self._publish_text(complete)
@@ -240,6 +250,24 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
                     )
                 ],
             )
+        )
+
+    def _record_sent_chunk(self, chunk: bytes) -> None:
+        """Record and periodically log content-free provider transport health."""
+        self._sent_chunk_count += 1
+        self._sent_byte_count += len(chunk)
+        if any(chunk):
+            self._non_silent_chunk_count += 1
+        if self._sent_chunk_count % TRANSPORT_LOG_INTERVAL_CHUNKS != 0:
+            return
+        logger.info(
+            "Mistral realtime transport health sent_chunks=%d sent_bytes=%d "
+            "non_silent_chunks=%d provider_deltas=%d published_events=%d",
+            self._sent_chunk_count,
+            self._sent_byte_count,
+            self._non_silent_chunk_count,
+            self._provider_delta_count,
+            self._sequence,
         )
 
     @staticmethod
