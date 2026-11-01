@@ -6,8 +6,8 @@ import pytest
 
 from core.mastrao_core_http import read_bounded_core_json, validate_core_endpoint
 from core.mastrao_guest_contract import GuestHandoffRefused
+from core.mastrao_recording_contract import RecordingContractRefused
 from core.mastrao_room_close_contract import RoomCloseRefused
-from core.mastrao_transcription_contract import TranscriptionContractRefused
 
 
 @pytest.mark.parametrize(
@@ -111,10 +111,10 @@ def test_bounded_json_preserves_transcription_callback_outcome():
             ]
         ),
     )
-    with pytest.raises(TranscriptionContractRefused) as error:
+    with pytest.raises(RecordingContractRefused) as error:
         read_bounded_core_json(
             response,
-            TranscriptionContractRefused,
+            RecordingContractRefused,
             passthrough_statuses={404, 409, 503},
         )
     assert error.value.status == 409

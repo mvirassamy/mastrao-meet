@@ -61,13 +61,10 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
     "recording_artifact_receipt",
     "recording_failure_receipt",
     "recording_access_grant",
-    "transcription_submit_effect",
-    "transcription_submit_receipt",
-    "transcription_artifact_receipt",
-    "transcription_failure_receipt",
-    "transcription_egress_request",
-    "transcription_egress_grant",
-    "transcription_terminal_receipt",
+    "candidate",
+    "source_receipt",
+    "room_audio_start_effect",
+    "room_audio_source_egress_grant",
     "speaker_evidence_capture_effect",
     "speaker_evidence_capture_receipt",
     "speaker_evidence_artifact_receipt",
@@ -75,7 +72,7 @@ MASTRAO_HANDOFF_CREDENTIAL_FIELDS = (
 )
 
 MASTRAO_HANDOFF_CREDENTIAL_HEADERS = {
-    "x-mastrao-transcription-egress-grant",
+    "x-mastrao-room-audio-source-egress-grant",
 }
 
 MASTRAO_BASE_CONTRACT_SETTINGS = (
@@ -95,6 +92,13 @@ MASTRAO_BASE_CONTRACT_SETTINGS = (
     "MASTRAO_CORE_GUEST_CONFIRM_ENDPOINT",
     "MASTRAO_CORE_GUEST_MEDIA_ENDPOINT",
     "MASTRAO_CORE_MEETING_CLOSE_ENDPOINT",
+    "MASTRAO_CORE_ROOM_AUDIO_AUTHORIZATION_ENDPOINT",
+    "MASTRAO_CORE_ROOM_AUDIO_OBSERVED_ENDPOINT",
+    "MASTRAO_CORE_ROOM_AUDIO_SOURCE_ENDPOINT",
+    "MASTRAO_CORE_ROOM_AUDIO_ASR_PREPARE_ENDPOINT",
+    "MASTRAO_CORE_ROOM_AUDIO_ASR_RESULT_ENDPOINT",
+    "MASTRAO_ROOM_AUDIO_ASR_GATEWAY_ENDPOINT",
+    "MASTRAO_ROOM_AUDIO_ASR_GATEWAY_AUTH_TOKEN",
 )
 MASTRAO_BASE_CONTRACT_SENTINELS = tuple(
     name for name in MASTRAO_BASE_CONTRACT_SETTINGS if name != "MASTRAO_PLATFORM_ORIGIN"
@@ -130,98 +134,11 @@ def validate_mastrao_meeting_close_configuration(
         )
 
 
-PAID_ASR_PROVIDERS = {"mistral", "openai"}
-
-
 def redis_url_with_database(redis_url, database):
     """Return a Redis URL that keeps its endpoint and selects one database."""
 
     parsed_url = urlparse(redis_url)
     return parsed_url._replace(path=f"/{database}").geturl()
-
-
-def validate_mastrao_transcription_configuration(  # noqa: PLR0913,PLR0917  # pylint: disable=too-many-arguments,too-many-positional-arguments
-    recording_enabled,
-    asr_mode,
-    asr_endpoint,
-    fake_asr_allowed,
-    celery_enabled=True,
-    celery_required=False,
-    asr_provider="",
-    asr_model="",
-    asr_gateway_token="",
-    asr_qualification_mode=False,
-):
-    """Refuse a deployment that could transcribe with the deterministic fake.
-
-    The fake engine exists so provider-free qualification can prove the
-    transcription contract without any ASR provider. Its output is a fixture,
-    not speech, so it must never reach a real deployment. Only the
-    non-deployable settings classes opt into it through
-    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED; every other configuration that
-    enables transcription must use "real" with a private endpoint that is
-    explicitly configured and transport-qualified.
-
-    Real mode also refuses implicit Mistral/OpenAI defaults: provider, model,
-    Gateway token and the qualification flag must be set before boot.
-    Deployments with governed recording disabled stay valid without ASR
-    configuration. Once recording is enabled, post-meeting transcription is
-    part of that normal lifecycle and its technical dependencies must exist.
-    """
-
-    if asr_mode not in {"fake", "real"}:
-        raise ImproperlyConfigured(
-            f"MASTRAO_TRANSCRIPTION_ASR_MODE must be 'fake' or 'real', got {asr_mode!r}"
-        )
-    if not recording_enabled:
-        return
-    if celery_required and not celery_enabled:
-        raise ImproperlyConfigured(
-            "Post-meeting transcription requires CELERY_ENABLED=true in a "
-            "deployable configuration"
-        )
-    if asr_mode == "fake":
-        if not fake_asr_allowed:
-            raise ImproperlyConfigured(
-                "Post-meeting transcription requires "
-                "MASTRAO_TRANSCRIPTION_ASR_MODE=real outside local development and "
-                "qualification; the fake engine is a fixture, not a transcription"
-            )
-        return
-    if not asr_endpoint:
-        raise ImproperlyConfigured(
-            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
-            "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT"
-        )
-    parsed = urlparse(asr_endpoint)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise ImproperlyConfigured(
-            "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT must be an absolute http(s) URL"
-        )
-    if parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise ImproperlyConfigured(
-            "MASTRAO_TRANSCRIPTION_ASR_ENDPOINT must not embed credentials, "
-            "a query string or a fragment"
-        )
-    if asr_provider not in PAID_ASR_PROVIDERS:
-        raise ImproperlyConfigured(
-            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
-            "MASTRAO_TRANSCRIPTION_PROVIDER=mistral or openai"
-        )
-    if not asr_model:
-        raise ImproperlyConfigured(
-            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires MASTRAO_TRANSCRIPTION_MODEL"
-        )
-    if not asr_gateway_token:
-        raise ImproperlyConfigured(
-            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
-            "MASTRAO_ASR_GATEWAY_AUTH_TOKEN"
-        )
-    if not asr_qualification_mode:
-        raise ImproperlyConfigured(
-            "MASTRAO_TRANSCRIPTION_ASR_MODE=real requires "
-            "MASTRAO_ASR_QUALIFICATION_MODE=true"
-        )
 
 
 def get_release():
@@ -350,63 +267,6 @@ class Base(Configuration):
     # "fake" engine is a provider-free qualification fixture and must be opted
     # into explicitly in local development or provider-free qualification;
     # post_setup refuses it whenever governed recording is enabled outside DEBUG.
-    MASTRAO_TRANSCRIPTION_ASR_MODE = values.Value(
-        "real", environ_name="MASTRAO_TRANSCRIPTION_ASR_MODE", environ_prefix=None
-    )
-    # Only the non-deployable settings classes (Development, Test) turn this
-    # on. It is a deliberate, searchable permission so the deterministic fake
-    # engine can never be inherited by a deployed environment.
-    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = False
-    # Deployable configurations refuse transcription without a real Celery worker.
-    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = True
-    MASTRAO_TRANSCRIPTION_ASR_ENDPOINT = values.Value(
-        "", environ_name="MASTRAO_TRANSCRIPTION_ASR_ENDPOINT", environ_prefix=None
-    )
-    MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS = values.FloatValue(
-        600.0,
-        environ_name="MASTRAO_TRANSCRIPTION_ASR_TIMEOUT_SECONDS",
-        environ_prefix=None,
-    )
-    MASTRAO_TRANSCRIPTION_QUEUE = values.Value(
-        "mastrao-transcription",
-        environ_name="MASTRAO_TRANSCRIPTION_QUEUE",
-        environ_prefix=None,
-    )
-    MASTRAO_ASR_GATEWAY_AUTH_TOKEN = values.Value(
-        "",
-        environ_name="MASTRAO_ASR_GATEWAY_AUTH_TOKEN",
-        environ_prefix=None,
-    )
-    MASTRAO_TRANSCRIPTION_PROVIDER = values.Value(
-        "",
-        environ_name="MASTRAO_TRANSCRIPTION_PROVIDER",
-        environ_prefix=None,
-    )
-    MASTRAO_TRANSCRIPTION_MODEL = values.Value(
-        "",
-        environ_name="MASTRAO_TRANSCRIPTION_MODEL",
-        environ_prefix=None,
-    )
-    MASTRAO_ASR_QUALIFICATION_MODE = values.BooleanValue(
-        False,
-        environ_name="MASTRAO_ASR_QUALIFICATION_MODE",
-        environ_prefix=None,
-    )
-    MASTRAO_TRANSCRIPTION_EGRESS_GRANT_AUDIENCE = values.Value(
-        "",
-        environ_name="MASTRAO_TRANSCRIPTION_EGRESS_GRANT_AUDIENCE",
-        environ_prefix=None,
-    )
-    MASTRAO_CORE_TRANSCRIPTION_EGRESS_ENDPOINT = values.Value(
-        "",
-        environ_name="MASTRAO_CORE_TRANSCRIPTION_EGRESS_ENDPOINT",
-        environ_prefix=None,
-    )
-    MASTRAO_CORE_TRANSCRIPTION_TERMINAL_ENDPOINT = values.Value(
-        "",
-        environ_name="MASTRAO_CORE_TRANSCRIPTION_TERMINAL_ENDPOINT",
-        environ_prefix=None,
-    )
     MASTRAO_RECORDING_NOTICE_VERSION = values.Value(
         "", environ_name="MASTRAO_RECORDING_NOTICE_VERSION", environ_prefix=None
     )
@@ -497,19 +357,9 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT",
         environ_prefix=None,
     )
-    MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT = values.Value(
-        "",
-        environ_name="MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT",
-        environ_prefix=None,
-    )
     MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_SPEAKER_EVIDENCE_ARTIFACT_ENDPOINT",
-        environ_prefix=None,
-    )
-    MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT = values.Value(
-        "",
-        environ_name="MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT",
         environ_prefix=None,
     )
     MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS = values.FloatValue(
@@ -533,52 +383,15 @@ class Base(Configuration):
         environ_name="MASTRAO_RECORDING_LIFECYCLE_POLICY_REF",
         environ_prefix=None,
     )
-    # Admission only. Disabling must not disable reconciliation of accepted starts.
-    MASTRAO_NATIVE_CAPTURE_START_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_NATIVE_CAPTURE_START_ENABLED", environ_prefix=None
-    )
-    MASTRAO_NATIVE_PREENTRY_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_NATIVE_PREENTRY_ENABLED", environ_prefix=None
-    )
-    MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT = values.Value(
+    MASTRAO_CORE_ROOM_AUDIO_AUTHORIZATION_ENDPOINT = values.Value(
         "",
-        environ_name="MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT",
+        environ_name="MASTRAO_CORE_ROOM_AUDIO_AUTHORIZATION_ENDPOINT",
         environ_prefix=None,
     )
-    MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT = values.Value(
-        "", environ_name="MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT", environ_prefix=None
-    )
-    MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED = values.BooleanValue(
-        False,
-        environ_name="MASTRAO_NATIVE_SOURCE_TRANSFER_ENABLED",
+    MASTRAO_CORE_ROOM_AUDIO_OBSERVED_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_ROOM_AUDIO_OBSERVED_ENDPOINT",
         environ_prefix=None,
-    )
-    MASTRAO_CORE_NATIVE_SOURCE_ENDPOINT = values.Value(
-        "", environ_name="MASTRAO_CORE_NATIVE_SOURCE_ENDPOINT", environ_prefix=None
-    )
-    MASTRAO_NATIVE_ASR_ENABLED = values.BooleanValue(
-        False, environ_name="MASTRAO_NATIVE_ASR_ENABLED", environ_prefix=None
-    )
-    MASTRAO_NATIVE_ASR_GLOBAL_LIMIT = values.PositiveIntegerValue(
-        4, environ_name="MASTRAO_NATIVE_ASR_GLOBAL_LIMIT", environ_prefix=None
-    )
-    MASTRAO_NATIVE_ASR_TENANT_LIMIT = values.PositiveIntegerValue(
-        4, environ_name="MASTRAO_NATIVE_ASR_TENANT_LIMIT", environ_prefix=None
-    )
-    MASTRAO_NATIVE_ASR_MEETING_LIMIT = values.PositiveIntegerValue(
-        4, environ_name="MASTRAO_NATIVE_ASR_MEETING_LIMIT", environ_prefix=None
-    )
-    MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = values.Value(
-        "", environ_name="MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT", environ_prefix=None
-    )
-    MASTRAO_CORE_NATIVE_ASR_RESULT_ENDPOINT = values.Value(
-        "", environ_name="MASTRAO_CORE_NATIVE_ASR_RESULT_ENDPOINT", environ_prefix=None
-    )
-    MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT = values.Value(
-        "", environ_name="MASTRAO_NATIVE_ASR_GATEWAY_ENDPOINT", environ_prefix=None
-    )
-    MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN = values.Value(
-        "", environ_name="MASTRAO_NATIVE_ASR_GATEWAY_AUTH_TOKEN", environ_prefix=None
     )
     MASTRAO_HOST_HANDOFF_GLOBAL_ATTEMPTS_PER_MINUTE = values.PositiveIntegerValue(
         120,
@@ -1024,11 +837,7 @@ class Base(Configuration):
     CELERY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     CELERY_TASK_ALWAYS_EAGER = values.BooleanValue(False, environ_prefix=None)
     CELERY_TASK_DEFAULT_QUEUE = values.Value("meet-backend", environ_prefix=None)
-    CELERY_TASK_ROUTES = {
-        "core.tasks.transcription.process_mastrao_transcription": {
-            "queue": "mastrao-transcription"
-        }
-    }
+    CELERY_TASK_ROUTES = {}
     CELERY_BROKER_URL = values.Value("redis://redis:6379/0", environ_prefix=None)
     CELERY_BROKER_TRANSPORT_OPTIONS = values.DictValue({}, environ_prefix=None)
 
@@ -1500,20 +1309,7 @@ class Base(Configuration):
         environ_prefix=None,
     )
 
-    # Subtitles settings
-    ROOM_SUBTITLE_ENABLED = values.BooleanValue(
-        False, environ_name="ROOM_SUBTITLE_ENABLED", environ_prefix=None
-    )
-    ROOM_SUBTITLE_AGENT_NAME = values.Value(
-        "multi-user-transcriber",
-        environ_name="ROOM_SUBTITLE_AGENT_NAME",
-        environ_prefix=None,
-    )
-    ROOM_AUDIO_SOURCE_TRANSFER_ENABLED = values.BooleanValue(
-        False,
-        environ_name="ROOM_AUDIO_SOURCE_TRANSFER_ENABLED",
-        environ_prefix=None,
-    )
+    # Canonical room-audio transcription settings
     MASTRAO_CORE_ROOM_AUDIO_SOURCE_ENDPOINT = values.Value(
         "",
         environ_name="MASTRAO_CORE_ROOM_AUDIO_SOURCE_ENDPOINT",
@@ -1522,11 +1318,6 @@ class Base(Configuration):
     MASTRAO_CORE_ROOM_AUDIO_SOURCE_TIMEOUT_SECONDS = values.FloatValue(
         5.0,
         environ_name="MASTRAO_CORE_ROOM_AUDIO_SOURCE_TIMEOUT_SECONDS",
-        environ_prefix=None,
-    )
-    ROOM_AUDIO_ASR_ENABLED = values.BooleanValue(
-        False,
-        environ_name="ROOM_AUDIO_ASR_ENABLED",
         environ_prefix=None,
     )
     MASTRAO_CORE_ROOM_AUDIO_ASR_PREPARE_ENDPOINT = values.Value(
@@ -1549,55 +1340,6 @@ class Base(Configuration):
         environ_name="MASTRAO_ROOM_AUDIO_ASR_GATEWAY_AUTH_TOKEN",
         environ_prefix=None,
     )
-    ROOM_SUBTITLE_PROVIDER = values.Value(
-        "legacy",
-        environ_name="ROOM_SUBTITLE_PROVIDER",
-        environ_prefix=None,
-    )
-    ROOM_SUBTITLE_LOCK_DATABASE_URL = values.Value(
-        "",
-        environ_name="ROOM_SUBTITLE_LOCK_DATABASE_URL",
-        environ_prefix=None,
-    )
-    DEFAULT_EXCEPTION_REPORTER_FILTER = (
-        "core.exception_reporting.MeetExceptionReporterFilter"
-    )
-    ROOM_SUBTITLE_LOCK_NAMESPACE = values.IntegerValue(
-        218,
-        environ_name="ROOM_SUBTITLE_LOCK_NAMESPACE",
-        environ_prefix=None,
-    )
-    ROOM_SUBTITLE_LOCK_TIMEOUT_SECONDS = values.FloatValue(
-        0.25,
-        environ_name="ROOM_SUBTITLE_LOCK_TIMEOUT_SECONDS",
-        environ_prefix=None,
-    )
-    ROOM_SUBTITLE_LOCK_CONNECTION_TIMEOUT_SECONDS = values.FloatValue(
-        2.0,
-        environ_name="ROOM_SUBTITLE_LOCK_CONNECTION_TIMEOUT_SECONDS",
-        environ_prefix=None,
-    )
-    ROOM_SUBTITLE_LOCK_STATEMENT_TIMEOUT_SECONDS = values.FloatValue(
-        2.0,
-        environ_name="ROOM_SUBTITLE_LOCK_STATEMENT_TIMEOUT_SECONDS",
-        environ_prefix=None,
-    )
-    ROOM_SUBTITLE_LOCK_MAX_CONNECTIONS = values.PositiveIntegerValue(
-        8,
-        environ_name="ROOM_SUBTITLE_LOCK_MAX_CONNECTIONS",
-        environ_prefix=None,
-    )
-    ROOM_SUBTITLE_SYNC_BUDGET_SECONDS = values.FloatValue(
-        10.0,
-        environ_name="ROOM_SUBTITLE_SYNC_BUDGET_SECONDS",
-        environ_prefix=None,
-    )
-    ROOM_SUBTITLE_CONVERGENCE_MAX_ATTEMPTS = values.PositiveIntegerValue(
-        3,
-        environ_name="ROOM_SUBTITLE_CONVERGENCE_MAX_ATTEMPTS",
-        environ_prefix=None,
-    )
-
     # Metadata collector settings
     METADATA_COLLECTOR_ENABLED = values.BooleanValue(
         False, environ_name="METADATA_COLLECTOR_ENABLED", environ_prefix=None
@@ -1849,19 +1591,6 @@ class Base(Configuration):
             cls.LIVEKIT_EXPLICIT_ROOM_CREATION,
         )
 
-        validate_mastrao_transcription_configuration(
-            cls.MASTRAO_MEETING_RECORDING_ENABLED,
-            cls.MASTRAO_TRANSCRIPTION_ASR_MODE,
-            cls.MASTRAO_TRANSCRIPTION_ASR_ENDPOINT,
-            cls.MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED,
-            cls.CELERY_ENABLED,
-            cls.MASTRAO_TRANSCRIPTION_CELERY_REQUIRED,
-            asr_provider=cls.MASTRAO_TRANSCRIPTION_PROVIDER,
-            asr_model=cls.MASTRAO_TRANSCRIPTION_MODEL,
-            asr_gateway_token=cls.MASTRAO_ASR_GATEWAY_AUTH_TOKEN,
-            asr_qualification_mode=cls.MASTRAO_ASR_QUALIFICATION_MODE,
-        )
-
         if cls.FILE_UPLOAD_TMP_PATH == cls.FILE_UPLOAD_PATH:
             raise ValueError(
                 "FILE_UPLOAD_TMP_PATH cannot be the same as FILE_UPLOAD_PATH"
@@ -1933,10 +1662,6 @@ class Development(Base):
         environ_prefix=None,
     )
     DEBUG = True
-    # Local development may select the deterministic fake ASR fixture.
-    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
-    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
-
     SESSION_COOKIE_NAME = "meet_sessionid"
 
     USE_SWAGGER = True
@@ -1948,12 +1673,6 @@ class Development(Base):
 
 class Test(Base):
     """Test environment settings"""
-
-    # Provider-free qualification must stay able to prove the transcription
-    # contract without any ASR provider. DEBUG is False here, so the
-    # permission is explicit rather than derived.
-    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
-    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
 
     LOGGING = values.DictValue(
         {
@@ -2026,11 +1745,6 @@ class Test(Base):
 
 class Qualification(Base):
     """Provider-free runtime configuration for isolated qualification runs."""
-
-    # Keep the real runtime defaults from Base. Only the two permissions needed
-    # by provider-free transcription qualification differ from deployable modes.
-    MASTRAO_TRANSCRIPTION_FAKE_ASR_ALLOWED = True
-    MASTRAO_TRANSCRIPTION_CELERY_REQUIRED = False
 
 
 class ContinuousIntegration(Test):

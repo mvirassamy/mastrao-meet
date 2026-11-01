@@ -1,6 +1,3 @@
-agentSubtitles:
-  replicas: 0
-
 agentRoomAudioLive:
   enabled: true
   image:

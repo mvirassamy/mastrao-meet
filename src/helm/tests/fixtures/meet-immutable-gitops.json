@@ -26,15 +26,6 @@
       "enabled": false
     }
   },
-  "celeryMastraoTranscription": {
-    "enabled": true
-  },
-  "agentSubtitles": {
-    "image": {
-      "repository": "fixture.invalid/meet-agents",
-      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-    }
-  },
   "agentMetadata": {
     "image": {
       "repository": "fixture.invalid/meet-agents",

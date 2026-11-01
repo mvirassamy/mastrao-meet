@@ -29,27 +29,27 @@ import pytest
 
 from core import models
 from core.mastrao_media_token_binding import generate_guest_media_config
-from core.mastrao_native_admission import (
-    OBSERVED_JOSE,
-    OBSERVED_PATH,
-    _claim_next,
-    _finish,
-    _session_label,
-    reconcile_native_admissions,
-    wake_native_admissions,
-)
-from core.mastrao_native_authorization import (
-    AUTHORIZATION_JOSE,
-    AUTHORIZATION_PATH,
-    _validate_authorization,
-    authorize_native_policy,
-)
 from core.mastrao_recording_contract import (
     RecordingContractRefused,
     _sign,
     compact_digest,
 )
 from core.mastrao_recording_session import activate_recording, recording_session_status
+from core.mastrao_room_audio_admission import (
+    OBSERVED_JOSE,
+    OBSERVED_PATH,
+    _claim_next,
+    _finish,
+    _session_label,
+    reconcile_room_audio_admissions,
+    wake_room_audio_admissions,
+)
+from core.mastrao_room_audio_authorization import (
+    AUTHORIZATION_JOSE,
+    AUTHORIZATION_PATH,
+    _validate_authorization,
+    authorize_room_audio_policy,
+)
 from core.services.lobby import LobbyParticipant, LobbyParticipantStatus
 from core.tests.test_mastrao_media_token_binding import (
     _claims,
@@ -60,10 +60,25 @@ from core.tests.test_mastrao_media_token_binding import (
     host,
     isolated_binding_settings,
 )
-from core.tests.test_mastrao_native_capture import signer
+from core.tests.test_mastrao_room_adapter import _jwk_pair
 from core.tests.test_mastrao_rtc_correlation import _assert_post, _event, _join
 
 pytestmark = pytest.mark.django_db(transaction=True)
+
+
+@pytest.fixture
+def signer(settings):
+    """Install the Meet/Core signing authority used by Room Audio."""
+    _private, jwk = _jwk_pair()
+    settings.MASTRAO_RECORDING_EFFECT_PUBLIC_JWK = jwk["public"]
+    settings.MASTRAO_RECORDING_EFFECT_KEY_ID = "room-audio-core-fixture"
+    settings.MASTRAO_RECORDING_EFFECT_ISSUER = "core-fixture"
+    settings.MASTRAO_RECORDING_EFFECT_AUDIENCE = "meet-fixture"
+    settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = jwk["private"]
+    settings.MASTRAO_RECORDING_RECEIPT_KEY_ID = "room-audio-meet-fixture"
+    settings.MASTRAO_RECORDING_RECEIPT_ISSUER = "meet-fixture"
+    settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE = "core-fixture"
+    return jwk
 
 
 def authorization_projection():
@@ -71,8 +86,8 @@ def authorization_projection():
         "version": 1,
         "capture_authorized": False,
         "authorization": {
-            "policy_ref": "native_policy_fixture",
-            "policy_version": "native_policy_version_fixture",
+            "policy_ref": "room_audio_policy_fixture",
+            "policy_version": "room_audio_policy_version_fixture",
             "policy_digest": "d" * 64,
             "purpose": "meeting_transcription_source_audio",
             "scope": "authorized_microphone_track_epoch",
@@ -96,8 +111,7 @@ def video_projection():
 
 
 @pytest.fixture
-def native_settings(settings, signer):
-    settings.MASTRAO_NATIVE_PREENTRY_ENABLED = True
+def room_audio_settings(settings, signer):
     settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = True
     settings.MASTRAO_GUEST_HANDOFF_ENABLED = True
     settings.MASTRAO_ROOM_EFFECT_PUBLIC_JWK = (
@@ -253,13 +267,14 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
                 else:
                     assert self.path == OBSERVED_PATH and set(body) == {"candidate"}
                     assert "consent" not in claims and "participant_grant" not in claims
-                    capture = captures.setdefault(claims["epoch_ref"], str(uuid4()))
+                    run_ref = captures.setdefault(
+                        claims["epoch_ref"], "audio_run_" + uuid4().hex
+                    )
                     result = {
                         "version": 1,
-                        "capture_ref": capture,
                         "epoch_ref": claims["epoch_ref"],
-                        "state": "pending",
-                        "media_durability_proven": False,
+                        "audio_run_refs": [run_ref],
+                        "state": "authorized",
                     }
                     if denied:
                         code, result = 404, {"error": "unavailable"}
@@ -278,8 +293,10 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     origin = f"http://127.0.0.1:{server.server_port}"
-    settings.MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT = origin + AUTHORIZATION_PATH
-    settings.MASTRAO_CORE_NATIVE_OBSERVED_ENDPOINT = origin + OBSERVED_PATH
+    settings.MASTRAO_CORE_ROOM_AUDIO_AUTHORIZATION_ENDPOINT = (
+        origin + AUTHORIZATION_PATH
+    )
+    settings.MASTRAO_CORE_ROOM_AUDIO_OBSERVED_ENDPOINT = origin + OBSERVED_PATH
     if session_policy:
         settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
             origin + "/internal/v1/meetings/recording/session-status"
@@ -295,12 +312,12 @@ def core_peer(settings, *, lose_first=False, denied=False, session_policy=False)
 
 @pytest.mark.parametrize("kind", ["host", "guest"])
 def test_first_native_entry_authorizes_policy_and_admits_without_video(
-    client, native_settings, host, guest, kind
+    client, room_audio_settings, host, guest, kind
 ):
     """Real session verification, HTTP and PG; Core peer/RTC are synthetic."""
-    native_settings.MASTRAO_MEETING_RECORDING_ENABLED = False
-    native_settings.MASTRAO_RECORDING_NOTICE_VERSION = "legacy_notice_fixture"
-    native_settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
+    room_audio_settings.MASTRAO_MEETING_RECORDING_ENABLED = False
+    room_audio_settings.MASTRAO_RECORDING_NOTICE_VERSION = "legacy_notice_fixture"
+    room_audio_settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
     grant = host if kind == "host" else guest
     browser_session(client, grant, kind)
     request = SimpleNamespace(
@@ -309,7 +326,7 @@ def test_first_native_entry_authorizes_policy_and_admits_without_video(
     )
     room = grant.room_binding.room
     assert not models.MastraoRecordingBinding.objects.exists()
-    with core_peer(native_settings, session_policy=True) as (calls, _):
+    with core_peer(room_audio_settings, session_policy=True) as (calls, _):
         status = recording_session_status(request, room)
         assert status is not None
         policy = models.MastraoRecordingBinding.objects.get(
@@ -317,13 +334,13 @@ def test_first_native_entry_authorizes_policy_and_admits_without_video(
         )
         assert policy.organization_external_id == "organization_media_fixture"
         assert policy.recording_id is None
-        result = authorize_native_policy(request, room, status)
+        result = authorize_room_audio_policy(request, room, status)
         assert result["authorization"]["scope"] == ("authorized_microphone_track_epoch")
-        assert authorize_native_policy(request, room, status) == result
+        assert authorize_room_audio_policy(request, room, status) == result
         changed_status = {**status, "transcription_notice_digest": "e" * 64}
-        assert authorize_native_policy(request, room, changed_status) == result
+        assert authorize_room_audio_policy(request, room, changed_status) == result
         changed_policy = {**changed_status, "policy_ref": "changed_policy_fixture"}
-        assert authorize_native_policy(request, room, changed_policy) == result
+        assert authorize_room_audio_policy(request, room, changed_policy) == result
         assert (
             recording_session_status(request, room)["recording_ref"]
             == policy.recording_ref
@@ -331,9 +348,9 @@ def test_first_native_entry_authorizes_policy_and_admits_without_video(
         assert models.MastraoRecordingBinding.objects.count() == 1
         with pytest.raises(RecordingContractRefused):
             activate_recording(request, room, "activation_native_refused")
-        with patch("core.mastrao_rtc_observations.wake_native_admissions"):
-            epoch_for(client, native_settings, grant, kind)
-        assert reconcile_native_admissions() == 1
+        with patch("core.mastrao_rtc_observations.wake_room_audio_admissions"):
+            epoch_for(client, room_audio_settings, grant, kind)
+        assert reconcile_room_audio_admissions() == 1
         assert [call[0] for call in calls] == [
             AUTHORIZATION_PATH,
             AUTHORIZATION_PATH,
@@ -347,17 +364,17 @@ def test_first_native_entry_authorizes_policy_and_admits_without_video(
 
 @pytest.mark.parametrize("kind", ["host", "guest"])
 def test_native_preentry_has_no_browser_decision_or_public_projection(
-    native_settings, host, guest, kind
+    room_audio_settings, host, guest, kind
 ):
-    native_settings.MASTRAO_MEETING_RECORDING_ENABLED = False
-    native_settings.MASTRAO_RECORDING_NOTICE_VERSION = "legacy_notice_fixture"
-    native_settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
+    room_audio_settings.MASTRAO_MEETING_RECORDING_ENABLED = False
+    room_audio_settings.MASTRAO_RECORDING_NOTICE_VERSION = "legacy_notice_fixture"
+    room_audio_settings.MASTRAO_RECORDING_NOTICE_DIGEST = "a" * 64
     client = Client(enforce_csrf_checks=True)
     grant = host if kind == "host" else guest
     browser_session(client, grant, kind)
     base = f"/api/v1.0/rooms/{grant.room_binding.room_id}/"
     with (
-        core_peer(native_settings, session_policy=True) as (calls, _),
+        core_peer(room_audio_settings, session_policy=True) as (calls, _),
         patch("core.utils.notify_participants"),
         patch("core.services.lobby.ensure_livekit_room"),
     ):
@@ -408,7 +425,6 @@ def test_native_preentry_has_no_browser_decision_or_public_projection(
                 refreshed = client.post(base + "request-entry/", {"username": "Guest"})
             assert refreshed.status_code == 200, refreshed.content
             assert len([call for call in calls if call[0] == AUTHORIZATION_PATH]) == 1
-        assert not models.MastraoNativeCaptureStart.objects.exists()
 
 
 def epoch_for(  # noqa: PLR0913 - fixture inputs plus event-order/reconnection cases
@@ -456,55 +472,54 @@ def recording(binding):
 
 
 def test_two_sources_reordered_deduplicated_and_no_browser_credentials(
-    client, native_settings, host, guest, recording
+    client, room_audio_settings, host, guest, recording
 ):
-    with core_peer(native_settings) as (calls, _):
-        with patch("core.mastrao_rtc_observations.wake_native_admissions") as wake:
-            h = epoch_for(client, native_settings, host)
-            g = epoch_for(client, native_settings, guest, "guest", reordered=True)
+    with core_peer(room_audio_settings) as (calls, _):
+        with patch("core.mastrao_rtc_observations.wake_room_audio_admissions") as wake:
+            h = epoch_for(client, room_audio_settings, host)
+            g = epoch_for(client, room_audio_settings, guest, "guest", reordered=True)
         assert wake.call_count == 4
         assert calls == []  # webhook never does network admission synchronously
-        assert reconcile_native_admissions() == 2
-        assert reconcile_native_admissions() == 0
+        assert reconcile_room_audio_admissions() == 2
+        assert reconcile_room_audio_admissions() == 0
         h.refresh_from_db()
         g.refresh_from_db()
-        assert h.native_admission_capture_ref != g.native_admission_capture_ref
+        assert h.room_audio_run_refs != g.room_audio_run_refs
         assert {c[1]["participant_kind"] for c in calls} == {"host", "guest"}
         assert {c[1]["epoch_ref"] for c in calls} == {str(h.pk), str(g.pk)}
         assert all(c[2] == {"candidate"} for c in calls)
-        assert not models.MastraoNativeCaptureStart.objects.exists()
 
 
 def test_lost_reply_retries_same_epoch_and_expired_claim_cannot_overwrite(
-    client, native_settings, host, recording
+    client, room_audio_settings, host, recording
 ):
-    epoch = epoch_for(client, native_settings, host)
-    with core_peer(native_settings, lose_first=True) as (calls, _):
-        assert reconcile_native_admissions() == 0
-        assert reconcile_native_admissions() == 0  # bounded delay
+    epoch = epoch_for(client, room_audio_settings, host)
+    with core_peer(room_audio_settings, lose_first=True) as (calls, _):
+        assert reconcile_room_audio_admissions() == 0
+        assert reconcile_room_audio_admissions() == 0  # bounded delay
         models.MastraoRtcTrackEpoch.objects.filter(pk=epoch.pk).update(
-            native_admission_next_at=timezone.now()
+            room_audio_admission_next_at=timezone.now()
         )
-        assert reconcile_native_admissions() == 1
+        assert reconcile_room_audio_admissions() == 1
         assert [c[1]["epoch_ref"] for c in calls] == [str(epoch.pk)] * 2
     epoch.refresh_from_db()
-    capture = epoch.native_admission_capture_ref
-    epoch.native_admission_claim = uuid4()
-    assert _finish(epoch, None, True) == 0
+    run_refs = epoch.room_audio_run_refs
+    epoch.room_audio_admission_claim = uuid4()
+    assert _finish(epoch, [], True) == 0
     epoch.refresh_from_db()
-    assert epoch.native_admission_capture_ref == capture
+    assert epoch.room_audio_run_refs == run_refs
 
 
 def test_native_session_labels_are_bound_to_host_and_guest_epochs(
-    client, native_settings, host, guest, recording
+    client, room_audio_settings, host, guest, recording
 ):
     for grant, name in [(host, "Matt"), (guest, "Martine")]:
         grant.display_name = name
         grant.save(update_fields=["display_name"])
-    h = epoch_for(client, native_settings, host)
-    g = epoch_for(client, native_settings, guest, "guest")
-    with core_peer(native_settings) as (calls, _):
-        assert reconcile_native_admissions() == 2
+    h = epoch_for(client, room_audio_settings, host)
+    g = epoch_for(client, room_audio_settings, guest, "guest")
+    with core_peer(room_audio_settings) as (calls, _):
+        assert reconcile_room_audio_admissions() == 2
         labels = {c[1]["epoch_ref"]: c[1] for c in calls}
         for epoch, grant, name, kind in [
             (h, host, "Matt", "host"),
@@ -512,7 +527,7 @@ def test_native_session_labels_are_bound_to_host_and_guest_epochs(
         ]:
             expected = {"source": "meet_session_display_name", "display_name": name}
             epoch.refresh_from_db()
-            assert epoch.native_participant_label == expected
+            assert epoch.room_audio_participant_label == expected
             observed = labels[str(epoch.pk)]
             assert observed["participant_label"] == expected
             assert observed["participant_kind"] == kind
@@ -523,21 +538,21 @@ def test_native_session_labels_are_bound_to_host_and_guest_epochs(
 
 
 def test_native_label_is_frozen_before_network_and_survives_lost_reply(
-    client, native_settings, host, recording
+    client, room_audio_settings, host, recording
 ):
     host.display_name = "Matt"
     host.save(update_fields=["display_name"])
-    epoch = epoch_for(client, native_settings, host)
-    with core_peer(native_settings, lose_first=True) as (calls, _):
-        assert reconcile_native_admissions() == 0
+    epoch = epoch_for(client, room_audio_settings, host)
+    with core_peer(room_audio_settings, lose_first=True) as (calls, _):
+        assert reconcile_room_audio_admissions() == 0
         epoch.refresh_from_db()
-        assert epoch.native_participant_label["display_name"] == "Matt"
+        assert epoch.room_audio_participant_label["display_name"] == "Matt"
         host.display_name = "Changed after first delivery"
         host.save(update_fields=["display_name"])
         models.MastraoRtcTrackEpoch.objects.filter(pk=epoch.pk).update(
-            native_admission_next_at=timezone.now()
+            room_audio_admission_next_at=timezone.now()
         )
-        assert reconcile_native_admissions() == 1
+        assert reconcile_room_audio_admissions() == 1
         assert [c[1]["participant_label"]["display_name"] for c in calls] == [
             "Matt",
             "Matt",
@@ -545,13 +560,13 @@ def test_native_label_is_frozen_before_network_and_survives_lost_reply(
 
 
 def test_guest_reconnection_keeps_distinct_epoch_label_evidence(
-    client, native_settings, guest, recording
+    client, room_audio_settings, guest, recording
 ):
     guest.display_name = "Martine"
     guest.save(update_fields=["display_name"])
-    first = epoch_for(client, native_settings, guest, "guest")
-    with core_peer(native_settings) as (calls, _):
-        assert reconcile_native_admissions() == 1
+    first = epoch_for(client, room_audio_settings, guest, "guest")
+    with core_peer(room_audio_settings) as (calls, _):
+        assert reconcile_room_audio_admissions() == 1
         models.MastraoRtcTrackEpoch.objects.filter(pk=first.pk).update(ended=True)
         models.MastraoRtcConnection.objects.filter(pk=first.connection_id).update(
             ended=True
@@ -559,9 +574,9 @@ def test_guest_reconnection_keeps_distinct_epoch_label_evidence(
         guest.display_name = "Martine reconnectée"
         guest.save(update_fields=["display_name"])
         second = epoch_for(
-            client, native_settings, guest, "guest", connection_suffix="reconnect"
+            client, room_audio_settings, guest, "guest", connection_suffix="reconnect"
         )
-        assert reconcile_native_admissions() == 1
+        assert reconcile_room_audio_admissions() == 1
         assert first.pk != second.pk
         assert [c[1]["participant_ref"] for c in calls] == [guest.guest_ref] * 2
         assert [c[1]["participant_label"]["display_name"] for c in calls] == [
@@ -569,18 +584,18 @@ def test_guest_reconnection_keeps_distinct_epoch_label_evidence(
             "Martine reconnectée",
         ]
         first.refresh_from_db()
-        assert first.native_participant_label["display_name"] == "Martine"
+        assert first.room_audio_participant_label["display_name"] == "Martine"
 
 
 @pytest.mark.parametrize("name", [None, "", "   ", "Bad\u202ename"])
 def test_native_unknown_or_unsafe_session_label_does_not_invent_identity(
-    client, native_settings, host, recording, name
+    client, room_audio_settings, host, recording, name
 ):
     host.display_name = name
     host.save(update_fields=["display_name"])
-    epoch_for(client, native_settings, host)
-    with core_peer(native_settings) as (calls, _):
-        assert reconcile_native_admissions() == 1
+    epoch_for(client, room_audio_settings, host)
+    with core_peer(room_audio_settings) as (calls, _):
+        assert reconcile_room_audio_admissions() == 1
         assert calls[0][1]["participant_label"] == {
             "source": "meet_session_display_name",
             "display_name": None,
@@ -603,17 +618,20 @@ def test_invalid_in_memory_label_is_unknown(name):
         "conflict",
         "room_closed",
         "rotated",
-        "flag_off",
+        "integration_off",
         "guest_pending",
         "video",
     ],
 )
 def test_invalid_epochs_never_send(  # noqa: PLR0913,PLR0917
-    client, native_settings, host, guest, recording, case
+    client, room_audio_settings, host, guest, recording, case
 ):
     grant = guest if case == "guest_pending" else host
     epoch = epoch_for(
-        client, native_settings, grant, "guest" if case == "guest_pending" else "host"
+        client,
+        room_audio_settings,
+        grant,
+        "guest" if case == "guest_pending" else "host",
     )
     if case in ("ended", "conflict"):
         models.MastraoRtcTrackEpoch.objects.filter(pk=epoch.pk).update(**{case: True})
@@ -623,8 +641,8 @@ def test_invalid_epochs_never_send(  # noqa: PLR0913,PLR0917
         )
     elif case == "rotated":
         type(grant).objects.filter(pk=grant.pk).update(session_nonce_digest="e" * 64)
-    elif case == "flag_off":
-        native_settings.MASTRAO_NATIVE_PREENTRY_ENABLED = False
+    elif case == "integration_off":
+        room_audio_settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = False
     elif case == "guest_pending":
         type(grant).objects.filter(pk=grant.pk).update(
             admission_state="waiting",
@@ -638,54 +656,56 @@ def test_invalid_epochs_never_send(  # noqa: PLR0913,PLR0917
         models.MastraoRtcObservation.objects.filter(
             pk=epoch.first_publication_id
         ).update(track_type=1)
-    with core_peer(native_settings) as (calls, _):
-        assert reconcile_native_admissions() == 0
+    with core_peer(room_audio_settings) as (calls, _):
+        assert reconcile_room_audio_admissions() == 0
         assert calls == []
 
 
 def test_established_epoch_survives_join_grant_expiry(
-    client, native_settings, host, recording
+    client, room_audio_settings, host, recording
 ):
     """Token expiry cannot revoke a connection already correlated by the server."""
-    epoch = epoch_for(client, native_settings, host)
+    epoch = epoch_for(client, room_audio_settings, host)
     type(host).objects.filter(pk=host.pk).update(
         expires_at=timezone.now() - timedelta(seconds=1),
         issued_at=timezone.now() - timedelta(hours=1),
     )
-    with core_peer(native_settings) as (calls, _):
-        assert reconcile_native_admissions() == 1
+    with core_peer(room_audio_settings) as (calls, _):
+        assert reconcile_room_audio_admissions() == 1
         assert [call[1]["epoch_ref"] for call in calls] == [str(epoch.pk)]
 
 
-def test_denied_core_is_not_retried_forever(client, native_settings, host, recording):
-    epoch = epoch_for(client, native_settings, host)
-    with core_peer(native_settings, denied=True) as (calls, _):
-        assert reconcile_native_admissions() == 0
+def test_denied_core_is_not_retried_forever(
+    client, room_audio_settings, host, recording
+):
+    epoch = epoch_for(client, room_audio_settings, host)
+    with core_peer(room_audio_settings, denied=True) as (calls, _):
+        assert reconcile_room_audio_admissions() == 0
         epoch.refresh_from_db()
-        assert epoch.native_admission_blocked
-        assert reconcile_native_admissions() == 0
+        assert epoch.room_audio_admission_blocked
+        assert reconcile_room_audio_admissions() == 0
         assert len(calls) == 1
 
 
 def test_claim_fence_and_broker_failure_preserve_pending_epoch(
-    client, native_settings, host, recording
+    client, room_audio_settings, host, recording
 ):
-    epoch = epoch_for(client, native_settings, host)
-    native_settings.CELERY_ENABLED = True
+    epoch = epoch_for(client, room_audio_settings, host)
+    room_audio_settings.CELERY_ENABLED = True
     with patch(
-        "core.tasks.native_capture.process_native_admissions.delay",
+        "core.tasks.room_audio.process_room_audio_admissions.delay",
         side_effect=RuntimeError("synthetic broker outage"),
     ):
-        wake_native_admissions(epoch.connection_id)
+        wake_room_audio_admissions(epoch.connection_id)
     first = _claim_next()
     assert first is not None and _claim_next() is None
     models.MastraoRtcTrackEpoch.objects.filter(pk=epoch.pk).update(
-        native_admission_claim_until=timezone.now() - timedelta(seconds=1)
+        room_audio_admission_claim_until=timezone.now() - timedelta(seconds=1)
     )
     second = _claim_next()
-    assert second.native_admission_claim != first.native_admission_claim
-    assert _finish(first, uuid4(), False) == 0
-    assert _finish(second, uuid4(), False) == 1
+    assert second.room_audio_admission_claim != first.room_audio_admission_claim
+    assert _finish(first, ["audio_run_" + uuid4().hex], False) == 0
+    assert _finish(second, ["audio_run_" + uuid4().hex], False) == 1
 
 
 @pytest.mark.parametrize(
@@ -702,7 +722,7 @@ def test_authorization_peer_drift_fails_closed(field, value):
 
 @pytest.mark.parametrize("route", ["retrieve", "request-entry"])
 def test_native_policy_authorization_keeps_media_entry_available(
-    client, native_settings, host, route
+    client, room_audio_settings, host, route
 ):
     browser_session(client, host, "host")
     base = f"/api/v1.0/rooms/{host.room_binding.room_id}/"
@@ -728,7 +748,7 @@ def test_native_policy_authorization_keeps_media_entry_available(
         "transcription_notice_digest": "b" * 64,
     }
     with (
-        core_peer(native_settings) as (calls, _),
+        core_peer(room_audio_settings) as (calls, _),
         patch("core.api.serializers.recording_session_status", return_value=status),
         patch("core.api.viewsets.recording_session_status", return_value=status),
         patch("core.api.serializers.ensure_livekit_room"),
@@ -751,22 +771,18 @@ def test_native_policy_authorization_keeps_media_entry_available(
         assert not models.Recording.objects.exists()
 
 
-def test_preentry_off_preserves_room_and_does_not_contact_core(
-    client, native_settings, host
+def test_non_transcribed_room_does_not_contact_room_audio_authority(
+    client, room_audio_settings, host
 ):
-    native_settings.MASTRAO_NATIVE_PREENTRY_ENABLED = False
     browser_session(client, host, "host")
     request = _request(host)
-    with core_peer(native_settings) as (calls, _):
+    with core_peer(room_audio_settings) as (calls, _):
         assert (
-            authorize_native_policy(
+            authorize_room_audio_policy(
                 request,
                 host.room_binding.room,
-                {"mode": "recorded", "transcription_mode": "transcribed"},
+                {"mode": "recorded", "transcription_mode": "disabled"},
             )
             is None
         )
-        result = client.get(f"/api/v1.0/rooms/{host.room_binding.room_id}/")
-        assert result.status_code == 200
-        assert "native_capture" not in result.json()
         assert calls == []

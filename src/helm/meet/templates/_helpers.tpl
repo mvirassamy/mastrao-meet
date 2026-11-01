@@ -192,13 +192,6 @@ Full name for the latency-sensitive native admission Celery worker
 {{- end }}
 
 {{/*
-Full name for the dedicated Mastrao transcription Celery worker
-*/}}
-{{- define "meet.celeryMastraoTranscription.fullname" -}}
-{{ include "meet.fullname" . }}-celery-mastrao-transcription
-{{- end }}
-
-{{/*
 Full name for the Celery Transcribe
 
 Requires top level scope
@@ -233,15 +226,6 @@ Requires top level scope
 */}}
 {{- define "meet.agentMetadata.fullname" -}}
 {{ include "meet.fullname" . }}-agent-metadata
-{{- end }}
-
-{{/*
-Full name for the agent subtitles
-
-Requires top level scope
-*/}}
-{{- define "meet.agentSubtitles.fullname" -}}
-{{ include "meet.fullname" . }}-agent-subtitles
 {{- end }}
 
 {{/*

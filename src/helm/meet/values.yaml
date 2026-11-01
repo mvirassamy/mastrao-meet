@@ -238,10 +238,6 @@ backend:
   ## @skip backend.envVars
   envVars:
     <<: *commonEnvVars
-    # Shared by the scheduler and both native ASR worker lanes.
-    MASTRAO_NATIVE_ASR_GLOBAL_LIMIT: "4"
-    MASTRAO_NATIVE_ASR_TENANT_LIMIT: "4"
-    MASTRAO_NATIVE_ASR_MEETING_LIMIT: "4"
 
   ## @param backend.podAnnotations Annotations to add to the backend Pod
   podAnnotations: {}
@@ -859,113 +855,6 @@ celeryMastraoNativeAdmission:
   pdb:
     enabled: false
 
-## @section celeryMastraoTranscription
-
-celeryMastraoTranscription:
-  ## @param celeryMastraoTranscription.enabled Deploy the dedicated Mastrao transcription worker
-  enabled: true
-
-  ## @param celeryMastraoTranscription.dpAnnotations Annotations to add to the celeryMastraoTranscription Deployment
-  dpAnnotations: {}
-
-  ## @param celeryMastraoTranscription.command Override the celeryMastraoTranscription container command
-  command:
-    - "celery"
-    - "-A"
-    - "meet.celery_app"
-    - "worker"
-    - "--pool=solo"
-    - "--concurrency=1"
-    - "--loglevel=info"
-    - "-Q"
-    - "mastrao-transcription"
-    - "--prefetch-multiplier=1"
-
-  ## @param celeryMastraoTranscription.args Override the celeryMastraoTranscription container args
-  args: []
-
-  ## @param celeryMastraoTranscription.replicas Amount of celeryMastraoTranscription replicas
-  replicas: 1
-
-  ## @param celeryMastraoTranscription.shareProcessNamespace Enable share process namespace between containers
-  shareProcessNamespace: false
-
-  ## @param celeryMastraoTranscription.sidecars Add sidecars containers to celeryMastraoTranscription deployment
-  sidecars: []
-
-  ## @param celeryMastraoTranscription.securityContext Configure celeryMastraoTranscription Container security context
-  securityContext: null
-
-  ## @param celeryMastraoTranscription.podSecurityContext Configure celeryMastraoTranscription Pod security context
-  podSecurityContext: null
-
-  ## @param celeryMastraoTranscription.envVars Configure celeryMastraoTranscription container environment variables
-  envVars:
-    <<: *commonEnvVars
-
-  ## @param celeryMastraoTranscription.podAnnotations Annotations to add to the celeryMastraoTranscription Pod
-  podAnnotations: {}
-
-  ## @param celeryMastraoTranscription.service.type celeryMastraoTranscription Service type
-  ## @param celeryMastraoTranscription.service.port celeryMastraoTranscription Service listening port
-  ## @param celeryMastraoTranscription.service.targetPort celeryMastraoTranscription container listening port
-  ## @param celeryMastraoTranscription.service.annotations Annotations to add to the celeryMastraoTranscription Service
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 8000
-    annotations: {}
-
-  probes: {}
-  resources: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
-  persistence: {}
-  extraVolumeMounts: []
-  extraVolumes: []
-  pdb:
-    enabled: false
-
-## Dedicated native ASR workers keep a ready slot independent of retries.
-celeryMastraoNativeAsrReady:
-  replicas: 2
-  ## @param celeryMastraoNativeAsrReady.autoscaling.enabled Render the KEDA ScaledObject for the ready lane
-  ## @param celeryMastraoNativeAsrReady.autoscaling.minReplicas Minimum ready worker replicas while KEDA is active
-  ## @param celeryMastraoNativeAsrReady.autoscaling.maxReplicas Maximum ready worker replicas while KEDA is active
-  ## @param celeryMastraoNativeAsrReady.autoscaling.pollingInterval PostgreSQL polling interval in seconds
-  ## @param celeryMastraoNativeAsrReady.autoscaling.scaleDownStabilizationWindowSeconds HPA scale-down stabilization window in seconds
-  ## @param celeryMastraoNativeAsrReady.autoscaling.triggerAuthenticationName Existing namespaced KEDA TriggerAuthentication providing the read-only PostgreSQL connection
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 2
-    pollingInterval: 30
-    scaleDownStabilizationWindowSeconds: 300
-    triggerAuthenticationName: ""
-  resources: {}
-  envVars:
-    <<: *commonEnvVars
-
-celeryMastraoNativeAsrRetry:
-  replicas: 2
-  ## @param celeryMastraoNativeAsrRetry.autoscaling.enabled Render the KEDA ScaledObject for the retry lane
-  ## @param celeryMastraoNativeAsrRetry.autoscaling.minReplicas Minimum retry worker replicas while KEDA is active
-  ## @param celeryMastraoNativeAsrRetry.autoscaling.maxReplicas Maximum retry worker replicas while KEDA is active
-  ## @param celeryMastraoNativeAsrRetry.autoscaling.pollingInterval PostgreSQL polling interval in seconds
-  ## @param celeryMastraoNativeAsrRetry.autoscaling.scaleDownStabilizationWindowSeconds HPA scale-down stabilization window in seconds
-  ## @param celeryMastraoNativeAsrRetry.autoscaling.triggerAuthenticationName Existing namespaced KEDA TriggerAuthentication providing the read-only PostgreSQL connection
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 2
-    pollingInterval: 30
-    scaleDownStabilizationWindowSeconds: 300
-    triggerAuthenticationName: ""
-  resources: {}
-  envVars:
-    <<: *commonEnvVars
-
 ## @section celeryTranscribe
 
 celeryTranscribe:
@@ -1386,10 +1275,10 @@ agentMetadata:
   ## @param agentMetadata.tolerations Tolerations for the agentMetadata Pod
   tolerations: []
 
-  ## @param agentMetadata.affinity Affinity for the agentSubtitles Pod
+  ## @param agentMetadata.affinity Affinity for the metadata Pod
   affinity: {}
 
-  ## @param agentMetadata.persistence Additional volumes to create and mount on the agentSubtitles. Used for debugging purposes
+  ## @param agentMetadata.persistence Additional volumes to create and mount on the metadata Pod. Used for debugging purposes
   ## @extra agentMetadata.persistence.volume-name.size Size of the additional volume
   ## @extra agentMetadata.persistence.volume-name.type Type of the additional volume, persistentVolumeClaim or emptyDir
   ## @extra agentMetadata.persistence.volume-name.mountPath Path where the volume should be mounted to
@@ -1506,114 +1395,6 @@ agentRoomAudioLive:
 
   ## @param agentRoomAudioLive.affinity Live Pod affinity
   affinity: {}
-
-## @section agentSubtitles
-
-agentSubtitles:
-
-  ## @param agentSubtitles.image.repository Repository to use to pull meet's agentSubtitles container image
-  ## @param agentSubtitles.image.digest Immutable digest; when set, it takes precedence over tag
-  ## @param agentSubtitles.image.tag meet's agentSubtitles container tag
-  ## @param agentSubtitles.image.pullPolicy agentSubtitles container image pull policy
-  image:
-    repository: lasuite/meet-agents
-    pullPolicy: IfNotPresent
-    digest: ""
-    tag: "latest"
-
-  ## @param agentSubtitles.dpAnnotations Annotations to add to the agentSubtitles Deployment
-  dpAnnotations: {}
-
-  ## @param agentSubtitles.command Override the agentSubtitles container command
-  command: []
-
-  ## @param agentSubtitles.args Override the agentSubtitles container args
-  args: []
-
-  ## @param agentSubtitles.replicas Amount of agentSubtitles replicas
-  replicas: 1
-
-  ## @param agentSubtitles.shareProcessNamespace Enable share process namespace between containers
-  shareProcessNamespace: false
-
-  ## @param agentSubtitles.sidecars Add sidecars containers to agentSubtitles deployment
-  sidecars: []
-
-  ## @param agentSubtitles.securityContext Configure agentSubtitles Container security context
-  securityContext: null
-
-  ## @param agentSubtitles.podSecurityContext Configure agentSubtitles Pod security context
-  podSecurityContext: null
-
-  ## @param agentSubtitles.envVars Configure agentSubtitles container environment variables
-  ## @extra agentSubtitles.envVars.BY_VALUE Example environment variable by setting value directly
-  ## @extra agentSubtitles.envVars.FROM_CONFIGMAP.configMapKeyRef.name Name of a ConfigMap when configuring env vars from a ConfigMap
-  ## @extra agentSubtitles.envVars.FROM_CONFIGMAP.configMapKeyRef.key Key within a ConfigMap when configuring env vars from a ConfigMap
-  ## @extra agentSubtitles.envVars.FROM_SECRET.secretKeyRef.name Name of a Secret when configuring env vars from a Secret
-  ## @extra agentSubtitles.envVars.FROM_SECRET.secretKeyRef.key Key within a Secret when configuring env vars from a Secret
-  ## @extra agentSubtitles.envVars.DEEPGRAM_STT_MODEL Deepgram model to use for speech-to-text (default: nova-3)
-  ## @extra agentSubtitles.envVars.DEEPGRAM_STT_LANGUAGE Language code for transcription or 'multi' for automatic multilingual support with real-time code-switching (default: multi, supports: en, es, fr, de, hi, ru, pt, ja, it, nl)
-  ## @extra agentSubtitles.envVars.SENTRY_DSN Sentry DSN to enable error reporting (disabled when unset)
-  ## @extra agentSubtitles.envVars.SENTRY_ENVIRONMENT Environment name reported to Sentry (e.g. production, staging)
-  ## @skip agentSubtitles.envVars
-  envVars:
-    <<: *commonEnvVars
-    # Deepgram Speech-to-Text configuration for real-time streaming
-    # Only 'model' and 'language' parameters are supported by the LiveKit plugin
-    #
-    # DEEPGRAM_STT_MODEL: "nova-3"              # Model selection (default)
-    # DEEPGRAM_STT_LANGUAGE: "multi"            # Multilingual mode with auto-detection (default)
-    # DEEPGRAM_STT_LANGUAGE: "fr"               # Force French only
-    #
-    # Note: Advanced features (diarization, smart_format, punctuate, detect_language)
-    # are NOT supported by the LiveKit Deepgram plugin in streaming mode.
-    # Use language="multi" for automatic multilingual support (10 languages).
-
-  ## @param agentSubtitles.podAnnotations Annotations to add to the agentSubtitles Pod
-  podAnnotations: {}
-
-  ## @param agentSubtitles.resources Resource requirements for the agentSubtitles container
-  resources: {}
-
-  ## @param agentSubtitles.nodeSelector Node selector for the agentSubtitles Pod
-  nodeSelector: {}
-
-  ## @param agentSubtitles.tolerations Tolerations for the agentSubtitles Pod
-  tolerations: []
-
-  ## @param agentSubtitles.affinity Affinity for the agentSubtitles Pod
-  affinity: {}
-
-  ## @param agentSubtitles.persistence Additional volumes to create and mount on the agentSubtitles. Used for debugging purposes
-  ## @extra agentSubtitles.persistence.volume-name.size Size of the additional volume
-  ## @extra agentSubtitles.persistence.volume-name.type Type of the additional volume, persistentVolumeClaim or emptyDir
-  ## @extra agentSubtitles.persistence.volume-name.mountPath Path where the volume should be mounted to
-  persistence: {}
-
-  ## @param agentSubtitles.extraVolumeMounts Additional volumes to mount on the agentSubtitles.
-  extraVolumeMounts: []
-
-  ## @param agentSubtitles.extraVolumes Additional volumes to mount on the agentSubtitles.
-  extraVolumes: []
-
-  ## @param agentSubtitles.pdb.enabled Enable pdb on agentSubtitles
-  pdb:
-    enabled: false
-
-## @section Native ASR alerts
-
-## @param nativeAsrAlerts Operator-approved queue alert policy; empty emits no rule
-## @extra nativeAsrAlerts.service Backend service label observed in Prometheus
-## @extra nativeAsrAlerts.routingOwner Alertmanager routing owner
-## @extra nativeAsrAlerts.severity Alertmanager severity
-## @extra nativeAsrAlerts.prometheusRuleLabels Labels required by the Prometheus rule selector
-## @extra nativeAsrAlerts.ready.pendingMax Approved ready queue depth ceiling
-## @extra nativeAsrAlerts.ready.oldestDueAgeMaxSeconds Approved ready due-age ceiling
-## @extra nativeAsrAlerts.ready.for Approved ready alert hold duration
-## @extra nativeAsrAlerts.retry.pendingMax Approved retry queue depth ceiling
-## @extra nativeAsrAlerts.retry.oldestDueAgeMaxSeconds Approved retry due-age ceiling
-## @extra nativeAsrAlerts.retry.for Approved retry alert hold duration
-nativeAsrAlerts: {}
 
 ## @section Extra Manifests
 

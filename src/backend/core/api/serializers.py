@@ -28,11 +28,11 @@ from core.mastrao_host_grant import (
 )
 from core.mastrao_identity import is_mastrao_host_subject
 from core.mastrao_media_token_binding import generate_host_media_config
-from core.mastrao_native_authorization import authorize_native_policy
 from core.mastrao_recording_session import (
     public_projection,
     recording_session_status,
 )
+from core.mastrao_room_audio_authorization import authorize_room_audio_policy
 from core.mastrao_room_lifecycle import MastraoRoomClosed
 from core.services.room_management import ensure_livekit_room
 
@@ -224,7 +224,7 @@ class RoomSerializer(serializers.ModelSerializer):
         )
 
         if should_access_room:
-            authorize_native_policy(request, instance, recording_status)
+            authorize_room_audio_policy(request, instance, recording_status)
             room_id = f"{instance.id!s}"
             username = request.query_params.get("username", None)
             try:

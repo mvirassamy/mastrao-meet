@@ -1,4 +1,4 @@
-"""Automatic native transcription policy authorization at prejoin."""
+"""Automatic Room Audio transcription policy authorization at prejoin."""
 
 # Generated LiveKit protobuf members and fail-closed contract checks are intentional here.
 # pylint: disable=too-many-boolean-expressions,unidiomatic-typecheck
@@ -18,9 +18,9 @@ from core.mastrao_recording_contract import (
 from core.mastrao_recording_session import _participant
 from core.mastrao_room_contract import DIGEST, OPAQUE_REFERENCE
 
-AUTHORIZATION_PATH = "/internal/v1/meetings/capture/native/authorize"
-AUTHORIZATION_JOSE = "mastrao-native-policy-authorization-request+jws"
-AUTHORIZATION_SESSION_KEY = "mastrao_native_policy_authorizations"
+AUTHORIZATION_PATH = "/internal/v1/meetings/room-audio/track/authorize"
+AUTHORIZATION_JOSE = "mastrao-room-audio-policy-authorization-request+jws"
+AUTHORIZATION_SESSION_KEY = "mastrao_room_audio_policy_authorizations"
 AUTHORIZATION_FIELDS = {
     "policy_ref",
     "policy_version",
@@ -31,7 +31,7 @@ AUTHORIZATION_FIELDS = {
 }
 
 
-def native_envelope(kind):
+def room_audio_envelope(kind):
     """Fresh purpose-specific server assertion, never a browser signature."""
     now = int(time.time())
     return {
@@ -41,7 +41,7 @@ def native_envelope(kind):
         "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
         "issued_at": now,
         "expires_at": now + 30,
-        "jti": "native_" + uuid4().hex,
+        "jti": "room_audio_" + uuid4().hex,
     }
 
 
@@ -70,11 +70,10 @@ def _validate_authorization(result):
     return result
 
 
-def native_policy_required(recording_status):
-    """Only the canonical native post-transcription mode needs a policy seal."""
+def room_audio_policy_required(recording_status):
+    """A transcribed recording requires a Room Audio track policy seal."""
     return bool(
-        settings.MASTRAO_NATIVE_PREENTRY_ENABLED
-        and recording_status
+        recording_status
         and recording_status.get("mode") == "recorded"
         and recording_status.get("transcription_mode") == "transcribed"
     )
@@ -127,9 +126,9 @@ def _remember_authorization(request, room_ref, fingerprint, result):
     request.session[AUTHORIZATION_SESSION_KEY] = entries
 
 
-def authorize_native_policy(request, room, recording_status):
+def authorize_room_audio_policy(request, room, recording_status):
     """Seal Core's current policy while the exact compact grant is available."""
-    if not native_policy_required(recording_status):
+    if not room_audio_policy_required(recording_status):
         return None
     if not hasattr(room, "mastrao_binding"):
         raise RecordingContractRefused()
@@ -147,7 +146,7 @@ def authorize_native_policy(request, room, recording_status):
     if cached is not None:
         return cached
     assertion = {
-        **native_envelope("mastrao.meet-native-policy-authorization-request"),
+        **room_audio_envelope("mastrao.meet-room-audio-policy-authorization-request"),
         **{
             field: claims[field]
             for field in (
@@ -164,7 +163,7 @@ def authorize_native_policy(request, room, recording_status):
         "participant_ref": participant["ref"],
     }
     result = post_core_json(
-        endpoint=settings.MASTRAO_CORE_NATIVE_AUTHORIZATION_ENDPOINT,
+        endpoint=settings.MASTRAO_CORE_ROOM_AUDIO_AUTHORIZATION_ENDPOINT,
         expected_path=AUTHORIZATION_PATH,
         body={
             "request": _sign(assertion, AUTHORIZATION_JOSE),

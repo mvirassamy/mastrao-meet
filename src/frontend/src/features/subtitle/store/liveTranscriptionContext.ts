@@ -8,7 +8,6 @@ import type {
 export type LiveTranscriptionContextValue = LiveTranscriptionState & {
   resolveSpeaker: (identity: string) => SpeakerPresentation | undefined
   dispatch: (action: LiveTranscriptionAction) => void
-  syncSubtitleState: () => Promise<void>
 }
 
 export const LiveTranscriptionContext =

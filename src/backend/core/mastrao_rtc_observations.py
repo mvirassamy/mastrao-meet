@@ -14,7 +14,7 @@ from django.conf import settings
 from django.db import transaction
 
 from core import models
-from core.mastrao_native_admission import wake_native_admissions
+from core.mastrao_room_audio_admission import wake_room_audio_admissions
 from core.mastrao_rtc_correlation import correlate_verified_observation
 
 PARTICIPANT_EVENTS = frozenset({"participant_joined", "participant_left"})
@@ -119,4 +119,4 @@ def _persist_observation(event, verified_body, room_id):
         room_sid=observation.room_sid,
         participant_sid=observation.participant_sid,
     )
-    transaction.on_commit(lambda: wake_native_admissions(connection.pk))
+    transaction.on_commit(lambda: wake_room_audio_admissions(connection.pk))

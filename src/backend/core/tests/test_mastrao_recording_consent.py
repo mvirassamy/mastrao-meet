@@ -27,7 +27,6 @@ from rest_framework.test import APIClient
 
 from core import models, utils
 from core.factories import RoomFactory, UserFactory
-from core.mastrao_native_authorization import native_policy_required
 from core.mastrao_recording_access import RETRY_COOKIE, SESSION_KEY
 from core.mastrao_recording_adapter import (
     _apply_start,
@@ -57,6 +56,7 @@ from core.mastrao_recording_session import (
     public_projection,
     recording_session_status,
 )
+from core.mastrao_room_audio_authorization import room_audio_policy_required
 from core.models import RoomAccessLevel
 from core.recording.worker.exceptions import RecordingStopError
 
@@ -112,29 +112,24 @@ def _recorded(state, decision="absent"):
 def test_native_policy_stays_required_across_video_lifecycle(
     settings, state, video_decision
 ):
-    settings.MASTRAO_NATIVE_PREENTRY_ENABLED = True
     status = {
         **_recorded(state, video_decision),
         "transcription_mode": "transcribed",
     }
-    assert native_policy_required(status)
+    assert room_audio_policy_required(status)
 
 
 @pytest.mark.parametrize(
-    "enabled,status",
+    "status",
     [
-        (False, {"mode": "recorded", "transcription_mode": "transcribed"}),
-        (True, None),
-        (True, {"mode": "disabled", "transcription_mode": "transcribed"}),
-        (True, {"mode": "unset", "transcription_mode": "transcribed"}),
-        (True, {"mode": "recorded", "transcription_mode": "disabled"}),
+        None,
+        {"mode": "disabled", "transcription_mode": "transcribed"},
+        {"mode": "unset", "transcription_mode": "transcribed"},
+        {"mode": "recorded", "transcription_mode": "disabled"},
     ],
 )
-def test_native_policy_requires_explicit_native_configuration(
-    settings, enabled, status
-):
-    settings.MASTRAO_NATIVE_PREENTRY_ENABLED = enabled
-    assert not native_policy_required(status)
+def test_room_audio_policy_requires_recorded_transcription(status):
+    assert not room_audio_policy_required(status)
 
 
 def test_livekit_egress_reference_is_a_valid_provider_receipt_reference():
@@ -173,14 +168,12 @@ def test_feature_off_does_not_call_core_or_change_native_projection(settings):
     post_core_json.assert_not_called()
 
 
-@pytest.mark.parametrize("native_preentry,existing", [(False, True), (True, False)])
-def test_feature_off_keeps_existing_recording_policy_projection(
-    settings, native_preentry, existing
-):
-    """Keep reading the exact Core policy without changing its video decision."""
+@pytest.mark.parametrize("existing", [True, False])
+def test_room_audio_keeps_existing_recording_policy_projection(settings, existing):
+    """Room Audio reads Core policy without changing its video decision."""
 
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
-    settings.MASTRAO_NATIVE_PREENTRY_ENABLED = native_preentry
+    settings.MASTRAO_MEETING_INTEGRATION_CONFIGURED = True
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
         "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
     )
@@ -824,11 +817,7 @@ def test_reconciler_rechecks_applying_start_without_provider_ref(
             return_value=True,
         ) as report_failure,
         mock.patch(
-            "core.mastrao_recording_reconciler.reconcile_transcription_dispatches",
-            return_value=0,
-        ),
-        mock.patch(
-            "core.mastrao_recording_reconciler.reconcile_native_recordings",
+            "core.mastrao_recording_reconciler.reconcile_room_audio",
             return_value=0,
         ),
     ):

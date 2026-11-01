@@ -306,7 +306,7 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
             r"        run: python -m unittest discover -s tests -t \. -v\n",
         )
 
-    def test_agent_subtitles_helm_rendering_runs_in_ci(self):
+    def test_room_audio_helm_rendering_runs_in_ci(self):
         workflow = CI_WORKFLOW.read_text()
         ci_contracts = re.search(
             r"(?ms)^  ci-contracts:\n(?P<job>.*?)(?=^  [\w-]+:\n)", workflow
@@ -317,7 +317,7 @@ class StagingCandidateWorkflowTests(unittest.TestCase):
         )
         self.assertRegex(
             ci_contracts.group("job"),
-            r"(?m)^        run: src/helm/tests/agent-subtitles-image-and-openai-secret\.sh$",
+            r"(?m)^        run: src/helm/tests/agent-room-audio-inert\.sh$",
         )
 
     def test_agent_contract_tests_run_in_ci(self):

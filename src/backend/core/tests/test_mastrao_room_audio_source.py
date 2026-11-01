@@ -38,7 +38,7 @@ from core.mastrao_room_audio_source import (
     schedule_room_audio_source_delivery,
 )
 from core.mastrao_room_contract import _canonical_json, _sha256_canonical
-from core.tasks.native_capture import process_room_audio_sources
+from core.tasks.room_audio import process_room_audio_sources
 
 pytestmark = pytest.mark.django_db
 ENDPOINT = "/internal/mastrao/room-audio/sources/complete/"
@@ -93,7 +93,6 @@ def source_run(settings):
     settings.MASTRAO_RECORDING_RECEIPT_PRIVATE_JWK = json.dumps(
         _private_jwk(receipt_key)
     )
-    settings.ROOM_AUDIO_SOURCE_TRANSFER_ENABLED = True
     settings.MASTRAO_CORE_ROOM_AUDIO_SOURCE_ENDPOINT = (
         "http://127.0.0.1:9000/internal/v1/meetings/room-audio/source"
     )
@@ -278,8 +277,7 @@ def test_source_is_signed_persisted_and_delivered_once(source_run):
     assert row.attempt_count == 1
 
 
-def test_delivered_source_schedules_room_asr(source_run, settings):
-    settings.ROOM_AUDIO_ASR_ENABLED = True
+def test_delivered_source_schedules_room_asr(source_run):
     delivered = _core_success(body={"source_receipt": "unused"})
     delivered.pop("compact")
 
@@ -615,11 +613,10 @@ def test_scheduler_queues_only_pending_rows(source_run, settings):
     row.save(update_fields=["next_attempt_at"])
     settings.CELERY_ENABLED = True
 
-    with patch(
-        "core.tasks.native_capture.process_room_audio_sources.apply_async"
-    ) as enqueue:
+    with patch("core.mastrao_room_audio_source.current_app.send_task") as enqueue:
         assert schedule_room_audio_source_delivery(limit=1) == 1
 
+    assert enqueue.call_args.args == ("core.process_room_audio_sources",)
     args = enqueue.call_args.kwargs["args"]
     assert args[0] == str(row.pk)
     assert args[2] == row.attempt_count
@@ -647,7 +644,7 @@ def test_scheduler_releases_reservation_when_broker_refuses(source_run, settings
     settings.CELERY_ENABLED = True
 
     with patch(
-        "core.tasks.native_capture.process_room_audio_sources.apply_async",
+        "core.mastrao_room_audio_source.current_app.send_task",
         side_effect=RuntimeError("broker unavailable"),
     ):
         assert schedule_room_audio_source_delivery(limit=1) == 0

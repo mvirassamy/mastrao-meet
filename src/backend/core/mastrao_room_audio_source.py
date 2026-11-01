@@ -1,7 +1,7 @@
 """Durably sign and deliver one completed room-audio source to Tenant Core."""
 
 # The contract boundary intentionally keeps every binding predicate visible.
-# pylint: disable=cyclic-import,too-many-boolean-expressions,too-many-locals
+# pylint: disable=too-many-boolean-expressions,too-many-locals
 # pylint: disable=unidiomatic-typecheck
 
 import json
@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from celery import current_app
 from livekit import api
 
 from core import models
@@ -30,6 +31,7 @@ from core.mastrao_recording_contract import (
 )
 from core.mastrao_room_audio_run import read_room_audio_run_effect
 from core.mastrao_room_contract import _sha256_canonical
+from core.room_audio_queue import ROOM_AUDIO_PROCESSING_QUEUE
 
 CALLBACK_PATH = "/internal/mastrao/room-audio/sources/complete/"
 CORE_PATH = "/internal/v1/meetings/room-audio/source"
@@ -530,8 +532,6 @@ def _mark_delivered(row_id, claim_id, source_id, replayed):
 
 def deliver_room_audio_source(row, queued_claim=None, queued_attempts=None):
     """Deliver one exact JWS; remint only after an explicit expiry refusal."""
-    if not settings.ROOM_AUDIO_SOURCE_TRANSFER_ENABLED:
-        return False
     claimed, should_deliver = claim_room_audio_source(
         row.pk,
         queued_claim=queued_claim,
@@ -560,31 +560,28 @@ def deliver_room_audio_source(row, queued_claim=None, queued_attempts=None):
         raise
     if not _mark_delivered(claimed.pk, claim_id, source_id, replayed):
         raise RecordingContractRefused(status=409)
-    if settings.ROOM_AUDIO_ASR_ENABLED:
-        from core.mastrao_room_audio_asr_worker import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-            schedule_room_audio_asr,
-        )
+    from core.mastrao_room_audio_asr_worker import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        schedule_room_audio_asr,
+    )
 
-        transaction.on_commit(
-            lambda: schedule_room_audio_asr(source_id=claimed.pk, limit=1)
-        )
+    transaction.on_commit(
+        lambda: schedule_room_audio_asr(source_id=claimed.pk, limit=1)
+    )
     return True
 
 
 def schedule_room_audio_source_delivery(limit=20):
     """Queue a bounded set of pending source receipts for durable delivery."""
-    if not settings.ROOM_AUDIO_SOURCE_TRANSFER_ENABLED or not settings.CELERY_ENABLED:
+    if not settings.CELERY_ENABLED:
         return 0
-    from core.tasks.native_capture import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-        process_room_audio_sources,
-    )
 
     dispatched = 0
     for row_id, queued_claim, queued_attempts in _reserve_room_audio_sources(limit):
         try:
-            process_room_audio_sources.apply_async(
+            current_app.send_task(
+                "core.process_room_audio_sources",
                 args=[str(row_id), str(queued_claim), queued_attempts],
-                queue="mastrao-transcription",
+                queue=ROOM_AUDIO_PROCESSING_QUEUE,
             )
             dispatched += 1
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught

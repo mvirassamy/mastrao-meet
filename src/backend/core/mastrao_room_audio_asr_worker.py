@@ -20,6 +20,7 @@ from core.mastrao_room_audio_asr_client import (
     transcribe_room_audio,
     upload_room_audio_asr_result,
 )
+from core.room_audio_queue import ROOM_AUDIO_PROCESSING_QUEUE
 
 logger = logging.getLogger(__name__)
 CLAIM_SECONDS = 300
@@ -88,8 +89,6 @@ def _finish(row, acknowledged, receipt=None):
 
 def process_room_audio_asr_source(source_id):
     """Run the exact room source through Core-authorized Mistral ASR."""
-    if not settings.ROOM_AUDIO_ASR_ENABLED:
-        return False
     try:
         source_id = UUID(str(source_id))
     except (ValueError, TypeError, AttributeError):
@@ -130,7 +129,7 @@ def process_room_audio_asr_source(source_id):
 
 def schedule_room_audio_asr(source_id=None, limit=20):
     """Enqueue eligible room sources without taking provider work inline."""
-    if not settings.ROOM_AUDIO_ASR_ENABLED or not settings.CELERY_ENABLED:
+    if not settings.CELERY_ENABLED:
         return 0
     now = timezone.now()
     eligible = _eligible(now)
@@ -145,7 +144,7 @@ def schedule_room_audio_asr(source_id=None, limit=20):
             current_app.send_task(
                 "core.process_room_audio_asr",
                 args=[str(eligible_source_id)],
-                queue="mastrao-transcription",
+                queue=ROOM_AUDIO_PROCESSING_QUEUE,
             )
             dispatched += 1
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught

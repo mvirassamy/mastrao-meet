@@ -365,37 +365,31 @@ def test_sentry_scrubs_raw_guest_confirmation_credentials():
     assert scrubbed["request"]["data"] == "[Filtered]"
 
 
-def test_sentry_scrubs_transcription_effects_and_receipts():
-    """Remove transcription contracts and receipts from Sentry request data."""
+def test_sentry_scrubs_room_audio_credentials():
+    """Remove canonical Room Audio capabilities from Sentry request data."""
 
     event = {
         "request": {
             "data": {
-                "transcription_submit_effect": "effect.payload.signature",
-                "transcription_artifact_receipt": "receipt.payload.signature",
-                "transcription_egress_request": "request.payload.signature",
-                "transcription_egress_grant": "grant.payload.signature",
-                "transcription_terminal_receipt": "terminal.payload.signature",
+                "candidate": "candidate.payload.signature",
+                "source_receipt": "receipt.payload.signature",
+                "room_audio_start_effect": "effect.payload.signature",
+                "room_audio_source_egress_grant": "grant.payload.signature",
                 "safe": "kept",
             }
         }
     }
     scrubbed = scrub_mastrao_handoff_credentials(event, {})
     assert scrubbed["request"]["data"] == {
-        "transcription_submit_effect": "[Filtered]",
-        "transcription_artifact_receipt": "[Filtered]",
-        "transcription_egress_request": "[Filtered]",
-        "transcription_egress_grant": "[Filtered]",
-        "transcription_terminal_receipt": "[Filtered]",
+        "candidate": "[Filtered]",
+        "source_receipt": "[Filtered]",
+        "room_audio_start_effect": "[Filtered]",
+        "room_audio_source_egress_grant": "[Filtered]",
         "safe": "kept",
     }
 
     raw = {
-        "request": {
-            "data": json.dumps(
-                {"transcription_failure_receipt": "receipt.payload.signature"}
-            )
-        }
+        "request": {"data": json.dumps({"source_receipt": "receipt.payload.signature"})}
     }
     assert scrub_mastrao_handoff_credentials(raw, {})["request"]["data"] == (
         "[Filtered]"
@@ -404,13 +398,13 @@ def test_sentry_scrubs_transcription_effects_and_receipts():
     headers = {
         "request": {
             "headers": {
-                "X-Mastrao-Transcription-Egress-Grant": "grant.payload.signature",
+                "X-Mastrao-Room-Audio-Source-Egress-Grant": "grant.payload.signature",
                 "Accept": "application/json",
             }
         }
     }
     assert scrub_mastrao_handoff_credentials(headers, {})["request"]["headers"] == {
-        "X-Mastrao-Transcription-Egress-Grant": "[Filtered]",
+        "X-Mastrao-Room-Audio-Source-Egress-Grant": "[Filtered]",
         "Accept": "application/json",
     }
 

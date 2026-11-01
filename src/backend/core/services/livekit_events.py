@@ -10,7 +10,6 @@ from logging import getLogger
 from django.conf import settings
 
 from livekit import api
-from livekit.protocol.models import ParticipantInfo
 
 from core import models
 from core.mastrao_recording_failure import report_mastrao_recording_failure
@@ -28,12 +27,6 @@ from core.recording.services.recording_events import (
     RecordingEventsError,
     RecordingEventsService,
     RecordingNotSavableError,
-)
-from core.services.subtitle_reconciliation import (
-    observe_subtitle_agent,
-    request_subtitle_stop,
-    schedule_subtitle_reconciliation,
-    subtitle_agent_identity,
 )
 
 from .lobby import LobbyService
@@ -143,8 +136,6 @@ class LiveKitEventsService:
             "egress_ended": self._handle_egress_ended,
             "room_started": self._handle_room_started,
             "room_finished": self._handle_room_finished,
-            "participant_joined": self._handle_participant_joined,
-            "participant_left": self._handle_participant_left,
         }
 
         token_verifier = api.TokenVerifier(
@@ -214,14 +205,6 @@ class LiveKitEventsService:
         if handler is not None:
             handler(data)
 
-    @staticmethod
-    def _is_native_capture_egress(egress_id):
-        """Return whether the egress belongs to the native capture pipeline."""
-
-        return models.MastraoNativeCaptureStart.objects.filter(
-            provider_job_ref=egress_id
-        ).exists()
-
     def _handle_egress_updated(self, data):
         """Handle 'egress_updated' event."""
 
@@ -229,12 +212,6 @@ class LiveKitEventsService:
         try:
             recording = models.Recording.objects.get(worker_id=egress_id)
         except models.Recording.DoesNotExist as err:
-            if self._is_native_capture_egress(egress_id):
-                logger.info(
-                    "Ignoring legacy recording update for native capture egress %s",
-                    egress_id,
-                )
-                return
             raise ActionFailedError(
                 f"Recording with worker ID {egress_id} does not exist"
             ) from err
@@ -251,12 +228,6 @@ class LiveKitEventsService:
                 worker_id=egress_id
             )
         except models.Recording.DoesNotExist as err:
-            if self._is_native_capture_egress(egress_id):
-                logger.info(
-                    "Ignoring legacy recording end for native capture egress %s",
-                    egress_id,
-                )
-                return
             raise ActionFailedError(
                 f"Recording with worker ID {egress_id} does not exist"
             ) from err
@@ -364,35 +335,6 @@ class LiveKitEventsService:
                     f"Failed to create sip dispatch rule for room {room_id}"
                 ) from e
 
-    def _handle_participant_joined(self, data):
-        """Observe a LiveKit agent joining the subtitle room."""
-        self._handle_subtitle_agent_presence(data, present=True)
-
-    def _handle_participant_left(self, data):
-        """Observe a LiveKit agent leaving the subtitle room."""
-        self._handle_subtitle_agent_presence(data, present=False)
-
-    @staticmethod
-    def _handle_subtitle_agent_presence(data, *, present):
-        participant = getattr(data, "participant", None)
-        if participant is None or participant.kind != ParticipantInfo.AGENT:
-            return
-        room = getattr(data, "room", None)
-        room_sid = getattr(room, "sid", None)
-        room_name = getattr(room, "name", None)
-        identity = getattr(participant, "identity", None)
-        if not room_sid or not room_name or not identity:
-            return
-        if identity != subtitle_agent_identity(room_name):
-            return
-        control = observe_subtitle_agent(
-            room_sid,
-            participant_identity=identity,
-            present=present,
-        )
-        if control is not None and not present:
-            schedule_subtitle_reconciliation(control.room_sid)
-
     def _handle_room_finished(self, data):
         """Handle 'room_finished' event."""
 
@@ -404,16 +346,6 @@ class LiveKitEventsService:
                 data.room.name,
             )
             raise ActionFailedError("Failed to process room finished event") from e
-
-        room = models.Room.objects.filter(id=room_id).first()
-        if room is not None:
-            control = request_subtitle_stop(
-                room,
-                room_sid=getattr(data.room, "sid", None),
-                reason_code=models.RoomSubtitleControl.ReasonCode.ROOM_FINISHED,
-            )
-            if control is not None:
-                schedule_subtitle_reconciliation(control.room_sid)
 
         if settings.ROOM_TELEPHONY_ENABLED or settings.ROOMKIT_ENABLED:
             try:

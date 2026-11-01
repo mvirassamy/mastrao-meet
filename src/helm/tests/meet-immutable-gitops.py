@@ -26,9 +26,6 @@ BACKEND_DEPLOYMENTS = (
     'backend',
     'celery-backend',
     'celery-mastrao-native-admission',
-    'celery-mastrao-transcription',
-    'celery-mastrao-native-asr-ready',
-    'celery-mastrao-native-asr-retry',
 )
 SUMMARY_DEPLOYMENTS = (
     'summary', 'celery-transcribe-default', 'celery-summarize', 'celery-summary-backend'
@@ -83,8 +80,7 @@ class ImmutableGitOpsTests(unittest.TestCase):
         rendered = self.rendered(FIXTURE)
         expected = {name: BACKEND for name in BACKEND_DEPLOYMENTS}
         expected.update({name: SUMMARY for name in SUMMARY_DEPLOYMENTS})
-        expected.update({'frontend': FRONTEND, 'agent-metadata': AGENTS,
-                         'agent-subtitles': AGENTS})
+        expected.update({'frontend': FRONTEND, 'agent-metadata': AGENTS})
         deployments = {name.removeprefix('fixture-meet-'): images(doc)
                        for (kind, name), doc in rendered.items() if kind == 'Deployment'}
         self.assertEqual(deployments, {name: [image] for name, image in expected.items()})
@@ -97,7 +93,7 @@ class ImmutableGitOpsTests(unittest.TestCase):
         self.assertIn('- metadata_collector.py\n', metadata)
         self.assertIn('- start\n', metadata)
         all_images = [image for doc in rendered.values() for image in images(doc)]
-        self.assertEqual(len(all_images), 17)
+        self.assertEqual(len(all_images), 13)
         self.assertTrue(all('@sha256:' in image for image in all_images))
 
     def test_admin_and_explicit_data_repair_jobs_also_use_backend_digest(self):
@@ -117,8 +113,7 @@ class ImmutableGitOpsTests(unittest.TestCase):
         expected = {name: 'lasuite/meet-backend:latest' for name in BACKEND_DEPLOYMENTS}
         expected.update({name: 'lasuite/meet-summary:latest' for name in SUMMARY_DEPLOYMENTS})
         expected.update({'frontend': 'lasuite/meet-frontend:latest',
-                         'agent-metadata': 'lasuite/meet-agents:latest',
-                         'agent-subtitles': 'lasuite/meet-agents:latest'})
+                         'agent-metadata': 'lasuite/meet-agents:latest'})
         deployments = {name.removeprefix('fixture-meet-'): images(doc)
                        for (kind, name), doc in rendered.items() if kind == 'Deployment'}
         self.assertEqual(deployments, {name: [image] for name, image in expected.items()})
@@ -139,7 +134,7 @@ class ImmutableGitOpsTests(unittest.TestCase):
 
     def test_custom_development_tags_remain_supported_for_every_component(self):
         values = {'image': {'tag': 'dev-backend'}}
-        components = ('frontend', 'agentMetadata', 'agentSubtitles', 'summary',
+        components = ('frontend', 'agentMetadata', 'summary',
                       'celeryTranscribe', 'celerySummarize', 'celerySummaryBackend')
         for component in components:
             values[component] = {'image': {'tag': 'dev-' + component}}
@@ -150,7 +145,6 @@ class ImmutableGitOpsTests(unittest.TestCase):
         for name, component, repository in (
             ('frontend', 'frontend', 'meet-frontend'),
             ('agent-metadata', 'agentMetadata', 'meet-agents'),
-            ('agent-subtitles', 'agentSubtitles', 'meet-agents'),
             ('summary', 'summary', 'meet-summary'),
             ('celery-transcribe-default', 'celeryTranscribe', 'meet-summary'),
             ('celery-summarize', 'celerySummarize', 'meet-summary'),
@@ -212,7 +206,7 @@ class ImmutableGitOpsTests(unittest.TestCase):
             self.assertEqual(images(self.resource(rendered, 'Deployment', 'celery-transcribe-' + instance)), [image])
 
     def test_malformed_and_non_string_digests_are_rejected_at_every_image_input(self):
-        paths = ('image', 'backend.image', 'frontend.image', 'agentSubtitles.image',
+        paths = ('image', 'backend.image', 'frontend.image',
                  'agentMetadata.image', 'summary.image', 'celeryTranscribe.image',
                  'celerySummarize.image', 'celerySummaryBackend.image')
         for path in paths:

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 from livekit.agents import LanguageCode, stt
 
-from live_transcriber import GAP_TOPIC, TRANSCRIPTION_TOPIC
+from live_transcription_publisher import GAP_TOPIC, TRANSCRIPTION_TOPIC
 from room_audio_live_output import RoomLiveTranscriptionOutput
 
 

@@ -33,6 +33,8 @@ MAX_ASSERTION_SECONDS = 30
 MAX_ACCESS_SECONDS = 60
 PURPOSE = "meeting_recording"
 SCOPE = "room_composite_audio_video_screen"
+TRANSCRIPTION_PURPOSE = "meeting_transcription"
+TRANSCRIPTION_SCOPE = "room_mix_audio_transcript"
 PROVIDER_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,160}$")
 
 START_EFFECT_TYPE = "mastrao.core-meeting-recording-start-effect"
@@ -45,6 +47,8 @@ STOP_RECEIPT_TYPE = "mastrao.meeting-recording-stop-receipt"
 STOP_RECEIPT_JOSE_TYPE = "mastrao-meeting-recording-stop-receipt+jws"
 DECISION_TYPE = "mastrao.meet-recording-decision"
 DECISION_JOSE_TYPE = "mastrao-meeting-recording-decision+jws"
+TRANSCRIPTION_DECISION_TYPE = "mastrao.meet-transcription-decision"
+TRANSCRIPTION_DECISION_JOSE_TYPE = "mastrao-meeting-transcription-decision+jws"
 ACTIVATION_TYPE = "mastrao.meet-recording-activation"
 ACTIVATION_JOSE_TYPE = "mastrao-meeting-recording-activation+jws"
 STOP_REQUEST_TYPE = "mastrao.meet-recording-stop-request"
@@ -395,6 +399,11 @@ def sign_stop_receipt(claims):
 def sign_decision_assertion(payload):
     """Sign one participant recording decision."""
     return _sign(payload, DECISION_JOSE_TYPE)
+
+
+def sign_transcription_decision_assertion(payload):
+    """Sign one participant decision for the canonical room-audio transcript."""
+    return _sign(payload, TRANSCRIPTION_DECISION_JOSE_TYPE)
 
 
 def sign_activation_assertion(payload):
