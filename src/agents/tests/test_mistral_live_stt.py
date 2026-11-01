@@ -1,6 +1,7 @@
 """Unit tests for the Mistral realtime adapter without network access."""
 
 import asyncio
+import base64
 import json
 import os
 import unittest
@@ -12,7 +13,9 @@ from livekit import rtc
 from livekit.agents import stt
 
 from mistral_live_stt import (
+    _INPUT_END,
     DEFAULT_CONTEXT_BIAS,
+    PROVIDER_CHUNK_BYTES,
     MistralRealtimeConfig,
     MistralRealtimeStream,
     configured_context_bias,
@@ -208,6 +211,28 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(ValueError, "24 kHz mono"):
             stream.push_frame(frame)
+
+    async def test_audio_is_batched_into_100ms_provider_chunks(self):
+        """Reduce WebSocket pressure without dropping a partial final chunk."""
+        stream = detached_stream(self.config)
+        socket = FakeSocket()
+        frame = bytes(960)
+        for _ in range(6):
+            stream._input.put_nowait(frame)
+        stream._input.put_nowait(_INPUT_END)
+
+        await stream._send_audio(socket)
+
+        appended = [
+            base64.b64decode(payload["audio"])
+            for payload in socket.sent
+            if payload["type"] == "input_audio.append"
+        ]
+        self.assertEqual(
+            [len(chunk) for chunk in appended],
+            [PROVIDER_CHUNK_BYTES, 960],
+        )
+        self.assertEqual(socket.sent[-1], {"type": "input_audio.end"})
 
     async def test_unexpected_socket_close_is_an_error(self):
         """Surface a provider disconnect so the room receives a gap marker."""

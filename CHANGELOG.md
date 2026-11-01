@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-01: Send Mistral realtime PCM in documented 100 ms chunks while
+  preserving the final partial chunk at meeting end.
+
 - 2026-11-01: Retry eligible mixed room-audio ASR sources from the durable
   native reconciler so a lost or disabled initial Celery dispatch cannot leave
   post-meeting transcription stuck indefinitely.

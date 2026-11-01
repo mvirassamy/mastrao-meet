@@ -24,6 +24,11 @@ MAX_STREAMING_DELAY_MS: Final = 2_400
 DEFAULT_CONTEXT_BIAS: Final = ("Mastrao", "LDS")
 REALTIME_URL: Final = "wss://api.mistral.ai/v1/audio/transcriptions/realtime"
 SAMPLE_RATE: Final = 24_000
+BYTES_PER_SAMPLE: Final = 2
+PROVIDER_CHUNK_DURATION_MS: Final = 100
+PROVIDER_CHUNK_BYTES: Final = (
+    SAMPLE_RATE * BYTES_PER_SAMPLE * PROVIDER_CHUNK_DURATION_MS // 1_000
+)
 INPUT_QUEUE_SIZE: Final = 200
 OUTPUT_QUEUE_SIZE: Final = 200
 CLOSE_TIMEOUT_SECONDS: Final = 10
@@ -165,18 +170,33 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         self._expect_event(updated, "session.updated")
 
     async def _send_audio(self, socket: aiohttp.ClientWebSocketResponse) -> None:
-        """Send queued PCM frames until the LiveKit track closes."""
+        """Send provider-sized PCM chunks until the LiveKit track closes."""
+        pending = bytearray()
         while True:
             item = await self._input.get()
             if item is _INPUT_END:
+                await self._send_audio_chunk(socket, bytes(pending))
                 await socket.send_json({"type": "input_audio.end"})
                 return
-            await socket.send_json(
-                {
-                    "type": "input_audio.append",
-                    "audio": base64.b64encode(item).decode("ascii"),
-                }
-            )
+            pending.extend(item)
+            while len(pending) >= PROVIDER_CHUNK_BYTES:
+                chunk = bytes(pending[:PROVIDER_CHUNK_BYTES])
+                del pending[:PROVIDER_CHUNK_BYTES]
+                await self._send_audio_chunk(socket, chunk)
+
+    @staticmethod
+    async def _send_audio_chunk(
+        socket: aiohttp.ClientWebSocketResponse, pcm_s16le: bytes
+    ) -> None:
+        """Append one non-empty 100 ms provider chunk."""
+        if not pcm_s16le:
+            return
+        await socket.send_json(
+            {
+                "type": "input_audio.append",
+                "audio": base64.b64encode(pcm_s16le).decode("ascii"),
+            }
+        )
 
     async def _receive_events(self, socket: aiohttp.ClientWebSocketResponse) -> None:
         """Translate provider deltas without splitting words between events."""
