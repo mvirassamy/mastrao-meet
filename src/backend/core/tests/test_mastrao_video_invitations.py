@@ -44,7 +44,7 @@ SETTINGS = {
     "EMAIL_FROM": "host@example.com",
     "MASTRAO_PLATFORM_API_BASE_URL": "https://app.example.com",
     "MASTRAO_CORE_VIDEO_DELIVERY_ENDPOINT": (
-        "http://cabinet-core:3911/internal/v1/meetings/video-invitations/delivery"
+        "http://tenant-core:3911/internal/v1/meetings/video-invitations/delivery"
     ),
 }
 

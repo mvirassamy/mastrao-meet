@@ -37,7 +37,7 @@ def _can_tombstone_local_stale_failure(error):
         "localhost",
         "127.0.0.1.nip.io",
         "host.docker.internal",
-        "cabinet-core",
+        "tenant-core",
     }
 
 

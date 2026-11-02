@@ -420,7 +420,7 @@ def test_core_failed_survives_http_client_and_stops_worker_dispatch(
     asr_intent, settings
 ):
     settings.MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = (
-        "http://cabinet-core/internal/v1/meetings/capture/native/asr/prepare"
+        "http://tenant-core/internal/v1/meetings/capture/native/asr/prepare"
     )
     models.MastraoNativeCaptureStart.objects.filter(pk=asr_intent.pk).update(
         asr_attempts=13, asr_retry_streak=7

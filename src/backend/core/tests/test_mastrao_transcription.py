@@ -1354,7 +1354,7 @@ def test_celery_completion_notifies_core_after_submit_receipt():
 
 def test_artifact_notification_posts_signed_receipt_to_core(settings):
     settings.MASTRAO_CORE_TRANSCRIPTION_ARTIFACT_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/transcription/artifacts/finalize"
+        "http://tenant-core:3911/internal/v1/meetings/transcription/artifacts/finalize"
     )
     binding = _finalized_recording_binding("notifypost_01234567")
     effect = _effect(binding)
@@ -1387,7 +1387,7 @@ def test_failure_notification_accepts_available_when_core_already_has_artifact(
     settings,
 ):
     settings.MASTRAO_CORE_TRANSCRIPTION_FAILURE_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/transcription/failures"
+        "http://tenant-core:3911/internal/v1/meetings/transcription/failures"
     )
     binding = _finalized_recording_binding("failavail_01234567")
     effect = _effect(binding)
@@ -1489,7 +1489,7 @@ def _transcribed_status(**overrides):
 
 def test_transcription_decision_posts_dedicated_purpose_assertion(settings):
     settings.MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/transcription/decisions"
+        "http://tenant-core:3911/internal/v1/meetings/transcription/decisions"
     )
     participant = {
         "kind": "guest",

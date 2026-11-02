@@ -141,7 +141,7 @@ def test_invalid_gateway_error_is_bounded_and_closed(native_gateway, body):
 
 def test_native_prepare_preserves_core_failed_outcome(settings):
     settings.MASTRAO_CORE_NATIVE_ASR_PREPARE_ENDPOINT = (
-        "http://cabinet-core/internal/v1/meetings/capture/native/asr/prepare"
+        "http://tenant-core/internal/v1/meetings/capture/native/asr/prepare"
     )
     intent = SimpleNamespace(
         source_receipt={"source_ref": "source-fixture"},

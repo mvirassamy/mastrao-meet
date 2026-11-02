@@ -1,4 +1,4 @@
-"""Strict, bounded HTTP transport for private Cabinet Core calls."""
+"""Strict, bounded HTTP transport for private Tenant Core calls."""
 
 import json
 import re
@@ -27,7 +27,7 @@ ALLOWED_CORE_HOSTS = {
     "::1",
     "host.docker.internal",
     "127.0.0.1.nip.io",
-    "cabinet-core",
+    "tenant-core",
 }
 
 

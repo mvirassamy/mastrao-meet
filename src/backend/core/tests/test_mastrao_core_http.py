@@ -4,7 +4,11 @@ from unittest import mock
 
 import pytest
 
-from core.mastrao_core_http import read_bounded_core_json, validate_core_endpoint
+from core.mastrao_core_http import (
+    post_core_json,
+    read_bounded_core_json,
+    validate_core_endpoint,
+)
 from core.mastrao_guest_contract import GuestHandoffRefused
 from core.mastrao_room_close_contract import RoomCloseRefused
 from core.mastrao_transcription_contract import TranscriptionContractRefused
@@ -15,7 +19,8 @@ from core.mastrao_transcription_contract import TranscriptionContractRefused
     [
         "http://localhost:3911/internal/v1/meetings/close",
         "http://host.docker.internal:3911/internal/v1/meetings/close",
-        "http://cabinet-core:3911/internal/v1/meetings/close",
+        "http://tenant-core:3911/internal/v1/meetings/close",
+        "http://tenant-core:8080/internal/v1/meetings/close",
     ],
 )
 def test_private_core_endpoint_accepts_only_qualified_hosts(endpoint):
@@ -32,11 +37,14 @@ def test_private_core_endpoint_accepts_only_qualified_hosts(endpoint):
 @pytest.mark.parametrize(
     "endpoint",
     [
-        "https://cabinet-core:3911/internal/v1/meetings/close",
+        "https://tenant-core:3911/internal/v1/meetings/close",
         "http://example.test/internal/v1/meetings/close",
-        "http://cabinet-core:3911/internal/v1/meetings/other",
-        "http://user@cabinet-core:3911/internal/v1/meetings/close",
-        "http://cabinet-core:3911/internal/v1/meetings/close?redirect=true",
+        "http://cabinet-core:8080/internal/v1/meetings/close",
+        "http://tenant-core.attacker.test:8080/internal/v1/meetings/close",
+        "http://tenant-core:8080/internal/v1/meetings/close#redirect",
+        "http://tenant-core:3911/internal/v1/meetings/other",
+        "http://user@tenant-core:3911/internal/v1/meetings/close",
+        "http://tenant-core:3911/internal/v1/meetings/close?redirect=true",
     ],
 )
 def test_private_core_endpoint_rejects_unqualified_targets(endpoint):
@@ -47,6 +55,54 @@ def test_private_core_endpoint_rejects_unqualified_targets(endpoint):
             endpoint, "/internal/v1/meetings/close", RoomCloseRefused
         )
     assert error.value.status == 503
+
+
+def test_private_core_post_keeps_canonical_target_and_transport_guards():
+    """The canonical Service is used without redirects or environment proxies."""
+
+    endpoint = "http://tenant-core:8080/internal/v1/meetings/close"
+    response = mock.Mock(
+        headers={},
+        status_code=200,
+        iter_content=mock.Mock(return_value=[b'{"accepted":true}']),
+    )
+    with mock.patch("core.mastrao_core_http.requests.Session") as session_type:
+        session = session_type.return_value.__enter__.return_value
+        session.post.return_value = response
+        result = post_core_json(
+            endpoint=endpoint,
+            expected_path="/internal/v1/meetings/close",
+            body={"command": "synthetic"},
+            timeout=2,
+            refusal=RoomCloseRefused,
+            expected_fields={"accepted"},
+        )
+    assert result == {"accepted": True}
+    assert session.trust_env is False
+    session.post.assert_called_once_with(
+        endpoint,
+        json={"command": "synthetic"},
+        timeout=2,
+        allow_redirects=False,
+        stream=True,
+    )
+    response.close.assert_called_once_with()
+
+
+def test_legacy_core_post_is_refused_before_opening_a_session():
+    """A stale Cabinet URL cannot become a silent compatibility path."""
+
+    with mock.patch("core.mastrao_core_http.requests.Session") as session_type:
+        with pytest.raises(RoomCloseRefused) as error:
+            post_core_json(
+                endpoint="http://cabinet-core:8080/internal/v1/meetings/close",
+                expected_path="/internal/v1/meetings/close",
+                body={"command": "synthetic"},
+                timeout=2,
+                refusal=RoomCloseRefused,
+            )
+    assert error.value.status == 503
+    session_type.assert_not_called()
 
 
 def test_bounded_json_preserves_close_conflict_status():

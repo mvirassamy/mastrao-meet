@@ -147,7 +147,7 @@ def authority(settings):
     settings.MASTRAO_RECORDING_RECEIPT_ISSUER = "mastrao-meet"
     settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE = "cabinet-core"
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
-        "http://cabinet-core:8081/internal/v1/meetings/recording/session-status"
+        "http://tenant-core:8081/internal/v1/meetings/recording/session-status"
     )
     settings.MASTRAO_CORE_RECORDING_TIMEOUT_SECONDS = 3
     binding = models.MastraoRoomBinding(
@@ -346,7 +346,7 @@ def test_real_signed_roster_posts_exact_digest_and_fresh_sfu_incarnation(
     assert decision["authorized"] is True
     session.post.assert_called_once()
     target = session.post.call_args.args[0]
-    assert target == "http://cabinet-core:8081" + roster.START_AUTHORIZATION_PATH
+    assert target == "http://tenant-core:8081" + roster.START_AUTHORIZATION_PATH
     assert session.trust_env is False
     kwargs = session.post.call_args.kwargs
     assert kwargs["allow_redirects"] is False and kwargs["stream"] is True
@@ -785,9 +785,9 @@ def test_core_compact_envelope_limit_fails_closed(
         "",
         "https://cabinet-core/internal/v1/meetings/recording/session-status",
         "http://external.example/internal/v1/meetings/recording/session-status",
-        "http://cabinet-core/incorrect",
+        "http://tenant-core/incorrect",
         "http://user:secret@cabinet-core/internal/v1/meetings/recording/session-status",
-        "http://cabinet-core/internal/v1/meetings/recording/session-status?x=1",
+        "http://tenant-core/internal/v1/meetings/recording/session-status?x=1",
     ],
 )
 def test_invalid_core_origin_is_rejected_before_snapshot(

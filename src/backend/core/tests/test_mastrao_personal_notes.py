@@ -40,7 +40,7 @@ from core.mastrao_room_contract import _canonical_json
 
 pytestmark = pytest.mark.django_db
 
-CORE = "http://cabinet-core:3000/internal/v1/meetings/personal-notes"
+CORE = "http://tenant-core:3000/internal/v1/meetings/personal-notes"
 TOKEN = "test-oidc-access-token-123456"
 NONCE = "notes-session-nonce-" * 3
 EMPTY_NOTE = {

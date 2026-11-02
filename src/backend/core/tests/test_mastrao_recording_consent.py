@@ -182,7 +182,7 @@ def test_feature_off_keeps_existing_recording_policy_projection(
     settings.MASTRAO_MEETING_RECORDING_ENABLED = False
     settings.MASTRAO_NATIVE_PREENTRY_ENABLED = native_preentry
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
+        "http://tenant-core:3911/internal/v1/meetings/recording/session-status"
     )
     participant = {
         "kind": "guest",
@@ -236,7 +236,7 @@ def test_feature_off_keeps_existing_recording_policy_projection(
 def test_recorded_projection_refuses_notice_manifest_drift(settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
+        "http://tenant-core:3911/internal/v1/meetings/recording/session-status"
     )
     participant = {
         "kind": "guest",
@@ -290,7 +290,7 @@ def test_feature_off_refuses_browser_recording_activation(settings):
 def test_session_status_posts_only_the_bound_participant_grant(settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_CORE_RECORDING_SESSION_STATUS_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/recording/session-status"
+        "http://tenant-core:3911/internal/v1/meetings/recording/session-status"
     )
     participant = {
         "kind": "guest",
@@ -1048,7 +1048,7 @@ def test_missing_provider_failure_webhook_converges_via_reconciler(settings):
     binding.provider_recording_ref = recording.worker_id
     binding.save(update_fields=["state", "provider_recording_ref", "updated_at"])
     settings.MASTRAO_CORE_RECORDING_FAILURE_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/recording/failures"
+        "http://tenant-core:3911/internal/v1/meetings/recording/failures"
     )
     failed = _provider_egress(recording, livekit_api.EgressStatus.EGRESS_FAILED)
     with (
@@ -1540,7 +1540,7 @@ def test_artifact_finalization_verifies_and_replays_persisted_metadata(db, setti
     settings.MASTRAO_RECORDING_ENCRYPTION_REF = "sse-s3"
     settings.MASTRAO_RECORDING_LIFECYCLE_POLICY_REF = "retention-30-days"
     settings.MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/recording/artifacts/finalize"
+        "http://tenant-core:3911/internal/v1/meetings/recording/artifacts/finalize"
     )
     with (
         mock.patch(
@@ -1677,7 +1677,7 @@ def test_artifact_finalization_replays_receipt_after_core_failure(db, settings):
     settings.MASTRAO_RECORDING_ENCRYPTION_REF = "sse-s3"
     settings.MASTRAO_RECORDING_LIFECYCLE_POLICY_REF = "retention-30-days"
     settings.MASTRAO_CORE_RECORDING_ARTIFACT_ENDPOINT = (
-        "http://cabinet-core:3911/internal/v1/meetings/recording/artifacts/finalize"
+        "http://tenant-core:3911/internal/v1/meetings/recording/artifacts/finalize"
     )
     with (
         mock.patch(

@@ -35,7 +35,7 @@ def activation(authority, sfu, core_reply, settings):
     settings.MASTRAO_MEETING_RECORDING_ENABLED = True
     settings.MASTRAO_MEETING_RECORDING_START_ENABLED = True
     settings.MASTRAO_CORE_RECORDING_ACTIVATION_ENDPOINT = (
-        "http://cabinet-core:8081/internal/v1/meetings/recording/activate"
+        "http://tenant-core:8081/internal/v1/meetings/recording/activate"
     )
     issued = sfu[3].media_token_binding
     participant = {

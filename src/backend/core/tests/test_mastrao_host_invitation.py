@@ -492,7 +492,7 @@ def test_host_invitation_full_exchange_slots_refuse_before_core(client):
 
 @override_settings(
     MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT=(
-        "http://cabinet-core/internal/v1/application-meetings/host-invitations/exchange"
+        "http://tenant-core/internal/v1/application-meetings/host-invitations/exchange"
     )
 )
 def test_host_invitation_exchange_requests_one_short_handoff():
@@ -531,7 +531,7 @@ def test_host_invitation_exchange_requests_one_short_handoff():
     assert claims["platform_session_ref"] == f"hostsession_{'1' * 32}"
     post.assert_called_once_with(
         endpoint=(
-            "http://cabinet-core/internal/v1/application-meetings/"
+            "http://tenant-core/internal/v1/application-meetings/"
             "host-invitations/exchange"
         ),
         expected_path=("/internal/v1/application-meetings/host-invitations/exchange"),
@@ -563,7 +563,7 @@ def test_host_invitation_exchange_requests_one_short_handoff():
 )
 @override_settings(
     MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT=(
-        "http://cabinet-core/internal/v1/application-meetings/host-invitations/exchange"
+        "http://tenant-core/internal/v1/application-meetings/host-invitations/exchange"
     )
 )
 def test_host_invitation_exchange_rejects_unbound_handoff(claim, invalid_value):
