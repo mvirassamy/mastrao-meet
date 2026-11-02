@@ -265,11 +265,14 @@ class StagingOidcWebPlanTests(unittest.TestCase):
         missing_worker["items"] = [
             item
             for item in missing_worker["items"]
-            if item["metadata"]["name"] != "worker-native"
+            if item["metadata"]["name"] != "worker-room-audio-processing"
         ]
         for inventory, message in (
             (configured, "already contains unmanaged OIDC"),
-            (missing_worker, "expected exactly one Deployment/worker-native"),
+            (
+                missing_worker,
+                "expected exactly one Deployment/worker-room-audio-processing",
+            ),
         ):
             with (
                 self.subTest(message=message),
