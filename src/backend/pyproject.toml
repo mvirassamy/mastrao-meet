@@ -102,6 +102,7 @@ constraint-dependencies = [
     "certifi==2026.10.19",
     "pillow==13.0.0",
     "sqlparse==0.6.0",
+    "joserfc==1.7.5", # CVE-2026-119283
 ]
 
 [tool.uv.build-backend]
