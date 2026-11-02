@@ -25,7 +25,6 @@ SUMMARY = 'fixture.invalid/meet-summary@sha256:' + 'd' * 64
 BACKEND_DEPLOYMENTS = (
     'backend',
     'celery-backend',
-    'celery-mastrao-native-admission',
 )
 SUMMARY_DEPLOYMENTS = (
     'summary', 'celery-transcribe-default', 'celery-summarize', 'celery-summary-backend'
@@ -93,7 +92,7 @@ class ImmutableGitOpsTests(unittest.TestCase):
         self.assertIn('- metadata_collector.py\n', metadata)
         self.assertIn('- start\n', metadata)
         all_images = [image for doc in rendered.values() for image in images(doc)]
-        self.assertEqual(len(all_images), 13)
+        self.assertEqual(len(all_images), 12)
         self.assertTrue(all('@sha256:' in image for image in all_images))
 
     def test_admin_and_explicit_data_repair_jobs_also_use_backend_digest(self):
@@ -155,7 +154,7 @@ class ImmutableGitOpsTests(unittest.TestCase):
 
     def test_global_digest_is_backend_only_and_component_digest_wins(self):
         rendered = self.rendered({'image': FIXTURE['image']})
-        for name in ('backend', 'celery-backend', 'celery-mastrao-native-admission'):
+        for name in BACKEND_DEPLOYMENTS:
             self.assertEqual(images(self.resource(rendered, 'Deployment', name)), [BACKEND])
         self.assertEqual(images(self.resource(rendered, 'Deployment', 'frontend')),
                          ['lasuite/meet-frontend:latest'])

@@ -185,13 +185,6 @@ Requires top level scope
 {{- end }}
 
 {{/*
-Full name for the latency-sensitive native admission Celery worker
-*/}}
-{{- define "meet.celeryMastraoNativeAdmission.fullname" -}}
-{{ include "meet.fullname" . }}-celery-mastrao-native-admission
-{{- end }}
-
-{{/*
 Full name for the Celery Transcribe
 
 Requires top level scope
