@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-02: Remove obsolete native-ASR deployment policies and align
+  staging OIDC validation with the canonical Room Audio workloads.
+
 - 2026-11-01: Make Room Audio admission the only transcribed-meeting path,
   remove the native pre-entry feature flag and legacy epoch admission fields,
   and bind Meet to the explicit Room Audio Core endpoints.

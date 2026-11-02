@@ -28,12 +28,19 @@ OIDC_SOURCE_NAME = re.compile(r"oidc", re.IGNORECASE)
 OIDC_ENV_PREFIX = "OIDC_"
 
 EXCLUDED_CONSUMERS = (
+    ("Deployment", "agent-room-audio", "room-audio"),
+    ("Deployment", "agent-room-audio-live", "room-audio-live"),
     ("Deployment", "meet-frontend", "frontend"),
-    ("Deployment", "worker-general", "worker-general"),
-    ("Deployment", "worker-native", "worker-native"),
-    ("CronJob", "clean-pending-files", "meet-backend"),
-    ("CronJob", "purge-deleted-files", "meet-backend"),
-    ("CronJob", "reconcile-mastrao-recordings", "meet-backend"),
+    ("Deployment", "metadata-collector", "metadata-collector"),
+    ("Deployment", "worker-admission", "worker-admission"),
+    ("Deployment", "worker-general", "worker"),
+    (
+        "Deployment",
+        "worker-room-audio-processing",
+        "worker-room-audio-processing",
+    ),
+    ("CronJob", "clean-pending-files", "maintenance"),
+    ("CronJob", "purge-deleted-files", "maintenance"),
 )
 
 
