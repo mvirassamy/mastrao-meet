@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-02: Remove the final native-admission Helm worker now that Room Audio
+  admission has no producer or consumer for its legacy Celery queue.
+
 - 2026-11-02: Remove obsolete native-ASR deployment policies and align
   staging OIDC validation with the canonical Room Audio workloads.
 
