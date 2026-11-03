@@ -23,6 +23,7 @@ from core.mastrao_native_asr_client import (
     upload_native_asr_result,
 )
 from core.mastrao_recording_contract import RecordingContractRefused
+from core.mastrao_retention import active_retention
 
 logger = logging.getLogger(__name__)
 
@@ -109,14 +110,18 @@ def _lock_dispatch_capacity():
 
 
 def _eligible(now):
-    return models.MastraoNativeCaptureStart.objects.filter(
-        source_receipt__isnull=False,
-        asr_acknowledged=False,
-        asr_next_at__lte=now,
-        retention_expires_at__gt=now,
-        epoch__conflict=False,
-        epoch__connection__correlation="correlated",
-    ).filter(Q(asr_claim_until__isnull=True) | Q(asr_claim_until__lte=now))
+    return (
+        models.MastraoNativeCaptureStart.objects.filter(
+            active_retention(now),
+            source_receipt__isnull=False,
+            asr_acknowledged=False,
+            asr_next_at__lte=now,
+            epoch__conflict=False,
+            epoch__connection__correlation="correlated",
+        )
+        .filter(Q(asr_claim_until__isnull=True) | Q(asr_claim_until__lte=now))
+        .exclude(retention_mode="until_deleted", asr_error="native_asr_rejected")
+    )
 
 
 @transaction.atomic
@@ -156,11 +161,11 @@ def _claim(capture_start_id, dispatch_ref):
 
 def _owned(intent):
     return models.MastraoNativeCaptureStart.objects.filter(
+        active_retention(timezone.now()),
         pk=intent.pk,
         asr_claim=intent.asr_claim,
         asr_claim_until__gt=timezone.now(),
         asr_acknowledged=False,
-        retention_expires_at__gt=timezone.now(),
         epoch__conflict=False,
         epoch__connection__correlation="correlated",
     )
@@ -196,7 +201,9 @@ def _finish(intent, acknowledged, error=None):
             if error.outcome == "unknown":
                 values["asr_error"] = "native_asr_outcome_unknown"
         elif error.outcome in {"rejected", "failed"}:
-            values["asr_next_at"] = intent.retention_expires_at
+            values["asr_next_at"] = now
+            if intent.retention_mode == "bounded":
+                values["asr_next_at"] = intent.retention_expires_at
             values["asr_error"] = "native_asr_rejected"
     if _owned(intent).update(**values) != 1:
         return False

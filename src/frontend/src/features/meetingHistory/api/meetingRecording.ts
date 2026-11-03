@@ -75,9 +75,24 @@ export const normalizeMeetingRecording = (value: unknown): MeetingRecording => {
   }
   const status = normalizeRecordingStatus(value.status ?? null)
   const retentionExpiresAt = retentionDate(value.retention_expires_at)
+  const persistent =
+    value.retention_mode === 'until_deleted' &&
+    value.retention_expires_at === null
+  const bounded =
+    (value.retention_mode === undefined ||
+      value.retention_mode === 'bounded') &&
+    retentionExpiresAt !== null
   let access: MeetingRecordingAccess | null = null
-  if (status === 'available' && retentionExpiresAt) {
+  if (status === 'available' && (persistent || bounded)) {
     access = normalizeAccess(value.access)
+  }
+  if (persistent) {
+    return {
+      status,
+      retentionMode: 'until_deleted',
+      retentionExpiresAt: null,
+      access,
+    }
   }
   return { status, retentionExpiresAt, access }
 }

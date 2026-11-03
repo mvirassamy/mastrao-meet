@@ -85,6 +85,10 @@ def _stop_reason(intent, now):
         return "quarantined"
     if connection.ended or epoch.ended:
         return "source_ended"
+    if intent.retention_mode == "until_deleted" and intent.retention_expires_at is None:
+        return ""
+    if intent.retention_mode != "bounded":
+        return "retention_unknown"
     if intent.retention_expires_at is None:
         return "retention_unknown"
     if intent.retention_expires_at <= now:

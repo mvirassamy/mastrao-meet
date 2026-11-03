@@ -22,6 +22,7 @@ from core.mastrao_recording_contract import (
     _validate_ref,
     _validate_time,
     _verify,
+    validate_retention,
 )
 from core.mastrao_room_contract import (
     CONTRACT_VERSION,
@@ -99,6 +100,7 @@ SUBMIT_EFFECT_V4_FIELDS = (SUBMIT_EFFECT_V3_FIELDS - {"campaign_ref"}) | {
     "maximum_audio_seconds",
     "maximum_audio_bytes",
 }
+SUBMIT_EFFECT_V5_FIELDS = SUBMIT_EFFECT_V4_FIELDS | {"retention_mode"}
 NORMAL_AUTHORITY_FIELDS = (
     "authorized_cost_ceiling_micros",
     "currency",
@@ -246,7 +248,7 @@ def _submit_arguments(effect):
         "room_ref": effect["room_ref"],
         "provider_binding_digest": effect["provider_binding_digest"],
     }
-    if effect["operation_version"] in {2, 3, 4}:
+    if effect["operation_version"] in {2, 3, 4, 5}:
         arguments.update(
             {
                 name: effect[name]
@@ -274,8 +276,13 @@ def _submit_arguments(effect):
                 )
             }
         )
-    if effect["operation_version"] == 4:
-        arguments.update(operation_version=4)
+    if effect["operation_version"] in {4, 5}:
+        arguments.update(operation_version=effect["operation_version"])
+        if effect["operation_version"] == 5:
+            arguments.update(
+                retention_mode=effect["retention_mode"],
+                retention_expires_at=effect["retention_expires_at"],
+            )
         arguments.update({name: effect[name] for name in NORMAL_AUTHORITY_FIELDS})
     return arguments
 
@@ -284,6 +291,7 @@ def _verified_submit_payload(compact_jws):
     """Verify exact signed schemas without trusting an unverified version."""
 
     for fields, version in (
+        (SUBMIT_EFFECT_V5_FIELDS, 5),
         (SUBMIT_EFFECT_V2_FIELDS, 2),
         (SUBMIT_EFFECT_V3_FIELDS, 3),
         (SUBMIT_EFFECT_FIELDS, 1),
@@ -318,7 +326,7 @@ def _validate_v2_profile(effect):
 
 def _validate_managed_reservation(effect):
     if (
-        effect["operation_version"] == 4
+        effect["operation_version"] in {4, 5}
         and effect.get("asr_profile_ref") != NORMAL_ASR_PROFILE_REF
     ):
         raise TranscriptionContractRefused()
@@ -408,7 +416,7 @@ def verify_transcription_submit_effect(compact_jws):
             raise TranscriptionContractRefused()
     if effect["operation_version"] == 2:
         _validate_v2_profile(effect)
-    if effect["operation_version"] in {3, 4}:
+    if effect["operation_version"] in {3, 4, 5}:
         for name in ("asr_profile_digest", "request_config_digest"):
             if not DIGEST.fullmatch(effect.get(name, "")):
                 raise TranscriptionContractRefused()
@@ -421,13 +429,12 @@ def verify_transcription_submit_effect(compact_jws):
         ):
             _validate_asr_reference(effect, name)
         _validate_managed_reservation(effect)
-    retention = effect.get("retention_expires_at")
-    if (
-        not isinstance(retention, int)
-        or isinstance(retention, bool)
-        or retention <= int(time.time())
-    ):
-        raise TranscriptionContractRefused()
+    try:
+        validate_retention(
+            effect, persistent=schema_version == 5, after=int(time.time())
+        )
+    except RecordingContractRefused as error:
+        raise TranscriptionContractRefused() from error
     if effect["arguments_digest"] != _sha256_canonical(_submit_arguments(effect)):
         raise TranscriptionContractRefused()
     return effect
@@ -436,7 +443,7 @@ def verify_transcription_submit_effect(compact_jws):
 def build_transcription_egress_request_claims(effect, attempt, execution_mode):
     """Build the exact, short-lived disclosure request for one prepared audio."""
 
-    if effect.get("operation_version") not in {3, 4} or execution_mode not in {
+    if effect.get("operation_version") not in {3, 4, 5} or execution_mode not in {
         "send_allowed",
         "recover_only",
     }:
@@ -477,7 +484,7 @@ def build_transcription_egress_request_claims(effect, attempt, execution_mode):
         "expires_at": now + MAX_EGRESS_GRANT_SECONDS,
         "jti": f"transcript_egress_{uuid4().hex}",
     }
-    if effect["operation_version"] == 4:
+    if effect["operation_version"] in {4, 5}:
         claims.update(operation_version=2)
         claims.update({name: effect[name] for name in NORMAL_AUTHORITY_FIELDS})
         if (
@@ -714,7 +721,7 @@ def build_transcript_artifact_receipt_claims(effect, artifact, attempt=None):
         "expires_at": now + MAX_ASSERTION_SECONDS,
         "jti": f"transcript_artifact_{uuid4().hex}",
     }
-    if effect.get("operation_version") in {3, 4}:
+    if effect.get("operation_version") in {3, 4, 5}:
         if attempt is None:
             raise TranscriptionContractRefused()
         claims.update(
@@ -729,6 +736,8 @@ def build_transcript_artifact_receipt_claims(effect, artifact, attempt=None):
                 **_execution_provenance(effect, attempt),
             }
         )
+    if effect["operation_version"] == 5:
+        claims.update(operation_version=3, retention_mode="until_deleted")
     return claims
 
 

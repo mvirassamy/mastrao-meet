@@ -203,7 +203,7 @@ def _gateway_request_options(attempt):
     """Select the exact request options of the signed normal profile."""
 
     binding = getattr(getattr(attempt, "effect", None), "transcription_binding", None)
-    if binding is not None and binding.contract_operation_version == 4:
+    if binding is not None and binding.contract_operation_version in {4, 5}:
         expected = MANAGED_PROFILE_BINDINGS[NORMAL_ASR_PROFILE_REF]
         if (
             binding.asr_profile_ref != NORMAL_ASR_PROFILE_REF

@@ -34,6 +34,45 @@ const available = {
 const origin = 'https://platform.mastrao.test'
 
 describe('additive history recording contract', () => {
+  it('keeps the existing access action for explicit persistent retention', () => {
+    const recording = normalizeMeetingRecording({
+      ...available,
+      retention_mode: 'until_deleted',
+      retention_expires_at: null,
+    })
+    expect(recording).toEqual({
+      status: 'available',
+      retentionMode: 'until_deleted',
+      retentionExpiresAt: null,
+      access: {
+        actionPath: access.action_path,
+        matterRef: access.matter_ref,
+        meetingRef: access.meeting_ref,
+        recordingRef: access.recording_ref,
+        artifactRef: access.artifact_ref,
+      },
+    })
+    expect(recordingAccessAction(recording, origin)).toBe(
+      origin + access.action_path
+    )
+  })
+
+  it.each([
+    { retention_expires_at: null },
+    { retention_mode: 'until_deleted', retention_expires_at: 4_097_210_400 },
+    { retention_mode: 'until_deleted' },
+    { retention_mode: 'bounded', retention_expires_at: null },
+    { retention_mode: 'unknown', retention_expires_at: 4_097_210_400 },
+  ])('refuses ambiguous retention metadata %j', (retention) => {
+    const recording = normalizeMeetingRecording({
+      status: 'available',
+      access,
+      ...retention,
+    })
+    expect(recording.access).toBeNull()
+    expect(recordingAccessAction(recording, origin)).toBeNull()
+  })
+
   it('treats missing video fields in older payloads as absent', () => {
     const item = normalizeHistoryPage({ results: [meeting] }).items[0]
     expect(item.recordingStatus).toBe('absent')

@@ -10,7 +10,6 @@ provider observation can resolve it; absence never authorizes retransmission.
 
 import asyncio
 import re
-from datetime import UTC, datetime
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -31,6 +30,7 @@ from core.mastrao_native_capture_contract import (
 )
 from core.mastrao_recording_adapter import _read_effect, _safe_response
 from core.mastrao_recording_contract import RecordingContractRefused
+from core.mastrao_retention import BOUNDED, retention_datetime, retention_matches
 
 
 def _assert_epoch_authority(epoch, binding, effect):
@@ -112,6 +112,7 @@ def _prepare(effect):
             or str(previous.epoch_id) != effect["epoch_ref"]
             or previous.arguments_digest != effect["arguments_digest"]
             or previous.organization_external_id != effect["organization_external_id"]
+            or not retention_matches(previous, effect)
         ):
             raise RecordingContractRefused(status=409)
         # Reconciliation stays available after closure/flag rollback: no new start.
@@ -143,9 +144,8 @@ def _prepare(effect):
         effect_key=effect["effect_key"],
         arguments_digest=effect["arguments_digest"],
         organization_external_id=effect["organization_external_id"],
-        retention_expires_at=datetime.fromtimestamp(
-            effect["retention_expires_at"], UTC
-        ),
+        retention_mode=effect.get("retention_mode", BOUNDED),
+        retention_expires_at=retention_datetime(effect),
     ), True
 
 
