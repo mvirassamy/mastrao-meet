@@ -226,6 +226,14 @@ def reconcile_room_audio_admissions(limit=20, connection_id=None):
         try:
             run_refs = _send(epoch)
         except RecordingContractRefused as error:
+            logger.warning(
+                "Room Audio admission refused status=%s core_http_status=%s "
+                "core_error_code=%s cause=%s",
+                error.status,
+                getattr(error, "core_http_status", None),
+                getattr(error, "core_error_code", None),
+                type(error.__cause__).__name__ if error.__cause__ is not None else None,
+            )
             # Authority denials need a fresh epoch/authority, not a retry storm.
             blocked = error.status in (400, 403, 404, 409)
         committed = _finish(epoch, run_refs, blocked)

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-04: Log bounded Room Audio admission refusal metadata so staging
+  failures identify the failing boundary without exposing meeting content.
+
 - 2026-11-04: Retry transient Room Audio live-admission failures with one
   bounded Celery chain so deferred microphone epochs cannot remain stranded.
 
