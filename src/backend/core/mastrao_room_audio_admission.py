@@ -53,27 +53,42 @@ def _session_label(epoch):
     return {"source": "meet_session_display_name", "display_name": name}
 
 
-@transaction.atomic
-def _claim_next(connection_id=None):
-    now = timezone.now()
+def _pending_audio_epochs(connection_id=None):
     pending = models.MastraoRtcTrackEpoch.objects.filter(
         room_audio_admitted_at__isnull=True,
         room_audio_admission_blocked=False,
-        room_audio_admission_next_at__lte=now,
         ended=False,
         conflict=False,
         connection__ended=False,
         connection__correlation="correlated",
         first_publication__track_type=api.TrackType.AUDIO,
         first_publication__track_source=api.TrackSource.MICROPHONE,
-    ).filter(
-        Q(room_audio_admission_claim_until__isnull=True)
-        | Q(room_audio_admission_claim_until__lte=now)
     )
     if connection_id is not None:
         pending = pending.filter(connection_id=connection_id)
+    return pending
+
+
+def _due_audio_epochs(connection_id=None):
+    now = timezone.now()
+    return (
+        _pending_audio_epochs(connection_id)
+        .filter(
+            room_audio_admission_next_at__lte=now,
+        )
+        .filter(
+            Q(room_audio_admission_claim_until__isnull=True)
+            | Q(room_audio_admission_claim_until__lte=now)
+        )
+    )
+
+
+@transaction.atomic
+def _claim_next(connection_id=None):
+    now = timezone.now()
     epoch = (
-        pending.select_for_update(skip_locked=True, of=("self",))
+        _due_audio_epochs(connection_id)
+        .select_for_update(skip_locked=True, of=("self",))
         .order_by("room_audio_admission_next_at", "pk")
         .first()
     )
@@ -216,6 +231,16 @@ def reconcile_room_audio_admissions(limit=20, connection_id=None):
         committed = _finish(epoch, run_refs, blocked)
         admitted += int(bool(committed and run_refs and not blocked))
     return admitted
+
+
+def room_audio_admission_retry_pending(connection_id):
+    """Return whether one active microphone epoch still needs Core admission."""
+    return _pending_audio_epochs(connection_id).exists()
+
+
+def room_audio_admission_due(connection_id):
+    """Return whether this task can claim an admission attempt now."""
+    return _due_audio_epochs(connection_id).exists()
 
 
 def wake_room_audio_admissions(connection_id):

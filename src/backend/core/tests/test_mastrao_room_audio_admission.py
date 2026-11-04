@@ -42,6 +42,7 @@ from core.mastrao_room_audio_admission import (
     _finish,
     _session_label,
     reconcile_room_audio_admissions,
+    room_audio_admission_retry_pending,
     wake_room_audio_admissions,
 )
 from core.mastrao_room_audio_authorization import (
@@ -496,12 +497,14 @@ def test_lost_reply_retries_same_epoch_and_expired_claim_cannot_overwrite(
     epoch = epoch_for(client, room_audio_settings, host)
     with core_peer(room_audio_settings, lose_first=True) as (calls, _):
         assert reconcile_room_audio_admissions() == 0
+        assert room_audio_admission_retry_pending(epoch.connection_id)
         assert reconcile_room_audio_admissions() == 0  # bounded delay
         models.MastraoRtcTrackEpoch.objects.filter(pk=epoch.pk).update(
             room_audio_admission_next_at=timezone.now()
         )
         assert reconcile_room_audio_admissions() == 1
         assert [c[1]["epoch_ref"] for c in calls] == [str(epoch.pk)] * 2
+    assert not room_audio_admission_retry_pending(epoch.connection_id)
     epoch.refresh_from_db()
     run_refs = epoch.room_audio_run_refs
     epoch.room_audio_admission_claim = uuid4()
