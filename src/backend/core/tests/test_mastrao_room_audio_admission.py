@@ -492,11 +492,15 @@ def test_two_sources_reordered_deduplicated_and_no_browser_credentials(
 
 
 def test_lost_reply_retries_same_epoch_and_expired_claim_cannot_overwrite(
-    client, room_audio_settings, host, recording
+    client, room_audio_settings, host, recording, caplog
 ):
     epoch = epoch_for(client, room_audio_settings, host)
     with core_peer(room_audio_settings, lose_first=True) as (calls, _):
         assert reconcile_room_audio_admissions() == 0
+        assert (
+            "Room Audio admission refused status=503 core_http_status=503 "
+            "core_error_code=None cause=None" in caplog.messages
+        )
         assert room_audio_admission_retry_pending(epoch.connection_id)
         assert reconcile_room_audio_admissions() == 0  # bounded delay
         models.MastraoRtcTrackEpoch.objects.filter(pk=epoch.pk).update(
