@@ -214,6 +214,70 @@ def test_delivery_failure_keeps_one_pending_effect_for_retry(authority_key, bind
     assert models.MastraoRoomAudioTrackEffect.objects.count() == 1
 
 
+def test_pending_effect_accepts_monotonic_authority_renewal(authority_key, binding):
+    original_effect = _effect(binding)
+    original = _signed(authority_key, original_effect)
+    renewed_effect = _effect(
+        binding,
+        authorization_expires_at=original_effect["authorization_expires_at"] + 60,
+        jti="effect_audio_fixture_renewed_12345678",
+    )
+    renewed = _signed(authority_key, renewed_effect)
+
+    with patch(
+        "core.mastrao_room_audio_authority.utils.create_livekit_client",
+        return_value=_livekit_client(error=OSError("provider unavailable")),
+    ):
+        assert _post(original).status_code == 503
+
+    recovered = _livekit_client()
+    with patch(
+        "core.mastrao_room_audio_authority.utils.create_livekit_client",
+        return_value=recovered,
+    ):
+        response = _post(renewed)
+
+    assert response.status_code == 200
+    assert response.json()["effect_digest"] == _semantic_digest(renewed_effect)
+    row = models.MastraoRoomAudioTrackEffect.objects.get()
+    assert row.state == models.MastraoRoomAudioTrackEffect.State.DELIVERED
+    assert row.attempt_count == 2
+    assert row.effect_jti == renewed_effect["jti"]
+    assert row.compact_effect == renewed
+    assert recovered.room.send_data.await_args.args[0].data == renewed.encode("ascii")
+
+
+def test_pending_effect_rejects_shorter_authority_renewal(authority_key, binding):
+    original_effect = _effect(binding)
+    original = _signed(authority_key, original_effect)
+    shortened = _signed(
+        authority_key,
+        _effect(
+            binding,
+            authorization_expires_at=(original_effect["authorization_expires_at"] - 60),
+            jti="effect_audio_fixture_shortened_12345678",
+        ),
+    )
+
+    with patch(
+        "core.mastrao_room_audio_authority.utils.create_livekit_client",
+        return_value=_livekit_client(error=OSError("provider unavailable")),
+    ):
+        assert _post(original).status_code == 503
+
+    recovered = _livekit_client()
+    with patch(
+        "core.mastrao_room_audio_authority.utils.create_livekit_client",
+        return_value=recovered,
+    ):
+        assert _post(shortened).status_code == 409
+
+    recovered.room.send_data.assert_not_awaited()
+    row = models.MastraoRoomAudioTrackEffect.objects.get()
+    assert row.state == models.MastraoRoomAudioTrackEffect.State.PENDING
+    assert row.effect_jti == original_effect["jti"]
+
+
 @patch("core.mastrao_room_audio_authority.asyncio.sleep", new_callable=AsyncMock)
 def test_delivery_waits_for_active_worker_before_sending(sleep, authority_key, binding):
     compact = _signed(authority_key, _effect(binding))
@@ -236,10 +300,16 @@ def test_delivery_waits_for_active_worker_before_sending(sleep, authority_key, b
 def test_refreshed_envelope_replays_the_same_delivered_authority(
     authority_key, binding
 ):
-    first = _signed(authority_key, _effect(binding))
+    first_effect = _effect(binding)
+    first = _signed(authority_key, first_effect)
+    renewed_effect = _effect(
+        binding,
+        authorization_expires_at=first_effect["authorization_expires_at"] + 60,
+        jti="effect_audio_fixture_87654321",
+    )
     second = _signed(
         authority_key,
-        _effect(binding, jti="effect_audio_fixture_87654321"),
+        renewed_effect,
     )
     livekit = _livekit_client()
 
@@ -248,10 +318,15 @@ def test_refreshed_envelope_replays_the_same_delivered_authority(
         return_value=livekit,
     ):
         assert _post(first).status_code == 200
-        assert _post(second).status_code == 200
+        response = _post(second)
+
+    assert response.status_code == 200
+    assert response.json()["effect_digest"] == _semantic_digest(renewed_effect)
 
     assert livekit.room.send_data.await_count == 1
     assert models.MastraoRoomAudioTrackEffect.objects.count() == 1
+    row = models.MastraoRoomAudioTrackEffect.objects.get()
+    assert row.compact_effect == first
 
 
 def test_same_generation_with_conflicting_authority_is_rejected(authority_key, binding):

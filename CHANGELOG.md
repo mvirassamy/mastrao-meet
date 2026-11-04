@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-04: Accept monotonic Room Audio authority renewals so a pending
+  worker delivery can recover without weakening immutable track bindings.
+
 - 2026-11-02: Remove the final native-admission Helm worker now that Room Audio
   admission has no producer or consumer for its legacy Celery queue.
 

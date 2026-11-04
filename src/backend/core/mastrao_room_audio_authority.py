@@ -82,6 +82,34 @@ def _semantic_digest(effect):
     return hashlib.sha256(canonical_binding.encode()).hexdigest()
 
 
+def _stable_authority_binding(effect):
+    """Return fields that cannot change when Core renews an authority."""
+    renewable_fields = {
+        "issuer",
+        "audience",
+        "issued_at",
+        "expires_at",
+        "jti",
+        "authorization_expires_at",
+    }
+    return {
+        name: value for name, value in effect.items() if name not in renewable_fields
+    }
+
+
+def _validate_authority_renewal(existing_effect, renewed_effect):
+    """Accept only a monotonic deadline renewal of the exact same authority."""
+    if _stable_authority_binding(existing_effect) != _stable_authority_binding(
+        renewed_effect
+    ):
+        raise RecordingContractRefused(status=409)
+    if (
+        renewed_effect["authorization_expires_at"]
+        < existing_effect["authorization_expires_at"]
+    ):
+        raise RecordingContractRefused(status=409)
+
+
 def read_room_audio_track_effect(compact):
     """Verify one Core effect without requiring current freshness."""
     effect = _verify(compact, JOSE_TYPE, FIELDS)
@@ -178,8 +206,7 @@ def persist_room_audio_track_effect(effect, compact):
     ).first()
     if existing is not None:
         existing_effect = read_room_audio_track_effect(existing.compact_effect)
-        if _semantic_digest(existing_effect) != _semantic_digest(effect):
-            raise RecordingContractRefused(status=409)
+        _validate_authority_renewal(existing_effect, effect)
         if existing.state == models.MastraoRoomAudioTrackEffect.State.PENDING:
             existing.effect_jti = effect["jti"]
             existing.effect_digest = digest
