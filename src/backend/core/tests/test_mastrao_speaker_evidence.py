@@ -360,7 +360,7 @@ def test_speaker_evidence_capture_starts_live_collector_without_vad():
     assert dispatch["claim_id"]
 
 
-def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
+def test_speaker_evidence_capture_reuses_active_dispatch_without_receipt():
     binding = _active_recording_binding()
     binding.recording.options["mastrao_speaker_evidence_dispatch_id"] = "dispatch-1"
     binding.recording.save(update_fields=["options"])
@@ -373,8 +373,7 @@ def test_speaker_evidence_capture_retries_existing_dispatch_without_receipt():
             return_value="receipt.payload.signature",
         ),
     ):
-        with pytest.raises(RecordingContractRefused):
-            _apply_capture(_effect(binding))
+        assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
 
     start.assert_not_called()
 
