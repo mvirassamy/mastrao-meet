@@ -621,10 +621,16 @@ def _apply_capture(effect):
         effect
     )
     if not should_start:
-        if not _is_pending_dispatch(
-            recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
-        ):
+        dispatch = recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
+        if not _is_pending_dispatch(dispatch):
             if _replay_artifact_receipt(effect):
+                return sign_capture_receipt(
+                    build_capture_receipt_claims(effect, "already_active")
+                )
+            if binding_state in {
+                models.MastraoRecordingBinding.State.STARTING,
+                models.MastraoRecordingBinding.State.ACTIVE,
+            }:
                 return sign_capture_receipt(
                     build_capture_receipt_claims(effect, "already_active")
                 )
