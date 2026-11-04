@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-05: Allow Meet to deliver Room Audio sources through the canonical
+  Tenant Core service name after the staging service rename.
+
 - 2026-11-04: Log bounded Room Audio admission refusal metadata so staging
   failures identify the failing boundary without exposing meeting content.
 

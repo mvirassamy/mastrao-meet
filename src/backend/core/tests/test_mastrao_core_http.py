@@ -16,6 +16,7 @@ from core.mastrao_room_close_contract import RoomCloseRefused
         "http://localhost:3911/internal/v1/meetings/close",
         "http://host.docker.internal:3911/internal/v1/meetings/close",
         "http://cabinet-core:3911/internal/v1/meetings/close",
+        "http://tenant-core:3911/internal/v1/meetings/close",
     ],
 )
 def test_private_core_endpoint_accepts_only_qualified_hosts(endpoint):
