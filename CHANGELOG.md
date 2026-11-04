@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-04: Retry transient Room Audio live-admission failures with one
+  bounded Celery chain so deferred microphone epochs cannot remain stranded.
+
 - 2026-11-04: Accept monotonic Room Audio authority renewals so a pending
   worker delivery can recover without weakening immutable track bindings.
 
