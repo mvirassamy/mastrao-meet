@@ -1,6 +1,7 @@
 """Tests for the single-session room audio runtime."""
 
 import asyncio
+import time
 import unittest
 from unittest.mock import Mock, patch
 
@@ -85,11 +86,23 @@ async def invalidate_generation():
     """Model a successful provider-generation fence."""
 
 
-def live_output(provider_factory, handler_factory, failure_handler):
+def live_output(
+    provider_factory,
+    handler_factory,
+    failure_handler,
+    recovery_handler_factory=None,
+):
     """Build one complete live-output boundary for runtime tests."""
+    if recovery_handler_factory is None:
+
+        def default_recovery_handler_factory(_identity, _track_ref):
+            return handler_factory()
+
+        recovery_handler_factory = default_recovery_handler_factory
     return RoomLiveOutput(
         provider_factory=provider_factory,
         speech_event_handler_factory=handler_factory,
+        recovery_event_handler_factory=recovery_handler_factory,
         failure_handler=failure_handler,
         generation_invalidator=invalidate_generation,
         speaker_attribution=RoomAudioSpeakerAttribution(provider_delay_ms=480),
@@ -125,6 +138,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 live_output=RoomLiveOutput(
                     provider_factory=object,
                     speech_event_handler_factory=None,
+                    recovery_event_handler_factory=None,
                     failure_handler=None,
                     generation_invalidator=None,
                     speaker_attribution=RoomAudioSpeakerAttribution(
@@ -151,6 +165,9 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             live_output=RoomLiveOutput(
                 provider_factory=object,
                 speech_event_handler_factory=lambda: handle_event,
+                recovery_event_handler_factory=lambda _identity, _track_ref: (
+                    handle_event
+                ),
                 failure_handler=handle_failure,
                 generation_invalidator=invalidate_generation,
                 speaker_attribution=RoomAudioSpeakerAttribution(provider_delay_ms=480),
@@ -167,6 +184,9 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 live_output=RoomLiveOutput(
                     provider_factory=object,
                     speech_event_handler_factory=lambda: handle_event,
+                    recovery_event_handler_factory=lambda _identity, _track_ref: (
+                        handle_event
+                    ),
                     failure_handler=handle_failure,
                     generation_invalidator=invalidate_generation,
                     speaker_attribution=RoomAudioSpeakerAttribution(
@@ -385,6 +405,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         output = RoomLiveOutput(
             provider_factory=lambda: providers.pop(0),
             speech_event_handler_factory=lambda: handle_event,
+            recovery_event_handler_factory=lambda _identity, _track_ref: handle_event,
             failure_handler=handle_failure,
             generation_invalidator=invalidate,
             speaker_attribution=RoomAudioSpeakerAttribution(provider_delay_ms=480),
@@ -576,6 +597,65 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(factory_calls, 1)
         self.assertEqual(provider.stream_calls, 1)
         await run.aclose()
+
+    async def test_overlap_routes_each_microphone_to_a_named_provider_stream(self):
+        """Two simultaneous tracks never reach one mixed ASR input."""
+        main_stream = FakeSpeechStream()
+        recovery_stream = FakeSpeechStream()
+        providers = [
+            FakeProvider(main_stream),
+            FakeProvider(recovery_stream),
+        ]
+        recovery_bindings = []
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        def recovery_handler_factory(identity, track_ref):
+            recovery_bindings.append((identity, track_ref))
+            return handle_event
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: providers.pop(0),
+                lambda: handle_event,
+                handle_failure,
+                recovery_handler_factory,
+            ),
+        )
+        await run.start()
+        with patch(
+            "room_audio_runtime.rtc.AudioStream.from_track",
+            side_effect=[FakeSpeechStream(), FakeSpeechStream()],
+        ):
+            run.observe_track("TR_A", object(), "alice")
+            run.observe_track("TR_B", object(), "bob")
+        expires_at_ms = int(time.time() * 1_000) + 10_000
+        for track_ref in ("TR_A", "TR_B"):
+            run.admit_track(
+                track_ref,
+                generation=1,
+                expires_at_ms=expires_at_ms,
+                authorization_digest="a" * 64,
+            )
+        alice_pcm = b"\xe8\x03" * 480
+        bob_pcm = b"\xd0\x07" * 480
+        run._mixer.push_frame("TR_A", alice_pcm)
+        run._mixer.push_frame("TR_B", bob_pcm)
+
+        await wait_for_frames(recovery_stream, 1)
+        await run.aclose()
+
+        self.assertIn(alice_pcm, [bytes(frame.data) for frame in main_stream.frames])
+        self.assertNotIn(bob_pcm, [bytes(frame.data) for frame in main_stream.frames])
+        self.assertEqual(
+            [bytes(frame.data) for frame in recovery_stream.frames],
+            [bob_pcm],
+        )
+        self.assertEqual(recovery_bindings, [("bob", "TR_B")])
 
 
 if __name__ == "__main__":

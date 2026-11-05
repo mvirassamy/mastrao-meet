@@ -128,6 +128,34 @@ class RoomAudioMixerTests(unittest.TestCase):
         )
         self.assertEqual(self.mixer.snapshot().speaking_track_count, 1)
 
+    def test_exposes_only_the_exact_speaking_frames_from_the_last_tick(self):
+        """Overlap routing can isolate microphones without retaining history."""
+        for track_ref in ("TR_matthias", "TR_lucas", "TR_silent"):
+            self.mixer.observe_track(track_ref)
+            self.mixer.admit_track(
+                track_ref,
+                generation=1,
+                expires_at_ms=2_000,
+                authorization_digest=AUTHORIZATION_DIGEST,
+            )
+        self.mixer.push_frame(
+            "TR_matthias", pcm(1_000, 1_000, 1_000, 1_000), observed_at_ms=1_000
+        )
+        self.mixer.push_frame(
+            "TR_lucas", pcm(2_000, 2_000, 2_000, 2_000), observed_at_ms=1_000
+        )
+        self.mixer.push_frame("TR_silent", pcm(0, 0, 0, 0), observed_at_ms=1_000)
+
+        self.mixer.mix_next_frame(observed_at_ms=1_001)
+
+        self.assertEqual(
+            self.mixer.speaking_frames,
+            {
+                "TR_matthias": pcm(1_000, 1_000, 1_000, 1_000),
+                "TR_lucas": pcm(2_000, 2_000, 2_000, 2_000),
+            },
+        )
+
     def test_missing_track_frame_is_an_underrun_not_a_room_gap(self):
         """A quiet authorized microphone does not claim lost room-clock audio."""
         self.mixer.observe_track("TR_quiet")
