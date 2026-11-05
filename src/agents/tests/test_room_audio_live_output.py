@@ -154,6 +154,22 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(envelope["participantIdentity"], "matthias")
         self.assertEqual(envelope["trackSid"], "room-mix")
 
+    async def test_publishes_a_recovered_overlap_track_under_its_owner(self):
+        """A temporary per-track stream preserves its exact participant name."""
+        room = _room()
+        output = RoomLiveTranscriptionOutput(
+            room,
+            speaker_attribution=_attribution(),
+            sequence_seed=5_000,
+        )
+
+        handler = output.create_recovery_event_handler("lucas", "TR_lucas")
+        await handler(_event(text="phrase de Lucas"))
+
+        envelope = json.loads(room.local_participant.send_text.call_args.args[0])
+        self.assertEqual(envelope["participantIdentity"], "lucas")
+        self.assertEqual(envelope["trackSid"], "TR_lucas")
+
 
 if __name__ == "__main__":
     unittest.main()

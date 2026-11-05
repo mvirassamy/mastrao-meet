@@ -227,6 +227,7 @@ def create_live_room_audio_session(
         live_output=RoomLiveOutput(
             provider_factory=create_mistral_live_stt,
             speech_event_handler_factory=output.create_event_handler,
+            recovery_event_handler_factory=output.create_recovery_event_handler,
             failure_handler=output.handle_failure,
             generation_invalidator=output.invalidate_generation,
             speaker_attribution=speaker_attribution,

@@ -15,6 +15,7 @@ from livekit.agents import stt
 
 from room_audio_mixer import RoomAudioMixer, RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
+from room_audio_overlap_router import RoomAudioOverlapRouter
 from room_audio_speaker_attribution import RoomAudioSpeakerAttribution
 
 LIVEKIT_AUDIO_STREAM_CAPACITY = 0
@@ -58,6 +59,7 @@ class RoomAudioSink(Protocol):
 
 SpeechEventHandler = Callable[[stt.SpeechEvent], Awaitable[None]]
 SpeechEventHandlerFactory = Callable[[], SpeechEventHandler]
+RecoveryEventHandlerFactory = Callable[[str, str], SpeechEventHandler]
 LiveFailureHandler = Callable[[Exception], Awaitable[None]]
 LiveGenerationInvalidator = Callable[[], Awaitable[None]]
 ProviderFactory = Callable[[], RoomLiveProvider]
@@ -71,6 +73,7 @@ class RoomAudioRuntimeConfig:
     sample_rate_hz: int = 24_000
     maximum_buffered_frames: int = 10
     maximum_clock_lag_seconds: float = 0.25
+    maximum_overlap_recovery_streams: int = 2
 
 
 DEFAULT_RUNTIME_CONFIG = RoomAudioRuntimeConfig()
@@ -82,9 +85,21 @@ class RoomLiveOutput:
 
     provider_factory: ProviderFactory
     speech_event_handler_factory: SpeechEventHandlerFactory
+    recovery_event_handler_factory: RecoveryEventHandlerFactory
     failure_handler: LiveFailureHandler
     generation_invalidator: LiveGenerationInvalidator
     speaker_attribution: RoomAudioSpeakerAttribution
+
+
+@dataclass
+class _OverlapRecoverySession:
+    """One temporary provider stream bound to an exact microphone owner."""
+
+    provider: RoomLiveProvider
+    stream: RoomSpeechStream
+    handler: SpeechEventHandler
+    event_task: asyncio.Task | None = None
+    closing: bool = False
 
 
 def create_room_audio_run_for_effect(
@@ -108,7 +123,7 @@ def create_room_audio_run_for_effect(
 
 
 class RoomAudioRun:
-    """Own one room clock, one live provider and one post-audio artifact."""
+    """Own one room clock, one continuous live stream and bounded recoveries."""
 
     def __init__(
         self,
@@ -123,6 +138,7 @@ class RoomAudioRun:
         if live_output is not None and (
             live_output.provider_factory is None
             or live_output.speech_event_handler_factory is None
+            or live_output.recovery_event_handler_factory is None
             or live_output.failure_handler is None
             or live_output.generation_invalidator is None
         ):
@@ -130,6 +146,9 @@ class RoomAudioRun:
         self._provider_factory = live_output.provider_factory if live_output else None
         self._speech_event_handler_factory = (
             live_output.speech_event_handler_factory if live_output else None
+        )
+        self._recovery_event_handler_factory = (
+            live_output.recovery_event_handler_factory if live_output else None
         )
         self._speech_event_handler: SpeechEventHandler | None = None
         self._artifact_sink = artifact_sink
@@ -154,8 +173,16 @@ class RoomAudioRun:
             sample_rate_hz=config.sample_rate_hz,
             maximum_buffered_frames=config.maximum_buffered_frames,
         )
+        self._overlap_router = RoomAudioOverlapRouter(
+            maximum_recovery_streams=config.maximum_overlap_recovery_streams
+        )
+        self._maximum_overlap_recovery_streams = config.maximum_overlap_recovery_streams
         self._track_streams: dict[str, rtc.AudioStream] = {}
         self._track_tasks: dict[str, asyncio.Task] = {}
+        self._participant_identity_by_track: dict[str, str] = {}
+        self._recovery_sessions: dict[str, _OverlapRecoverySession] = {}
+        self._recovery_close_tasks: set[asyncio.Task] = set()
+        self._closing_recovery_track_refs: set[str] = set()
         self._provider: RoomLiveProvider | None = None
         self._speech_stream: RoomSpeechStream | None = None
         self._clock_task: asyncio.Task | None = None
@@ -170,7 +197,11 @@ class RoomAudioRun:
     @property
     def provider_session_count(self) -> int:
         """Expose the bounded provider cardinality for qualification."""
-        return int(self._provider is not None)
+        return (
+            int(self._provider is not None)
+            + len(self._recovery_sessions)
+            + len(self._recovery_close_tasks)
+        )
 
     @property
     def has_live_output(self) -> bool:
@@ -202,6 +233,7 @@ class RoomAudioRun:
             raise RuntimeError("failed live room audio run is not restartable")
         async with self._provider_lock:
             await self._live_generation_invalidator()
+            await self._close_all_recovery_sessions()
             await self._close_live_provider()
             try:
                 await self._open_live_provider()
@@ -244,6 +276,7 @@ class RoomAudioRun:
                 track_ref,
                 participant_identity,
             )
+        self._participant_identity_by_track[track_ref] = participant_identity
         self._track_streams[track_ref] = stream
         self._track_tasks[track_ref] = asyncio.create_task(
             self._pump_track(track_ref, stream)
@@ -253,6 +286,8 @@ class RoomAudioRun:
         """Stop consuming a physically absent track and clear its audio."""
         stream = self._track_streams.pop(track_ref, None)
         task = self._track_tasks.pop(track_ref, None)
+        self._participant_identity_by_track.pop(track_ref, None)
+        self._schedule_recovery_close(track_ref)
         self._mixer.unobserve_track(track_ref)
         if task is not None:
             task.cancel()
@@ -298,6 +333,7 @@ class RoomAudioRun:
             return_exceptions=True,
         )
         await self._cancel_task(self._clock_task)
+        await self._close_all_recovery_sessions()
         async with self._provider_lock:
             await self._close_live_provider()
         return self._artifact_sink.finish() if self._artifact_sink else None
@@ -317,23 +353,156 @@ class RoomAudioRun:
                 await self._fail_clock()
                 return
             pcm = self._mixer.mix_next_frame()
-            if self._speaker_attribution is not None:
-                self._speaker_attribution.observe_frame(self._mixer.speaking_track_refs)
             self._log_live_metrics()
             if self._artifact_sink is not None:
                 self._artifact_sink.write_frame(pcm)
             if self._speech_stream is not None and not self._live_failed:
                 try:
-                    self._speech_stream.push_frame(
-                        rtc.AudioFrame(
-                            data=pcm,
-                            sample_rate=self._sample_rate_hz,
-                            num_channels=1,
-                            samples_per_channel=self._frame_samples,
-                        )
-                    )
+                    await self._push_live_frame(pcm)
                 except Exception as error:  # provider SDK boundary
                     await self._fail_live(error)
+
+    async def _push_live_frame(self, mixed_pcm: bytes) -> None:
+        """Route one tick through the continuous and bounded recovery streams."""
+        if self._speech_stream is None:
+            return
+        routed = self._overlap_router.route(
+            mixed_pcm=mixed_pcm,
+            speaking_frames=self._mixer.speaking_frames,
+        )
+        if self._speaker_attribution is not None:
+            self._speaker_attribution.observe_frame(routed.main_track_refs)
+        await self._sync_recovery_sessions(routed.recovery_frames)
+        self._speech_stream.push_frame(self._audio_frame(routed.main_pcm))
+
+    async def _sync_recovery_sessions(
+        self,
+        recovery_frames: dict[str, bytes],
+    ) -> None:
+        """Open only current secondary tracks and close completed windows."""
+        for track_ref in self._recovery_sessions.keys() - recovery_frames.keys():
+            self._schedule_recovery_close(track_ref)
+        for track_ref, pcm in recovery_frames.items():
+            session = self._recovery_sessions.get(track_ref)
+            if session is None:
+                session = await self._open_recovery_session(track_ref)
+            if session is None:
+                continue
+            try:
+                session.stream.push_frame(self._audio_frame(pcm))
+            except Exception as error:
+                self._schedule_recovery_close(track_ref)
+                await self._report_recovery_failure(error)
+
+    async def _open_recovery_session(
+        self,
+        track_ref: str,
+    ) -> _OverlapRecoverySession | None:
+        """Open one temporary provider stream for an overlapping microphone."""
+        if (
+            self._provider_factory is None
+            or self._recovery_event_handler_factory is None
+            or track_ref in self._closing_recovery_track_refs
+            or len(self._recovery_sessions) + len(self._recovery_close_tasks)
+            >= self._maximum_overlap_recovery_streams
+        ):
+            return None
+        participant_identity = self._participant_identity_by_track.get(track_ref)
+        if participant_identity is None:
+            return None
+        provider = self._provider_factory()
+        try:
+            stream = provider.stream()
+            handler = self._recovery_event_handler_factory(
+                participant_identity,
+                track_ref,
+            )
+        except Exception as error:
+            await provider.aclose()
+            await self._report_recovery_failure(error)
+            return None
+        session = _OverlapRecoverySession(
+            provider=provider,
+            stream=stream,
+            handler=handler,
+        )
+        self._recovery_sessions[track_ref] = session
+        session.event_task = asyncio.create_task(
+            self._consume_recovery_events(track_ref, session)
+        )
+        return session
+
+    async def _consume_recovery_events(
+        self,
+        track_ref: str,
+        session: _OverlapRecoverySession,
+    ) -> None:
+        """Publish one secondary microphone until its overlap window closes."""
+        try:
+            async for event in session.stream:
+                await session.handler(event)
+            if not session.closing and not self._closed:
+                await self._report_recovery_failure(
+                    RuntimeError("overlap recovery provider closed")
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:  # provider SDK boundary
+            if not session.closing:
+                await self._report_recovery_failure(error)
+        finally:
+            if self._recovery_sessions.get(track_ref) is session:
+                self._recovery_sessions.pop(track_ref, None)
+
+    def _schedule_recovery_close(self, track_ref: str) -> None:
+        """Close one temporary stream without blocking the room clock."""
+        session = self._recovery_sessions.pop(track_ref, None)
+        if session is None:
+            return
+        session.closing = True
+        self._closing_recovery_track_refs.add(track_ref)
+        task = asyncio.create_task(self._close_recovery_session(track_ref, session))
+        self._recovery_close_tasks.add(task)
+        task.add_done_callback(self._recovery_close_tasks.discard)
+
+    async def _close_recovery_session(
+        self,
+        track_ref: str,
+        session: _OverlapRecoverySession,
+    ) -> None:
+        """Flush final provider text before releasing temporary resources."""
+        try:
+            await session.stream.aclose()
+            if session.event_task is not None:
+                await session.event_task
+            await session.provider.aclose()
+        except Exception as error:  # provider SDK boundary
+            await self._report_recovery_failure(error)
+        finally:
+            self._closing_recovery_track_refs.discard(track_ref)
+
+    async def _close_all_recovery_sessions(self) -> None:
+        """Flush every temporary stream and wait for in-flight closes."""
+        for track_ref in tuple(self._recovery_sessions):
+            self._schedule_recovery_close(track_ref)
+        tasks = tuple(self._recovery_close_tasks)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _report_recovery_failure(self, error: Exception) -> None:
+        """Expose a recovery gap without failing the continuous room stream."""
+        logger.warning("Room overlap recovery failed: %s", type(error).__name__)
+        if self._live_failure_handler is not None:
+            await self._live_failure_handler(error)
+
+    def _audio_frame(self, pcm: bytes) -> rtc.AudioFrame:
+        """Wrap one exact room-clock PCM frame for a provider stream."""
+        return rtc.AudioFrame(
+            data=pcm,
+            sample_rate=self._sample_rate_hz,
+            num_channels=1,
+            samples_per_channel=self._frame_samples,
+        )
 
     def _log_live_metrics(self) -> None:
         """Publish periodic content-free mixer health for live diagnosis."""
@@ -373,6 +542,7 @@ class RoomAudioRun:
             if self._live_failed or self._closed:
                 return
             self._live_failed = True
+            await self._close_all_recovery_sessions()
             await self._close_live_provider()
             await self._record_terminal_failure(error)
 

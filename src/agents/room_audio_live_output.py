@@ -74,6 +74,28 @@ class RoomLiveTranscriptionOutput:
 
         return handle_event
 
+    def create_recovery_event_handler(
+        self,
+        participant_identity: str,
+        track_ref: str,
+    ):
+        """Publish one bounded overlap stream under its exact track owner."""
+        if not participant_identity or not track_ref:
+            raise ValueError("overlap recovery identity and track are required")
+        output = SpeechEventOutput(
+            publisher=self._publisher,
+            track_sid=track_ref,
+        )
+
+        async def handle_event(event: stt.SpeechEvent) -> None:
+            async with self._publication_lock:
+                await output.consume(
+                    event,
+                    participant_identity=participant_identity,
+                )
+
+        return handle_event
+
     async def invalidate_generation(self) -> None:
         """Fence the current provider leg before its stream is drained."""
         async with self._publication_lock:
