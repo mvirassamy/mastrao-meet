@@ -65,6 +65,7 @@ class RoomAudioMixer:
         self._maximum_buffered_frames = maximum_buffered_frames
         self._speaking_peak_threshold = speaking_peak_threshold
         self._tracks: dict[str, _TrackState] = {}
+        self._speaking_track_refs: frozenset[str] = frozenset()
         self._speaking_track_count = 0
         self._output_frame_count = 0
         self._audio_bytes = 0
@@ -161,7 +162,8 @@ class RoomAudioMixer:
     def mix_next_frame(self, *, observed_at_ms: int | None = None) -> bytes:
         """Return one room frame, inserting silence for missing authorized audio."""
         speaking_frames: list[list[int]] = []
-        for state in self._tracks.values():
+        speaking_track_refs: set[str] = set()
+        for track_ref, state in self._tracks.items():
             self._expire(state, observed_at_ms)
             if not state.observed or state.status != "authorized":
                 continue
@@ -173,13 +175,20 @@ class RoomAudioMixer:
                 self._speaking_peak_threshold
             ):
                 speaking_frames.append(decoded)
+                speaking_track_refs.add(track_ref)
 
         mixed = self._average_speakers(speaking_frames)
         encoded = struct.pack(f"<{self._frame_samples}h", *mixed)
-        self._speaking_track_count = len(speaking_frames)
+        self._speaking_track_refs = frozenset(speaking_track_refs)
+        self._speaking_track_count = len(self._speaking_track_refs)
         self._output_frame_count += 1
         self._audio_bytes += len(encoded)
         return encoded
+
+    @property
+    def speaking_track_refs(self) -> frozenset[str]:
+        """Return contributors to the most recently mixed frame."""
+        return self._speaking_track_refs
 
     def snapshot(self) -> RoomAudioMixerSnapshot:
         """Return bounded metrics with no room, participant or track labels."""

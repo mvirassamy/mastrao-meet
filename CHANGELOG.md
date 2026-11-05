@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-05: Attribute mixed Room Audio live transcript fragments to a
+  clearly dominant participant microphone while keeping ambiguous speech
+  labeled as meeting audio.
+
 - 2026-11-05: Allow Meet to deliver Room Audio sources through the canonical
   Tenant Core service name after the staging service rename.
 

@@ -15,6 +15,7 @@ from livekit.agents import stt
 
 from room_audio_mixer import RoomAudioMixer, RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
+from room_audio_speaker_attribution import RoomAudioSpeakerAttribution
 
 LIVEKIT_AUDIO_STREAM_CAPACITY = 0
 LIVE_METRICS_INTERVAL_FRAMES = 500
@@ -83,6 +84,7 @@ class RoomLiveOutput:
     speech_event_handler_factory: SpeechEventHandlerFactory
     failure_handler: LiveFailureHandler
     generation_invalidator: LiveGenerationInvalidator
+    speaker_attribution: RoomAudioSpeakerAttribution
 
 
 def create_room_audio_run_for_effect(
@@ -136,6 +138,9 @@ class RoomAudioRun:
         )
         self._live_generation_invalidator = (
             live_output.generation_invalidator if live_output else None
+        )
+        self._speaker_attribution = (
+            live_output.speaker_attribution if live_output else None
         )
         self._frame_samples = config.frame_samples
         self._sample_rate_hz = config.sample_rate_hz
@@ -212,7 +217,12 @@ class RoomAudioRun:
             raise RuntimeError("room audio failed without a terminal error")
         return self._terminal_error
 
-    def observe_track(self, track_ref: str, track: rtc.Track) -> None:
+    def observe_track(
+        self,
+        track_ref: str,
+        track: rtc.Track,
+        participant_identity: str,
+    ) -> None:
         """Subscribe to one track as pending until exact Core admission."""
         if not self._started or self._closed:
             raise RuntimeError("room audio run is not active")
@@ -229,6 +239,11 @@ class RoomAudioRun:
             frame_size_ms=round(self._frame_duration_seconds * 1_000),
         )
         self._mixer.observe_track(track_ref)
+        if self._speaker_attribution is not None:
+            self._speaker_attribution.register_track(
+                track_ref,
+                participant_identity,
+            )
         self._track_streams[track_ref] = stream
         self._track_tasks[track_ref] = asyncio.create_task(
             self._pump_track(track_ref, stream)
@@ -302,6 +317,8 @@ class RoomAudioRun:
                 await self._fail_clock()
                 return
             pcm = self._mixer.mix_next_frame()
+            if self._speaker_attribution is not None:
+                self._speaker_attribution.observe_frame(self._mixer.speaking_track_refs)
             self._log_live_metrics()
             if self._artifact_sink is not None:
                 self._artifact_sink.write_frame(pcm)

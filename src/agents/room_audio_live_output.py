@@ -11,6 +11,7 @@ from livekit.agents import stt
 
 from live_transcription_publisher import SpeechEventOutput, TranscriptionPublisher
 from room_audio_session import RoomAudioCompletion
+from room_audio_speaker_attribution import RoomAudioSpeakerAttribution
 
 logger = logging.getLogger("room-audio-worker.live-output")
 
@@ -32,6 +33,7 @@ class RoomLiveTranscriptionOutput:
         self,
         room: rtc.Room,
         *,
+        speaker_attribution: RoomAudioSpeakerAttribution,
         sequence_seed: int | None = None,
         leg_id: str | None = None,
     ):
@@ -42,6 +44,7 @@ class RoomLiveTranscriptionOutput:
             room,
             initial_sequence=sequence_seed,
         )
+        self._speaker_attribution = speaker_attribution
         self._initial_leg_id = leg_id
         self._generation = 0
         self._publication_lock = asyncio.Lock()
@@ -53,7 +56,6 @@ class RoomLiveTranscriptionOutput:
         leg_id = self._initial_leg_id if self._generation == 1 else None
         output = SpeechEventOutput(
             publisher=self._publisher,
-            participant_identity=ROOM_PARTICIPANT_IDENTITY,
             track_sid=ROOM_MIX_TRACK_SID,
             leg_id=leg_id,
         )
@@ -62,7 +64,13 @@ class RoomLiveTranscriptionOutput:
             async with self._publication_lock:
                 if generation != self._generation:
                     return
-                await output.consume(event)
+                participant_identity = self._speaker_attribution.resolve()
+                await output.consume(
+                    event,
+                    participant_identity=(
+                        participant_identity or ROOM_PARTICIPANT_IDENTITY
+                    ),
+                )
 
         return handle_event
 

@@ -117,15 +117,13 @@ class SpeechEventOutput:
         self,
         *,
         publisher: TranscriptionPublisher,
-        participant_identity: str,
         track_sid: str,
         leg_id: str | None = None,
     ):
-        """Bind provider events to one room-level presentation identity."""
-        if not participant_identity or not track_sid:
-            raise ValueError("transcription presentation identity is required")
+        """Bind provider events to one room-level audio track."""
+        if not track_sid:
+            raise ValueError("transcription presentation track is required")
         self._publisher = publisher
-        self._participant_identity = participant_identity
         self._track_sid = track_sid
         self._leg_id = leg_id or uuid.uuid4().hex
         self._revisions: dict[str, int] = {}
@@ -136,8 +134,15 @@ class SpeechEventOutput:
         """Return the immutable provider-stream generation identifier."""
         return self._leg_id
 
-    async def consume(self, event: stt.SpeechEvent) -> None:
+    async def consume(
+        self,
+        event: stt.SpeechEvent,
+        *,
+        participant_identity: str,
+    ) -> None:
         """Translate one provider revision into the canonical room envelope."""
+        if not participant_identity:
+            raise ValueError("transcription participant identity is required")
         if event.type not in (
             stt.SpeechEventType.INTERIM_TRANSCRIPT,
             stt.SpeechEventType.FINAL_TRANSCRIPT,
@@ -162,7 +167,7 @@ class SpeechEventOutput:
             end_time = received_at
         await self._publisher.publish_segment(
             TranscriptionEvent(
-                participant_identity=self._participant_identity,
+                participant_identity=participant_identity,
                 track_sid=self._track_sid,
                 leg_id=self._leg_id,
                 item_id=item_id,

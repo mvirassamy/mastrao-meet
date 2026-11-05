@@ -122,7 +122,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         second = await session.aclose("ignored-second-close")
 
         runtime.observe_track.assert_called_once_with(
-            "TR_human_audio", human_audio.track
+            "TR_human_audio", human_audio.track, "human"
         )
         authority.consume.assert_called_once()
         runtime.start.assert_awaited_once_with()

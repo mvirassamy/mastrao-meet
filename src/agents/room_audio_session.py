@@ -208,7 +208,11 @@ class RoomAudioSession:
         ):
             return
         try:
-            self._runtime.observe_track(publication.sid, track)
+            self._runtime.observe_track(
+                publication.sid,
+                track,
+                participant.identity,
+            )
         except ValueError:
             logger.warning("Ignored duplicate room-audio track subscription")
 

@@ -66,11 +66,7 @@ def load_config() -> MistralRealtimeConfig:
         raise RuntimeError(
             "MISTRAL_ASR_API_KEY is required for STT_PROVIDER=mistral-live"
         )
-    delay = int(
-        os.getenv("MISTRAL_STT_STREAMING_DELAY_MS", str(DEFAULT_STREAMING_DELAY_MS))
-    )
-    if not MIN_STREAMING_DELAY_MS <= delay <= MAX_STREAMING_DELAY_MS:
-        raise ValueError("MISTRAL_STT_STREAMING_DELAY_MS must be between 80 and 2400")
+    delay = configured_streaming_delay_ms()
     language = os.getenv("MISTRAL_STT_LANGUAGE", DEFAULT_LANGUAGE).strip()
     if not language:
         raise ValueError("MISTRAL_STT_LANGUAGE must not be empty")
@@ -80,6 +76,16 @@ def load_config() -> MistralRealtimeConfig:
         streaming_delay_ms=delay,
         context_bias=configured_context_bias(),
     )
+
+
+def configured_streaming_delay_ms() -> int:
+    """Return the validated provider delay used to align source attribution."""
+    delay = int(
+        os.getenv("MISTRAL_STT_STREAMING_DELAY_MS", str(DEFAULT_STREAMING_DELAY_MS))
+    )
+    if not MIN_STREAMING_DELAY_MS <= delay <= MAX_STREAMING_DELAY_MS:
+        raise ValueError("MISTRAL_STT_STREAMING_DELAY_MS must be between 80 and 2400")
+    return delay
 
 
 class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
