@@ -87,23 +87,52 @@ class RoomAudioOverlapRouterTests(unittest.TestCase):
         self.assertEqual(routed.main_track_refs, frozenset({"TR_a"}))
         self.assertEqual(routed.recovery_frames, {"TR_b": b"b", "TR_c": b"c"})
 
-    def test_closes_the_overlap_window_when_speech_returns_to_one_track(self):
-        """A clean turn makes its speaker primary for the next overlap."""
+    def test_keeps_the_interrupter_isolated_until_a_real_pause(self):
+        """The end of overlap cannot mix two identities in one ASR phrase."""
         self.router.route(
-            mixed_pcm=b"mixed",
-            speaking_frames={"TR_a": b"a", "TR_b": b"b"},
+            mixed_pcm=b"primary",
+            speaking_frames={"TR_a": b"a"},
         )
         self.router.route(
-            mixed_pcm=b"single",
-            speaking_frames={"TR_b": b"b"},
+            mixed_pcm=b"overlap",
+            speaking_frames={"TR_a": b"a", "TR_b": b"b1"},
         )
         routed = self.router.route(
-            mixed_pcm=b"mixed-again",
-            speaking_frames={"TR_b": b"b", "TR_c": b"c"},
+            mixed_pcm=b"interrupter-continues",
+            speaking_frames={"TR_b": b"b2"},
         )
 
-        self.assertEqual(routed.main_track_refs, frozenset({"TR_b"}))
-        self.assertEqual(routed.recovery_frames, {"TR_c": b"c"})
+        self.assertEqual(routed.main_pcm, bytes(len(b"interrupter-continues")))
+        self.assertEqual(routed.main_track_refs, frozenset())
+        self.assertEqual(routed.recovery_frames, {"TR_b": b"b2"})
+
+    def test_releases_stream_ownership_after_a_real_pause(self):
+        """A new turn may use the main stream after bounded room silence."""
+        router = RoomAudioOverlapRouter(
+            maximum_recovery_streams=2,
+            primary_release_silence_frames=2,
+        )
+        router.route(
+            mixed_pcm=b"primary",
+            speaking_frames={"TR_a": b"a"},
+        )
+        router.route(
+            mixed_pcm=b"overlap",
+            speaking_frames={"TR_a": b"a", "TR_b": b"b"},
+        )
+
+        first_pause = router.route(mixed_pcm=b"\0" * 4, speaking_frames={})
+        released = router.route(mixed_pcm=b"\0" * 4, speaking_frames={})
+        next_turn = router.route(
+            mixed_pcm=b"next-turn",
+            speaking_frames={"TR_b": b"b-next"},
+        )
+
+        self.assertEqual(first_pause.recovery_frames, {"TR_b": b"\0" * 4})
+        self.assertEqual(released.recovery_frames, {})
+        self.assertEqual(next_turn.main_pcm, b"next-turn")
+        self.assertEqual(next_turn.main_track_refs, frozenset({"TR_b"}))
+        self.assertEqual(next_turn.recovery_frames, {})
 
 
 if __name__ == "__main__":

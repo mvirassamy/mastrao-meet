@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-05: Keep a live speaker turn on its original Room Audio stream
+  until true room silence so delayed overlap phrases never mix participant
+  identities.
+
 - 2026-11-05: Clear a previously resolved Room Audio speaker when the next
   live window contains only overlapping or unknown microphone sources.
 
