@@ -106,8 +106,11 @@ class RoomAudioSpeakerAttribution:
 
         identified_frames = sum(identity_frames.values())
         total_speech_frames = identified_frames + ambiguous_frames
-        if total_speech_frames < self._minimum_speech_frames or not identity_frames:
+        if total_speech_frames < self._minimum_speech_frames:
             return self._last_resolution
+        if not identity_frames:
+            self._last_resolution = None
+            return None
         identity, dominant_frames = identity_frames.most_common(1)[0]
         if dominant_frames / total_speech_frames < self._minimum_dominance_ratio:
             self._last_resolution = None
