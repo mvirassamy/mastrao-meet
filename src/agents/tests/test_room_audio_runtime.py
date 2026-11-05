@@ -647,14 +647,22 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         run._mixer.push_frame("TR_B", bob_pcm)
 
         await wait_for_frames(recovery_stream, 1)
+        bob_continues_pcm = b"\xb8\x0b" * 480
+        run._mixer.push_frame("TR_B", bob_continues_pcm)
+        for _ in range(100):
+            recovery_pcm = [bytes(frame.data) for frame in recovery_stream.frames]
+            if bob_continues_pcm in recovery_pcm:
+                break
+            await asyncio.sleep(0.002)
         await run.aclose()
 
-        self.assertIn(alice_pcm, [bytes(frame.data) for frame in main_stream.frames])
-        self.assertNotIn(bob_pcm, [bytes(frame.data) for frame in main_stream.frames])
-        self.assertEqual(
-            [bytes(frame.data) for frame in recovery_stream.frames],
-            [bob_pcm],
-        )
+        main_pcm = [bytes(frame.data) for frame in main_stream.frames]
+        recovery_pcm = [bytes(frame.data) for frame in recovery_stream.frames]
+        self.assertIn(alice_pcm, main_pcm)
+        self.assertNotIn(bob_pcm, main_pcm)
+        self.assertNotIn(bob_continues_pcm, main_pcm)
+        self.assertIn(bob_pcm, recovery_pcm)
+        self.assertIn(bob_continues_pcm, recovery_pcm)
         self.assertEqual(recovery_bindings, [("bob", "TR_B")])
 
 
