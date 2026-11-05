@@ -11,6 +11,7 @@ from room_audio_runtime import (
     RoomLiveOutput,
     create_room_audio_run_for_effect,
 )
+from room_audio_speaker_attribution import RoomAudioSpeakerAttribution
 
 
 class FakeSpeechStream:
@@ -91,6 +92,7 @@ def live_output(provider_factory, handler_factory, failure_handler):
         speech_event_handler_factory=handler_factory,
         failure_handler=failure_handler,
         generation_invalidator=invalidate_generation,
+        speaker_attribution=RoomAudioSpeakerAttribution(provider_delay_ms=480),
     )
 
 
@@ -125,6 +127,9 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                     speech_event_handler_factory=None,
                     failure_handler=None,
                     generation_invalidator=None,
+                    speaker_attribution=RoomAudioSpeakerAttribution(
+                        provider_delay_ms=480
+                    ),
                 )
             )
 
@@ -148,6 +153,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 speech_event_handler_factory=lambda: handle_event,
                 failure_handler=handle_failure,
                 generation_invalidator=invalidate_generation,
+                speaker_attribution=RoomAudioSpeakerAttribution(provider_delay_ms=480),
             ),
         )
 
@@ -163,6 +169,9 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                     speech_event_handler_factory=lambda: handle_event,
                     failure_handler=handle_failure,
                     generation_invalidator=invalidate_generation,
+                    speaker_attribution=RoomAudioSpeakerAttribution(
+                        provider_delay_ms=480
+                    ),
                 ),
                 artifact_sink=sink,
             )
@@ -378,6 +387,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             speech_event_handler_factory=lambda: handle_event,
             failure_handler=handle_failure,
             generation_invalidator=invalidate,
+            speaker_attribution=RoomAudioSpeakerAttribution(provider_delay_ms=480),
         )
         run = RoomAudioRun(live_output=output)
 
@@ -513,7 +523,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             return_value=track_stream,
         ) as from_track:
             track = object()
-            run.observe_track("TR_A", track)
+            run.observe_track("TR_A", track, "alice")
 
         from_track.assert_called_once_with(
             track=track,
@@ -555,7 +565,11 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             side_effect=streams,
         ):
             for index in range(40):
-                run.observe_track(f"TR_{index:02d}", object())
+                run.observe_track(
+                    f"TR_{index:02d}",
+                    object(),
+                    f"participant-{index:02d}",
+                )
 
         self.assertEqual(run.snapshot().published_track_count, 40)
         self.assertEqual(run.provider_session_count, 1)

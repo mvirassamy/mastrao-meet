@@ -3,7 +3,7 @@
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from livekit.agents import LanguageCode, stt
 
@@ -42,6 +42,10 @@ def _mixer_snapshot():
     )
 
 
+def _attribution(identity=None):
+    return SimpleNamespace(resolve=Mock(return_value=identity))
+
+
 class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
     """Keep one mixed room stream ordered, anonymous and content-safe."""
 
@@ -50,6 +54,7 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
         room = _room()
         output = RoomLiveTranscriptionOutput(
             room,
+            speaker_attribution=_attribution(),
             sequence_seed=1_000,
             leg_id="room-leg-1",
         )
@@ -72,6 +77,7 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
         room = _room()
         output = RoomLiveTranscriptionOutput(
             room,
+            speaker_attribution=_attribution(),
             sequence_seed=1_000,
             leg_id="room-leg-1",
         )
@@ -92,7 +98,11 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
     async def test_failure_publishes_only_a_bounded_gap_reason(self):
         """Provider details and credentials never cross the LiveKit boundary."""
         room = _room()
-        output = RoomLiveTranscriptionOutput(room, sequence_seed=2_000)
+        output = RoomLiveTranscriptionOutput(
+            room,
+            speaker_attribution=_attribution(),
+            sequence_seed=2_000,
+        )
 
         await output.handle_failure(RuntimeError("secret provider response"))
 
@@ -105,7 +115,11 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_refuses_unbounded_gap_and_post_completion(self):
         """Only known lifecycle gaps and artifact-free live completion pass."""
-        output = RoomLiveTranscriptionOutput(_room(), sequence_seed=3_000)
+        output = RoomLiveTranscriptionOutput(
+            _room(),
+            speaker_attribution=_attribution(),
+            sequence_seed=3_000,
+        )
         with self.assertRaisesRegex(ValueError, "unsupported"):
             await output.publish_gap("provider-secret-detail")
         with self.assertRaisesRegex(ValueError, "live pipeline"):
@@ -124,6 +138,21 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
                 mixer=_mixer_snapshot(),
             )
         )
+
+    async def test_publishes_a_clearly_attributed_room_segment(self):
+        """A dominant source identity is preserved on the mixed audio track."""
+        room = _room()
+        output = RoomLiveTranscriptionOutput(
+            room,
+            speaker_attribution=_attribution("matthias"),
+            sequence_seed=4_000,
+        )
+
+        await output.create_event_handler()(_event())
+
+        envelope = json.loads(room.local_participant.send_text.call_args.args[0])
+        self.assertEqual(envelope["participantIdentity"], "matthias")
+        self.assertEqual(envelope["trackSid"], "room-mix")
 
 
 if __name__ == "__main__":
