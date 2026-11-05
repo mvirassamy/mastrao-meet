@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-05: Clear a previously resolved Room Audio speaker when the next
+  live window contains only overlapping or unknown microphone sources.
+
 - 2026-11-05: Attribute mixed Room Audio live transcript fragments to a
   clearly dominant participant microphone while keeping ambiguous speech
   labeled as meeting audio.

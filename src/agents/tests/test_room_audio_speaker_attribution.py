@@ -61,6 +61,45 @@ class RoomAudioSpeakerAttributionTests(unittest.TestCase):
 
         self.assertIsNone(self.attribution.resolve(observed_at_ms=3_520))
 
+    def test_overlap_clears_the_previous_speaker(self):
+        """An overlap window never inherits the previously resolved speaker."""
+        for observed_at_ms in (4_000, 4_020, 4_040):
+            self.attribution.observe_frame(
+                {"TR_matthias"}, observed_at_ms=observed_at_ms
+            )
+
+        self.assertEqual(
+            self.attribution.resolve(observed_at_ms=4_540),
+            "matthias",
+        )
+
+        for observed_at_ms in (4_080, 4_100, 4_120):
+            self.attribution.observe_frame(
+                {"TR_matthias", "TR_martin"},
+                observed_at_ms=observed_at_ms,
+            )
+
+        self.assertIsNone(self.attribution.resolve(observed_at_ms=4_620))
+
+    def test_unknown_speaker_clears_the_previous_speaker(self):
+        """An unknown-only window never inherits the previous speaker."""
+        for observed_at_ms in (5_000, 5_020, 5_040):
+            self.attribution.observe_frame(
+                {"TR_matthias"}, observed_at_ms=observed_at_ms
+            )
+
+        self.assertEqual(
+            self.attribution.resolve(observed_at_ms=5_540),
+            "matthias",
+        )
+
+        for observed_at_ms in (5_080, 5_100, 5_120):
+            self.attribution.observe_frame(
+                {"TR_unmapped"}, observed_at_ms=observed_at_ms
+            )
+
+        self.assertIsNone(self.attribution.resolve(observed_at_ms=5_620))
+
 
 if __name__ == "__main__":
     unittest.main()
