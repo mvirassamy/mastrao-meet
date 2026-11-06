@@ -195,6 +195,7 @@ def test_live_start_targets_the_live_worker(authority_key, binding):
         authority_key,
         _effect(
             binding,
+            version=3,
             pipeline="live",
             source_profile=LIVE_SOURCE_PROFILE,
         ),
@@ -212,6 +213,32 @@ def test_live_start_targets_the_live_worker(authority_key, binding):
     assert request.agent_name == "room-audio-live-worker"
     row = models.MastraoRoomAudioRunEffect.objects.get()
     assert row.destination_identity.startswith("room-audio-worker-live-")
+
+
+def test_live_start_refuses_the_superseded_room_mix_contract(authority_key, binding):
+    compact = _signed(
+        authority_key,
+        _effect(
+            binding,
+            pipeline="live",
+            source_profile={
+                "format": "authorized_room_mix_pcm_s16le_v1",
+                "codec": "pcm_s16le",
+                "sample_rate_hz": 24_000,
+                "channel_count": 1,
+            },
+        ),
+    )
+    livekit = _livekit_client()
+
+    with patch(
+        "core.mastrao_room_audio_run.utils.create_livekit_client",
+        return_value=livekit,
+    ):
+        response = _post(compact)
+
+    assert response.status_code == 404
+    livekit.agent_dispatch.create_dispatch.assert_not_awaited()
 
 
 def test_timeout_reconciles_existing_exact_dispatch(authority_key, binding):
@@ -326,6 +353,7 @@ def test_post_and_live_runs_can_coexist_for_one_room(authority_key, binding):
         authority_key,
         _effect(
             binding,
+            version=3,
             pipeline="live",
             source_profile=LIVE_SOURCE_PROFILE,
             audio_run_ref="audio_run_live_fixture_12345678",

@@ -33,6 +33,8 @@ from core.mastrao_recording_contract import (
 from core.mastrao_room_audio_authority import room_audio_worker_identity
 
 JOSE_TYPE = "mastrao-meeting-room-audio-start-effect+jws"
+POST_EFFECT_VERSION = 2
+LIVE_EFFECT_VERSION = 3
 FIELDS = {
     "version",
     "type",
@@ -65,10 +67,21 @@ POST_SOURCE_PROFILE = {
     "channel_count": 1,
 }
 LIVE_SOURCE_PROFILE = {
-    "format": "authorized_room_mix_pcm_s16le_v1",
+    "format": "authorized_active_track_pcm_s16le_v1",
     "codec": "pcm_s16le",
     "sample_rate_hz": 24_000,
     "channel_count": 1,
+    "maximum_concurrent_tracks": 3,
+    "maximum_provider_sessions": 3,
+    "maximum_draining_sessions": 3,
+    "pre_roll_ms": 0,
+    "hangover_ms": 500,
+    "opening_timeout_ms": 10_000,
+    "drain_timeout_ms": 10_000,
+    "maximum_buffered_audio_ms": 4_000,
+    "maximum_audio_amplification": 3,
+    "capacity_behavior": "fail_closed_gap",
+    "indeterminate_drain_behavior": "fail_closed_gap",
 }
 PROVIDER_TIMEOUT_SECONDS = 3
 DELIVERY_LEASE_SECONDS = 5
@@ -97,12 +110,15 @@ def read_room_audio_run_effect(compact):
     """Verify one exact Core start effect without requiring current freshness."""
     effect = _verify(compact, JOSE_TYPE, FIELDS)
     pipeline = effect["pipeline"]
-    expected_profile = (
-        POST_SOURCE_PROFILE if pipeline == "post" else LIVE_SOURCE_PROFILE
-    )
+    if pipeline == "post":
+        expected_version = POST_EFFECT_VERSION
+        expected_profile = POST_SOURCE_PROFILE
+    else:
+        expected_version = LIVE_EFFECT_VERSION
+        expected_profile = LIVE_SOURCE_PROFILE
     if (
         type(effect["version"]) is not int
-        or effect["version"] != 2
+        or effect["version"] != expected_version
         or effect["type"] != "mastrao.core-meeting-room-audio-start-effect"
         or type(effect["operation_version"]) is not int
         or effect["operation_version"] != 1
