@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-06: Accept the active-track live Room Audio start contract in the
+  Meet dispatcher so the per-microphone workers can start before ASR.
+
 - 2026-11-06: Bind live Room Audio transcription to each admitted microphone
   track before ASR so overlapping speakers retain their exact identities.
 
