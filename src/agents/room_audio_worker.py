@@ -16,7 +16,7 @@ from livekit.agents import (
 )
 from minio import Minio
 
-from mistral_live_stt import configured_streaming_delay_ms, create_mistral_live_stt
+from mistral_live_stt import create_mistral_live_stt
 from observability import configure_sentry, set_job_context
 from room_audio_authority import RoomAudioAuthority, RoomAudioAuthorityConfig
 from room_audio_job import handle_room_audio_job_request, verify_room_audio_job
@@ -34,7 +34,6 @@ from room_audio_source_publisher import (
     DurableRoomAudioSourcePublisher,
     RoomAudioSourcePublisherConfig,
 )
-from room_audio_speaker_attribution import RoomAudioSpeakerAttribution
 from room_audio_start_authority import room_audio_worker_identity
 
 logger = logging.getLogger("room-audio-worker")
@@ -210,27 +209,18 @@ def create_live_room_audio_session(
     effect: dict,
     config: RoomAudioWorkerConfig,
 ) -> RoomAudioSession:
-    """Compose one room-wide Mistral stream with unattributed output."""
+    """Compose bounded track-owned live transcription streams."""
     if effect.get("pipeline") != "live":
         raise ValueError("live room-audio session requires live pipeline")
     if config.pipeline != "live" or config.post is not None:
         raise ValueError("live effect requires live worker configuration")
-    speaker_attribution = RoomAudioSpeakerAttribution(
-        provider_delay_ms=configured_streaming_delay_ms()
-    )
-    output = RoomLiveTranscriptionOutput(
-        ctx.room,
-        speaker_attribution=speaker_attribution,
-    )
+    output = RoomLiveTranscriptionOutput(ctx.room)
     runtime = create_room_audio_run_for_effect(
         effect,
         live_output=RoomLiveOutput(
             provider_factory=create_mistral_live_stt,
-            speech_event_handler_factory=output.create_event_handler,
-            recovery_event_handler_factory=output.create_recovery_event_handler,
+            track_event_handler_factory=output.create_track_event_handler,
             failure_handler=output.handle_failure,
-            generation_invalidator=output.invalidate_generation,
-            speaker_attribution=speaker_attribution,
         ),
     )
     return RoomAudioSession(

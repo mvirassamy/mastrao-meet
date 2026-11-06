@@ -10,14 +10,15 @@ from unittest.mock import patch
 
 import aiohttp
 from livekit import rtc
-from livekit.agents import stt
 
+from live_transcript_event import LiveTranscriptEventKind
 from mistral_live_stt import (
     _INPUT_END,
     DEFAULT_CONTEXT_BIAS,
     PROVIDER_CHUNK_BYTES,
     MistralRealtimeConfig,
     MistralRealtimeStream,
+    MistralRealtimeSTT,
     configured_context_bias,
     load_config,
 )
@@ -58,6 +59,10 @@ def detached_stream(config: MistralRealtimeConfig) -> MistralRealtimeStream:
     stream._input = asyncio.Queue()
     stream._output = asyncio.Queue()
     stream._closed = False
+    stream._fully_closed = False
+    stream._close_task = None
+    stream._ready = asyncio.Event()
+    stream._opening_error = None
     stream._sequence = 0
     stream._pending_text = ""
     stream._sent_chunk_count = 0
@@ -169,10 +174,10 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
 
         first = stream._output.get_nowait()
         second = stream._output.get_nowait()
-        self.assertEqual(first.type, stt.SpeechEventType.FINAL_TRANSCRIPT)
-        self.assertEqual(first.alternatives[0].text, "Aurore")
-        self.assertEqual(second.alternatives[0].text, "arrive.")
-        self.assertNotEqual(first.request_id, second.request_id)
+        self.assertEqual(first.kind, LiveTranscriptEventKind.COMPLETE)
+        self.assertEqual(first.text, "Aurore")
+        self.assertEqual(second.text, "arrive.")
+        self.assertNotEqual(first.logical_unit_id, second.logical_unit_id)
 
     async def test_apostrophe_split_stays_inside_one_word(self):
         """Do not turn an append-only apostrophe split into two UI words."""
@@ -201,7 +206,7 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
         await stream._receive_events(socket)
 
         event = stream._output.get_nowait()
-        self.assertEqual(event.alternatives[0].text, "Aujourd'hui")
+        self.assertEqual(event.text, "Aujourd'hui")
 
     async def test_audio_frames_are_rejected_if_format_drifts(self):
         """Fail rather than silently sending an incompatible audio format."""
@@ -258,6 +263,81 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(RuntimeError, "closed before completion"):
             await stream._receive_events(FakeSocket())
+
+    async def test_provider_rate_limit_is_an_explicit_failure(self):
+        """A provider 429 cannot become an empty successful transcript."""
+        stream = detached_stream(self.config)
+        socket = FakeSocket(
+            messages=[
+                SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=json.dumps(
+                        {
+                            "type": "error",
+                            "error": {
+                                "code": "rate_limit_exceeded",
+                                "message": "too many requests",
+                            },
+                        }
+                    ),
+                )
+            ]
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "rate_limit_exceeded"):
+            await stream._receive_events(socket)
+
+    async def test_full_input_queue_makes_close_fail_closed(self):
+        """A saturated sender cannot silently discard the terminal marker."""
+        stream = detached_stream(self.config)
+        stream._input = asyncio.Queue(maxsize=1)
+        stream._input.put_nowait(bytes(2))
+        stream._task = asyncio.create_task(asyncio.sleep(10))
+
+        with (
+            patch("mistral_live_stt.CLOSE_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(RuntimeError, "input drain timed out"),
+        ):
+            await stream.finish_input_and_drain()
+
+        self.assertTrue(stream._task.cancelled())
+
+    async def test_provider_drain_timeout_is_not_reported_as_success(self):
+        """A hung provider task produces an explicit terminal failure."""
+        stream = detached_stream(self.config)
+        stream._task = asyncio.create_task(asyncio.sleep(10))
+
+        with (
+            patch("mistral_live_stt.CLOSE_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(RuntimeError, "provider drain timed out"),
+        ):
+            await stream.finish_input_and_drain()
+
+        self.assertTrue(stream._task.cancelled())
+
+    async def test_cancelled_close_cannot_report_success_with_live_network_task(self):
+        """Provider close reuses the terminal future after caller cancellation."""
+        stream = detached_stream(self.config)
+        stream._input = asyncio.Queue(maxsize=1)
+        stream._input.put_nowait(bytes(2))
+        stream._task = asyncio.create_task(asyncio.sleep(10))
+        provider = MistralRealtimeSTT.__new__(MistralRealtimeSTT)
+        provider._config = self.config
+        provider._streams = {stream}
+
+        with patch("mistral_live_stt.CLOSE_TIMEOUT_SECONDS", 0.01):
+            interrupted = asyncio.create_task(stream.finish_input_and_drain())
+            await asyncio.sleep(0)
+            interrupted.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await interrupted
+
+            self.assertFalse(stream._task.done())
+            with self.assertRaisesRegex(RuntimeError, "input drain timed out"):
+                await provider.aclose()
+
+        self.assertTrue(stream._task.cancelled())
+        self.assertFalse(stream._fully_closed)
 
 
 if __name__ == "__main__":

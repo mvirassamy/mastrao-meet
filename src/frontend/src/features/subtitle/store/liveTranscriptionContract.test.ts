@@ -3,7 +3,8 @@ import {
   LIVE_TRANSCRIPTION_TOPIC,
   parseLiveTranscriptionGapStream,
   parseLiveTranscriptionStream,
-  toLegacyTranscriptionEvent,
+  readLiveTranscriptionStream,
+  roomAudioLiveWorkerIdentity,
 } from './index'
 
 describe('live transcription contract', () => {
@@ -20,6 +21,7 @@ describe('live transcription contract', () => {
           gapId: 'GAP_1',
           durationMs: 820,
           reason: 'provider-reconnect',
+          receivedAt: 1,
         })
       )
     ).toMatchObject([
@@ -29,6 +31,16 @@ describe('live transcription contract', () => {
     expect(
       parseLiveTranscriptionGapStream(
         JSON.stringify({ schemaVersion: 2, gapId: 'GAP_2', reason: 'x' })
+      )
+    ).toEqual([])
+    expect(
+      parseLiveTranscriptionGapStream(
+        JSON.stringify({
+          schemaVersion: 1,
+          id: 'GAP_ALIAS',
+          reason: 'non-canonical alias',
+          receivedAt: 1,
+        })
       )
     ).toEqual([])
   })
@@ -47,6 +59,7 @@ describe('live transcription contract', () => {
             revision: 2,
             state: 'interim',
             text: 'bonjour',
+            receivedAt: 1,
           },
           {
             participantIdentity: 'bob',
@@ -57,6 +70,7 @@ describe('live transcription contract', () => {
             revision: 0,
             state: 'final',
             text: 'salut',
+            receivedAt: 2,
           },
         ],
       })
@@ -87,108 +101,17 @@ describe('live transcription contract', () => {
     ])
   })
 
-  it('falls back to standard LiveKit attributes for plain text streams', () => {
-    const [event] = parseLiveTranscriptionStream(
-      'texte provisoire',
-      {
-        'lk.segment_id': 'item-1',
-        'lk.transcribed_track_id': 'TR_alice',
-        'lk.transcription_final': 'false',
-      },
-      'agent',
-      'stream-1'
-    )
-
-    expect(event).toMatchObject({
-      type: 'segments',
-      segments: [
-        {
-          participantIdentity: 'agent',
-          trackSid: 'TR_alice',
-          legId: 'legacy',
-          itemId: 'item-1',
-          state: 'interim',
-          text: 'texte provisoire',
-          metadataSource: 'livekit-attributes',
-        },
-      ],
-    })
-  })
-
-  it.each(['2024', 'true', 'null'])(
-    'keeps valid JSON primitive %s as a text segment',
-    (payload) => {
-      const [event] = parseLiveTranscriptionStream(
-        payload,
-        {
-          'lk.segment_id': `item-${payload}`,
-          'lk.transcribed_track_id': 'TR_alice',
-        },
-        'agent',
-        `stream-${payload}`
+  it('rejects incomplete and unversioned transport payloads', () => {
+    expect(parseLiveTranscriptionStream('texte provisoire')).toEqual([])
+    expect(
+      parseLiveTranscriptionStream(
+        JSON.stringify({
+          schemaVersion: 1,
+          participantIdentity: 'alice',
+          text: 'missing track binding',
+        })
       )
-
-      expect(event).toMatchObject({
-        type: 'segments',
-        segments: [{ text: payload }],
-      })
-    }
-  )
-
-  it('preserves the exact raw text for a valid JSON number', () => {
-    const [event] = parseLiveTranscriptionStream(
-      '2.50',
-      {
-        'lk.segment_id': 'item-2-50',
-        'lk.transcribed_track_id': 'TR_alice',
-      },
-      'agent',
-      'stream-2-50'
-    )
-
-    expect(event).toMatchObject({
-      type: 'segments',
-      segments: [{ text: '2.50' }],
-    })
-  })
-
-  it('adapts all legacy TranscriptionReceived segments', () => {
-    const event = toLegacyTranscriptionEvent(
-      [
-        {
-          id: 'first',
-          text: 'un',
-          language: 'fr',
-          startTime: 1,
-          endTime: 2,
-          final: false,
-          firstReceivedTime: 1,
-          lastReceivedTime: 2,
-        },
-        {
-          id: 'second',
-          text: 'deux',
-          language: 'fr',
-          startTime: 3,
-          endTime: 4,
-          final: true,
-          firstReceivedTime: 3,
-          lastReceivedTime: 4,
-        },
-      ],
-      { identity: 'alice' } as never,
-      { trackSid: 'TR_alice' } as never
-    )
-
-    expect(event.type).toBe('segments')
-    if (event.type === 'segments') {
-      expect(
-        event.segments.map(({ itemId, state }) => [itemId, state])
-      ).toEqual([
-        ['first', 'interim'],
-        ['second', 'final'],
-      ])
-    }
+    ).toEqual([])
   })
 
   it('rejects an unsupported envelope version', () => {
@@ -197,5 +120,74 @@ describe('live transcription contract', () => {
         JSON.stringify({ schemaVersion: 2, text: 'ignored' })
       )
     ).toEqual([])
+  })
+
+  it('rejects coercible fields and an invalid member in a batch', () => {
+    const base = {
+      participantIdentity: 'alice',
+      trackSid: 'TR_alice',
+      legId: 'leg-1',
+      itemId: 'item-1',
+      sequence: 1,
+      revision: 1,
+      state: 'final',
+      text: 'bonjour',
+      receivedAt: 1,
+    }
+    expect(
+      parseLiveTranscriptionStream(
+        JSON.stringify({ schemaVersion: '1', ...base })
+      )
+    ).toEqual([])
+    expect(
+      parseLiveTranscriptionStream(
+        JSON.stringify({ schemaVersion: 1, ...base, sequence: '1' })
+      )
+    ).toEqual([])
+    expect(
+      parseLiveTranscriptionStream(
+        JSON.stringify({
+          schemaVersion: 1,
+          segments: [base, { ...base, itemId: 'item-2', receivedAt: null }],
+        })
+      )
+    ).toEqual([])
+    expect(
+      parseLiveTranscriptionStream(
+        JSON.stringify({ schemaVersion: 1, segments: 'not-an-array', ...base })
+      )
+    ).toEqual([])
+  })
+
+  it('accepts transcript text only from the exact room live worker', async () => {
+    const roomId = 'room-1'
+    const workerIdentity = await roomAudioLiveWorkerIdentity(roomId)
+    const reader = {
+      info: { id: 'stream-1' },
+      readAll: async () =>
+        JSON.stringify({
+          schemaVersion: 1,
+          participantIdentity: 'alice',
+          trackSid: 'TR_alice',
+          legId: 'leg-1',
+          itemId: 'item-1',
+          sequence: 1,
+          revision: 1,
+          state: 'final',
+          text: 'bonjour',
+          receivedAt: 1,
+        }),
+    }
+
+    await expect(
+      readLiveTranscriptionStream(
+        reader,
+        'ordinary-participant',
+        workerIdentity
+      )
+    ).resolves.toEqual([])
+    await expect(
+      readLiveTranscriptionStream(reader, workerIdentity, workerIdentity)
+    ).resolves.toHaveLength(1)
   })
 })

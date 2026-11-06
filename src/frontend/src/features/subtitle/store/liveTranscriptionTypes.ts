@@ -22,10 +22,7 @@ export type LiveTranscriptionConnectionStatus =
   | 'disconnected'
 
 export type LiveTranscriptionSegmentState = 'interim' | 'final'
-export type LiveTranscriptionMetadataSource =
-  | 'envelope'
-  | 'livekit-attributes'
-  | 'legacy-event'
+export type LiveTranscriptionMetadataSource = 'envelope'
 
 export interface LiveTranscriptionSegmentInput {
   participantIdentity: string

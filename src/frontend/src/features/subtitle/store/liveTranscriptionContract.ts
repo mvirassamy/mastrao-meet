@@ -1,8 +1,3 @@
-import type {
-  Participant,
-  TrackPublication,
-  TranscriptionSegment,
-} from 'livekit-client'
 import {
   LIVE_TRANSCRIPTION_SCHEMA_VERSION,
   type LiveTranscriptionGap,
@@ -10,20 +5,6 @@ import {
   type LiveTranscriptionTextStreamReader,
   type LiveTranscriptionTransportEvent,
 } from './liveTranscriptionTypes'
-
-const LEGACY_LEG_ID = 'legacy'
-const UNKNOWN_PARTICIPANT_IDENTITY = 'unknown-participant'
-const UNKNOWN_TRACK_SID = 'unknown-track'
-
-const ATTRIBUTE_NAMES = {
-  participantIdentity: 'mastrao.participant_identity',
-  trackSid: 'lk.transcribed_track_id',
-  legId: 'mastrao.leg_id',
-  itemId: 'lk.segment_id',
-  final: 'lk.transcription_final',
-  sequence: 'mastrao.sequence',
-  revision: 'mastrao.revision',
-} as const
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -38,27 +19,20 @@ const asNonEmptyString = (value: unknown): string | undefined => {
 }
 
 const asNonNegativeInteger = (value: unknown): number | undefined => {
-  const numberValue = typeof value === 'number' ? value : Number(value)
-  if (!Number.isInteger(numberValue) || numberValue < 0) return undefined
-  return numberValue
-}
-
-const asReceivedAt = (value: unknown): number => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value)
-    if (!Number.isNaN(parsed)) return parsed
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    return undefined
   }
-  return Date.now()
+  return value
 }
 
-const asState = (
-  value: unknown,
-  finalValue: unknown
-): LiveTranscriptionSegmentInput['state'] => {
-  if (value === 'final' || value === 'interim') return value
-  return finalValue === true || finalValue === 'true' ? 'final' : 'interim'
-}
+const hasOwn = (record: Record<string, unknown>, key: string) =>
+  Object.prototype.hasOwnProperty.call(record, key)
+
+const invalidOptionalInteger = (
+  record: Record<string, unknown>,
+  key: string,
+  value: number | undefined
+) => hasOwn(record, key) && value === undefined
 
 const parseJson = (value: string): unknown => {
   try {
@@ -68,188 +42,150 @@ const parseJson = (value: string): unknown => {
   }
 }
 
-const readField = (
-  record: Record<string, unknown>,
-  attributes: Record<string, string>,
-  attributeName: string,
-  fieldName: string
-) => record[fieldName] ?? record[attributeName] ?? attributes[attributeName]
-
-const toSegment = (
-  value: unknown,
-  attributes: Record<string, string>,
-  senderIdentity: string,
-  streamId: string,
-  metadataSource: LiveTranscriptionSegmentInput['metadataSource']
-): LiveTranscriptionSegmentInput | null => {
-  const record = asRecord(value) ?? {}
+const toSegment = (value: unknown): LiveTranscriptionSegmentInput | null => {
+  const record = asRecord(value)
+  if (!record) return null
   const text = asNonEmptyString(record.text)
-  if (text === undefined) return null
-
-  const participantIdentity =
-    asNonEmptyString(
-      readField(
-        record,
-        attributes,
-        ATTRIBUTE_NAMES.participantIdentity,
-        'participantIdentity'
-      )
-    ) ?? senderIdentity
-  const itemId =
-    asNonEmptyString(
-      readField(record, attributes, ATTRIBUTE_NAMES.itemId, 'itemId')
-    ) ?? streamId
-  if (!participantIdentity || !itemId) return null
+  const participantIdentity = asNonEmptyString(record.participantIdentity)
+  const trackSid = asNonEmptyString(record.trackSid)
+  const legId = asNonEmptyString(record.legId)
+  const itemId = asNonEmptyString(record.itemId)
+  const sequence = asNonNegativeInteger(record.sequence)
+  const revision = asNonNegativeInteger(record.revision)
+  const startTime = asNonNegativeInteger(record.startTime)
+  const endTime = asNonNegativeInteger(record.endTime)
+  const receivedAt = asNonNegativeInteger(record.receivedAt)
+  const language = asNonEmptyString(record.language)
+  const state = record.state
+  if (
+    !text ||
+    !participantIdentity ||
+    !trackSid ||
+    !legId ||
+    !itemId ||
+    sequence === undefined ||
+    revision === undefined ||
+    receivedAt === undefined ||
+    invalidOptionalInteger(record, 'startTime', startTime) ||
+    invalidOptionalInteger(record, 'endTime', endTime) ||
+    (hasOwn(record, 'language') && language === undefined) ||
+    (state !== 'final' && state !== 'interim')
+  ) {
+    return null
+  }
 
   return {
-    participantIdentity: participantIdentity || UNKNOWN_PARTICIPANT_IDENTITY,
-    trackSid:
-      asNonEmptyString(
-        readField(record, attributes, ATTRIBUTE_NAMES.trackSid, 'trackSid')
-      ) ?? UNKNOWN_TRACK_SID,
-    legId:
-      asNonEmptyString(
-        readField(record, attributes, ATTRIBUTE_NAMES.legId, 'legId')
-      ) ?? LEGACY_LEG_ID,
+    participantIdentity,
+    trackSid,
+    legId,
     itemId,
-    state: asState(
-      record.state,
-      record.final ?? attributes[ATTRIBUTE_NAMES.final]
-    ),
+    state,
     text,
-    sequence: asNonNegativeInteger(
-      readField(record, attributes, ATTRIBUTE_NAMES.sequence, 'sequence')
-    ),
-    revision: asNonNegativeInteger(
-      readField(record, attributes, ATTRIBUTE_NAMES.revision, 'revision')
-    ),
-    language: asNonEmptyString(record.language),
-    startTime: asNonNegativeInteger(record.startTime),
-    endTime: asNonNegativeInteger(record.endTime),
-    receivedAt: asReceivedAt(record.receivedAt),
-    metadataSource,
+    sequence,
+    revision,
+    language,
+    startTime,
+    endTime,
+    receivedAt,
+    metadataSource: 'envelope',
   }
 }
 
 const parseGap = (
   value: Record<string, unknown>
 ): LiveTranscriptionGap | null => {
-  // The live worker names the identifier gapId on its dedicated topic.
-  const id = asNonEmptyString(value.id) ?? asNonEmptyString(value.gapId)
+  const id = asNonEmptyString(value.gapId)
   const reason = asNonEmptyString(value.reason)
-  if (!id || !reason) return null
+  const fromSequence = asNonNegativeInteger(value.fromSequence)
+  const toSequence = asNonNegativeInteger(value.toSequence)
+  const receivedAt = asNonNegativeInteger(value.receivedAt)
+  if (
+    !id ||
+    !reason ||
+    receivedAt === undefined ||
+    invalidOptionalInteger(value, 'fromSequence', fromSequence) ||
+    invalidOptionalInteger(value, 'toSequence', toSequence)
+  ) {
+    return null
+  }
   return {
     id,
     reason,
-    fromSequence: asNonNegativeInteger(value.fromSequence),
-    toSequence: asNonNegativeInteger(value.toSequence),
-    receivedAt: asReceivedAt(value.receivedAt),
+    fromSequence,
+    toSequence,
+    receivedAt,
   }
 }
 
-const parsePayload = (
-  payload: unknown,
-  attributes: Record<string, string>,
-  senderIdentity: string,
-  streamId: string,
-  rawPayload: string
-): LiveTranscriptionTransportEvent[] => {
-  if (Array.isArray(payload)) {
-    return [
-      {
-        type: 'segments',
-        segments: payload
-          .map((value) =>
-            toSegment(value, attributes, senderIdentity, streamId, 'envelope')
-          )
-          .filter(
-            (segment): segment is LiveTranscriptionSegmentInput =>
-              segment !== null
-          ),
-      },
-    ]
-  }
-
+const parsePayload = (payload: unknown): LiveTranscriptionTransportEvent[] => {
   const record = asRecord(payload)
-  if (!record) {
-    const text = rawPayload
-    const segment = toSegment(
-      { text },
-      attributes,
-      senderIdentity,
-      streamId,
-      'livekit-attributes'
-    )
-    return segment ? [{ type: 'segments', segments: [segment] }] : []
-  }
+  if (!record) return []
 
   const schemaVersion = asNonNegativeInteger(record.schemaVersion)
-  if (
-    schemaVersion !== undefined &&
-    schemaVersion !== LIVE_TRANSCRIPTION_SCHEMA_VERSION
-  ) {
+  if (schemaVersion !== LIVE_TRANSCRIPTION_SCHEMA_VERSION) {
     return []
   }
 
-  if (Array.isArray(record.segments)) {
+  if (hasOwn(record, 'segments')) {
+    if (!Array.isArray(record.segments)) return []
+    const segments = record.segments.map(toSegment)
+    if (segments.length === 0 || segments.some((segment) => segment === null)) {
+      return []
+    }
     return [
       {
         type: 'segments',
-        segments: record.segments
-          .map((value) =>
-            toSegment(value, attributes, senderIdentity, streamId, 'envelope')
-          )
-          .filter(
-            (segment): segment is LiveTranscriptionSegmentInput =>
-              segment !== null
-          ),
+        segments: segments as LiveTranscriptionSegmentInput[],
       },
     ]
   }
 
-  const segment = toSegment(
-    record,
-    attributes,
-    senderIdentity,
-    streamId,
-    'envelope'
-  )
+  const segment = toSegment(record)
   return segment ? [{ type: 'segments', segments: [segment] }] : []
 }
 
 /**
- * livekit-client 2.20.0 exposes lk.transcription through the generic text
- * stream API, not a typed transcription-stream helper. The Mastrao envelope
- * carries fields absent from the SDK segment model. Standard lk.* attributes
- * are used as a fallback for the generic stream payload.
+ * The product accepts only the complete versioned Mastrao envelope. Generic
+ * LiveKit attributes are transport metadata, never identity authority.
  */
 export const parseLiveTranscriptionStream = (
-  payload: string,
-  attributes: Record<string, string> = {},
-  senderIdentity = 'unknown-sender',
-  streamId = 'unknown-stream'
+  payload: string
 ): LiveTranscriptionTransportEvent[] => {
   const parsed = parseJson(payload)
-  const events = parsePayload(
-    parsed,
-    attributes,
-    senderIdentity,
-    streamId,
-    payload
-  )
+  const events = parsePayload(parsed)
   return events.length > 0 ? events : []
 }
 
 export const readLiveTranscriptionStream = async (
   reader: LiveTranscriptionTextStreamReader,
-  senderIdentity: string
-): Promise<LiveTranscriptionTransportEvent[]> =>
-  parseLiveTranscriptionStream(
-    await reader.readAll(),
-    reader.info.attributes,
-    senderIdentity,
-    reader.info.id
+  senderIdentity: string,
+  expectedSenderIdentity: string
+): Promise<LiveTranscriptionTransportEvent[]> => {
+  if (senderIdentity !== expectedSenderIdentity) return []
+  return parseLiveTranscriptionStream(await reader.readAll())
+}
+
+export const roomAudioLiveWorkerIdentity = async (
+  roomId: string
+): Promise<string> => {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(roomId)
   )
+  const hex = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('')
+  return `room-audio-worker-live-${hex.slice(0, 32)}`
+}
+
+export const readLiveTranscriptionGapStream = async (
+  reader: LiveTranscriptionTextStreamReader,
+  senderIdentity: string,
+  expectedSenderIdentity: string
+): Promise<LiveTranscriptionTransportEvent[]> => {
+  if (senderIdentity !== expectedSenderIdentity) return []
+  return parseLiveTranscriptionGapStream(await reader.readAll())
+}
 
 /**
  * Gap markers travel on their own versioned topic so they never mix with
@@ -269,27 +205,3 @@ export const parseLiveTranscriptionGapStream = (
   const gap = parseGap(record)
   return gap ? [{ type: 'gap', gap }] : []
 }
-
-export const toLegacyTranscriptionEvent = (
-  segments: TranscriptionSegment[],
-  participant?: Participant,
-  publication?: TrackPublication
-): LiveTranscriptionTransportEvent => ({
-  type: 'segments',
-  segments: participant
-    ? segments.map((segment) => ({
-        participantIdentity:
-          participant.identity || UNKNOWN_PARTICIPANT_IDENTITY,
-        trackSid: publication?.trackSid || UNKNOWN_TRACK_SID,
-        legId: LEGACY_LEG_ID,
-        itemId: segment.id,
-        state: segment.final ? 'final' : 'interim',
-        text: segment.text,
-        language: segment.language,
-        startTime: segment.startTime,
-        endTime: segment.endTime,
-        receivedAt: segment.lastReceivedTime,
-        metadataSource: 'legacy-event',
-      }))
-    : [],
-})

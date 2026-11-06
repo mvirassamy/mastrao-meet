@@ -2,6 +2,7 @@ import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LiveTranscriptionProvider } from './LiveTranscriptionProvider'
 import { useLiveTranscription } from './liveTranscriptionContext'
+import { roomAudioLiveWorkerIdentity } from './liveTranscriptionContract'
 import {
   LIVE_TRANSCRIPTION_GAP_TOPIC,
   LIVE_TRANSCRIPTION_TOPIC,
@@ -51,13 +52,14 @@ describe('LiveTranscriptionProvider', () => {
     const { room, handlers } = createRoom()
     useRoomContextMock.mockReturnValue(room)
     render(
-      <LiveTranscriptionProvider>
+      <LiveTranscriptionProvider roomId="room-1">
         <Probe />
       </LiveTranscriptionProvider>
     )
 
     const handler = handlers.get(LIVE_TRANSCRIPTION_TOPIC)
     expect(handler).toBeDefined()
+    const workerIdentity = await roomAudioLiveWorkerIdentity(room.name)
     await act(async () => {
       await handler?.(
         {
@@ -65,8 +67,8 @@ describe('LiveTranscriptionProvider', () => {
           readAll: async () =>
             JSON.stringify({
               schemaVersion: 1,
-              participantIdentity: 'unknown-participant',
-              trackSid: 'room-mix',
+              participantIdentity: 'alice',
+              trackSid: 'TR_alice',
               legId: 'leg-1',
               itemId: 'item-1',
               sequence: 1,
@@ -76,7 +78,7 @@ describe('LiveTranscriptionProvider', () => {
               receivedAt: 1,
             }),
         } as never,
-        { identity: 'room-audio-live-worker' } as never
+        { identity: workerIdentity } as never
       )
     })
 
@@ -85,30 +87,110 @@ describe('LiveTranscriptionProvider', () => {
     )
   })
 
+  it('rejects a complete envelope from an ordinary participant', async () => {
+    const { room, handlers } = createRoom()
+    useRoomContextMock.mockReturnValue(room)
+    render(
+      <LiveTranscriptionProvider roomId="room-1">
+        <Probe />
+      </LiveTranscriptionProvider>
+    )
+
+    const handler = handlers.get(LIVE_TRANSCRIPTION_TOPIC)
+    await act(async () => {
+      await handler?.(
+        {
+          info: { id: 'forged-stream' },
+          readAll: async () =>
+            JSON.stringify({
+              schemaVersion: 1,
+              participantIdentity: 'victim',
+              trackSid: 'TR_victim',
+              legId: 'leg-1',
+              itemId: 'item-1',
+              sequence: 1,
+              revision: 1,
+              state: 'final',
+              text: 'forged text',
+              receivedAt: 1,
+            }),
+        } as never,
+        { identity: 'ordinary-participant' } as never
+      )
+    })
+
+    expect(screen.getByTestId('probe').textContent).toBe('unknown::0')
+  })
+
   it('marks a bounded room-audio gap as degraded', async () => {
     const { room, handlers } = createRoom()
     useRoomContextMock.mockReturnValue(room)
     render(
-      <LiveTranscriptionProvider>
+      <LiveTranscriptionProvider roomId="room-1">
         <Probe />
       </LiveTranscriptionProvider>
     )
 
     const handler = handlers.get(LIVE_TRANSCRIPTION_GAP_TOPIC)
     expect(handler).toBeDefined()
+    const workerIdentity = await roomAudioLiveWorkerIdentity(room.name)
     await act(async () => {
-      await handler?.({
-        info: { id: 'gap-1' },
-        readAll: async () =>
-          JSON.stringify({
-            schemaVersion: 1,
-            gapId: 'gap-1',
-            reason: 'provider-error',
-            receivedAt: 1,
-          }),
-      } as never)
+      await handler?.(
+        {
+          info: { id: 'gap-1' },
+          readAll: async () =>
+            JSON.stringify({
+              schemaVersion: 1,
+              gapId: 'gap-1',
+              reason: 'provider-error',
+              receivedAt: 1,
+            }),
+        } as never,
+        { identity: workerIdentity } as never
+      )
     })
 
     expect(screen.getByTestId('probe').textContent).toBe('degraded::1')
+  })
+
+  it('binds worker authority before LiveKit publishes the room name', async () => {
+    const { room, handlers } = createRoom()
+    room.name = ''
+    useRoomContextMock.mockReturnValue(room)
+    render(
+      <LiveTranscriptionProvider roomId="room-before-connect">
+        <Probe />
+      </LiveTranscriptionProvider>
+    )
+
+    const handler = handlers.get(LIVE_TRANSCRIPTION_TOPIC)
+    const workerIdentity = await roomAudioLiveWorkerIdentity(
+      'room-before-connect'
+    )
+    await act(async () => {
+      await handler?.(
+        {
+          info: { id: 'preconnection-stream' },
+          readAll: async () =>
+            JSON.stringify({
+              schemaVersion: 1,
+              participantIdentity: 'alice',
+              trackSid: 'TR_alice',
+              legId: 'leg-1',
+              itemId: 'item-1',
+              sequence: 1,
+              revision: 1,
+              state: 'final',
+              text: 'Prêt avant connexion',
+              receivedAt: 1,
+            }),
+        } as never,
+        { identity: workerIdentity } as never
+      )
+    })
+
+    expect(screen.getByTestId('probe').textContent).toBe(
+      'live:Prêt avant connexion:0'
+    )
   })
 })

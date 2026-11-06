@@ -61,7 +61,11 @@ class RoomAudioStartVerifierTests(unittest.TestCase):
 
     def test_accepts_exact_live_start(self):
         """The live pipeline requires its exact 24 kHz mono PCM profile."""
-        effect = self._effect(pipeline="live", source_profile=LIVE_SOURCE_PROFILE)
+        effect = self._effect(
+            version=3,
+            pipeline="live",
+            source_profile=LIVE_SOURCE_PROFILE,
+        )
 
         verified = self.verifier.verify(self._sign(effect), observed_at=self.now)
 

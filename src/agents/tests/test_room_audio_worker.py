@@ -258,8 +258,8 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
                 config=_config(),
             )
 
-    def test_composes_one_live_provider_with_room_output(self):
-        """One live effect opens one provider factory for the entire room."""
+    def test_composes_track_owned_live_provider_output(self):
+        """A live effect binds provider output to exact microphone tracks."""
         ctx = _context()
         effect = _effect("live")
         with (
@@ -282,8 +282,8 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result, create_session.return_value)
         live_output = create_runtime.call_args.kwargs["live_output"]
         self.assertIs(
-            live_output.speech_event_handler_factory,
-            output.create_event_handler,
+            live_output.track_event_handler_factory,
+            output.create_track_event_handler,
         )
         self.assertIs(live_output.failure_handler, output.handle_failure)
         create_session.assert_called_once_with(

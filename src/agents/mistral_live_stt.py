@@ -15,7 +15,8 @@ from typing import Final
 
 import aiohttp
 from livekit import rtc
-from livekit.agents import LanguageCode, stt
+
+from live_transcript_event import LiveTranscriptEvent, LiveTranscriptEventKind
 
 MODEL: Final = "voxtral-mini-transcribe-realtime-3"
 DEFAULT_LANGUAGE: Final = "fr"
@@ -79,7 +80,7 @@ def load_config() -> MistralRealtimeConfig:
 
 
 def configured_streaming_delay_ms() -> int:
-    """Return the validated provider delay used to align source attribution."""
+    """Return the validated provider transport delay target."""
     delay = int(
         os.getenv("MISTRAL_STT_STREAMING_DELAY_MS", str(DEFAULT_STREAMING_DELAY_MS))
     )
@@ -88,7 +89,7 @@ def configured_streaming_delay_ms() -> int:
     return delay
 
 
-class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
+class MistralRealtimeStream(AsyncIterator[LiveTranscriptEvent]):
     """Bridge one LiveKit audio track to one Mistral WebSocket session."""
 
     def __init__(self, config: MistralRealtimeConfig):
@@ -97,11 +98,15 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         self._input: asyncio.Queue[bytes | object] = asyncio.Queue(
             maxsize=INPUT_QUEUE_SIZE
         )
-        self._output: asyncio.Queue[stt.SpeechEvent | Exception | object] = (
+        self._output: asyncio.Queue[LiveTranscriptEvent | Exception | object] = (
             asyncio.Queue(maxsize=OUTPUT_QUEUE_SIZE)
         )
         self._task = asyncio.create_task(self._run())
+        self._ready = asyncio.Event()
+        self._opening_error: Exception | None = None
         self._closed = False
+        self._fully_closed = False
+        self._close_task: asyncio.Task | None = None
         self._sequence = 0
         self._pending_text = ""
         self._sent_chunk_count = 0
@@ -124,7 +129,15 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         """Return this stream as its asynchronous iterator."""
         return self
 
-    async def __anext__(self) -> stt.SpeechEvent:
+    async def wait_ready(self) -> None:
+        """Wait until the WebSocket accepted the configured session."""
+        await self._ready.wait()
+        if self._opening_error is not None:
+            raise RuntimeError("Mistral realtime session failed to open") from (
+                self._opening_error
+            )
+
+    async def __anext__(self) -> LiveTranscriptEvent:
         """Yield one final append-only transcript delta."""
         item = await self._output.get()
         if item is _OUTPUT_END:
@@ -133,19 +146,37 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
             raise item
         return item
 
-    async def aclose(self) -> None:
-        """Finish buffered audio and close the session once."""
-        if self._closed:
+    async def finish_input_and_drain(self) -> None:
+        """Finish buffered audio and drain provider output once."""
+        if self._close_task is None:
+            self._closed = True
+            self._close_task = asyncio.create_task(self._finish_input_and_drain())
+        await asyncio.shield(self._close_task)
+
+    async def _finish_input_and_drain(self) -> None:
+        """Own the single terminal provider exchange until it is proven."""
+        if self._task.done():
+            await self._task
+            self._fully_closed = True
             return
-        self._closed = True
-        with contextlib.suppress(asyncio.QueueFull):
-            self._input.put_nowait(_INPUT_END)
         try:
-            await asyncio.wait_for(self._task, timeout=CLOSE_TIMEOUT_SECONDS)
-        except TimeoutError:
+            await asyncio.wait_for(
+                self._input.put(_INPUT_END),
+                timeout=CLOSE_TIMEOUT_SECONDS,
+            )
+        except TimeoutError as error:
             self._task.cancel()
             with contextlib.suppress(BaseException):
                 await self._task
+            raise RuntimeError("Mistral realtime input drain timed out") from error
+        try:
+            await asyncio.wait_for(self._task, timeout=CLOSE_TIMEOUT_SECONDS)
+        except TimeoutError as error:
+            self._task.cancel()
+            with contextlib.suppress(BaseException):
+                await self._task
+            raise RuntimeError("Mistral realtime provider drain timed out") from error
+        self._fully_closed = True
 
     async def _run(self) -> None:
         """Own the HTTP session and coordinate sender and receiver tasks."""
@@ -161,8 +192,16 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         except asyncio.CancelledError:
             raise
         except Exception as error:
+            if not self._ready.is_set():
+                self._opening_error = error
+                self._ready.set()
             await self._output.put(error)
         finally:
+            if not self._ready.is_set():
+                self._opening_error = RuntimeError(
+                    "Mistral realtime session closed before ready"
+                )
+                self._ready.set()
             await self._output.put(_OUTPUT_END)
 
     async def _configure(self, socket: aiohttp.ClientWebSocketResponse) -> None:
@@ -182,6 +221,7 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         await socket.send_json({"type": "session.update", "session": session_config})
         updated = await socket.receive_json()
         self._expect_event(updated, "session.updated")
+        self._ready.set()
 
     async def _send_audio(self, socket: aiohttp.ClientWebSocketResponse) -> None:
         """Send provider-sized PCM chunks until the LiveKit track closes."""
@@ -245,16 +285,14 @@ class MistralRealtimeStream(AsyncIterator[stt.SpeechEvent]):
         if not normalized:
             return
         self._sequence += 1
+        logical_unit_id = uuid.uuid4().hex
         await self._output.put(
-            stt.SpeechEvent(
-                type=stt.SpeechEventType.FINAL_TRANSCRIPT,
-                request_id=f"mistral-{self._sequence}-{uuid.uuid4().hex}",
-                alternatives=[
-                    stt.SpeechData(
-                        language=LanguageCode(self._config.language),
-                        text=normalized,
-                    )
-                ],
+            LiveTranscriptEvent(
+                kind=LiveTranscriptEventKind.COMPLETE,
+                logical_unit_id=logical_unit_id,
+                local_sequence=self._sequence,
+                text=normalized,
+                language=self._config.language,
             )
         )
 
@@ -315,7 +353,7 @@ class MistralRealtimeSTT:
         """Close every stream created by this provider."""
         streams = tuple(self._streams)
         self._streams.clear()
-        await asyncio.gather(*(stream.aclose() for stream in streams))
+        await asyncio.gather(*(stream.finish_input_and_drain() for stream in streams))
 
 
 def create_mistral_live_stt() -> MistralRealtimeSTT:

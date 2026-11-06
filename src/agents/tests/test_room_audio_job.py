@@ -225,6 +225,8 @@ class RoomAudioJobTests(unittest.IsolatedAsyncioTestCase):
             "jti": "room_audio_start_1",
         }
         effect.update(overrides)
+        if effect["pipeline"] == "live" and "version" not in overrides:
+            effect["version"] = 3
         return effect
 
     def _sign(self, effect):

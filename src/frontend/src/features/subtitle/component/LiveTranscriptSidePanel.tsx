@@ -142,9 +142,6 @@ const ReconnectingToast = () => {
 
 export const LiveTranscriptSidePanel = () => {
   const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
-  const { t: tParticipants } = useTranslation('rooms', {
-    keyPrefix: 'participants',
-  })
   const { status, connectionStatus, segments, resolveSpeaker } =
     useLiveTranscription()
 
@@ -200,10 +197,8 @@ export const LiveTranscriptSidePanel = () => {
           speakerTurns.map((segment) => {
             const speaker = resolveSpeaker(segment.participantIdentity)
             const speakerLabel = getLiveTranscriptSpeakerLabel({
-              segment,
+              participantIdentity: segment.participantIdentity,
               participantLabel: speaker?.label,
-              roomAudioLabel: t('roomAudio'),
-              unknownParticipantLabel: tParticipants('unknown'),
             })
 
             return (
