@@ -44,7 +44,7 @@ def _config_digest(provider, model, codec, duration_ms):
 def _provider_profile(local_effect=None):
     if (
         local_effect is not None
-        and local_effect.transcription_binding.contract_operation_version in {2, 3, 4}
+        and local_effect.transcription_binding.contract_operation_version in {2, 3, 4, 5}
     ):
         binding = local_effect.transcription_binding
         mode = settings.MASTRAO_TRANSCRIPTION_ASR_MODE
@@ -70,7 +70,7 @@ def prepare_attempt(local_effect, extracted):
     binding = local_effect.transcription_binding
     digest = (
         binding.request_config_digest
-        if binding.contract_operation_version in {2, 3, 4}
+        if binding.contract_operation_version in {2, 3, 4, 5}
         else _config_digest(provider, model, extracted.codec, extracted.duration_ms)
     )
     attempt_ref = f"attempt_{uuid4().hex}"
@@ -95,7 +95,7 @@ def prepare_attempt(local_effect, extracted):
             if not audio_matches or not profile_matches:
                 raise TranscriptionPipelineFailed("asr_failed")
             return existing
-        if binding.contract_operation_version != 4:
+        if binding.contract_operation_version not in {4, 5}:
             raise TranscriptionPipelineFailed("asr_failed", status=409)
         if (
             extracted.duration_ms > binding.maximum_audio_seconds * 1_000

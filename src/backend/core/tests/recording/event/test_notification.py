@@ -211,6 +211,35 @@ def test_notify_user_by_email_success(mocked_current_site, settings):
         assert sender3 == "notifications@acme.com"
 
 
+@pytest.mark.parametrize("expires", [True, False])
+def test_notify_user_email_uses_recording_expiration(settings, expires):
+    """A persistent recording must not inherit the global expiry warning."""
+    settings.RECORDING_EXPIRATION_DAYS = 30
+    recording = factories.RecordingFactory()
+    factories.UserRecordingAccessFactory(
+        recording=recording, role=models.RoleChoices.OWNER
+    )
+    expiry = recording.created_at + datetime.timedelta(days=30) if expires else None
+
+    with (
+        mock.patch.object(
+            models.Recording,
+            "expired_at",
+            new_callable=mock.PropertyMock,
+            return_value=expiry,
+        ),
+        mock.patch(
+            "core.recording.event.notification.render_to_string", return_value="mail"
+        ) as render,
+        mock.patch("core.recording.event.notification.send_mail"),
+    ):
+        assert notification_service._notify_user_by_email(recording) is True
+
+    assert render.call_count == 2
+    for call in render.call_args_list:
+        assert call.args[1]["recording_expiration_days"] == (30 if expires else None)
+
+
 def test_notify_user_by_email_no_owners(mocked_current_site, caplog):
     """Test email notification when no owners are found."""
 

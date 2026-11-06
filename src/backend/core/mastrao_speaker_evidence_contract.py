@@ -14,6 +14,7 @@ from core.mastrao_recording_contract import (
     _validate_ref,
     _validate_time,
     _verify,
+    validate_retention,
 )
 from core.mastrao_room_contract import CONTRACT_VERSION, DIGEST, _sha256_canonical
 
@@ -101,7 +102,8 @@ def _validate_receipt_common(claims):
         or claims.get("issuer") != settings.MASTRAO_RECORDING_RECEIPT_ISSUER
         or claims.get("audience") != settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE
         or claims.get("operation") != "confirm_meeting_speaker_evidence_artifact"
-        or claims.get("operation_version") != 1
+        or type(claims.get("operation_version")) is not int
+        or claims["operation_version"] not in {1, 2}
         or claims.get("purpose") != PURPOSE
         or claims.get("scope") != SCOPE
     ):
@@ -155,7 +157,7 @@ def _validate_artifact_receipt_time(claims, *, allow_expired):
 
 
 def _effect_arguments(effect):
-    return {
+    arguments = {
         "version": CONTRACT_VERSION,
         "operation": "capture_meeting_speaker_evidence",
         "operation_version": 1,
@@ -168,13 +170,29 @@ def _effect_arguments(effect):
         "scope": SCOPE,
     }
 
+    if effect["operation_version"] == 2:
+        arguments.update(
+            operation_version=2,
+            retention_mode=effect["retention_mode"],
+            retention_expires_at=effect["retention_expires_at"],
+        )
+    return arguments
+
 
 def verify_speaker_evidence_capture_effect(compact_jws):
     """Verify and return one exact speaker-evidence capture effect."""
 
-    effect = _verify(compact_jws, CAPTURE_EFFECT_JOSE_TYPE, CAPTURE_EFFECT_FIELDS)
+    try:
+        effect = _verify(compact_jws, CAPTURE_EFFECT_JOSE_TYPE, CAPTURE_EFFECT_FIELDS)
+        operation_version = 1
+    except RecordingContractRefused:
+        effect = _verify(
+            compact_jws, CAPTURE_EFFECT_JOSE_TYPE,
+            CAPTURE_EFFECT_FIELDS | {"retention_mode"},
+        )
+        operation_version = 2
     _validate_time(effect)
-    _validate_common(effect)
+    _validate_common(effect, operation_version=operation_version)
     # Capture identity claims are checked as one fail-closed contract predicate.
     if (  # pylint: disable=too-many-boolean-expressions
         effect.get("type") != CAPTURE_EFFECT_TYPE
@@ -187,14 +205,13 @@ def verify_speaker_evidence_capture_effect(compact_jws):
         _validate_ref(effect, name)
     if not DIGEST.fullmatch(effect.get("notice_digest", "")):
         raise RecordingContractRefused()
-    retention = effect.get("retention_expires_at")
+    validate_retention(
+        effect, persistent=operation_version == 2, after=int(time.time())
+    )
     recording_started = effect.get("recording_started_at_ms")
     # Retention and recording start jointly preserve temporal capture safety.
     if (  # pylint: disable=too-many-boolean-expressions
-        not isinstance(retention, int)
-        or isinstance(retention, bool)
-        or retention <= int(time.time())
-        or not isinstance(recording_started, int)
+        not isinstance(recording_started, int)
         or isinstance(recording_started, bool)
         or recording_started < 0
     ):
@@ -216,7 +233,12 @@ def build_capture_receipt_claims(effect, status):
         "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
         "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
         "operation": "confirm_meeting_speaker_evidence_capture",
-        "operation_version": 1,
+        "operation_version": effect["operation_version"],
+        **(
+            {"retention_mode": effect["retention_mode"]}
+            if effect["operation_version"] == 2
+            else {}
+        ),
         "organization_external_id": effect["organization_external_id"],
         "meeting_ref": effect["meeting_ref"],
         "room_ref": effect["room_ref"],
@@ -261,7 +283,12 @@ def refresh_artifact_receipt_claims(claims):
 def validate_artifact_receipt_claims(claims, *, allow_expired=False):
     """Validate one exact speaker-evidence artifact receipt claim set."""
 
-    if not isinstance(claims, dict) or set(claims) != ARTIFACT_RECEIPT_FIELDS:
+    if not isinstance(claims, dict):
+        raise RecordingContractRefused()
+    expected_fields = ARTIFACT_RECEIPT_FIELDS
+    if claims.get("operation_version") == 2:
+        expected_fields = expected_fields | {"retention_mode"}
+    if set(claims) != expected_fields:
         raise RecordingContractRefused()
     _validate_receipt_common(claims)
     for name in (
@@ -281,7 +308,7 @@ def validate_artifact_receipt_claims(claims, *, allow_expired=False):
     for name in ("provider_binding_digest", "notice_digest", "checksum_digest"):
         if not DIGEST.fullmatch(claims.get(name, "")):
             raise RecordingContractRefused()
-    _validate_positive_int(claims, "retention_expires_at")
+    validate_retention(claims, persistent=claims["operation_version"] == 2)
     _validate_positive_int(claims, "byte_size", maximum=MAX_ARTIFACT_BYTES)
     _validate_positive_int(
         claims, "participant_count", maximum=MAX_PARTICIPANTS, allow_zero=True

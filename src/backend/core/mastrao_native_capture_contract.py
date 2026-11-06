@@ -15,6 +15,7 @@ from core.mastrao_recording_contract import (
     _validate_ref,
     _validate_time,
     _verify,
+    validate_retention,
 )
 from core.mastrao_room_contract import DIGEST, _sha256_canonical
 
@@ -69,19 +70,27 @@ FIELDS = AUTHORITY_FIELDS | {
 
 def arguments_digest(effect):
     """All authority predicates survive retries with a freshly signed envelope."""
-    return _sha256_canonical({key: effect[key] for key in sorted(AUTHORITY_FIELDS)})
+    fields = AUTHORITY_FIELDS
+    if effect["version"] == 2:
+        fields = fields | {"retention_mode"}
+    return _sha256_canonical({key: effect[key] for key in sorted(fields)})
 
 
 def verify_native_start(compact):
     """Require Core's explicit native purpose, exact epoch and bounded validity."""
     try:
-        effect = _verify(compact, JOSE_TYPE, FIELDS)
+        try:
+            effect = _verify(compact, JOSE_TYPE, FIELDS)
+            version = 1
+        except RecordingContractRefused:
+            effect = _verify(compact, JOSE_TYPE, FIELDS | {"retention_mode"})
+            version = 2
     except (ValueError, TypeError, RecursionError) as error:
         raise RecordingContractRefused() from error
     _validate_time(effect)
     if (
         type(effect["version"]) is not int
-        or effect["version"] != 1
+        or effect["version"] != version
         or effect["type"] != EFFECT_TYPE
         or not settings.MASTRAO_RECORDING_EFFECT_ISSUER
         or not settings.MASTRAO_RECORDING_EFFECT_AUDIENCE
@@ -92,14 +101,13 @@ def verify_native_start(compact):
         or effect["profile_digest"] != PROFILE_DIGEST
         or effect["participant_kind"] not in ("host", "guest")
         or type(effect["resolve_only"]) is not bool
-        or type(effect["retention_expires_at"]) is not int
-        or effect["retention_expires_at"] <= 0
-        or (
-            not effect["resolve_only"]
-            and effect["retention_expires_at"] <= effect["expires_at"]
-        )
     ):
         raise RecordingContractRefused()
+    validate_retention(
+        effect,
+        persistent=version == 2,
+        after=0 if effect["resolve_only"] else effect["expires_at"],
+    )
     for name in (
         "meeting_ref",
         "room_ref",

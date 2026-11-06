@@ -63,6 +63,17 @@ export const MeetingRecordingSection = ({
   )
   const access = recording.access
   const locale = i18n.resolvedLanguage || i18n.language
+  let retentionLabel = ''
+  if (recording.retentionMode === 'until_deleted') {
+    retentionLabel = t('recording.retainedUntilDeleted')
+  } else if (retainedUntil) {
+    retentionLabel = t('recording.retainedUntil', {
+      date: new Intl.DateTimeFormat(locale, {
+        dateStyle: 'long',
+        timeZone,
+      }).format(retainedUntil),
+    })
+  }
   const availableAction = retentionExpired ? null : action
   useLayoutEffect(() => {
     if (!availableAction) return
@@ -156,7 +167,7 @@ export const MeetingRecordingSection = ({
         >
           {t(`status.recording.${recording.status}`)}
         </p>
-        {recording.status === 'available' && retainedUntil && (
+        {recording.status === 'available' && retentionLabel && (
           <p
             className={css({
               margin: 0,
@@ -164,12 +175,7 @@ export const MeetingRecordingSection = ({
               color: 'muted-foreground',
             })}
           >
-            {t('recording.retainedUntil', {
-              date: new Intl.DateTimeFormat(locale, {
-                dateStyle: 'long',
-                timeZone,
-              }).format(retainedUntil),
-            })}
+            {retentionLabel}
           </p>
         )}
         {recording.status === 'available' && !availableAction && (

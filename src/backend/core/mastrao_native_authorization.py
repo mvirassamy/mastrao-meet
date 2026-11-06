@@ -14,6 +14,7 @@ from core.mastrao_recording_contract import (
     RecordingContractRefused,
     _sign,
     compact_digest,
+    validate_retention,
 )
 from core.mastrao_recording_session import _participant
 from core.mastrao_room_contract import DIGEST, OPAQUE_REFERENCE
@@ -47,13 +48,20 @@ def native_envelope(kind):
 
 def _validate_authorization(result):
     authorization = result.get("authorization")
+    expected_fields = AUTHORIZATION_FIELDS
+    persistent = (
+        isinstance(authorization, dict)
+        and authorization.get("retention_mode") == "until_deleted"
+    )
+    if persistent:
+        expected_fields = expected_fields | {"retention_mode"}
     if (
         set(result) != {"version", "authorization", "capture_authorized"}
         or type(result["version"]) is not int
         or result["version"] != 1
         or result["capture_authorized"] is not False
         or not isinstance(authorization, dict)
-        or set(authorization) != AUTHORIZATION_FIELDS
+        or set(authorization) != expected_fields
         or any(
             not isinstance(authorization[field], str)
             or not OPAQUE_REFERENCE.fullmatch(authorization[field])
@@ -63,10 +71,12 @@ def _validate_authorization(result):
         or not DIGEST.fullmatch(authorization["policy_digest"])
         or authorization["purpose"] != "meeting_transcription_source_audio"
         or authorization["scope"] != "authorized_microphone_track_epoch"
-        or type(authorization["retention_expires_at"]) is not int
-        or authorization["retention_expires_at"] <= int(time.time())
     ):
         raise RecordingContractRefused(status=503)
+    try:
+        validate_retention(authorization, persistent=persistent, after=int(time.time()))
+    except RecordingContractRefused as error:
+        raise RecordingContractRefused(status=503) from error
     return result
 
 
@@ -97,6 +107,11 @@ def _authorization_fingerprint(participant, recording_status):
                     "transcription_notice_digest"
                 ),
                 "retention_expires_at": recording_status.get("retention_expires_at"),
+                **(
+                    {"retention_mode": recording_status["retention_mode"]}
+                    if "retention_mode" in recording_status
+                    else {}
+                ),
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -174,5 +189,9 @@ def authorize_native_policy(request, room, recording_status):
         refusal=RecordingContractRefused,
     )
     result = _validate_authorization(result)
+    if result["authorization"].get("retention_mode") != recording_status.get(
+        "retention_mode"
+    ):
+        raise RecordingContractRefused(status=503)
     _remember_authorization(request, binding.room_ref, fingerprint, result)
     return result

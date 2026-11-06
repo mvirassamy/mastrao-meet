@@ -328,6 +328,7 @@ class MetadataCollector:
         self.policy_ref = None
         self.notice_version = None
         self.notice_digest = None
+        self.retention_mode = "bounded"
         self.retention_expires_at = None
         self.recording_started_at_ms = 0
 
@@ -364,6 +365,18 @@ class MetadataCollector:
         self.policy_ref = _metadata_str(metadata, "policy_ref")
         self.notice_version = _metadata_str(metadata, "notice_version")
         self.notice_digest = _metadata_str(metadata, "notice_digest")
+        if "retention_mode" in metadata:
+            if (
+                type(metadata.get("version")) is not int
+                or metadata["version"] != 2
+                or metadata["retention_mode"] != "until_deleted"
+                or "retention_expires_at" not in metadata
+                or metadata["retention_expires_at"] is not None
+            ):
+                raise MissingConfigError("invalid_persistent_retention_metadata")
+            self.retention_mode = "until_deleted"
+        elif metadata.get("version") == 2:
+            raise MissingConfigError("missing_persistent_retention_mode")
         self.retention_expires_at = _metadata_int(metadata, "retention_expires_at")
         self.recording_started_at_ms = (
             _metadata_int(metadata, "recording_started_at_ms") or 0
@@ -483,10 +496,19 @@ class MetadataCollector:
                 self.policy_ref,
                 self.notice_version,
                 self.notice_digest,
-                self.retention_expires_at,
             )
         ):
             raise MissingConfigError
+        persistent = self.retention_mode == "until_deleted"
+        if persistent:
+            if self.retention_expires_at is not None:
+                raise MissingConfigError("invalid_persistent_retention")
+        elif (
+            self.retention_mode != "bounded"
+            or type(self.retention_expires_at) is not int
+            or self.retention_expires_at <= 0
+        ):
+            raise MissingConfigError("unknown_retention")
         now = int(time.time())
         checksum_digest = hashlib.sha256(data).hexdigest()
         artifact_ref = (
@@ -498,7 +520,8 @@ class MetadataCollector:
             "issuer": _required_env("MASTRAO_RECORDING_RECEIPT_ISSUER"),
             "audience": _required_env("MASTRAO_RECORDING_RECEIPT_AUDIENCE"),
             "operation": "confirm_meeting_speaker_evidence_artifact",
-            "operation_version": 1,
+            "operation_version": 2 if persistent else 1,
+            **({"retention_mode": "until_deleted"} if persistent else {}),
             "organization_external_id": self.organization_external_id,
             "meeting_ref": payload["meeting_ref"],
             "room_ref": payload["room_ref"],

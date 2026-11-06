@@ -128,6 +128,18 @@ class RecordingContractRefused(Exception):
         super().__init__("recording_contract_refused")
 
 
+def validate_retention(payload, *, persistent, after=0):
+    """Validate one already-selected wire variant, without upgrading old claims."""
+    expiry = payload.get("retention_expires_at")
+    if persistent:
+        if payload.get("retention_mode") != "until_deleted" or expiry is not None:
+            raise RecordingContractRefused()
+        return
+    if "retention_mode" in payload or type(expiry) is not int or expiry <= after:
+        raise RecordingContractRefused()
+
+
+
 def compact_digest(compact_jws):
     """Hash one bounded compact JWS without retaining the capability."""
 
@@ -245,12 +257,13 @@ def _validate_provider_ref(payload, name="provider_recording_ref"):
         raise RecordingContractRefused()
 
 
-def _validate_common(payload):
+def _validate_common(payload, *, operation_version=1):
     if (
         payload.get("version") != CONTRACT_VERSION
         or payload.get("issuer") != settings.MASTRAO_RECORDING_EFFECT_ISSUER
         or payload.get("audience") != settings.MASTRAO_RECORDING_EFFECT_AUDIENCE
-        or payload.get("operation_version") != 1
+        or type(payload.get("operation_version")) is not int
+        or payload["operation_version"] != operation_version
         or not REQUEST_ID.fullmatch(payload.get("jti", ""))
     ):
         raise RecordingContractRefused()
@@ -274,7 +287,7 @@ def _validate_common(payload):
 
 
 def _effect_arguments(effect, operation):
-    return {
+    arguments = {
         "version": CONTRACT_VERSION,
         "operation": operation,
         "recording_ref": effect["recording_ref"],
@@ -283,13 +296,28 @@ def _effect_arguments(effect, operation):
         "provider_binding_digest": effect["provider_binding_digest"],
     }
 
+    if operation == "start" and effect["operation_version"] == 2:
+        arguments.update(
+            operation_version=2,
+            retention_mode=effect["retention_mode"],
+            retention_expires_at=effect["retention_expires_at"],
+        )
+    return arguments
+
 
 def verify_recording_start_effect(compact_jws):
     """Verify the exact Core start effect contract."""
 
-    effect = _verify(compact_jws, START_EFFECT_JOSE_TYPE, START_EFFECT_FIELDS)
+    try:
+        effect = _verify(compact_jws, START_EFFECT_JOSE_TYPE, START_EFFECT_FIELDS)
+        operation_version = 1
+    except RecordingContractRefused:
+        effect = _verify(
+            compact_jws, START_EFFECT_JOSE_TYPE, START_EFFECT_FIELDS | {"retention_mode"}
+        )
+        operation_version = 2
     _validate_time(effect)
-    _validate_common(effect)
+    _validate_common(effect, operation_version=operation_version)
     if (
         effect.get("type") != START_EFFECT_TYPE
         or effect.get("operation") != "start_room_composite_recording"
@@ -302,13 +330,9 @@ def verify_recording_start_effect(compact_jws):
         _validate_ref(effect, name)
     if not DIGEST.fullmatch(effect.get("notice_digest", "")):
         raise RecordingContractRefused()
-    retention = effect.get("retention_expires_at")
-    if (
-        not isinstance(retention, int)
-        or isinstance(retention, bool)
-        or retention <= int(time.time())
-    ):
-        raise RecordingContractRefused()
+    validate_retention(
+        effect, persistent=operation_version == 2, after=int(time.time())
+    )
     if effect["arguments_digest"] != _sha256_canonical(
         _effect_arguments(effect, "start")
     ):

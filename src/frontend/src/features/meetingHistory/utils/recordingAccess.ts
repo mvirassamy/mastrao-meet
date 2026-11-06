@@ -8,8 +8,10 @@ export const recordingAccessAction = (
 ): string | null => {
   if (
     recording.status !== 'available' ||
-    !recording.retentionExpiresAt ||
-    recording.retentionExpiresAt.getTime() <= Date.now() ||
+    (recording.retentionMode === 'until_deleted'
+      ? recording.retentionExpiresAt !== null
+      : !recording.retentionExpiresAt ||
+        recording.retentionExpiresAt.getTime() <= Date.now()) ||
     !recording.access ||
     !isRecordingAccessPath(recording.access.actionPath) ||
     typeof platformOrigin !== 'string'

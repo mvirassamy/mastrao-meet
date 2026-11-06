@@ -30,6 +30,12 @@ from core.mastrao_recording_contract import (
     verify_recording_stop_effect,
 )
 from core.mastrao_recording_failure import report_mastrao_recording_failure
+from core.mastrao_retention import (
+    BOUNDED,
+    retention_claims,
+    retention_datetime,
+    retention_matches,
+)
 from core.mastrao_video_roster import authorize_video_start
 from core.recording.worker.exceptions import (
     RecordingStopError,
@@ -324,8 +330,7 @@ def _prepare_start(effect):
             or recording_binding.notice_digest != effect["notice_digest"]
             or recording_binding.purpose != effect["purpose"]
             or recording_binding.scope != effect["scope"]
-            or int(recording_binding.retention_expires_at.timestamp())
-            != effect["retention_expires_at"]
+            or not retention_matches(recording_binding, effect)
         ):
             raise RecordingContractRefused(status=409)
     else:
@@ -341,9 +346,8 @@ def _prepare_start(effect):
             notice_digest=effect["notice_digest"],
             purpose=effect["purpose"],
             scope=effect["scope"],
-            retention_expires_at=datetime.fromtimestamp(
-                effect["retention_expires_at"], tz=UTC
-            ),
+            retention_mode=effect.get("retention_mode", BOUNDED),
+            retention_expires_at=retention_datetime(effect),
         )
     existing = (
         models.MastraoRecordingEffect.objects.select_for_update()
@@ -403,9 +407,10 @@ def _prepare_start(effect):
         mode=models.RecordingModeChoices.SCREEN_RECORDING,
         options={
             "mastrao_recording_ref": recording_binding.recording_ref,
-            "mastrao_retention_expires_at": int(
-                recording_binding.retention_expires_at.timestamp()
-            ),
+            **{
+                f"mastrao_{name}": value
+                for name, value in retention_claims(recording_binding).items()
+            },
         },
     )
     models.RecordingAccess.objects.create(

@@ -22,6 +22,7 @@ from core.mastrao_recording_contract import (
     RecordingContractRefused,
     sign_artifact_receipt,
 )
+from core.mastrao_retention import retention_claims, retention_matches
 
 MAX_ARTIFACT_BYTES = 20_000_000_000
 
@@ -134,6 +135,7 @@ def _persist_artifact_receipt(snapshot, size, checksum):
             if (
                 claims_artifact != expected_artifact
                 or persisted_artifact != expected_artifact
+                or not retention_matches(binding, claims)
             ):
                 raise RecordingContractRefused(status=409)
             now = int(time.time())
@@ -162,7 +164,7 @@ def _persist_artifact_receipt(snapshot, size, checksum):
             "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
             "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
             "operation": "confirm_meeting_recording_artifact",
-            "operation_version": 1,
+            "operation_version": 2 if binding.retention_mode == "until_deleted" else 1,
             "organization_external_id": binding.organization_external_id,
             "meeting_ref": binding.meeting_ref,
             "room_ref": binding.room_ref,
@@ -178,7 +180,7 @@ def _persist_artifact_receipt(snapshot, size, checksum):
             "region_ref": settings.MASTRAO_RECORDING_REGION_REF,
             "encryption_ref": settings.MASTRAO_RECORDING_ENCRYPTION_REF,
             "lifecycle_policy_ref": settings.MASTRAO_RECORDING_LIFECYCLE_POLICY_REF,
-            "retention_expires_at": int(binding.retention_expires_at.timestamp()),
+            **retention_claims(binding),
             "verified_at": now,
             "issued_at": now,
             "expires_at": now + 30,

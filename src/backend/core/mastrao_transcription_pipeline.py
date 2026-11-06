@@ -103,7 +103,7 @@ def reconcile_transcription_dispatches(limit=20):
                 skip_locked=True
             )
             .filter(
-                transcription_binding__contract_operation_version=4,
+                transcription_binding__contract_operation_version__in=[4, 5],
                 dispatch_state__in=due_states,
                 next_attempt_at__lte=now,
             )
@@ -115,7 +115,7 @@ def reconcile_transcription_dispatches(limit=20):
                 skip_locked=True
             )
             .filter(
-                transcription_binding__contract_operation_version=4,
+                transcription_binding__contract_operation_version__in=[4, 5],
                 dispatch_state=DispatchState.RUNNING,
                 updated_at__lte=stale_before,
                 next_attempt_at__lte=now,
@@ -292,7 +292,7 @@ def _acquire_completion_lease(effect_pk):
         durable = _action_for_dispatch(local_effect)
         if durable is not None:
             return transcription_binding, local_effect, durable
-        if transcription_binding.contract_operation_version != 4:
+        if transcription_binding.contract_operation_version not in {4, 5}:
             return transcription_binding, local_effect, "wait"
         if (
             local_effect.dispatch_state == DispatchState.DISPATCH_PENDING
@@ -577,7 +577,7 @@ def _deliver_artifact(effect, transcription_binding, local_effect):
         if outcome == "available":
             _commit_available(local_effect.pk, transcription_binding.pk)
             return
-        if effect.get("operation_version") in {3, 4}:
+        if effect.get("operation_version") in {3, 4, 5}:
             attempt = (
                 models.MastraoTranscriptionProviderAttempt.objects.filter(
                     effect_id=local_effect.pk,

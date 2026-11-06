@@ -26,6 +26,7 @@ from livekit import api
 from core import models, utils
 from core.mastrao_core_http import post_core_json
 from core.mastrao_recording_contract import RecordingContractRefused
+from core.mastrao_retention import retention_matches
 from core.mastrao_room_contract import _sha256_canonical
 from core.mastrao_speaker_evidence_contract import (
     build_capture_receipt_claims,
@@ -108,8 +109,7 @@ def _matches_effect(binding, effect):
         and binding.policy_ref == effect["policy_ref"]
         and binding.notice_version == effect["notice_version"]
         and binding.notice_digest == effect["notice_digest"]
-        and int(binding.retention_expires_at.timestamp())
-        == effect["retention_expires_at"]
+        and retention_matches(binding, effect)
     )
 
 
@@ -151,6 +151,7 @@ def _artifact_claims_match_effect(claims, effect):
         and claims.get("purpose") == effect["purpose"]
         and claims.get("scope") == effect["scope"]
         and claims.get("retention_expires_at") == effect["retention_expires_at"]
+        and claims.get("retention_mode") == effect.get("retention_mode")
         and claims.get("object_ref") == _artifact_object_ref(effect)
     )
 
@@ -335,7 +336,7 @@ def _server_roster_artifact_claims(effect, payload, data):
         "issuer": settings.MASTRAO_RECORDING_RECEIPT_ISSUER,
         "audience": settings.MASTRAO_RECORDING_RECEIPT_AUDIENCE,
         "operation": "confirm_meeting_speaker_evidence_artifact",
-        "operation_version": 1,
+        "operation_version": effect["operation_version"],
         "organization_external_id": effect["organization_external_id"],
         "meeting_ref": effect["meeting_ref"],
         "room_ref": effect["room_ref"],
@@ -348,6 +349,11 @@ def _server_roster_artifact_claims(effect, payload, data):
         "purpose": effect["purpose"],
         "scope": effect["scope"],
         "retention_expires_at": effect["retention_expires_at"],
+        **(
+            {"retention_mode": effect["retention_mode"]}
+            if effect["operation_version"] == 2
+            else {}
+        ),
         "artifact_ref": artifact_ref,
         "object_ref": _artifact_object_ref(effect),
         "byte_size": len(data),
@@ -595,7 +601,7 @@ def _store_terminal_dispatch(recording, value):
 def _capture_metadata(recording, effect):
     return json.dumps(
         {
-            "version": 1,
+            "version": effect["operation_version"],
             "recording_id": str(recording.id),
             "meeting_ref": effect["meeting_ref"],
             "room_ref": effect["room_ref"],
@@ -608,6 +614,11 @@ def _capture_metadata(recording, effect):
             "notice_version": effect["notice_version"],
             "notice_digest": effect["notice_digest"],
             "retention_expires_at": effect["retention_expires_at"],
+            **(
+                {"retention_mode": effect["retention_mode"]}
+                if effect["operation_version"] == 2
+                else {}
+            ),
             "recording_started_at_ms": effect["recording_started_at_ms"],
         },
         ensure_ascii=False,
