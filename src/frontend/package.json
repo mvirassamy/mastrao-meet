@@ -82,5 +82,12 @@
     "vite-plugin-static-copy": "4.1.1",
     "vite-plugin-svgr": "5.2.0",
     "vitest": "3.2.4"
+  },
+  "overrides": {
+    "brace-expansion@1": "1.1.20",
+    "dompurify": "3.4.17",
+    "js-yaml@4": "4.3.2",
+    "picomatch@2": "2.3.2",
+    "undici@6": "6.29.1"
   }
 }
