@@ -40,13 +40,6 @@ logger = logging.getLogger("room-audio-worker")
 
 ROOM_AUDIO_AGENT_NAME = "room-audio-worker"
 ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS = 360.0
-ROOM_AUDIO_WORKER_PERMISSIONS = WorkerPermissions(
-    can_publish=False,
-    can_subscribe=True,
-    can_publish_data=True,
-    can_update_metadata=False,
-    hidden=True,
-)
 DISPATCH_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,200}$")
 
 
@@ -309,18 +302,32 @@ async def entrypoint(ctx: JobContext) -> None:
     ctx.shutdown(f"room-audio-{effect['pipeline']}-completed")
 
 
-def create_worker_options(agent_name: str) -> WorkerOptions:
+def room_audio_worker_permissions(pipeline: str) -> WorkerPermissions:
+    """Expose only the live worker so clients can authenticate its text streams."""
+    if pipeline not in {"live", "post"}:
+        raise ValueError("room audio pipeline must be live or post")
+    return WorkerPermissions(
+        can_publish=False,
+        can_subscribe=True,
+        can_publish_data=True,
+        can_update_metadata=False,
+        hidden=pipeline == "post",
+    )
+
+
+def create_worker_options(agent_name: str, pipeline: str) -> WorkerOptions:
     """Keep the job alive through the longest room grace and final upload."""
     return WorkerOptions(
         entrypoint_fnc=entrypoint,
         request_fnc=handle_room_audio_job_request,
         agent_name=agent_name,
-        permissions=ROOM_AUDIO_WORKER_PERMISSIONS,
+        permissions=room_audio_worker_permissions(pipeline),
         shutdown_process_timeout=ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
     )
 
 
 if __name__ == "__main__":
     configured_agent_name = _required_environment("ROOM_AUDIO_AGENT_NAME")
+    configured_pipeline = _required_environment("ROOM_AUDIO_PIPELINE")
     configure_sentry(configured_agent_name)
-    cli.run_app(create_worker_options(configured_agent_name))
+    cli.run_app(create_worker_options(configured_agent_name, configured_pipeline))
