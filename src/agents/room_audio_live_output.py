@@ -1,4 +1,4 @@
-"""Publish one unattributed live transcript stream for a mixed meeting room."""
+"""Publish live transcript streams under their exact microphone owners."""
 
 from __future__ import annotations
 
@@ -7,16 +7,14 @@ import logging
 import time
 
 from livekit import rtc
-from livekit.agents import stt
 
-from live_transcription_publisher import SpeechEventOutput, TranscriptionPublisher
+from live_transcript_event import LiveTranscriptEvent
+from live_transcription_publisher import TrackTranscriptOutput, TranscriptionPublisher
+from room_audio_runtime import TrackSourceBinding
 from room_audio_session import RoomAudioCompletion
-from room_audio_speaker_attribution import RoomAudioSpeakerAttribution
 
 logger = logging.getLogger("room-audio-worker.live-output")
 
-ROOM_PARTICIPANT_IDENTITY = "unknown-participant"
-ROOM_MIX_TRACK_SID = "room-mix"
 ALLOWED_GAP_REASONS = frozenset(
     {
         "provider-error",
@@ -33,7 +31,6 @@ class RoomLiveTranscriptionOutput:
         self,
         room: rtc.Room,
         *,
-        speaker_attribution: RoomAudioSpeakerAttribution,
         sequence_seed: int | None = None,
         leg_id: str | None = None,
     ):
@@ -44,62 +41,31 @@ class RoomLiveTranscriptionOutput:
             room,
             initial_sequence=sequence_seed,
         )
-        self._speaker_attribution = speaker_attribution
         self._initial_leg_id = leg_id
-        self._generation = 0
         self._publication_lock = asyncio.Lock()
 
-    def create_event_handler(self):
-        """Create one immutable transcript leg for a provider generation."""
-        self._generation += 1
-        generation = self._generation
-        leg_id = self._initial_leg_id if self._generation == 1 else None
-        output = SpeechEventOutput(
-            publisher=self._publisher,
-            track_sid=ROOM_MIX_TRACK_SID,
-            leg_id=leg_id,
-        )
-
-        async def handle_event(event: stt.SpeechEvent) -> None:
-            async with self._publication_lock:
-                if generation != self._generation:
-                    return
-                participant_identity = self._speaker_attribution.resolve()
-                await output.consume(
-                    event,
-                    participant_identity=(
-                        participant_identity or ROOM_PARTICIPANT_IDENTITY
-                    ),
-                )
-
-        return handle_event
-
-    def create_recovery_event_handler(
+    def create_track_event_handler(
         self,
-        participant_identity: str,
-        track_ref: str,
+        binding: TrackSourceBinding,
     ):
-        """Publish one bounded overlap stream under its exact track owner."""
-        if not participant_identity or not track_ref:
-            raise ValueError("overlap recovery identity and track are required")
-        output = SpeechEventOutput(
+        """Create one transcript leg bound to an admitted microphone track."""
+        if not binding.participant_identity or not binding.track_ref:
+            raise ValueError("track transcript identity and track are required")
+        output = TrackTranscriptOutput(
             publisher=self._publisher,
-            track_sid=track_ref,
+            track_sid=binding.track_ref,
+            leg_id=self._initial_leg_id,
         )
+        self._initial_leg_id = None
 
-        async def handle_event(event: stt.SpeechEvent) -> None:
+        async def handle_event(event: LiveTranscriptEvent) -> None:
             async with self._publication_lock:
                 await output.consume(
                     event,
-                    participant_identity=participant_identity,
+                    participant_identity=binding.participant_identity,
                 )
 
         return handle_event
-
-    async def invalidate_generation(self) -> None:
-        """Fence the current provider leg before its stream is drained."""
-        async with self._publication_lock:
-            self._generation += 1
 
     async def handle_failure(self, error: Exception) -> None:
         """Expose a content-free provider gap and keep credentials private."""

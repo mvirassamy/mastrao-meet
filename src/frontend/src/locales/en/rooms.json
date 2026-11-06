@@ -544,7 +544,6 @@
       "interrupted": "Reconnecting…"
     },
     "segmentsLabel": "Live transcript segments",
-    "roomAudio": "Meeting audio",
     "interim": "In progress",
     "final": "Final",
     "error": "Transcription is temporarily unavailable.",

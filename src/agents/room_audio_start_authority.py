@@ -14,7 +14,8 @@ from room_audio_jws import (
 )
 
 JOSE_TYPE = "mastrao-meeting-room-audio-start-effect+jws"
-EFFECT_VERSION = 2
+POST_EFFECT_VERSION = 2
+LIVE_EFFECT_VERSION = 3
 MAX_EFFECT_LIFETIME_SECONDS = 30
 MAX_AUDIO_DURATION_SECONDS = 14_400
 MAX_EMPTY_ROOM_GRACE_SECONDS = 300
@@ -53,10 +54,21 @@ POST_SOURCE_PROFILE = {
     "channel_count": 1,
 }
 LIVE_SOURCE_PROFILE = {
-    "format": "authorized_room_mix_pcm_s16le_v1",
+    "format": "authorized_active_track_pcm_s16le_v1",
     "codec": "pcm_s16le",
     "sample_rate_hz": 24_000,
     "channel_count": 1,
+    "maximum_concurrent_tracks": 3,
+    "maximum_provider_sessions": 3,
+    "maximum_draining_sessions": 3,
+    "pre_roll_ms": 0,
+    "hangover_ms": 500,
+    "opening_timeout_ms": 10_000,
+    "drain_timeout_ms": 10_000,
+    "maximum_buffered_audio_ms": 4_000,
+    "maximum_audio_amplification": 3,
+    "capacity_behavior": "fail_closed_gap",
+    "indeterminate_drain_behavior": "fail_closed_gap",
 }
 
 
@@ -107,9 +119,12 @@ class RoomAudioStartVerifier:
         maximum_duration = effect["maximum_duration_seconds"]
         empty_room_grace = effect["empty_room_grace_seconds"]
         pipeline = effect["pipeline"]
+        expected_version = (
+            LIVE_EFFECT_VERSION if pipeline == "live" else POST_EFFECT_VERSION
+        )
         if (
             type(effect["version"]) is not int
-            or effect["version"] != EFFECT_VERSION
+            or effect["version"] != expected_version
             or effect["type"] != "mastrao.core-meeting-room-audio-start-effect"
             or type(effect["operation_version"]) is not int
             or effect["operation_version"] != 1

@@ -120,7 +120,7 @@ export function VideoConference({
           overflowX: 'hidden',
         }}
       >
-        <LiveTranscriptionProvider>
+        <LiveTranscriptionProvider roomId={roomId}>
           {isWeb() && (
             <>
               <ScreenShareErrorModal

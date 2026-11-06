@@ -1,7 +1,7 @@
 # Live transcription contract
 
-The room-scoped store consumes the `lk.transcription` text-stream topic and
-keeps `RoomEvent.TranscriptionReceived` as a legacy compatibility bridge.
+The room-scoped store consumes only the complete, versioned Mastrao envelope
+on the `lk.transcription` text-stream topic.
 
 With `livekit-client@2.20.0`, the SDK exposes no typed `lk.transcription`
 handler. The supported integration point is:
@@ -10,26 +10,14 @@ handler. The supported integration point is:
 - `reader.readAll()` for the stream payload;
 - `reader.info.attributes` for string metadata.
 
-The standard LiveKit transcription attributes available to this version are:
+The envelope must contain `participantIdentity`, `trackSid`, `legId`, `itemId`,
+`sequence`, `revision`, `state`, text, and `receivedAt`. Incomplete or
+unversioned payloads are rejected.
 
-- `lk.segment_id`;
-- `lk.transcribed_track_id`;
-- `lk.transcription_final`.
-
-The versioned Mastrao envelope adds `participantIdentity`, `trackSid`, `legId`,
-`itemId`, `sequence`, `revision`, `state`, and `receivedAt`. It is required for
-complete multi-track ordering and reconnect semantics.
-
-Fallback behavior is explicit:
-
-- missing `participantIdentity` falls back to the stream sender identity;
-- missing `trackSid` falls back to `unknown-track`;
-- missing `legId` falls back to `legacy`;
-- missing `itemId` falls back to the text stream id;
-- missing `sequence` and `revision` are allocated by the room reducer;
-- legacy `RoomEvent.TranscriptionReceived` segments use the participant and
-  publication supplied by LiveKit, with the same `legacy` leg.
-
-Fallback segments remain provider-independent, but they cannot guarantee
-cross-reconnect ordering. Publishers should migrate to the versioned envelope
-before the live worker is enabled for production.
+`participantIdentity` is authoritative because it was bound to the admitted
+microphone before ASR. The stream is accepted only from the exact deterministic
+Room Audio live-worker identity for this room. That sender proves publication
+authority but never replaces the speaker identity. The LiveKit participant
+lookup may help render a known display name, but it must never replace that identity.
+There is no legacy event bridge, inferred sender identity, synthetic track, or
+room-mix fallback.

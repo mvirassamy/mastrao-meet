@@ -8,7 +8,6 @@ import { useRoomContext } from '@livekit/components-react'
 import { getParticipantName } from '@/features/rooms/utils/getParticipantName'
 import type { Participant } from 'livekit-client'
 import { useSnapshot } from 'valtio'
-import { useTranslation } from 'react-i18next'
 import {
   accessibilityStore,
   CAPTION_TEXT_SIZE_OPTIONS,
@@ -46,17 +45,11 @@ export interface TranscriptionRow {
 const Transcription = ({ row }: { row: TranscriptionRow }) => {
   const { captionTextSize, captionFontColor, captionBackgroundColor } =
     useSnapshot(accessibilityStore)
-  const { t } = useTranslation('rooms', { keyPrefix: 'liveTranscript' })
-  const { t: tParticipants } = useTranslation('rooms', {
-    keyPrefix: 'participants',
-  })
   const participantName = getLiveTranscriptSpeakerLabel({
-    segment: row,
+    participantIdentity: row.participantIdentity,
     participantLabel: row.participant
       ? getParticipantName(row.participant)
       : row.participantIdentity,
-    roomAudioLabel: t('roomAudio'),
-    unknownParticipantLabel: tParticipants('unknown'),
   })
   const participantColor = row.participant
     ? getParticipantColor(row.participant)

@@ -9,13 +9,13 @@ import { useRoomContext } from '@livekit/components-react'
 import { RoomEvent } from 'livekit-client'
 import {
   readLiveTranscriptionStream,
-  parseLiveTranscriptionGapStream,
+  readLiveTranscriptionGapStream,
+  roomAudioLiveWorkerIdentity,
 } from './liveTranscriptionContract'
 import {
   createLiveTranscriptionState,
   liveTranscriptionReducer,
 } from './liveTranscriptionReducer'
-import { getParticipantForTrack } from './liveTranscriptionParticipants'
 import {
   LIVE_TRANSCRIPTION_GAP_TOPIC,
   LIVE_TRANSCRIPTION_TOPIC,
@@ -25,16 +25,14 @@ import {
 import { LiveTranscriptionContext } from './liveTranscriptionContext'
 import { useLiveTranscriptSpeakers } from './useLiveTranscriptSpeakers'
 
-const getRoomId = (room: ReturnType<typeof useRoomContext>) =>
-  room.name || 'unknown-room'
-
 export const LiveTranscriptionProvider = ({
   children,
+  roomId,
 }: {
   children: ReactNode
+  roomId: string
 }) => {
   const room = useRoomContext()
-  const roomId = getRoomId(room)
   const [state, dispatch] = useReducer(
     liveTranscriptionReducer,
     roomId,
@@ -47,6 +45,7 @@ export const LiveTranscriptionProvider = ({
   )
 
   useEffect(() => {
+    const expectedSenderIdentity = roomAudioLiveWorkerIdentity(roomId)
     dispatch({ type: 'reset', roomId })
 
     const handleReconnecting = () =>
@@ -66,28 +65,10 @@ export const LiveTranscriptionProvider = ({
       try {
         const events = await readLiveTranscriptionStream(
           reader,
-          participantInfo.identity
+          participantInfo.identity,
+          await expectedSenderIdentity
         )
-        events.forEach((event) => {
-          if (event.type !== 'segments') {
-            ingestEvent(event)
-            return
-          }
-          dispatch({
-            type: 'ingest',
-            event: {
-              type: 'segments',
-              segments: event.segments.map((segment) => ({
-                ...segment,
-                participantIdentity: getParticipantForTrack(
-                  room,
-                  segment.trackSid,
-                  segment.participantIdentity
-                ),
-              })),
-            },
-          })
-        })
+        events.forEach(ingestEvent)
       } catch {
         dispatch({
           type: 'gap',
@@ -100,12 +81,16 @@ export const LiveTranscriptionProvider = ({
       }
     }
     const handleGapStream = async (
-      reader: LiveTranscriptionTextStreamReader
+      reader: LiveTranscriptionTextStreamReader,
+      participantInfo: { identity: string }
     ) => {
       try {
-        parseLiveTranscriptionGapStream(await reader.readAll()).forEach(
-          ingestEvent
+        const events = await readLiveTranscriptionGapStream(
+          reader,
+          participantInfo.identity,
+          await expectedSenderIdentity
         )
+        events.forEach(ingestEvent)
       } catch {
         // A lost gap marker must not break the transcript itself.
       }

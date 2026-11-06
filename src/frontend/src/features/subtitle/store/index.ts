@@ -1,9 +1,6 @@
 export { LiveTranscriptionProvider } from './LiveTranscriptionProvider'
 export { useLiveTranscription } from './liveTranscriptionContext'
-export {
-  getParticipantForTrack,
-  getParticipantForTranscription,
-} from './liveTranscriptionParticipants'
+export { getParticipantForTranscription } from './liveTranscriptionParticipants'
 export {
   createLiveTranscriptionState,
   getLiveTranscriptionSegmentKey,
@@ -12,7 +9,8 @@ export {
 export {
   parseLiveTranscriptionGapStream,
   parseLiveTranscriptionStream,
+  readLiveTranscriptionGapStream,
   readLiveTranscriptionStream,
-  toLegacyTranscriptionEvent,
+  roomAudioLiveWorkerIdentity,
 } from './liveTranscriptionContract'
 export * from './liveTranscriptionTypes'

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-06: Bind live Room Audio transcription to each admitted microphone
+  track before ASR so overlapping speakers retain their exact identities.
+
 - 2026-11-05: Keep a live speaker turn on its original Room Audio stream
   until true room silence so delayed overlap phrases never mix participant
   identities.

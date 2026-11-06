@@ -26,7 +26,6 @@ vi.mock('react-i18next', () => ({
         'notice.unavailable': 'Indisponible',
         'notice.interrupted': 'Reconnexion…',
         segmentsLabel: 'Transcription en direct',
-        roomAudio: 'Audio de la réunion',
       }
       return labels[key] ?? key
     },
@@ -70,15 +69,15 @@ afterEach(() => {
 })
 
 describe('LiveTranscriptSidePanel', () => {
-  it('renders the mixed room transcript without a start or retry control', () => {
+  it('renders the track-bound transcript without a start or retry control', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
       connectionStatus: 'connected',
       segments: [
         {
           key: 'segment-1',
-          participantIdentity: 'unknown-participant',
-          trackSid: 'room-mix',
+          participantIdentity: 'alice',
+          trackSid: 'TR_alice',
           legId: 'leg-1',
           itemId: 'item-1',
           state: 'final',
@@ -95,7 +94,7 @@ describe('LiveTranscriptSidePanel', () => {
     render(<LiveTranscriptSidePanel />)
 
     expect(screen.getByText('Bonjour la salle')).toBeTruthy()
-    expect(screen.getByText('Audio de la réunion')).toBeTruthy()
+    expect(screen.getByText('alice')).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
   })
 
