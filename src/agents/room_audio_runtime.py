@@ -7,8 +7,9 @@ import contextlib
 import logging
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from livekit import rtc
@@ -87,6 +88,8 @@ class RoomAudioRuntimeConfig:
     maximum_buffered_frames: int = 10
     maximum_clock_lag_seconds: float = 0.25
     maximum_active_track_streams: int = 3
+    maximum_provider_sessions: int = 3
+    maximum_draining_sessions: int = 3
     opening_timeout_seconds: float = 10.0
     shutdown_timeout_seconds: float = 10.0
 
@@ -117,6 +120,15 @@ class _TrackBoundSession:
     closing: bool = False
 
 
+class ProviderSessionCapacityUnavailable(RuntimeError):
+    """Report a recoverable provider-session admission refusal."""
+
+    def __init__(self, scope: str):
+        """Name the exhausted capacity boundary without provider details."""
+        super().__init__(f"{scope} provider session capacity unavailable")
+        self.scope = scope
+
+
 class ProviderSessionQuota:
     """Share one provider-session cap across every room in this process."""
 
@@ -126,7 +138,14 @@ class ProviderSessionQuota:
             raise ValueError("provider session quota must be positive")
         self._maximum_sessions = maximum_sessions
         self._active_sessions = 0
+        self._release_version = 0
         self._lock = threading.Lock()
+
+    @property
+    def release_version(self) -> int:
+        """Return the monotonic version of proven capacity releases."""
+        with self._lock:
+            return self._release_version
 
     def acquire(self) -> bool:
         """Reserve one session without waiting behind unbounded work."""
@@ -142,6 +161,7 @@ class ProviderSessionQuota:
             if self._active_sessions <= 0:
                 raise RuntimeError("provider session quota release is unbalanced")
             self._active_sessions -= 1
+            self._release_version += 1
 
 
 PROCESS_PROVIDER_SESSION_QUOTA = ProviderSessionQuota(maximum_sessions=300)
@@ -163,8 +183,29 @@ def create_room_audio_run_for_effect(
     if pipeline == "live":
         if artifact_sink is not None or live_output is None:
             raise ValueError("live room audio requires only a provider")
-        return RoomAudioRun(live_output=live_output, config=config)
+        return RoomAudioRun(
+            live_output=live_output,
+            config=_live_runtime_config(effect, config),
+        )
     raise ValueError("unsupported room audio pipeline")
+
+
+def _live_runtime_config(
+    effect: dict,
+    base_config: RoomAudioRuntimeConfig,
+) -> RoomAudioRuntimeConfig:
+    """Bind provider lifecycle limits to the verified signed profile."""
+    profile = effect.get("source_profile")
+    if not isinstance(profile, dict):
+        raise ValueError("live room audio source profile is required")
+    return replace(
+        base_config,
+        maximum_active_track_streams=profile["maximum_concurrent_tracks"],
+        maximum_provider_sessions=profile["maximum_provider_sessions"],
+        maximum_draining_sessions=profile["maximum_draining_sessions"],
+        opening_timeout_seconds=profile["opening_timeout_ms"] / 1_000,
+        shutdown_timeout_seconds=profile["drain_timeout_ms"] / 1_000,
+    )
 
 
 class RoomAudioRun:
@@ -195,26 +236,7 @@ class RoomAudioRun:
         self._live_failure_handler = (
             live_output.failure_handler if live_output else None
         )
-        self._frame_samples = config.frame_samples
-        self._sample_rate_hz = config.sample_rate_hz
-        self._maximum_buffered_frames = config.maximum_buffered_frames
-        self._frame_duration_seconds = config.frame_samples / config.sample_rate_hz
-        if config.maximum_clock_lag_seconds <= self._frame_duration_seconds:
-            raise ValueError("room audio clock lag bound must exceed one frame")
-        if config.opening_timeout_seconds <= 0 or config.shutdown_timeout_seconds <= 0:
-            raise ValueError("provider lifecycle timeouts must be positive")
-        self._maximum_clock_lag_seconds = config.maximum_clock_lag_seconds
-        self._opening_timeout_seconds = config.opening_timeout_seconds
-        self._shutdown_timeout_seconds = config.shutdown_timeout_seconds
-        self._mixer = RoomAudioMixer(
-            frame_samples=config.frame_samples,
-            sample_rate_hz=config.sample_rate_hz,
-            maximum_buffered_frames=config.maximum_buffered_frames,
-        )
-        self._active_track_router = RoomAudioActiveTrackRouter(
-            maximum_active_streams=config.maximum_active_track_streams
-        )
-        self._maximum_active_track_streams = config.maximum_active_track_streams
+        self._configure_runtime(config)
         self._provider_session_quota = provider_session_quota
         self._track_streams: dict[str, rtc.AudioStream] = {}
         self._track_tasks: dict[str, asyncio.Task] = {}
@@ -224,6 +246,10 @@ class RoomAudioRun:
         self._track_sessions: dict[str, _TrackBoundSession] = {}
         self._track_close_tasks: set[asyncio.Task] = set()
         self._track_close_errors: list[BaseException] = []
+        self._capacity_waiters: OrderedDict[str, tuple[int, int]] = OrderedDict()
+        self._room_capacity_version = 0
+        self._capacity_gap_track_refs: set[str] = set()
+        self._capacity_gap_dropped_frames: dict[str, int] = {}
         self._quarantined_provider_reservations = 0
         self._quarantined_provider_close_tasks: set[asyncio.Task] = set()
         self._failure_notification_tasks: set[asyncio.Task] = set()
@@ -237,6 +263,43 @@ class RoomAudioRun:
         self._close_error: BaseException | None = None
         self._live_failed = False
 
+    def _configure_runtime(self, config: RoomAudioRuntimeConfig) -> None:
+        """Validate and install immutable audio and provider bounds."""
+        frame_duration_seconds = config.frame_samples / config.sample_rate_hz
+        if config.maximum_clock_lag_seconds <= frame_duration_seconds:
+            raise ValueError("room audio clock lag bound must exceed one frame")
+        provider_bounds = (
+            config.maximum_active_track_streams,
+            config.maximum_provider_sessions,
+            config.maximum_draining_sessions,
+        )
+        if any(bound <= 0 for bound in provider_bounds):
+            raise ValueError("provider session bounds must be positive")
+        if config.maximum_active_track_streams > config.maximum_provider_sessions:
+            raise ValueError("active track bound exceeds provider session bound")
+        if config.maximum_draining_sessions != config.maximum_provider_sessions:
+            raise ValueError("draining session bound must equal provider session bound")
+        if config.opening_timeout_seconds <= 0 or config.shutdown_timeout_seconds <= 0:
+            raise ValueError("provider lifecycle timeouts must be positive")
+
+        self._frame_samples = config.frame_samples
+        self._sample_rate_hz = config.sample_rate_hz
+        self._maximum_buffered_frames = config.maximum_buffered_frames
+        self._frame_duration_seconds = frame_duration_seconds
+        self._maximum_clock_lag_seconds = config.maximum_clock_lag_seconds
+        self._opening_timeout_seconds = config.opening_timeout_seconds
+        self._shutdown_timeout_seconds = config.shutdown_timeout_seconds
+        self._mixer = RoomAudioMixer(
+            frame_samples=config.frame_samples,
+            sample_rate_hz=config.sample_rate_hz,
+            maximum_buffered_frames=config.maximum_buffered_frames,
+        )
+        self._active_track_router = RoomAudioActiveTrackRouter(
+            maximum_active_streams=config.maximum_active_track_streams
+        )
+        self._maximum_active_track_streams = config.maximum_active_track_streams
+        self._maximum_provider_sessions = config.maximum_provider_sessions
+
     @property
     def provider_session_count(self) -> int:
         """Expose the bounded provider cardinality for qualification."""
@@ -245,6 +308,16 @@ class RoomAudioRun:
             + len(self._track_close_tasks)
             + self._quarantined_provider_reservations
         )
+
+    @property
+    def active_provider_session_count(self) -> int:
+        """Return sessions that can still accept room audio frames."""
+        return len(self._track_sessions)
+
+    @property
+    def draining_provider_session_count(self) -> int:
+        """Return sessions finalizing provider output before closure."""
+        return len(self._track_close_tasks)
 
     @property
     def has_live_output(self) -> bool:
@@ -273,6 +346,7 @@ class RoomAudioRun:
         async with self._provider_lock:
             await self._close_all_track_sessions()
             self._active_track_router.reset()
+            self._clear_all_capacity_waiters()
 
     async def wait_terminal_failure(self) -> Exception:
         """Wait until the room clock or realtime provider fails permanently."""
@@ -316,6 +390,7 @@ class RoomAudioRun:
         self._participant_identity_by_track.pop(track_ref, None)
         self._authority_generation_by_track.pop(track_ref, None)
         self._active_track_router.remove_track(track_ref)
+        self._clear_track_capacity_waiter(track_ref)
         self._schedule_track_close(track_ref)
         self._mixer.unobserve_track(track_ref)
         if task is not None:
@@ -356,6 +431,7 @@ class RoomAudioRun:
         )
         self._authority_generation_by_track.pop(track_ref, None)
         self._active_track_router.remove_track(track_ref)
+        self._clear_track_capacity_waiter(track_ref)
         self._schedule_track_close(track_ref)
 
     async def aclose(self) -> RoomAudioArtifact | None:
@@ -378,6 +454,7 @@ class RoomAudioRun:
             await self._cancel_task(self._clock_task)
             async with self._provider_lock:
                 await self._close_all_track_sessions()
+                self._clear_all_capacity_waiters()
             return self._artifact_sink.finish() if self._artifact_sink else None
         except BaseException as error:
             self._close_error = error
@@ -417,8 +494,8 @@ class RoomAudioRun:
                 speaking_frames=self._mixer.speaking_frames,
                 frame_byte_count=len(mixed_pcm),
             )
-            if routed.saturated_track_refs:
-                raise RuntimeError("active track provider capacity exceeded")
+            for track_ref in routed.saturated_track_refs:
+                self._record_capacity_gap(track_ref, scope="active-track")
             await self._sync_track_sessions(routed.track_frames)
 
     async def _sync_track_sessions(
@@ -426,12 +503,32 @@ class RoomAudioRun:
         track_frames: dict[str, bytes],
     ) -> None:
         """Open current speaking tracks and close completed speech windows."""
+        for track_ref in tuple(self._capacity_waiters):
+            if track_ref not in track_frames:
+                self._clear_track_capacity_waiter(track_ref)
         for track_ref in self._track_sessions.keys() - track_frames.keys():
             self._schedule_track_close(track_ref)
-        for track_ref, pcm in track_frames.items():
+
+        waiting_track_refs = [
+            track_ref
+            for track_ref in self._capacity_waiters
+            if track_ref in track_frames
+        ]
+        new_track_refs = sorted(set(track_frames) - set(waiting_track_refs))
+        for track_ref in [*waiting_track_refs, *new_track_refs]:
+            pcm = track_frames[track_ref]
             session = self._track_sessions.get(track_ref)
             if session is None:
-                session = await self._open_track_session(track_ref)
+                if not self._track_can_retry_capacity(track_ref):
+                    self._record_capacity_gap(track_ref, scope="provider")
+                    continue
+                try:
+                    session = await self._open_track_session(track_ref)
+                except ProviderSessionCapacityUnavailable as error:
+                    self._wait_for_track_capacity(track_ref, error)
+                    continue
+                self._capacity_waiters.pop(track_ref, None)
+                self._close_capacity_gap(track_ref)
             try:
                 session.stream.push_frame(self._audio_frame(pcm))
             except Exception:
@@ -445,14 +542,16 @@ class RoomAudioRun:
         """Open one provider stream for an admitted speaking microphone."""
         if self._provider_factory is None or self._track_event_handler_factory is None:
             raise RuntimeError("live provider dependencies are unavailable")
-        if self.provider_session_count >= self._maximum_active_track_streams:
-            raise RuntimeError("track provider session capacity exceeded")
+        if self.active_provider_session_count >= self._maximum_active_track_streams:
+            raise ProviderSessionCapacityUnavailable("active-track")
+        if self.provider_session_count >= self._maximum_provider_sessions:
+            raise ProviderSessionCapacityUnavailable("room")
         participant_identity = self._participant_identity_by_track.get(track_ref)
         authority_generation = self._authority_generation_by_track.get(track_ref)
         if participant_identity is None or authority_generation is None:
             raise RuntimeError("track source authority is unavailable")
         if not self._provider_session_quota.acquire():
-            raise RuntimeError("process provider session capacity exceeded")
+            raise ProviderSessionCapacityUnavailable("process")
         session_generation = self._session_generation_by_track.get(track_ref, 0) + 1
         self._session_generation_by_track[track_ref] = session_generation
         binding = TrackSourceBinding(
@@ -500,6 +599,68 @@ class RoomAudioRun:
         )
         return session
 
+    def _track_can_retry_capacity(self, track_ref: str) -> bool:
+        """Retry only the oldest waiter after a proven capacity release."""
+        observed_version = self._capacity_waiters.get(track_ref)
+        if observed_version is None:
+            return True
+        oldest_waiter = next(iter(self._capacity_waiters), None)
+        return (
+            oldest_waiter == track_ref and self._capacity_version() != observed_version
+        )
+
+    def _wait_for_track_capacity(
+        self,
+        track_ref: str,
+        error: ProviderSessionCapacityUnavailable,
+    ) -> None:
+        """Queue one track once without turning each frame into a retry."""
+        self._capacity_waiters[track_ref] = self._capacity_version()
+        self._record_capacity_gap(track_ref, scope=error.scope)
+
+    def _capacity_version(self) -> tuple[int, int]:
+        """Bind retries to local or process-wide proven capacity changes."""
+        return (
+            self._room_capacity_version,
+            self._provider_session_quota.release_version,
+        )
+
+    def _record_capacity_gap(self, track_ref: str, *, scope: str) -> None:
+        """Expose one bounded degraded episode while the room stays alive."""
+        dropped_frames = self._capacity_gap_dropped_frames.get(track_ref, 0) + 1
+        self._capacity_gap_dropped_frames[track_ref] = dropped_frames
+        if track_ref in self._capacity_gap_track_refs:
+            return
+        self._capacity_gap_track_refs.add(track_ref)
+        logger.warning(
+            "Room live provider capacity gap opened scope=%s track_bound=%s",
+            scope,
+            track_ref in self._participant_identity_by_track,
+        )
+        self._schedule_failure_notification(ProviderSessionCapacityUnavailable(scope))
+
+    def _close_capacity_gap(self, track_ref: str) -> None:
+        """Close internal gap accounting after the track resumes."""
+        if track_ref not in self._capacity_gap_track_refs:
+            return
+        self._capacity_gap_track_refs.remove(track_ref)
+        dropped_frames = self._capacity_gap_dropped_frames.pop(track_ref, 0)
+        logger.info(
+            "Room live provider capacity gap closed dropped_frames=%d",
+            dropped_frames,
+        )
+
+    def _clear_track_capacity_waiter(self, track_ref: str) -> None:
+        """Forget one no-longer-eligible track and its degraded episode."""
+        self._capacity_waiters.pop(track_ref, None)
+        self._close_capacity_gap(track_ref)
+
+    def _clear_all_capacity_waiters(self) -> None:
+        """Clear capacity state when the room generation ends."""
+        for track_ref in tuple(self._capacity_gap_track_refs):
+            self._close_capacity_gap(track_ref)
+        self._capacity_waiters.clear()
+
     async def _wait_for_session_ready(self, session: _TrackBoundSession) -> None:
         """Apply the signed provider opening deadline."""
         try:
@@ -539,6 +700,7 @@ class RoomAudioRun:
         session = self._track_sessions.pop(track_ref, None)
         if session is None:
             return
+        self._room_capacity_version += 1
         session.closing = True
         session.state = "draining"
         if session.opening_task is not None:
@@ -644,11 +806,13 @@ class RoomAudioRun:
         if error is not None:
             return
         self._quarantined_provider_reservations -= 1
+        self._room_capacity_version += 1
         self._provider_session_quota.release()
 
     def _track_close_done(self, task: asyncio.Task) -> None:
-        """Release bookkeeping and fail closed on an unsuccessful drain."""
+        """Release bookkeeping and expose a gap on an unsuccessful drain."""
         self._track_close_tasks.discard(task)
+        self._room_capacity_version += 1
         if task.cancelled():
             return
         error = task.exception()
@@ -660,7 +824,7 @@ class RoomAudioRun:
             and not self._closed
             and not self._live_failed
         ):
-            asyncio.create_task(self._fail_live(error))
+            self._schedule_failure_notification(error)
 
     async def _close_all_track_sessions(self) -> None:
         """Drain every active stream and wait for in-flight closes."""
@@ -751,13 +915,18 @@ class RoomAudioRun:
             return
         self._terminal_error = error
         self._terminal_failure.set()
-        if self._live_failure_handler is not None:
-            task = asyncio.create_task(self._notify_terminal_failure(error))
-            self._failure_notification_tasks.add(task)
-            task.add_done_callback(self._failure_notification_tasks.discard)
+        self._schedule_failure_notification(error)
 
-    async def _notify_terminal_failure(self, error: Exception) -> None:
-        """Publish one optional gap without delaying terminal state."""
+    def _schedule_failure_notification(self, error: Exception) -> None:
+        """Schedule one redacted lifecycle notification without blocking audio."""
+        if self._live_failure_handler is None or self._closed:
+            return
+        task = asyncio.create_task(self._notify_failure(error))
+        self._failure_notification_tasks.add(task)
+        task.add_done_callback(self._failure_notification_tasks.discard)
+
+    async def _notify_failure(self, error: Exception) -> None:
+        """Publish one optional gap without delaying room state."""
         handler = self._live_failure_handler
         if handler is None:
             return

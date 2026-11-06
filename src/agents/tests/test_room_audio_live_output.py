@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock
 from live_transcript_event import LiveTranscriptEvent, LiveTranscriptEventKind
 from live_transcription_publisher import GAP_TOPIC, TRANSCRIPTION_TOPIC
 from room_audio_live_output import RoomLiveTranscriptionOutput
-from room_audio_runtime import TrackSourceBinding
+from room_audio_runtime import (
+    ProviderSessionCapacityUnavailable,
+    TrackSourceBinding,
+)
 
 
 def _room():
@@ -216,6 +219,17 @@ class RoomLiveTranscriptionOutputTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(envelope["reason"], "provider-error")
         self.assertNotIn("secret", payload)
+
+    async def test_capacity_failure_publishes_recoverable_gap_reason(self):
+        """Capacity pressure is distinguishable from provider failure."""
+        room = _room()
+        output = RoomLiveTranscriptionOutput(room, sequence_seed=3_100)
+
+        await output.handle_failure(ProviderSessionCapacityUnavailable("room"))
+
+        payload = room.local_participant.send_text.call_args.args[0]
+        envelope = json.loads(payload)
+        self.assertEqual(envelope["reason"], "provider-capacity")
 
     async def test_refuses_unbounded_gap_and_post_completion(self):
         """The live output rejects undeclared reasons and post artifacts."""

@@ -49,6 +49,27 @@ class RoomAudioActiveTrackRouterTests(unittest.TestCase):
         self.assertEqual(routed.track_frames, {"TR_A": b"a", "TR_B": b"b"})
         self.assertEqual(routed.saturated_track_refs, frozenset({"TR_C"}))
 
+    def test_waiting_speakers_are_admitted_in_arrival_order(self):
+        """A continuously speaking track cannot be starved by track ordering."""
+        router = RoomAudioActiveTrackRouter(
+            maximum_active_streams=1,
+            release_silence_frames=1,
+        )
+        router.route(speaking_frames={"TR_B": b"b"}, frame_byte_count=1)
+        saturated = router.route(
+            speaking_frames={"TR_A": b"a", "TR_B": b"b"},
+            frame_byte_count=1,
+        )
+
+        admitted = router.route(
+            speaking_frames={"TR_A": b"a"},
+            frame_byte_count=1,
+        )
+
+        self.assertEqual(saturated.saturated_track_refs, frozenset({"TR_A"}))
+        self.assertEqual(admitted.track_frames, {"TR_A": b"a"})
+        self.assertEqual(admitted.saturated_track_refs, frozenset())
+
     def test_remove_track_clears_hangover_immediately(self):
         """Revocation cannot reopen a track retained by the silence window."""
         router = RoomAudioActiveTrackRouter(maximum_active_streams=1)
