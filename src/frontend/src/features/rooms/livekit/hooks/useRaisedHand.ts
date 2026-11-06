@@ -9,6 +9,7 @@ import { isLocal } from '@/utils/livekit'
 import { useMemo } from 'react'
 import { useRaiseHand } from '@/features/rooms/api/updateRaiseHand'
 import { reportError } from '@/features/analytics/telemetry'
+import { meetingParticipants } from '@/features/rooms/livekit/roomParticipants'
 
 type useRaisedHandProps = {
   participant: Participant
@@ -39,7 +40,7 @@ export function useRaisedHandPosition({ participant }: useRaisedHandProps) {
 
     if (localIdentity) add(localIdentity, localHandRaisedAt)
 
-    remoteParticipants.forEach((p) =>
+    meetingParticipants(remoteParticipants).forEach((p) =>
       add(p.identity, p.attributes.handRaisedAt)
     )
 

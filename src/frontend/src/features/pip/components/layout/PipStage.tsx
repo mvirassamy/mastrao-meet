@@ -12,6 +12,7 @@ import {
   isTrackReference,
   TrackReferenceOrPlaceholder,
 } from '@livekit/components-core'
+import { isRoomAudioLiveWorker } from '@/features/rooms/livekit/roomParticipants'
 
 /**
  * PipStage picks between three layouts:
@@ -30,19 +31,24 @@ export const PipStage = () => {
     { updateOnlyOn: [RoomEvent.ActiveSpeakersChanged], onlySubscribed: false }
   )
 
+  const visibleTracks = useMemo(
+    () => tracks.filter((track) => !isRoomAudioLiveWorker(track.participant)),
+    [tracks]
+  )
+
   const screenShareTrack = useMemo(() => {
-    return tracks
+    return visibleTracks
       .filter((track) => isTrackReference(track))
       .find((track) => track.publication.source === Track.Source.ScreenShare)
-  }, [tracks])
+  }, [visibleTracks])
 
   const cameraTracks = useMemo(
     () =>
-      tracks.filter(
+      visibleTracks.filter(
         (track: TrackReferenceOrPlaceholder) =>
           track.source === Track.Source.Camera
       ),
-    [tracks]
+    [visibleTracks]
   )
 
   // Cap camera tiles in screen-share mode. Called unconditionally for hook rules.
@@ -51,7 +57,7 @@ export const PipStage = () => {
   // Cap the grid at MAX_PIP_TILES per page for the non-screenshare grid mode.
   const pagination = usePagination(MAX_PIP_TILES, cameraTracks)
 
-  if (tracks.length === 0) return null
+  if (visibleTracks.length === 0) return null
 
   // Screen share active
   if (screenShareTrack) {

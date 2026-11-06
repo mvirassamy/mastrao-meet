@@ -15,6 +15,7 @@ import { useFeatureFlagEnabled } from 'posthog-js/react'
 import { isMobileBrowser } from '@livekit/components-core'
 import { FeatureFlags } from '@/features/analytics/enums'
 import { captureEvent, captureMediaEvent } from '@/features/analytics/telemetry'
+import { meetingParticipants } from '@/features/rooms/livekit/roomParticipants'
 
 const CANDIDATE_POLL_INTERVAL_MS = 5000
 
@@ -43,6 +44,7 @@ export const ConnectionObserver = () => {
       RoomEvent.ParticipantDisconnected,
     ],
   })
+  const visibleRemoteParticipants = meetingParticipants(remoteParticipants)
 
   useEffect(() => {
     // Always clear existing timer on dependency change
@@ -60,7 +62,7 @@ export const ConnectionObserver = () => {
       return
     }
 
-    if (remoteParticipants.length === 0) {
+    if (visibleRemoteParticipants.length === 0) {
       idleDisconnectModalTimeoutRef.current = setTimeout(() => {
         connectionObserverStore.isIdleDisconnectModalOpen = true
       }, delay)
@@ -75,7 +77,7 @@ export const ConnectionObserver = () => {
       }
     }
   }, [
-    remoteParticipants.length,
+    visibleRemoteParticipants.length,
     data?.idle_disconnect_warning_delay,
     userPreferencesSnap.is_idle_disconnect_modal_enabled,
   ])

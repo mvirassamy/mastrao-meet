@@ -12,7 +12,8 @@ import {
 import { Track } from 'livekit-client'
 import { useSnapshot } from 'valtio'
 import { clearPinnedTrack, layoutStore, setPinnedTrack } from '@/stores/layout'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { isRoomAudioLiveWorker } from '@/features/rooms/livekit/roomParticipants'
 
 export const StageLayout = () => {
   const lastAutoFocusedScreenShareTrack =
@@ -26,13 +27,18 @@ export const StageLayout = () => {
     { updateOnlyOn: [], onlySubscribed: false }
   )
 
-  const screenShareTracks = tracks
+  const visibleTracks = useMemo(
+    () => tracks.filter((track) => !isRoomAudioLiveWorker(track.participant)),
+    [tracks]
+  )
+
+  const screenShareTracks = visibleTracks
     .filter(isTrackReference)
     .filter((track) => track.publication.source === Track.Source.ScreenShare)
 
   const { pinnedTrackRef } = useSnapshot(layoutStore)
 
-  const carouselTracks = tracks.filter(
+  const carouselTracks = visibleTracks.filter(
     (track) => !isEqualTrackRef(track, pinnedTrackRef)
   )
 
@@ -62,7 +68,7 @@ export const StageLayout = () => {
       lastAutoFocusedScreenShareTrack.current = null
     }
     if (pinnedTrackRef && !isTrackReference(pinnedTrackRef)) {
-      const updatedFocusTrack = tracks.find(
+      const updatedFocusTrack = visibleTracks.find(
         (tr) =>
           tr.participant.identity === pinnedTrackRef.participant.identity &&
           tr.source === pinnedTrackRef.source
@@ -81,7 +87,7 @@ export const StageLayout = () => {
       )
       .join(),
     pinnedTrackRef?.publication?.trackSid,
-    tracks,
+    visibleTracks,
   ])
   /* eslint-enable react-hooks/exhaustive-deps */
 
@@ -89,7 +95,7 @@ export const StageLayout = () => {
     <>
       {!pinnedTrackRef ? (
         <div className="lk-grid-layout-wrapper" style={{ height: 'auto' }}>
-          <GridLayout tracks={tracks} style={{ padding: 0 }}>
+          <GridLayout tracks={visibleTracks} style={{ padding: 0 }}>
             <ParticipantTile />
           </GridLayout>
         </div>

@@ -15,6 +15,10 @@ import { Emoji } from '@/features/reactions/types'
 import { useReactions } from '@/features/reactions/hooks/useReactions'
 import { NotificationProvider } from './NotificationProvider'
 import { useConfig } from '@/api/useConfig'
+import {
+  isRoomAudioLiveWorker,
+  meetingParticipantCount,
+} from '@/features/rooms/livekit/roomParticipants'
 
 export const MainNotificationToast = () => {
   const room = useRoomContext()
@@ -140,7 +144,8 @@ export const MainNotificationToast = () => {
   const triggerNotificationSoundIfRoomIsSmall = useCallback(
     (type: NotificationType) => {
       if (!data) return
-      if (room.numParticipants >= data.max_participants_for_sound) return
+      if (meetingParticipantCount(room) >= data.max_participants_for_sound)
+        return
       triggerNotificationSound(type)
     },
     [room, data, triggerNotificationSound]
@@ -148,6 +153,7 @@ export const MainNotificationToast = () => {
 
   useEffect(() => {
     const showJoinNotification = (participant: Participant) => {
+      if (isRoomAudioLiveWorker(participant)) return
       if (isMobileBrowser()) {
         return
       }

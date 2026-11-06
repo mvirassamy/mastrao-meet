@@ -4,6 +4,7 @@ import { useRemoteParticipants } from '@livekit/components-react'
 import { srOnly } from '@/styles/a11y'
 import { css } from '@/styled-system/css'
 import { InfinityIcon } from '@/icons'
+import { meetingParticipants } from '@/features/rooms/livekit/roomParticipants'
 const badgeStyles = css({
   position: 'absolute',
   top: '-.25rem',
@@ -34,7 +35,7 @@ export const ParticipantsCount = React.memo(
     const remoteParticipants = useRemoteParticipants({
       updateOnlyOn: [],
     })
-    const count = (remoteParticipants?.length ?? 0) + 1
+    const count = meetingParticipants(remoteParticipants).length + 1
 
     return (
       <>

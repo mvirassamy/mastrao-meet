@@ -13,6 +13,7 @@ import {
   useNotifyParticipants,
 } from '@/features/notifications'
 import { reportError } from '@/features/analytics/telemetry'
+import { meetingParticipants } from '@/features/rooms/livekit/roomParticipants'
 
 export const updatePublishSources = (
   currentSources: Source[],
@@ -46,9 +47,9 @@ export const usePublishSourcesManager = () => {
     updateOnlyOn: [RoomEvent.ParticipantAttributesChanged],
   })
 
-  const unprivilegedRemoteParticipants = remoteParticipants.filter(
-    (participant) => !getParticipantIsRoomAdminOrOwner(participant)
-  )
+  const unprivilegedRemoteParticipants = meetingParticipants(
+    remoteParticipants
+  ).filter((participant) => !getParticipantIsRoomAdminOrOwner(participant))
 
   const currentSources = useMemo(() => {
     const defaultSources = configData?.livekit?.default_sources ?? []
