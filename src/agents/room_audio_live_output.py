@@ -10,7 +10,10 @@ from livekit import rtc
 
 from live_transcript_event import LiveTranscriptEvent
 from live_transcription_publisher import TrackTranscriptOutput, TranscriptionPublisher
-from room_audio_runtime import TrackSourceBinding
+from room_audio_runtime import (
+    ProviderSessionCapacityUnavailable,
+    TrackSourceBinding,
+)
 from room_audio_session import RoomAudioCompletion
 
 logger = logging.getLogger("room-audio-worker.live-output")
@@ -18,6 +21,7 @@ logger = logging.getLogger("room-audio-worker.live-output")
 ALLOWED_GAP_REASONS = frozenset(
     {
         "provider-error",
+        "provider-capacity",
         "source-reconnect",
         "track-subscription-failed",
     }
@@ -70,7 +74,10 @@ class RoomLiveTranscriptionOutput:
     async def handle_failure(self, error: Exception) -> None:
         """Expose a content-free provider gap and keep credentials private."""
         logger.warning("Room live provider failed: %s", type(error).__name__)
-        await self.publish_gap("provider-error")
+        reason = "provider-error"
+        if isinstance(error, ProviderSessionCapacityUnavailable):
+            reason = "provider-capacity"
+        await self.publish_gap(reason)
 
     async def publish_gap(self, reason: str) -> None:
         """Publish only bounded lifecycle reasons, never provider text."""

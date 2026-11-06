@@ -7,12 +7,14 @@ from unittest.mock import Mock, patch
 
 from room_audio_ogg import RoomAudioOggEncoder
 from room_audio_runtime import (
+    ProviderSessionCapacityUnavailable,
     ProviderSessionQuota,
     RoomAudioRun,
     RoomAudioRuntimeConfig,
     RoomLiveOutput,
     create_room_audio_run_for_effect,
 )
+from room_audio_start_authority import LIVE_SOURCE_PROFILE
 
 
 class FakeSpeechStream:
@@ -253,7 +255,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             {"pipeline": "post"}, artifact_sink=sink
         )
         live = create_room_audio_run_for_effect(
-            {"pipeline": "live"},
+            {"pipeline": "live", "source_profile": LIVE_SOURCE_PROFILE},
             live_output=RoomLiveOutput(
                 provider_factory=object,
                 track_event_handler_factory=lambda _binding: handle_event,
@@ -516,6 +518,144 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             [(1, 1), (3, 2)],
         )
 
+    async def test_capacity_gap_keeps_room_alive_and_resumes_after_drain(self):
+        """Repeated speaker turnover cannot terminate the room live worker."""
+        first_stream = BlockingDrainSpeechStream()
+        second_stream = BlockingDrainSpeechStream()
+        resumed_stream = FakeSpeechStream()
+        providers = [
+            FakeProvider(first_stream),
+            FakeProvider(second_stream),
+            FakeProvider(resumed_stream),
+        ]
+        failures = []
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(error):
+            failures.append(error)
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: providers.pop(0),
+                lambda: handle_event,
+                handle_failure,
+            ),
+            config=RoomAudioRuntimeConfig(
+                maximum_active_track_streams=2,
+                maximum_provider_sessions=2,
+                maximum_draining_sessions=2,
+            ),
+            provider_session_quota=ProviderSessionQuota(maximum_sessions=2),
+        )
+        await run.start()
+        authorize_speaking_track(run, track_ref="TR_A", identity="alice")
+        await wait_for_frames(first_stream, 1)
+
+        run.revoke_track("TR_A", generation=2, authorization_digest="b" * 64)
+        authorize_speaking_track(run, track_ref="TR_B", identity="bob")
+        await wait_for_frames(second_stream, 1)
+        await asyncio.wait_for(first_stream.finish_started.wait(), timeout=1)
+
+        run.revoke_track("TR_B", generation=2, authorization_digest="c" * 64)
+        run.admit_track(
+            "TR_A",
+            generation=3,
+            expires_at_ms=int(time.time() * 1_000) + 10_000,
+            authorization_digest="d" * 64,
+        )
+        run._mixer.push_frame("TR_A", b"\xd0\x07" * 480)
+        await asyncio.wait_for(second_stream.finish_started.wait(), timeout=1)
+
+        for _ in range(100):
+            if failures:
+                break
+            await asyncio.sleep(0.002)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("capacity", str(failures[0]))
+        self.assertFalse(run._terminal_failure.is_set())
+        self.assertEqual(run.provider_session_count, 2)
+
+        first_stream.allow_finish.set()
+        await wait_for_frames(resumed_stream, 1)
+
+        self.assertFalse(run._terminal_failure.is_set())
+        self.assertEqual(len(failures), 1)
+        second_stream.allow_finish.set()
+        await run.aclose()
+
+    async def test_capacity_retry_is_gated_by_each_observed_release(self):
+        """An irrelevant release cannot create a per-frame retry storm."""
+        quota = ProviderSessionQuota(maximum_sessions=2)
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: FakeProvider(FakeSpeechStream()),
+                lambda: handle_event,
+                handle_failure,
+            ),
+            provider_session_quota=quota,
+        )
+        error = ProviderSessionCapacityUnavailable("room")
+        run._wait_for_track_capacity("TR_A", error)
+        self.assertFalse(run._track_can_retry_capacity("TR_A"))
+
+        self.assertTrue(quota.acquire())
+        quota.release()
+        self.assertTrue(run._track_can_retry_capacity("TR_A"))
+
+        run._wait_for_track_capacity("TR_A", error)
+        self.assertFalse(run._track_can_retry_capacity("TR_A"))
+        run._clear_all_capacity_waiters()
+        await asyncio.gather(*run._failure_notification_tasks)
+
+    async def test_revocation_removes_a_track_waiting_for_capacity(self):
+        """A revoked waiter cannot reopen after later capacity release."""
+        quota = ProviderSessionQuota(maximum_sessions=1)
+        self.assertTrue(quota.acquire())
+        providers = []
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: providers.append(FakeProvider(FakeSpeechStream())),
+                lambda: handle_event,
+                handle_failure,
+            ),
+            provider_session_quota=quota,
+        )
+        await run.start()
+        authorize_speaking_track(run, track_ref="TR_REVOKED")
+        for _ in range(100):
+            if "TR_REVOKED" in run._capacity_waiters:
+                break
+            await asyncio.sleep(0.002)
+
+        run.revoke_track(
+            "TR_REVOKED",
+            generation=2,
+            authorization_digest="e" * 64,
+        )
+        quota.release()
+        await asyncio.sleep(0.05)
+
+        self.assertNotIn("TR_REVOKED", run._capacity_waiters)
+        self.assertEqual(providers, [])
+        self.assertFalse(run._terminal_failure.is_set())
+        await run.aclose()
+
     async def test_unexpected_provider_close_releases_session_and_fails(self):
         """An ended provider iterator cannot leak a billed session."""
         stream = FakeSpeechStream()
@@ -770,8 +910,8 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(factory_calls, 1)
 
-    async def test_process_quota_is_shared_across_rooms(self):
-        """Concurrent rooms cannot exceed one environment-owned provider cap."""
+    async def test_process_quota_waits_then_resumes_across_rooms(self):
+        """A room resumes after another room proves process-capacity release."""
         quota = ProviderSessionQuota(maximum_sessions=1)
         first_stream = FakeSpeechStream()
         second_stream = FakeSpeechStream()
@@ -804,12 +944,14 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         await wait_for_frames(first_stream, 1)
         authorize_speaking_track(second, track_ref="TR_SECOND")
 
-        error = await asyncio.wait_for(second.wait_terminal_failure(), timeout=1)
-        await second.aclose()
-        await first.aclose()
-
-        self.assertEqual(str(error), "process provider session capacity exceeded")
+        await asyncio.sleep(0.05)
+        self.assertFalse(second._terminal_failure.is_set())
         self.assertEqual(second_stream.frames, [])
+        await first.aclose()
+        await wait_for_frames(second_stream, 1)
+        await second.aclose()
+
+        self.assertFalse(second._terminal_failure.is_set())
 
     async def test_provider_failure_is_terminal_and_observable(self):
         """A broken live stream cannot degrade into a silent successful run."""
@@ -907,8 +1049,8 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         )
         await second.start()
         authorize_speaking_track(second, track_ref="TR_SECOND")
-        error = await asyncio.wait_for(second.wait_terminal_failure(), timeout=1)
-        self.assertEqual(str(error), "process provider session capacity exceeded")
+        await asyncio.sleep(0.05)
+        self.assertFalse(second._terminal_failure.is_set())
         self.assertEqual(second_stream.frames, [])
 
         close_gate.set()
@@ -916,6 +1058,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             if first.provider_session_count == 0:
                 break
             await asyncio.sleep(0.001)
+        await wait_for_frames(second_stream, 1)
         await second.aclose()
 
     async def test_uncertain_close_consumes_the_room_session_limit(self):
@@ -937,6 +1080,8 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             ),
             config=RoomAudioRuntimeConfig(
                 maximum_active_track_streams=1,
+                maximum_provider_sessions=1,
+                maximum_draining_sessions=1,
                 shutdown_timeout_seconds=0.01,
             ),
             provider_session_quota=ProviderSessionQuota(maximum_sessions=2),
@@ -961,7 +1106,10 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         close_tasks = tuple(run._track_close_tasks)
         await asyncio.gather(*close_tasks, return_exceptions=True)
         self.assertEqual(run.provider_session_count, 1)
-        with self.assertRaisesRegex(RuntimeError, "capacity exceeded"):
+        with self.assertRaisesRegex(
+            ProviderSessionCapacityUnavailable,
+            "capacity unavailable",
+        ):
             await run._open_track_session("TR_SECOND")
 
         close_gate.set()
@@ -969,7 +1117,8 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             if run.provider_session_count == 0:
                 break
             await asyncio.sleep(0.001)
-        await run.aclose()
+        with self.assertRaisesRegex(RuntimeError, "shutdown timed out"):
+            await run.aclose()
 
     async def test_clock_lag_is_terminal_for_post_audio(self):
         """A stalled event loop cannot produce a deceptively complete artifact."""
@@ -1053,12 +1202,9 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         )
         await successor.start()
         authorize_speaking_track(successor, track_ref="TR_SUCCESSOR")
-        capacity_error = await asyncio.wait_for(
-            successor.wait_terminal_failure(), timeout=1
-        )
-        self.assertEqual(
-            str(capacity_error), "process provider session capacity exceeded"
-        )
+        await asyncio.sleep(0.05)
+        self.assertFalse(successor._terminal_failure.is_set())
+        self.assertEqual(successor_stream.frames, [])
 
         close_gate.set()
         for _ in range(100):
@@ -1066,6 +1212,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 break
             await asyncio.sleep(0.001)
         self.assertEqual(failing.provider_session_count, 0)
+        await wait_for_frames(successor_stream, 1)
         await failing.aclose()
         await successor.aclose()
 
