@@ -12,6 +12,7 @@ import { LowerAllHandsButton } from './LowerAllHandsButton'
 import { MuteEveryoneButton } from './MuteEveryoneButton'
 import { WaitingParticipantsSection } from './WaitingParticipantsSection'
 import { RaisedHandRow } from './RaisedHandRow'
+import { meetingParticipants } from '@/features/rooms/livekit/roomParticipants'
 
 const JoinedParticipantsSections = () => {
   const room = useRoomContext()
@@ -33,9 +34,10 @@ const JoinedParticipantsSections = () => {
     ],
   })
 
+  const visibleRemoteParticipants = meetingParticipants(remoteParticipants)
   const allParticipants = [
     room.localParticipant,
-    ...[...remoteParticipants].sort((a, b) =>
+    ...visibleRemoteParticipants.sort((a, b) =>
       (a.name || a.identity).localeCompare(b.name || b.identity)
     ),
   ]
@@ -69,7 +71,7 @@ const JoinedParticipantsSections = () => {
       <ParticipantsCollapsibleSection
         heading={t('contributors')}
         count={allParticipants.length}
-        action={<MuteEveryoneButton participants={remoteParticipants} />}
+        action={<MuteEveryoneButton participants={visibleRemoteParticipants} />}
       >
         {allParticipants.map((p) => (
           <ParticipantRow key={p.identity} participant={p} />

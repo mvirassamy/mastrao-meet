@@ -41,6 +41,7 @@ import {
 } from '../platformReturn'
 import { isMastraoRoomId } from '../utils/isRoomValid'
 import { useMeetingNotesExit } from '../contexts/MeetingNotesExitContext'
+import { meetingParticipantCount } from '../livekit/roomParticipants'
 
 const ActiveInviteDialog = ({ mode }: { mode: 'join' | 'create' }) => {
   const { isEnding } = useMeetingLifecycle()
@@ -347,7 +348,8 @@ export const Conference = ({
               userPreferencesSnap.is_auto_mute_large_room_enabled &&
               !hasAutoMutedRef.current &&
               userConfig.audioEnabled &&
-              room.numParticipants > apiConfig.auto_mute_on_join_threshold
+              meetingParticipantCount(room) >
+                apiConfig.auto_mute_on_join_threshold
             ) {
               hasAutoMutedRef.current = true
               await room.localParticipant.setMicrophoneEnabled(false)
