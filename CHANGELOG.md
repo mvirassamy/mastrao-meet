@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-06: Expose the live Room Audio worker identity to authenticated
+  clients so transcript streams retain their exact trusted sender.
+
 - 2026-11-06: Accept the active-track live Room Audio start contract in the
   Meet dispatcher so the per-microphone workers can start before ASR.
 

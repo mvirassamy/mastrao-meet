@@ -10,7 +10,6 @@ from room_audio_session import RoomAudioSessionHandlers
 from room_audio_worker import (
     ROOM_AUDIO_AGENT_NAME,
     ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
-    ROOM_AUDIO_WORKER_PERMISSIONS,
     RoomAudioPostConfig,
     RoomAudioWorkerConfig,
     create_live_room_audio_session,
@@ -18,6 +17,7 @@ from room_audio_worker import (
     create_room_audio_session,
     create_worker_options,
     entrypoint,
+    room_audio_worker_permissions,
 )
 
 
@@ -177,14 +177,23 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
         """The executable registers under the backend's exact dispatch name."""
         self.assertEqual(ROOM_AUDIO_AGENT_NAME, "room-audio-worker")
 
-    def test_worker_has_minimal_live_permissions(self):
-        """The worker publishes text data but never media or room metadata."""
-        permissions = ROOM_AUDIO_WORKER_PERMISSIONS
+    def test_live_worker_has_minimal_visible_permissions(self):
+        """Live text exposes its sender identity without publishing media."""
+        permissions = room_audio_worker_permissions("live")
         self.assertFalse(permissions.can_publish)
         self.assertTrue(permissions.can_subscribe)
         self.assertTrue(permissions.can_publish_data)
         self.assertFalse(permissions.can_update_metadata)
-        self.assertTrue(permissions.hidden)
+        self.assertFalse(permissions.hidden)
+
+    def test_post_worker_remains_hidden(self):
+        """The durable post worker never appears as a room participant."""
+        self.assertTrue(room_audio_worker_permissions("post").hidden)
+
+    def test_unknown_worker_pipeline_is_refused(self):
+        """Permissions are never inferred for an unknown execution path."""
+        with self.assertRaisesRegex(ValueError, "live or post"):
+            room_audio_worker_permissions("unknown")
 
     def test_composes_post_session_with_exact_dispatch_id(self):
         """The final manifest uses the provider dispatch, never the job id."""
@@ -358,7 +367,7 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_worker_shutdown_budget_covers_room_grace_and_finalization(self):
         """LiveKit must not kill the process while post audio is being persisted."""
-        options = create_worker_options(ROOM_AUDIO_AGENT_NAME)
+        options = create_worker_options(ROOM_AUDIO_AGENT_NAME, "live")
 
         self.assertEqual(
             options.shutdown_process_timeout,
