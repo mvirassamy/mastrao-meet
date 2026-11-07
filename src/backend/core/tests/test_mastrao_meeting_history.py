@@ -465,6 +465,30 @@ def test_detail_rejects_noncanonical_meeting_reference_before_network():
     session.assert_not_called()
 
 
+@override_settings(**TEST_SETTINGS)
+def test_summary_waits_for_bounded_platform_generation():
+    """Allow Platform's bounded summary generation to finish past five seconds."""
+
+    meeting_ref = "meeting_0123456789abcdef"
+    upstream = _upstream(202, {"status": "pending"})
+    session = _session_returning(upstream)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        response = _client_with_token().post(
+            f"/api/v1.0/meetings/history/{meeting_ref}/summary/"
+        )
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "pending"}
+    session.request.assert_called_once_with(
+        "POST",
+        f"{PLATFORM}/api/meet/meetings/history/{meeting_ref}/summary",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        timeout=(5, 20),
+        allow_redirects=False,
+        stream=True,
+    )
+
+
 @pytest.mark.parametrize(
     "schedule",
     [

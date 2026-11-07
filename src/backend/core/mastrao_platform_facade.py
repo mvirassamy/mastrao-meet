@@ -20,6 +20,9 @@ DEFAULT_TIMEOUT_SECONDS = 5
 # Platform waits up to ~7.75 s for the new meeting projection before it seals
 # the recording mode and mints the host handoff. Reads must outlast that.
 MEETING_CREATION_TIMEOUT_SECONDS = (5, 20)
+# Summary generation performs one bounded model call before returning its state.
+# Keep connection failures fast while allowing that response to complete.
+SUMMARY_GENERATION_TIMEOUT_SECONDS = (5, 20)
 
 
 class PlatformFacadeError(Exception):
