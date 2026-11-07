@@ -110,4 +110,73 @@ describe('LiveTranscriptSidePanel', () => {
 
     expect(screen.getByText('Reconnexion…')).toBeTruthy()
   })
+
+  it('renders interleaved fragments as one readable turn per speaker', () => {
+    useLiveTranscriptionMock.mockReturnValue({
+      status: 'live',
+      connectionStatus: 'connected',
+      segments: [
+        {
+          key: 'alice-1',
+          participantIdentity: 'alice',
+          trackSid: 'TR_alice',
+          legId: 'leg-alice',
+          itemId: 'item-1',
+          state: 'final',
+          text: 'Quand les deux',
+          sequence: 1,
+          revision: 1,
+          receivedAt: 100,
+          metadataSource: 'envelope',
+        },
+        {
+          key: 'bob-1',
+          participantIdentity: 'bob',
+          trackSid: 'TR_bob',
+          legId: 'leg-bob',
+          itemId: 'item-2',
+          state: 'final',
+          text: 'Deux personnes',
+          sequence: 2,
+          revision: 1,
+          receivedAt: 200,
+          metadataSource: 'envelope',
+        },
+        {
+          key: 'alice-2',
+          participantIdentity: 'alice',
+          trackSid: 'TR_alice',
+          legId: 'leg-alice',
+          itemId: 'item-3',
+          state: 'final',
+          text: 'parlent ensemble.',
+          sequence: 3,
+          revision: 1,
+          receivedAt: 300,
+          metadataSource: 'envelope',
+        },
+        {
+          key: 'bob-2',
+          participantIdentity: 'bob',
+          trackSid: 'TR_bob',
+          legId: 'leg-bob',
+          itemId: 'item-4',
+          state: 'final',
+          text: 'restent lisibles.',
+          sequence: 4,
+          revision: 1,
+          receivedAt: 400,
+          metadataSource: 'envelope',
+        },
+      ],
+      resolveSpeaker: () => undefined,
+    })
+
+    render(<LiveTranscriptSidePanel />)
+
+    expect(screen.getByText('Quand les deux parlent ensemble.')).toBeTruthy()
+    expect(screen.getByText('Deux personnes restent lisibles.')).toBeTruthy()
+    expect(screen.queryByText('Quand les deux')).toBeNull()
+    expect(screen.queryByText('parlent ensemble.')).toBeNull()
+  })
 })

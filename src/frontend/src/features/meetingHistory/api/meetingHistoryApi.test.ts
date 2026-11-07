@@ -119,6 +119,100 @@ describe('normalizeContentStatus', () => {
     expect(mergeContentProjection(current, incoming)).toEqual(incoming)
   })
 
+  it('replaces a higher-version placeholder with the identified room-audio artifact', () => {
+    const current = {
+      version: 1,
+      state: 'waiting_for_audio',
+      revision: 8,
+      digest: null,
+      source: null,
+    } as const
+    const incoming = {
+      version: 1,
+      state: 'available',
+      revision: 1,
+      digest: 'a'.repeat(64),
+      source: null,
+    } as const
+
+    expect(mergeContentProjection(current, incoming)).toEqual(incoming)
+  })
+
+  it('does not restore an older artifact over active transcription work', () => {
+    const current = {
+      version: 1,
+      state: 'transcribing',
+      revision: 8,
+      digest: null,
+      source: null,
+    } as const
+    const stale = {
+      version: 1,
+      state: 'available',
+      revision: 1,
+      digest: 'a'.repeat(64),
+      source: null,
+    } as const
+
+    expect(mergeContentProjection(current, stale)).toEqual(current)
+  })
+
+  it('reveals room-audio transcript and summary after provisional meeting states', () => {
+    const transcriptDigest = 'a'.repeat(64)
+    const current = normalizeHistoryDetail({
+      id: 'meeting-room-audio',
+      started_at: '2026-11-07T10:00:00Z',
+      ended_at: '2026-11-07T10:10:00Z',
+      transcript_projection: {
+        version: 1,
+        state: 'audio_unavailable',
+        revision: 8,
+        digest: null,
+        source: null,
+      },
+      summary_projection: {
+        version: 1,
+        state: 'waiting_for_audio',
+        revision: 8,
+        digest: null,
+        source: null,
+      },
+      transcript: null,
+      summary: null,
+    })
+    const incoming = normalizeHistoryDetail({
+      id: 'meeting-room-audio',
+      started_at: '2026-11-07T10:00:00Z',
+      ended_at: '2026-11-07T10:10:00Z',
+      transcript_projection: {
+        version: 1,
+        state: 'available',
+        revision: 1,
+        digest: transcriptDigest,
+        source: null,
+      },
+      summary_projection: {
+        version: 1,
+        state: 'available',
+        revision: 1,
+        digest: 'b'.repeat(64),
+        source: { revision: 1, digest: transcriptDigest },
+      },
+      transcript: {
+        segments: [{ id: 's1', start_ms: 0, text: 'Décision validée.' }],
+      },
+      summary: { text: 'La décision est validée.' },
+    })
+
+    if (!current || !incoming) throw new Error('Expected valid meeting details')
+    const merged = mergeHistoryDetail(current, incoming)
+
+    expect(merged.transcriptStatus).toBe('available')
+    expect(merged.transcript.segments).toHaveLength(1)
+    expect(merged.summaryStatus).toBe('available')
+    expect(merged.summary.paragraphs).toEqual(['La décision est validée.'])
+  })
+
   it('accepts newer non-readable metadata instead of pinning old content', () => {
     const digest = 'a'.repeat(64)
     const current = normalizeHistoryDetail({
@@ -424,6 +518,33 @@ describe('normalizeHistoryDetail', () => {
       sections: [],
     })
     expect(detail?.transcript.status).toBe('failed')
+  })
+
+  it('shows post-meeting content as loading while its recording is processing', () => {
+    const detail = normalizeHistoryDetail({
+      ...base,
+      ended_at: '2026-09-20T10:30:00Z',
+      recording: { status: 'processing' },
+      summary_projection: {
+        version: 1,
+        state: 'audio_unavailable',
+        revision: 5,
+        digest: null,
+        source: null,
+      },
+      transcript_projection: {
+        version: 1,
+        state: 'audio_unavailable',
+        revision: 5,
+        digest: null,
+        source: null,
+      },
+      summary: null,
+      transcript: null,
+    })
+
+    expect(detail?.transcriptStatus).toBe('waiting_for_audio')
+    expect(detail?.summaryStatus).toBe('waiting_for_audio')
   })
 
   it('hides a summary whose source does not match the transcript', () => {

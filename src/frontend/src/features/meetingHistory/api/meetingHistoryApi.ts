@@ -99,6 +99,30 @@ const normalizeProjection = (
 const isReadable = (projection: MeetingContentProjection) =>
   projection.state === 'available' || projection.state === 'partial'
 
+const isIdentifiedReadableArtifact = (projection: MeetingContentProjection) =>
+  isReadable(projection) && projection.digest !== null
+
+const isPreArtifactPlaceholder = (projection: MeetingContentProjection) =>
+  projection.digest === null &&
+  ['waiting_for_audio', 'audio_unavailable'].includes(projection.state)
+
+const waitsForRecording = (
+  recordingStatus: MeetingHistoryItem['recordingStatus']
+) => recordingStatus === 'processing' || recordingStatus === 'unknown'
+
+const contentWhileRecording = (
+  projection: MeetingContentProjection,
+  recordingStatus: MeetingHistoryItem['recordingStatus']
+): MeetingContentProjection => {
+  if (
+    projection.state !== 'audio_unavailable' ||
+    !waitsForRecording(recordingStatus)
+  ) {
+    return projection
+  }
+  return { ...projection, state: 'waiting_for_audio' }
+}
+
 const sameSource = (
   left: MeetingContentProjection['source'],
   right: MeetingContentProjection['source']
@@ -130,6 +154,12 @@ export const mergeContentProjection = (
   current: MeetingContentProjection,
   incoming: MeetingContentProjection
 ): MeetingContentProjection => {
+  if (
+    isPreArtifactPlaceholder(current) &&
+    isIdentifiedReadableArtifact(incoming)
+  ) {
+    return incoming
+  }
   const observedRevision = Math.max(
     current.revision,
     current.pendingRevision ?? current.revision
@@ -253,15 +283,18 @@ const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
     ? raw.participant_names.map(asString).filter((name) => name !== null)
     : []
 
-  const summaryProjection = normalizeProjection(
-    raw.summary_projection,
-    raw.summary_status,
-    'summary'
+  const recordingStatus = normalizeRecordingStatus(raw.recording_status)
+  const transcriptProjection = contentWhileRecording(
+    normalizeProjection(
+      raw.transcript_projection,
+      raw.transcript_status,
+      'transcript'
+    ),
+    recordingStatus
   )
-  const transcriptProjection = normalizeProjection(
-    raw.transcript_projection,
-    raw.transcript_status,
-    'transcript'
+  const summaryProjection = contentWhileRecording(
+    normalizeProjection(raw.summary_projection, raw.summary_status, 'summary'),
+    recordingStatus
   )
   return {
     id,
@@ -274,7 +307,7 @@ const normalizeItem = (raw: unknown): MeetingHistoryItem | null => {
     endedAt: asDate(raw.ended_at),
     participantCount,
     participantNames,
-    recordingStatus: normalizeRecordingStatus(raw.recording_status),
+    recordingStatus,
     recordingProjected: Object.hasOwn(raw, 'recording_status'),
     summaryStatus: summaryProjection.state,
     transcriptStatus: transcriptProjection.state,
@@ -362,12 +395,17 @@ export const normalizeHistoryDetail = (
     paragraphs.length > 0 ||
     sections.some((section) => section.items.length > 0)
 
-  let transcriptProjection = normalizeProjection(
-    raw.transcript_projection ?? rawTranscript.projection,
-    rawTranscript.status ?? raw.transcript_status,
-    'transcript'
+  let transcriptProjection = contentWhileRecording(
+    normalizeProjection(
+      raw.transcript_projection ?? rawTranscript.projection,
+      rawTranscript.status ?? raw.transcript_status,
+      'transcript'
+    ),
+    recording.status
   )
   const segments = normalizeSegments(rawTranscript.segments)
+
+  summaryProjection = contentWhileRecording(summaryProjection, recording.status)
 
   const hasExplicitSummaryProjection = isRecord(raw.summary_projection)
   if (
