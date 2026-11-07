@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-07: Group interleaved live transcript fragments into readable
+  speaker turns and replace provisional post-meeting states with identified
+  Room Audio transcript and summary artifacts.
+
 - 2026-11-06: Expose the live Room Audio worker identity to authenticated
   clients so transcript streams retain their exact trusted sender.
 

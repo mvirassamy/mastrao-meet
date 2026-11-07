@@ -9,7 +9,7 @@ import type {
   LiveTranscriptionSegment,
   LiveTranscriptionStatus,
 } from '../store/liveTranscriptionTypes'
-import { groupConsecutiveSpeakerSegments } from './liveTranscriptTurns'
+import { groupLiveTranscriptSpeakerTurns } from './liveTranscriptTurns'
 import { getLiveTranscriptSpeakerLabel } from './liveTranscriptSpeakerLabel'
 
 type EmptyTranscriptNotice = 'starting' | 'waiting' | 'stopped' | 'unavailable'
@@ -146,7 +146,7 @@ export const LiveTranscriptSidePanel = () => {
     useLiveTranscription()
 
   const hasSegments = segments.length > 0
-  const speakerTurns = groupConsecutiveSpeakerSegments(segments)
+  const speakerTurns = groupLiveTranscriptSpeakerTurns(segments)
   const isInterrupted = connectionStatus !== 'connected'
 
   return (

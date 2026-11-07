@@ -21,6 +21,7 @@ import {
   getParticipantColor,
 } from '@/features/rooms/utils/getParticipantColor'
 import { getLiveTranscriptSpeakerLabel } from './liveTranscriptSpeakerLabel'
+import { groupLiveTranscriptSpeakerTurns } from './liveTranscriptTurns'
 const FONT_SIZE_CONFIG: Record<
   CaptionTextSize,
   { fontSize: string; lineHeight: string }
@@ -37,9 +38,8 @@ const CAPTION_FONT_SIZES = Object.fromEntries(
 export interface TranscriptionRow {
   id: string
   participantIdentity: string
-  trackSid: string
   participant?: Participant
-  segments: string[]
+  text: string
 }
 
 const Transcription = ({ row }: { row: TranscriptionRow }) => {
@@ -59,9 +59,7 @@ const Transcription = ({ row }: { row: TranscriptionRow }) => {
   const backgroundColor =
     CAPTION_BACKGROUND_COLOR_VALUES[captionBackgroundColor]
 
-  const displayText = row.segments.join(' ')
-
-  if (!displayText) return null
+  if (!row.text) return null
 
   return (
     <div
@@ -98,7 +96,7 @@ const Transcription = ({ row }: { row: TranscriptionRow }) => {
             })}
             style={{ fontSize, lineHeight, backgroundColor }}
           >
-            {displayText}
+            {row.text}
           </p>
         </div>
       </div>
@@ -135,33 +133,17 @@ export const Subtitles = () => {
   const transcriptionRows = useMemo(() => {
     if (transcriptionSegments.length === 0) return []
 
-    const rows: TranscriptionRow[] = []
-    let currentRow: TranscriptionRow | null = null
-
-    for (const segment of transcriptionSegments) {
-      const shouldStartNewRow =
-        !currentRow ||
-        currentRow.participantIdentity !== segment.participantIdentity ||
-        currentRow.trackSid !== segment.trackSid
-
-      if (shouldStartNewRow) {
-        const participant = getParticipantForTranscription(
+    return groupLiveTranscriptSpeakerTurns(transcriptionSegments).map(
+      (turn): TranscriptionRow => ({
+        id: turn.key,
+        participantIdentity: turn.participantIdentity,
+        participant: getParticipantForTranscription(
           room,
-          segment.participantIdentity
-        )
-        currentRow = {
-          id: `${segment.participantIdentity}-${segment.sequence}`,
-          participantIdentity: segment.participantIdentity,
-          trackSid: segment.trackSid,
-          participant,
-          segments: [segment.text],
-        }
-        rows.push(currentRow)
-      } else if (currentRow) {
-        currentRow.segments.push(segment.text)
-      }
-    }
-    return rows
+          turn.participantIdentity
+        ),
+        text: turn.text,
+      })
+    )
   }, [room, transcriptionSegments])
 
   return (
