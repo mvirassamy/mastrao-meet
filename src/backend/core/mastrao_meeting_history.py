@@ -10,6 +10,7 @@ from core.mastrao_host_contract import HostHandoffRefused
 from core.mastrao_host_handoff import consume_host_handoff_for_oidc_session
 from core.mastrao_platform_facade import (
     MEETING_CREATION_TIMEOUT_SECONDS,
+    SUMMARY_GENERATION_TIMEOUT_SECONDS,
     PlatformFacadeError,
     meeting_path,
     request_platform,
@@ -200,5 +201,6 @@ def meeting_summary(request, meeting_ref):
             "POST",
             meeting_path(meeting_ref, "summary"),
             accepted_statuses={200, 202},
+            options={"timeout": SUMMARY_GENERATION_TIMEOUT_SECONDS},
         )
     )
