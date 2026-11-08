@@ -98,15 +98,14 @@ describe('groupLiveTranscriptSpeakerTurns', () => {
     ])
   })
 
-  it('starts a new turn when the participant microphone track changes', () => {
+  it('keeps the same turn when a participant track changes without an interruption', () => {
     const turns = groupLiveTranscriptSpeakerTurns([
       segment('alice', 'Track initial', 1),
       segment('alice', 'nouveau micro', 2, { trackSid: 'TR_reconnected' }),
     ])
 
     expect(turns.map(({ text }) => text)).toEqual([
-      'Track initial',
-      'nouveau micro',
+      'Track initial nouveau micro',
     ])
   })
 

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-08: Keep a live transcript speaker in the same bubble when their
+  underlying microphone track is renewed before another participant speaks.
+
 - 2026-11-08: Keep one live transcript bubble across a participant's pauses,
   use paragraphs for long pauses, and start a new bubble after another speaker
   establishes the floor without fragmenting overlapping microphones.
