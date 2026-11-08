@@ -109,6 +109,24 @@ describe('groupLiveTranscriptSpeakerTurns', () => {
     ])
   })
 
+  it('keeps one turn when a participant resumes through a known identity alias', () => {
+    const canonicalIdentities = new Map([
+      ['alice-before-reconnect', 'alice'],
+      ['alice-after-reconnect', 'alice'],
+    ])
+    const turns = groupLiveTranscriptSpeakerTurns(
+      [
+        segment('alice-before-reconnect', 'Bonjour à tous.', 1),
+        segment('alice-after-reconnect', 'Je poursuis.', 2),
+      ],
+      (identity) => canonicalIdentities.get(identity)
+    )
+
+    expect(turns.map(({ text }) => text)).toEqual([
+      'Bonjour à tous. Je poursuis.',
+    ])
+  })
+
   it('preserves punctuation and the stable key of the first fragment', () => {
     const turns = groupLiveTranscriptSpeakerTurns([
       segment('alice', 'Aujourd’', 1),

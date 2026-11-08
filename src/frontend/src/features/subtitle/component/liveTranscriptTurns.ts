@@ -25,6 +25,10 @@ const segmentSeparator = (
 const transcriptSpeakerKey = (segment: LiveTranscriptionSegment): string =>
   segment.participantIdentity
 
+export type ResolveTranscriptSpeakerKey = (
+  participantIdentity: string
+) => string | undefined
+
 const appendSegmentText = (
   turn: LiveTranscriptionSegment,
   segment: LiveTranscriptionSegment,
@@ -49,13 +53,16 @@ const appendSegmentText = (
  * remain grouped as overlapping speech.
  */
 export const groupLiveTranscriptSpeakerTurns = (
-  segments: LiveTranscriptionSegment[]
+  segments: LiveTranscriptionSegment[],
+  resolveSpeakerKey: ResolveTranscriptSpeakerKey = (identity) => identity
 ): LiveTranscriptionSegment[] => {
   const turns: LiveTranscriptionSegment[] = []
   const activeTurnBySpeaker = new Map<string, LiveTranscriptionSegment>()
 
   for (const segment of segments) {
-    const speakerKey = transcriptSpeakerKey(segment)
+    const speakerKey =
+      resolveSpeakerKey(segment.participantIdentity) ??
+      transcriptSpeakerKey(segment)
     const activeTurn = activeTurnBySpeaker.get(speakerKey)
     const pause = activeTurn ? segment.receivedAt - activeTurn.receivedAt : 0
     const interruptedByAnotherSpeaker = Array.from(

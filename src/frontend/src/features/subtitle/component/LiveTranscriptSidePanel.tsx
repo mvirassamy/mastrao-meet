@@ -146,7 +146,10 @@ export const LiveTranscriptSidePanel = () => {
     useLiveTranscription()
 
   const hasSegments = segments.length > 0
-  const speakerTurns = groupLiveTranscriptSpeakerTurns(segments)
+  const speakerTurns = groupLiveTranscriptSpeakerTurns(
+    segments,
+    (identity) => resolveSpeaker(identity)?.identity
+  )
   const isInterrupted = connectionStatus !== 'connected'
 
   return (
