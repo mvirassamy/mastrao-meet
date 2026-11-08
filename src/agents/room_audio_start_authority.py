@@ -59,8 +59,12 @@ LIVE_SOURCE_PROFILE = {
     "sample_rate_hz": 24_000,
     "channel_count": 1,
     "maximum_concurrent_tracks": 3,
-    "maximum_provider_sessions": 3,
-    "maximum_draining_sessions": 3,
+    # Keep one bounded successor slot for every active microphone while its
+    # predecessor drains final provider output. Active speech remains capped
+    # at three tracks; these extra lifecycle slots prevent normal turnover
+    # from dropping a second speaker.
+    "maximum_provider_sessions": 6,
+    "maximum_draining_sessions": 6,
     "pre_roll_ms": 0,
     "hangover_ms": 500,
     "opening_timeout_ms": 10_000,
