@@ -5,12 +5,14 @@ import { contentPhase } from '@/features/meetingHistory/components/meetingConten
 export type AssistantReadiness = 'preparing' | 'ready' | 'unavailable'
 
 export const assistantReadiness = (
-  transcriptStatus: MeetingContentStatus
+  transcriptStatus: MeetingContentStatus,
+  summaryStatus: MeetingContentStatus
 ): AssistantReadiness => {
-  switch (contentPhase(transcriptStatus)) {
+  const transcriptPhase = contentPhase(transcriptStatus)
+  switch (transcriptPhase) {
     case 'ready':
     case 'partial':
-      return 'ready'
+      return contentPhase(summaryStatus) === 'pending' ? 'preparing' : 'ready'
     case 'pending':
       return 'preparing'
     case 'failed':

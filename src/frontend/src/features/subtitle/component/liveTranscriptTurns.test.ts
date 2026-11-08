@@ -63,17 +63,28 @@ describe('groupLiveTranscriptSpeakerTurns', () => {
     ])
   })
 
-  it('does not merge across track or provider-stream generations', () => {
+  it('keeps a speaker turn across provider speech-window generations', () => {
     const turns = groupLiveTranscriptSpeakerTurns([
       segment('alice', 'Track initial', 1),
-      segment('alice', 'nouveau track', 2, { trackSid: 'TR_reconnected' }),
-      segment('alice', 'nouveau flux', 3, { legId: 'leg-restarted' }),
+      segment('alice', 'même micro après une respiration', 2, {
+        legId: 'leg-restarted',
+      }),
+    ])
+
+    expect(turns.map(({ text }) => text)).toEqual([
+      'Track initial même micro après une respiration',
+    ])
+  })
+
+  it('starts a new turn when the participant microphone track changes', () => {
+    const turns = groupLiveTranscriptSpeakerTurns([
+      segment('alice', 'Track initial', 1),
+      segment('alice', 'nouveau micro', 2, { trackSid: 'TR_reconnected' }),
     ])
 
     expect(turns.map(({ text }) => text)).toEqual([
       'Track initial',
-      'nouveau track',
-      'nouveau flux',
+      'nouveau micro',
     ])
   })
 

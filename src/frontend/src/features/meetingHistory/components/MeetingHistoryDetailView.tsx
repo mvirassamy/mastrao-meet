@@ -238,7 +238,10 @@ export const MeetingHistoryDetailView = ({
       key={`${identityKey}:${detail.id}`}
       meetingId={detail.id}
       identityKey={identityKey}
-      readiness={assistantReadiness(detail.transcriptStatus)}
+      readiness={assistantReadiness(
+        detail.transcriptStatus,
+        detail.summaryStatus
+      )}
       onClose={closeAssistant}
     />
   )

@@ -136,10 +136,13 @@ describe('assistant result projection', () => {
 
 describe('assistant readiness', () => {
   it('follows the transcript of the meeting', () => {
-    expect(assistantReadiness('transcribing')).toBe('preparing')
-    expect(assistantReadiness('available')).toBe('ready')
-    expect(assistantReadiness('partial')).toBe('ready')
-    expect(assistantReadiness('failed')).toBe('unavailable')
-    expect(assistantReadiness('completed_empty')).toBe('unavailable')
+    expect(assistantReadiness('transcribing', 'transcribing')).toBe('preparing')
+    expect(assistantReadiness('available', 'transcribing')).toBe('preparing')
+    expect(assistantReadiness('available', 'available')).toBe('ready')
+    expect(assistantReadiness('partial', 'partial')).toBe('ready')
+    expect(assistantReadiness('failed', 'failed')).toBe('unavailable')
+    expect(assistantReadiness('completed_empty', 'completed_empty')).toBe(
+      'unavailable'
+    )
   })
 })
