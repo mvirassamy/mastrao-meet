@@ -79,7 +79,7 @@ LIVE_SOURCE_PROFILE = {
     "maximum_provider_sessions": 6,
     "maximum_draining_sessions": 6,
     "pre_roll_ms": 0,
-    "hangover_ms": 500,
+    "hangover_ms": 5_000,
     "opening_timeout_ms": 10_000,
     "drain_timeout_ms": 10_000,
     "maximum_buffered_audio_ms": 4_000,

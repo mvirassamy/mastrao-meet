@@ -10,6 +10,8 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.utils import timezone
+
 import pytest
 
 from core import models
@@ -226,6 +228,78 @@ def test_room_mix_failure_keeps_source_for_retry(delivered_room_source):
     assert delivered_room_source.asr_acknowledged is False
     assert delivered_room_source.asr_claim is None
     assert delivered_room_source.asr_error == "room_audio_asr_delivery_failed"
+
+
+def test_prepare_finance_not_sending_retries_without_exponential_delay(
+    delivered_room_source,
+):
+    models.MastraoRoomAudioSourceOutbox.objects.filter(
+        pk=delivered_room_source.pk
+    ).update(asr_attempts=6)
+    unavailable = RecordingContractRefused(status=404)
+    unavailable.core_http_status = 404
+    unavailable.core_error_code = "resource_unavailable"
+    unavailable.core_reason_codes = ("room_audio_asr_finance_not_sending",)
+
+    before = timezone.now()
+    with patch(
+        "core.mastrao_room_audio_asr_worker.prepare_room_audio_asr",
+        side_effect=unavailable,
+    ):
+        assert process_room_audio_asr_source(delivered_room_source.pk) is False
+
+    delivered_room_source.refresh_from_db()
+    retry_seconds = (delivered_room_source.asr_next_at - before).total_seconds()
+    assert 29 <= retry_seconds <= 31
+    assert delivered_room_source.asr_attempts == 6
+    assert delivered_room_source.asr_error == "room_audio_asr_finance_not_sending"
+
+
+def test_other_prepare_unavailability_keeps_exponential_delay(delivered_room_source):
+    models.MastraoRoomAudioSourceOutbox.objects.filter(
+        pk=delivered_room_source.pk
+    ).update(asr_attempts=6)
+    unavailable = RecordingContractRefused(status=404)
+    unavailable.core_http_status = 404
+    unavailable.core_error_code = "resource_unavailable"
+    unavailable.core_reason_codes = ("room_audio_asr_source_unavailable",)
+
+    before = timezone.now()
+    with patch(
+        "core.mastrao_room_audio_asr_worker.prepare_room_audio_asr",
+        side_effect=unavailable,
+    ):
+        assert process_room_audio_asr_source(delivered_room_source.pk) is False
+
+    delivered_room_source.refresh_from_db()
+    retry_seconds = (delivered_room_source.asr_next_at - before).total_seconds()
+    assert 1799 <= retry_seconds <= 1801
+    assert delivered_room_source.asr_attempts == 7
+    assert delivered_room_source.asr_error == "room_audio_asr_delivery_failed"
+
+
+def test_room_mix_failure_logs_sanitized_stage(delivered_room_source, caplog):
+    unavailable = RecordingContractRefused(status=404)
+    unavailable.core_http_status = 404
+    unavailable.core_error_code = "resource_unavailable"
+    unavailable.core_reason_codes = ("room_audio_asr_finance_not_sending",)
+
+    with (
+        caplog.at_level("WARNING"),
+        patch(
+            "core.mastrao_room_audio_asr_worker.prepare_room_audio_asr",
+            side_effect=unavailable,
+        ),
+    ):
+        assert process_room_audio_asr_source(delivered_room_source.pk) is False
+
+    assert caplog.messages == [
+        "Room audio ASR attempt failed stage=prepare "
+        "error_type=RecordingContractRefused core_http_status=404 "
+        "core_error_code=resource_unavailable "
+        "core_reason_codes=('room_audio_asr_finance_not_sending',); "
+        "source retained for retry"
+    ]
 
 
 def test_room_asr_scheduler_dispatches_the_requested_source(

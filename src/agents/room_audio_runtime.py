@@ -90,6 +90,7 @@ class RoomAudioRuntimeConfig:
     maximum_active_track_streams: int = 3
     maximum_provider_sessions: int = 3
     maximum_draining_sessions: int = 3
+    active_track_hangover_ms: int = 5_000
     opening_timeout_seconds: float = 10.0
     shutdown_timeout_seconds: float = 10.0
 
@@ -203,6 +204,7 @@ def _live_runtime_config(
         maximum_active_track_streams=profile["maximum_concurrent_tracks"],
         maximum_provider_sessions=profile["maximum_provider_sessions"],
         maximum_draining_sessions=profile["maximum_draining_sessions"],
+        active_track_hangover_ms=profile["hangover_ms"],
         opening_timeout_seconds=profile["opening_timeout_ms"] / 1_000,
         shutdown_timeout_seconds=profile["drain_timeout_ms"] / 1_000,
     )
@@ -281,6 +283,8 @@ class RoomAudioRun:
             raise ValueError("draining session bound must equal provider session bound")
         if config.opening_timeout_seconds <= 0 or config.shutdown_timeout_seconds <= 0:
             raise ValueError("provider lifecycle timeouts must be positive")
+        if config.active_track_hangover_ms <= 0:
+            raise ValueError("active track hangover must be positive")
 
         self._frame_samples = config.frame_samples
         self._sample_rate_hz = config.sample_rate_hz
@@ -295,7 +299,13 @@ class RoomAudioRun:
             maximum_buffered_frames=config.maximum_buffered_frames,
         )
         self._active_track_router = RoomAudioActiveTrackRouter(
-            maximum_active_streams=config.maximum_active_track_streams
+            maximum_active_streams=config.maximum_active_track_streams,
+            release_silence_frames=max(
+                1,
+                round(
+                    config.active_track_hangover_ms / (frame_duration_seconds * 1_000)
+                ),
+            ),
         )
         self._maximum_active_track_streams = config.maximum_active_track_streams
         self._maximum_provider_sessions = config.maximum_provider_sessions
