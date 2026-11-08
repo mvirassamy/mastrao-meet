@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-08: Keep one live transcript bubble across normal provider speech
+  window restarts, and show the meeting assistant as preparing while final
+  meeting processing is still running.
+
 - 2026-11-07: Group interleaved live transcript fragments into readable
   speaker turns and replace provisional post-meeting states with identified
   Room Audio transcript and summary artifacts.

@@ -15,7 +15,7 @@ const segmentSeparator = (previousText: string, nextText: string): string => {
 }
 
 const transcriptSourceKey = (segment: LiveTranscriptionSegment): string =>
-  JSON.stringify([segment.participantIdentity, segment.trackSid, segment.legId])
+  JSON.stringify([segment.participantIdentity, segment.trackSid])
 
 const appendSegmentText = (
   turn: LiveTranscriptionSegment,
@@ -35,7 +35,8 @@ const appendSegmentText = (
  * Build readable speaker turns without changing the ordered transcript state.
  *
  * A speaker can keep the same visible turn while another speaker interjects.
- * Reconnects, track changes and pauses of five seconds or more always start a
+ * Provider speech windows may restart while the same microphone remains
+ * connected. Only a track change or a pause of five seconds or more starts a
  * new turn.
  */
 export const groupLiveTranscriptSpeakerTurns = (
