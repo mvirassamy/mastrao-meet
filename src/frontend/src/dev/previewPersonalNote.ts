@@ -68,7 +68,7 @@ function citation(meetingRef: string) {
   return {
     citation_id: 'citation_apercu_000000001',
     meeting_ref: meetingRef,
-    source_kind: 'native_epoch',
+    source_kind: 'room_mix',
     source_ref: 'source_apercu_0000000001',
     source_version: 1,
     source_digest: 'b'.repeat(64),

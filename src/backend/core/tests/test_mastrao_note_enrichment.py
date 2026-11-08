@@ -317,6 +317,60 @@ def test_anchored_proposal_is_accepted():
     _validate_state({**STATE, "proposal": PROPOSAL}, MEETING)
 
 
+def room_audio_proposal_state(source_kind="room_mix"):
+    """The canonical Room Audio transcript justifies one proposed addition."""
+    return {
+        **STATE,
+        "proposal": {
+            **PROPOSAL,
+            "evidence": [
+                {
+                    "citation": {
+                        "citation_id": "citation_0123456789abcdef",
+                        "meeting_ref": MEETING,
+                        "source_kind": source_kind,
+                        "source_ref": "source_0123456789abcdef",
+                        "source_version": 1,
+                        "source_digest": "b" * 64,
+                        "segment_id": "segment_1",
+                        "start_ms": 0,
+                        "end_ms": 100,
+                        "time_basis": "source_relative_ms",
+                    },
+                    "text": "A synthetic transcript passage.",
+                    "speaker": None,
+                    "status": "transcript",
+                }
+            ],
+        },
+    }
+
+
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_room_audio_proposal_survives_the_platform_bridge(method):
+    """Successful generation and subsequent reads must not turn into a 503."""
+    state = room_audio_proposal_state()
+    session = _upstream(state)
+    with patch("core.mastrao_platform_facade.requests.Session", return_value=session):
+        client = _client()
+        if method == "GET":
+            result = client.get(URL)
+        else:
+            result = client.post(
+                URL, data=json.dumps(COMMAND), content_type="application/json"
+            )
+    assert result.status_code == 200
+    assert result.json() == state
+    assert result.headers["Cache-Control"] == "private, no-store"
+
+
+@pytest.mark.parametrize("source_kind", ["native_epoch", "unknown_source"])
+def test_superseded_or_unknown_transcript_source_is_rejected(source_kind):
+    """Accept the canonical source, without admitting obsolete or arbitrary kinds."""
+    with pytest.raises(PlatformFacadeError):
+        _validate_state(room_audio_proposal_state(source_kind), MEETING)
+
+
 @pytest.mark.parametrize(
     "item_patch",
     [
