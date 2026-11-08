@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-08: Keep one live transcript bubble across a participant's pauses,
+  use paragraphs for long pauses, and start a new bubble after another speaker
+  establishes the floor without fragmenting overlapping microphones.
+
 - 2026-11-08: Keep one live transcript bubble across normal provider speech
   window restarts, and show the meeting assistant as preparing while final
   meeting processing is still running.
