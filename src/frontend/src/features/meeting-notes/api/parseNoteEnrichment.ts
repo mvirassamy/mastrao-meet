@@ -106,7 +106,7 @@ function evidence(value: unknown): value is EnrichmentEvidence {
     oneOf(citation.source_kind, [
       'provider_run',
       'reviewed_revision',
-      'native_epoch',
+      'room_mix',
       'published_brief',
     ]) &&
     reference(citation.source_ref) &&

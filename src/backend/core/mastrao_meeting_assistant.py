@@ -22,7 +22,7 @@ MAX_ASSISTANT_RESPONSE_BYTES = 480_000
 PUBLIC_ERROR_STATUSES = {401, 403, 404, 409, 422, 429}
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 OPERATIONS = ("question", "summary", "actions", "email_draft")
-SOURCE_KINDS = ("provider_run", "reviewed_revision", "native_epoch", "published_brief")
+SOURCE_KINDS = ("provider_run", "reviewed_revision", "room_mix", "published_brief")
 TURN_STATES = (
     "processing",
     "completed",

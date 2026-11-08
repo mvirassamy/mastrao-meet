@@ -36,7 +36,7 @@ export function readyProposal(
         citation: {
           citation_id: 'citation_0123456789abcdef',
           meeting_ref: meetingRef,
-          source_kind: 'native_epoch',
+          source_kind: 'room_mix',
           source_ref: 'source_0123456789abcdef',
           source_version: 1,
           source_digest: 'b'.repeat(64),

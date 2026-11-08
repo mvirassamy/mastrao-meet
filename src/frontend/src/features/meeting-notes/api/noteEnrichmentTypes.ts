@@ -10,7 +10,7 @@ export interface EnrichmentEvidence {
     source_kind:
       | 'provider_run'
       | 'reviewed_revision'
-      | 'native_epoch'
+      | 'room_mix'
       | 'published_brief'
     source_ref: string
     source_version: number

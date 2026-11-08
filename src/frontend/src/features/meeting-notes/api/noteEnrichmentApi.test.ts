@@ -30,6 +30,18 @@ afterEach(() => {
 })
 
 describe('private enrichment transport and fixed DTO', () => {
+  it('reads a grounded room audio proposal without rejecting its citation', async () => {
+    const state = enrichmentState({ proposal: readyProposal() })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(state)))
+
+    const result = await createNoteEnrichmentApi(endpoint, meetingRef).read(
+      new AbortController().signal
+    )
+
+    expect(result).toEqual(state)
+    expect(result.proposal?.evidence[0].citation.source_kind).toBe('room_mix')
+  })
+
   it('GETs state and POSTs the exact command under the base note endpoint', async () => {
     const fetch = vi
       .fn()
@@ -65,6 +77,19 @@ describe('private enrichment transport and fixed DTO', () => {
 
   it.each([
     null,
+    enrichmentState({
+      proposal: readyProposal({
+        evidence: [
+          {
+            ...readyProposal().evidence[0],
+            citation: {
+              ...readyProposal().evidence[0].citation,
+              source_kind: 'native_epoch' as never,
+            },
+          },
+        ],
+      }),
+    }),
     enrichmentState({ version: 2 as 1 }),
     enrichmentState({ state_version: -1 }),
     enrichmentState({ reason: 'guest' as 'empty_note' }),

@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-09: Accept canonical Room Audio transcript citations in the meeting
+  assistant and note enrichment API and browser, so successful AI proposals
+  remain readable without replacing the user's original notes.
+
 - 2026-11-08: Keep one live transcript bubble when the same participant
   resumes through a renewed technical identity.
 

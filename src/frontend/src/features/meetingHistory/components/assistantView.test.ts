@@ -33,7 +33,7 @@ const turn: MeetingAssistantTurn = {
       {
         citation_id: 'citation_0123456789abcdef',
         meeting_ref: 'meeting_0123456789abcdef',
-        source_kind: 'native_epoch',
+        source_kind: 'room_mix',
         source_ref: 'source_0123456789abcdef',
         source_version: 1,
         source_digest: 'a'.repeat(64),
