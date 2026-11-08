@@ -22,8 +22,8 @@ const segmentSeparator = (
   return ' '
 }
 
-const transcriptSourceKey = (segment: LiveTranscriptionSegment): string =>
-  JSON.stringify([segment.participantIdentity, segment.trackSid])
+const transcriptSpeakerKey = (segment: LiveTranscriptionSegment): string =>
+  segment.participantIdentity
 
 const appendSegmentText = (
   turn: LiveTranscriptionSegment,
@@ -52,17 +52,17 @@ export const groupLiveTranscriptSpeakerTurns = (
   segments: LiveTranscriptionSegment[]
 ): LiveTranscriptionSegment[] => {
   const turns: LiveTranscriptionSegment[] = []
-  const activeTurnBySource = new Map<string, LiveTranscriptionSegment>()
+  const activeTurnBySpeaker = new Map<string, LiveTranscriptionSegment>()
 
   for (const segment of segments) {
-    const sourceKey = transcriptSourceKey(segment)
-    const activeTurn = activeTurnBySource.get(sourceKey)
+    const speakerKey = transcriptSpeakerKey(segment)
+    const activeTurn = activeTurnBySpeaker.get(speakerKey)
     const pause = activeTurn ? segment.receivedAt - activeTurn.receivedAt : 0
     const interruptedByAnotherSpeaker = Array.from(
-      activeTurnBySource.entries()
+      activeTurnBySpeaker.entries()
     ).some(
-      ([otherSourceKey, otherTurn]) =>
-        otherSourceKey !== sourceKey &&
+      ([otherSpeakerKey, otherTurn]) =>
+        otherSpeakerKey !== speakerKey &&
         otherTurn.receivedAt > (activeTurn?.receivedAt ?? segment.receivedAt) &&
         pause >= OVERLAPPING_SPEECH_GRACE_MS
     )
@@ -72,17 +72,7 @@ export const groupLiveTranscriptSpeakerTurns = (
     if (!canContinueTurn) {
       const nextTurn = { ...segment }
       turns.push(nextTurn)
-
-      for (const [otherSourceKey, otherTurn] of activeTurnBySource) {
-        const participantChangedMicrophone =
-          otherSourceKey !== sourceKey &&
-          otherTurn.participantIdentity === segment.participantIdentity
-        if (participantChangedMicrophone) {
-          activeTurnBySource.delete(otherSourceKey)
-        }
-      }
-
-      activeTurnBySource.set(sourceKey, nextTurn)
+      activeTurnBySpeaker.set(speakerKey, nextTurn)
       continue
     }
 
