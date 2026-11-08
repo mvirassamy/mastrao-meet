@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-08: Keep one live transcript bubble when the same participant
+  resumes through a renewed technical identity.
+
 - 2026-11-08: Preserve every active microphone during live provider session
   turnover by reserving bounded capacity for draining predecessors.
 

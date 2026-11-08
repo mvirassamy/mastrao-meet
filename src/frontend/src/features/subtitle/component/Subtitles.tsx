@@ -128,12 +128,16 @@ const SubtitlesWrapper = styled(
 export const Subtitles = () => {
   const { areSubtitlesOpen } = useSubtitles()
   const room = useRoomContext()
-  const { segments: transcriptionSegments } = useLiveTranscription()
+  const { segments: transcriptionSegments, resolveSpeaker } =
+    useLiveTranscription()
 
   const transcriptionRows = useMemo(() => {
     if (transcriptionSegments.length === 0) return []
 
-    return groupLiveTranscriptSpeakerTurns(transcriptionSegments).map(
+    return groupLiveTranscriptSpeakerTurns(
+      transcriptionSegments,
+      (identity) => resolveSpeaker(identity)?.identity
+    ).map(
       (turn): TranscriptionRow => ({
         id: turn.key,
         participantIdentity: turn.participantIdentity,
@@ -144,7 +148,7 @@ export const Subtitles = () => {
         text: turn.text,
       })
     )
-  }, [room, transcriptionSegments])
+  }, [resolveSpeaker, room, transcriptionSegments])
 
   return (
     <SubtitlesWrapper areOpen={areSubtitlesOpen}>
