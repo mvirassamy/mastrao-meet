@@ -1,15 +1,23 @@
 import type { LiveTranscriptionSegment } from '../store/liveTranscriptionTypes'
 
 const PARAGRAPH_PAUSE_MS = 5_000
+const OVERLAPPING_SPEECH_GRACE_MS = 1_500
 const LEADING_PUNCTUATION = /^[,.!?;:…)]/
 const TRAILING_JOINER = /['’(-]$/
 
-const segmentSeparator = (previousText: string, nextText: string): string => {
+const segmentSeparator = (
+  previousText: string,
+  nextText: string,
+  pause: number
+): string => {
   if (
     LEADING_PUNCTUATION.test(nextText) ||
     TRAILING_JOINER.test(previousText)
   ) {
     return ''
+  }
+  if (pause >= PARAGRAPH_PAUSE_MS) {
+    return '\n\n'
   }
   return ' '
 }
@@ -19,11 +27,12 @@ const transcriptSourceKey = (segment: LiveTranscriptionSegment): string =>
 
 const appendSegmentText = (
   turn: LiveTranscriptionSegment,
-  segment: LiveTranscriptionSegment
+  segment: LiveTranscriptionSegment,
+  pause: number
 ) => {
   const nextText = segment.text.trim()
   const previousText = turn.text.trim()
-  turn.text = `${previousText}${segmentSeparator(previousText, nextText)}${nextText}`
+  turn.text = `${previousText}${segmentSeparator(previousText, nextText, pause)}${nextText}`
   turn.state = segment.state
   turn.sequence = segment.sequence
   turn.revision = segment.revision
@@ -34,10 +43,10 @@ const appendSegmentText = (
 /**
  * Build readable speaker turns without changing the ordered transcript state.
  *
- * A speaker can keep the same visible turn while another speaker interjects.
- * Provider speech windows may restart while the same microphone remains
- * connected. Only a track change or a pause of five seconds or more starts a
- * new turn.
+ * A speaker keeps one visible turn across pauses and provider speech-window
+ * restarts. Long pauses become paragraphs. Another established speaker starts
+ * the participant's next turn, while rapidly interleaved microphone fragments
+ * remain grouped as overlapping speech.
  */
 export const groupLiveTranscriptSpeakerTurns = (
   segments: LiveTranscriptionSegment[]
@@ -48,20 +57,36 @@ export const groupLiveTranscriptSpeakerTurns = (
   for (const segment of segments) {
     const sourceKey = transcriptSourceKey(segment)
     const activeTurn = activeTurnBySource.get(sourceKey)
-    const pause = activeTurn
-      ? segment.receivedAt - activeTurn.receivedAt
-      : PARAGRAPH_PAUSE_MS
+    const pause = activeTurn ? segment.receivedAt - activeTurn.receivedAt : 0
+    const interruptedByAnotherSpeaker = Array.from(
+      activeTurnBySource.entries()
+    ).some(
+      ([otherSourceKey, otherTurn]) =>
+        otherSourceKey !== sourceKey &&
+        otherTurn.receivedAt > (activeTurn?.receivedAt ?? segment.receivedAt) &&
+        pause >= OVERLAPPING_SPEECH_GRACE_MS
+    )
     const canContinueTurn =
-      activeTurn !== undefined && pause >= 0 && pause < PARAGRAPH_PAUSE_MS
+      activeTurn !== undefined && pause >= 0 && !interruptedByAnotherSpeaker
 
     if (!canContinueTurn) {
       const nextTurn = { ...segment }
       turns.push(nextTurn)
+
+      for (const [otherSourceKey, otherTurn] of activeTurnBySource) {
+        const participantChangedMicrophone =
+          otherSourceKey !== sourceKey &&
+          otherTurn.participantIdentity === segment.participantIdentity
+        if (participantChangedMicrophone) {
+          activeTurnBySource.delete(otherSourceKey)
+        }
+      }
+
       activeTurnBySource.set(sourceKey, nextTurn)
       continue
     }
 
-    appendSegmentText(activeTurn, segment)
+    appendSegmentText(activeTurn, segment, pause)
   }
 
   return turns

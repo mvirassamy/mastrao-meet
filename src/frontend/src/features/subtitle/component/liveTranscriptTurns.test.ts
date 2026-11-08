@@ -51,15 +51,37 @@ describe('groupLiveTranscriptSpeakerTurns', () => {
     ])
   })
 
-  it('starts a new turn after a five-second pause', () => {
+  it('keeps a long pause in the same turn as a new paragraph', () => {
     const turns = groupLiveTranscriptSpeakerTurns([
       segment('alice', 'Première phrase.', 1, { receivedAt: 1_000 }),
       segment('alice', 'Nouvelle phrase.', 2, { receivedAt: 6_000 }),
     ])
 
     expect(turns.map(({ text }) => text)).toEqual([
-      'Première phrase.',
-      'Nouvelle phrase.',
+      'Première phrase.\n\nNouvelle phrase.',
+    ])
+  })
+
+  it('starts a new turn when another speaker establishes the floor', () => {
+    const turns = groupLiveTranscriptSpeakerTurns([
+      segment('alice', 'Première intervention.', 1, { receivedAt: 1_000 }),
+      segment('bob', 'Je prends la parole.', 2, { receivedAt: 1_500 }),
+      segment('bob', 'Je poursuis.', 3, { receivedAt: 3_500 }),
+      segment('alice', 'Je reprends.', 4, { receivedAt: 4_000 }),
+    ])
+
+    expect(
+      turns.map(({ participantIdentity, text }) => ({
+        participantIdentity,
+        text,
+      }))
+    ).toEqual([
+      { participantIdentity: 'alice', text: 'Première intervention.' },
+      {
+        participantIdentity: 'bob',
+        text: 'Je prends la parole. Je poursuis.',
+      },
+      { participantIdentity: 'alice', text: 'Je reprends.' },
     ])
   })
 
