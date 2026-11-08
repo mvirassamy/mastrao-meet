@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-08: Preserve every active microphone during live provider session
+  turnover by reserving bounded capacity for draining predecessors.
+
 - 2026-11-08: Keep a live transcript speaker in the same bubble when their
   underlying microphone track is renewed before another participant speaks.
 

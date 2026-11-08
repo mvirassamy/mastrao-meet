@@ -585,6 +585,63 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         second_stream.allow_finish.set()
         await run.aclose()
 
+    async def test_two_speakers_resume_while_predecessors_drain_without_gaps(self):
+        """Normal two-speaker turnover keeps both microphones transcribed."""
+        alice_predecessor = BlockingDrainSpeechStream()
+        bob_predecessor = BlockingDrainSpeechStream()
+        alice_successor = FakeSpeechStream()
+        bob_successor = FakeSpeechStream()
+        providers = [
+            FakeProvider(alice_predecessor),
+            FakeProvider(bob_predecessor),
+            FakeProvider(alice_successor),
+            FakeProvider(bob_successor),
+        ]
+        failures = []
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(error):
+            failures.append(error)
+
+        run = create_room_audio_run_for_effect(
+            {"pipeline": "live", "source_profile": LIVE_SOURCE_PROFILE},
+            live_output=live_output(
+                lambda: providers.pop(0),
+                lambda: handle_event,
+                handle_failure,
+            ),
+        )
+        await run.start()
+        authorize_speaking_track(run, track_ref="TR_ALICE", identity="alice")
+        authorize_speaking_track(run, track_ref="TR_BOB", identity="bob")
+        await wait_for_frames(alice_predecessor, 1)
+        await wait_for_frames(bob_predecessor, 1)
+
+        run.revoke_track("TR_ALICE", generation=2, authorization_digest="b" * 64)
+        run.revoke_track("TR_BOB", generation=2, authorization_digest="c" * 64)
+        await asyncio.wait_for(alice_predecessor.finish_started.wait(), timeout=1)
+        await asyncio.wait_for(bob_predecessor.finish_started.wait(), timeout=1)
+
+        expires_at_ms = int(time.time() * 1_000) + 10_000
+        for track_ref, digest in (("TR_ALICE", "d" * 64), ("TR_BOB", "e" * 64)):
+            run.admit_track(
+                track_ref,
+                generation=3,
+                expires_at_ms=expires_at_ms,
+                authorization_digest=digest,
+            )
+            run._mixer.push_frame(track_ref, b"\xd0\x07" * 480)
+
+        await wait_for_frames(alice_successor, 1)
+        await wait_for_frames(bob_successor, 1)
+        self.assertEqual(failures, [])
+
+        alice_predecessor.allow_finish.set()
+        bob_predecessor.allow_finish.set()
+        await run.aclose()
+
     async def test_capacity_retry_is_gated_by_each_observed_release(self):
         """An irrelevant release cannot create a per-frame retry storm."""
         quota = ProviderSessionQuota(maximum_sessions=2)
