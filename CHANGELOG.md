@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-09: Preserve live microphone sessions across conversational pauses
+  and retry post-meeting ASR while its bounded finance window is closed.
+
 - 2026-11-09: Accept canonical Room Audio transcript citations in the meeting
   assistant and note enrichment API and browser, so successful AI proposals
   remain readable without replacing the user's original notes.

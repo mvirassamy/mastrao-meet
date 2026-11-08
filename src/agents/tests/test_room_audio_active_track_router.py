@@ -37,6 +37,33 @@ class RoomAudioActiveTrackRouterTests(unittest.TestCase):
         self.assertEqual(first_pause.track_frames, {"TR_A": bytes(5)})
         self.assertEqual(released.track_frames, {})
 
+    def test_keeps_each_microphone_session_across_a_conversational_pause(self):
+        """A four-second pause cannot churn two alternating speaker sessions."""
+        router = RoomAudioActiveTrackRouter(maximum_active_streams=3)
+        router.route(
+            speaking_frames={"TR_A": b"alice", "TR_B": b"bob!!"},
+            frame_byte_count=5,
+        )
+
+        paused = None
+        for _ in range(200):
+            paused = router.route(speaking_frames={}, frame_byte_count=5)
+
+        self.assertEqual(
+            paused.track_frames,
+            {"TR_A": bytes(5), "TR_B": bytes(5)},
+        )
+
+        resumed = router.route(
+            speaking_frames={"TR_A": b"alice", "TR_B": b"bob!!"},
+            frame_byte_count=5,
+        )
+        self.assertEqual(
+            resumed.track_frames,
+            {"TR_A": b"alice", "TR_B": b"bob!!"},
+        )
+        self.assertEqual(resumed.saturated_track_refs, frozenset())
+
     def test_reports_tracks_beyond_the_concurrency_bound(self):
         """The router fails closed instead of mixing a fourth speaker."""
         router = RoomAudioActiveTrackRouter(maximum_active_streams=2)
