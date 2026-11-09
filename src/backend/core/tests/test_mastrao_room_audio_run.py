@@ -35,6 +35,12 @@ pytestmark = pytest.mark.django_db
 ENDPOINT = "/internal/mastrao/room-audio/runs/dispatch/"
 
 
+def test_live_profile_finalizes_short_pauses_with_successor_capacity():
+    assert LIVE_SOURCE_PROFILE["hangover_ms"] == 500
+    assert LIVE_SOURCE_PROFILE["maximum_provider_sessions"] == 6
+    assert LIVE_SOURCE_PROFILE["maximum_draining_sessions"] == 6
+
+
 def test_semantic_digest_matches_tenant_core_canonical_json():
     effect = {
         "version": 2,
