@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
@@ -69,6 +69,20 @@ afterEach(() => {
 })
 
 describe('LiveTranscriptSidePanel', () => {
+  const segment = (key: string, text: string, sequence: number) => ({
+    key,
+    participantIdentity: 'alice',
+    trackSid: 'TR_alice',
+    legId: 'leg-1',
+    itemId: key,
+    state: 'final' as const,
+    text,
+    sequence,
+    revision: 1,
+    receivedAt: sequence,
+    metadataSource: 'envelope' as const,
+  })
+
   it('renders the track-bound transcript without a start or retry control', () => {
     useLiveTranscriptionMock.mockReturnValue({
       status: 'live',
@@ -178,5 +192,38 @@ describe('LiveTranscriptSidePanel', () => {
     expect(screen.getByText('Deux personnes restent lisibles.')).toBeTruthy()
     expect(screen.queryByText('Quand les deux')).toBeNull()
     expect(screen.queryByText('parlent ensemble.')).toBeNull()
+  })
+
+  it('follows new messages until the reader scrolls away from the bottom', () => {
+    let segments = [segment('segment-1', 'Premier message', 1)]
+    useLiveTranscriptionMock.mockImplementation(() => ({
+      status: 'live',
+      connectionStatus: 'connected',
+      segments,
+      resolveSpeaker: () => undefined,
+    }))
+
+    const { rerender } = render(<LiveTranscriptSidePanel />)
+    const transcript = screen.getByRole('log')
+    Object.defineProperties(transcript, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 500 },
+    })
+
+    segments = [...segments, segment('segment-2', 'Deuxième message', 2)]
+    rerender(<LiveTranscriptSidePanel />)
+    expect(transcript.scrollTop).toBe(500)
+
+    transcript.scrollTop = 100
+    fireEvent.scroll(transcript)
+    segments = [...segments, segment('segment-3', 'Message lu plus tard', 3)]
+    rerender(<LiveTranscriptSidePanel />)
+    expect(transcript.scrollTop).toBe(100)
+
+    transcript.scrollTop = 280
+    fireEvent.scroll(transcript)
+    segments = [...segments, segment('segment-4', 'Dernier message', 4)]
+    rerender(<LiveTranscriptSidePanel />)
+    expect(transcript.scrollTop).toBe(500)
   })
 })

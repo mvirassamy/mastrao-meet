@@ -39,6 +39,7 @@ from core.recording.services.metadata_collector import MetadataCollectorService
 
 MAX_BODY_BYTES = 32_768
 SPEAKER_EVIDENCE_DISPATCH_KEY = "mastrao_speaker_evidence_dispatch_id"
+SPEAKER_EVIDENCE_OBJECT_KEY = "mastrao_speaker_evidence_object_ref"
 SPEAKER_EVIDENCE_DISPATCH_PENDING = "pending"
 SPEAKER_EVIDENCE_PENDING_LEASE_SECONDS = 60
 SPEAKER_EVIDENCE_RECEIPT_SUFFIX = ".receipt.json"
@@ -543,6 +544,13 @@ def _claim_recording_for_capture(effect):
     ):
         raise RecordingContractRefused(status=503)
     recording = binding.recording
+    object_ref = _artifact_object_ref(effect)
+    existing_object_ref = recording.options.get(SPEAKER_EVIDENCE_OBJECT_KEY)
+    if existing_object_ref is not None and existing_object_ref != object_ref:
+        raise RecordingContractRefused(status=503)
+    if existing_object_ref is None:
+        recording.options[SPEAKER_EVIDENCE_OBJECT_KEY] = object_ref
+        recording.save(update_fields=["options"])
     dispatch_id = recording.options.get(SPEAKER_EVIDENCE_DISPATCH_KEY)
     if binding.state in SPEAKER_EVIDENCE_REPLAY_ONLY_STATES:
         if dispatch_id and not _is_pending_dispatch(dispatch_id):
