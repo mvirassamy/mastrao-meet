@@ -101,7 +101,8 @@ def test_oidc_token_endpoint_can_use_client_secret_basic():
                 "from configurations import importer; "
                 "importer.install(); "
                 "from django.conf import settings; "
-                "print(settings.OIDC_TOKEN_USE_BASIC_AUTH)"
+                "import sys; "
+                "sys.stdout.write(str(settings.OIDC_TOKEN_USE_BASIC_AUTH))"
             ),
         ],
         check=True,
