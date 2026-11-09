@@ -1,8 +1,7 @@
 # Changelog
 
-- 2026-11-09: Finalize live microphone provider windows after short pauses
-  while preserving continuous same-speaker browser turns, bounded successor
-  capacity, and post-meeting ASR retries during finance-window closure.
+- 2026-11-09: Preserve live microphone sessions across conversational pauses
+  and retry post-meeting ASR while its bounded finance window is closed.
 
 - 2026-11-09: Accept canonical Room Audio transcript citations in the meeting
   assistant and note enrichment API and browser, so successful AI proposals
