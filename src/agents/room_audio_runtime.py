@@ -18,6 +18,7 @@ from live_transcript_event import LiveTranscriptEvent
 from room_audio_active_track_router import RoomAudioActiveTrackRouter
 from room_audio_mixer import RoomAudioMixer, RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
+from room_audio_speaker_evidence import RoomAudioSpeakerTimeline
 
 LIVEKIT_AUDIO_STREAM_CAPACITY = 0
 LIVE_METRICS_INTERVAL_FRAMES = 500
@@ -72,6 +73,14 @@ class TrackSourceBinding:
     track_ref: str
     authority_generation: int
     session_generation: int
+
+
+@dataclass(frozen=True)
+class TrackParticipantBinding:
+    """Signed participant identity attached to one admitted microphone track."""
+
+    participant_ref: str
+    display_name: str | None
 
 
 TrackEventHandlerFactory = Callable[[TrackSourceBinding], TranscriptEventHandler]
@@ -235,6 +244,10 @@ class RoomAudioRun:
             live_output.track_event_handler_factory if live_output else None
         )
         self._artifact_sink = artifact_sink
+        self._speaker_timeline = (
+            RoomAudioSpeakerTimeline() if artifact_sink is not None else None
+        )
+        self._timeline_elapsed_ms = 0
         self._live_failure_handler = (
             live_output.failure_handler if live_output else None
         )
@@ -417,6 +430,7 @@ class RoomAudioRun:
         generation: int,
         expires_at_ms: int,
         authorization_digest: str,
+        participant: TrackParticipantBinding,
     ) -> None:
         """Apply exact Core admission to one observed track."""
         previous_generation = self._authority_generation_by_track.get(track_ref)
@@ -427,6 +441,12 @@ class RoomAudioRun:
             authorization_digest=authorization_digest,
         )
         self._authority_generation_by_track[track_ref] = generation
+        if self._speaker_timeline is not None:
+            self._speaker_timeline.register(
+                track_ref,
+                participant_ref=participant.participant_ref,
+                participant_label=participant.display_name,
+            )
         if previous_generation is not None and previous_generation != generation:
             self._schedule_track_close(track_ref)
 
@@ -462,6 +482,8 @@ class RoomAudioRun:
                 return_exceptions=True,
             )
             await self._cancel_task(self._clock_task)
+            if self._speaker_timeline is not None:
+                self._speaker_timeline.finish(ended_at_ms=self._timeline_elapsed_ms)
             async with self._provider_lock:
                 await self._close_all_track_sessions()
                 self._clear_all_capacity_waiters()
@@ -472,6 +494,11 @@ class RoomAudioRun:
         finally:
             self._closed = True
             self._closing = False
+
+    @property
+    def speaker_timeline(self) -> RoomAudioSpeakerTimeline | None:
+        """Return the post evidence timeline owned by this room run."""
+        return self._speaker_timeline
 
     async def _pump_track(self, track_ref: str, stream: rtc.AudioStream) -> None:
         """Copy decoded frames into the bounded mixer queue."""
@@ -488,6 +515,12 @@ class RoomAudioRun:
                 await self._fail_clock()
                 return
             pcm = self._mixer.mix_next_frame()
+            if self._speaker_timeline is not None:
+                self._speaker_timeline.observe(
+                    self._mixer.speaking_track_refs,
+                    at_ms=self._timeline_elapsed_ms,
+                )
+                self._timeline_elapsed_ms += round(self._frame_duration_seconds * 1_000)
             self._log_live_metrics()
             if self._artifact_sink is not None:
                 self._artifact_sink.write_frame(pcm)

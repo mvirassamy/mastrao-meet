@@ -115,9 +115,9 @@ def _speaker_participant_mapping(transcript, labels, intervals):
         if speaker_ref not in scores:
             continue
         for participant_ref, speech in intervals.items():
-            scores[speaker_ref][participant_ref] = sum(
-                _overlap_ms(segment, interval) for interval in speech
-            )
+            overlap = sum(_overlap_ms(segment, interval) for interval in speech)
+            previous = scores[speaker_ref].get(participant_ref, 0)
+            scores[speaker_ref][participant_ref] = previous + overlap
 
     mapping = {}
     for speaker_ref, participant_scores in scores.items():
@@ -136,14 +136,6 @@ def _speaker_participant_mapping(transcript, labels, intervals):
     return mapping
 
 
-def _has_labeled_overlap(segment, labels, intervals):
-    return any(
-        participant_ref in labels
-        and any(_overlap_ms(segment, interval) > 0 for interval in speech)
-        for participant_ref, speech in intervals.items()
-    )
-
-
 def map_speakers(transcript, speaker_evidence=None):
     """Use unambiguous VAD overlap; otherwise retain stable anonymous speakers."""
 
@@ -153,7 +145,7 @@ def map_speakers(transcript, speaker_evidence=None):
     anonymous = {}
     for segment in transcript["segments"]:
         label = _participant_for_segment(segment, labels, intervals)
-        if label is None and not _has_labeled_overlap(segment, labels, intervals):
+        if label is None:
             label = speaker_mapping.get(segment["speaker"]["ref"])
         if label is not None:
             segment["speaker"] = {"kind": "participant", "label": label}

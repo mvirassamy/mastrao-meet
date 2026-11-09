@@ -40,15 +40,23 @@ def build_room_audio_source_bundle(
     *,
     provider_session_ref: str,
     object_ref: str,
+    speaker_evidence_object_ref: str,
 ) -> RoomAudioSourceBundle:
-    """Convert one verified post completion into the shared v2 contract."""
+    """Convert one verified post completion into the shared v3 contract."""
     artifact = completion.artifact
-    if completion.effect.get("pipeline") != "post" or artifact is None:
+    evidence = completion.speaker_evidence
+    if (
+        completion.effect.get("pipeline") != "post"
+        or artifact is None
+        or evidence is None
+    ):
         raise ValueError("post room audio completion with artifact is required")
     if not PROVIDER_REFERENCE.fullmatch(provider_session_ref):
         raise ValueError("provider_session_ref is invalid")
     if not _is_safe_object_ref(object_ref):
         raise ValueError("object_ref is invalid")
+    if not _is_safe_object_ref(speaker_evidence_object_ref):
+        raise ValueError("speaker_evidence_object_ref is invalid")
     binding = _binding_from_effect(completion.effect)
     _validate_completion_bounds(completion)
     _validate_artifact(artifact)
@@ -66,7 +74,7 @@ def build_room_audio_source_bundle(
     if total_gap_ms > artifact.duration_ms:
         raise ValueError("room audio gaps exceed artifact duration")
     manifest = {
-        "version": 2,
+        "version": 3,
         "type": "mastrao.meeting-room-audio-source",
         **binding,
         "pipeline": "post",
@@ -95,6 +103,9 @@ def build_room_audio_source_bundle(
         "rtc_concealed_samples": completion.rtc.concealed_samples,
         "rtc_maximum_jitter_ms": completion.rtc.maximum_jitter_ms,
         "rtc_maximum_round_trip_time_ms": (completion.rtc.maximum_round_trip_time_ms),
+        "speaker_evidence_object_ref": speaker_evidence_object_ref,
+        "speaker_evidence_byte_size": evidence.byte_size,
+        "speaker_evidence_checksum_digest": evidence.sha256,
     }
     return RoomAudioSourceBundle(manifest=manifest, gaps=gaps)
 

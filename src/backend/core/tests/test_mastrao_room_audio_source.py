@@ -316,6 +316,24 @@ def test_v1_manifest_remains_accepted_during_worker_rollout(source_run):
     assert models.MastraoRoomAudioSourceOutbox.objects.get().manifest == manifest
 
 
+def test_v3_manifest_binds_room_owned_speaker_evidence(source_run):
+    manifest = _manifest(
+        source_run,
+        version=3,
+        speaker_evidence_object_ref=(f"room-audio-speaker-evidence/v1/{'a' * 64}.json"),
+        speaker_evidence_byte_size=2_048,
+        speaker_evidence_checksum_digest="b" * 64,
+    )
+    delivered = _core_success(body={"source_receipt": "unused"})
+    delivered.pop("compact")
+
+    with patch("core.mastrao_room_audio_source.post_core_json", return_value=delivered):
+        response = _post(source_run, manifest)
+
+    assert response.status_code == 200
+    assert models.MastraoRoomAudioSourceOutbox.objects.get().manifest == manifest
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

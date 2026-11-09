@@ -91,6 +91,12 @@ MANIFEST_V2_METRIC_FIELDS = {
     "rtc_maximum_round_trip_time_ms",
 }
 MANIFEST_V2_FIELDS = MANIFEST_V1_FIELDS | MANIFEST_V2_METRIC_FIELDS
+MANIFEST_V3_EVIDENCE_FIELDS = {
+    "speaker_evidence_object_ref",
+    "speaker_evidence_byte_size",
+    "speaker_evidence_checksum_digest",
+}
+MANIFEST_V3_FIELDS = MANIFEST_V2_FIELDS | MANIFEST_V3_EVIDENCE_FIELDS
 GAP_FIELDS = {"sequence", "generation", "started_at_ms", "ended_at_ms", "reason"}
 BINDING_FIELDS = {
     "organization_external_id",
@@ -192,7 +198,12 @@ def _delivery_claim_seconds():
 
 def _validate_manifest_shape(manifest, effect, dispatch_id):
     version = manifest.get("version")
-    expected_fields = MANIFEST_V2_FIELDS if version == 2 else MANIFEST_V1_FIELDS
+    if version == 3:
+        expected_fields = MANIFEST_V3_FIELDS
+    elif version == 2:
+        expected_fields = MANIFEST_V2_FIELDS
+    else:
+        expected_fields = MANIFEST_V1_FIELDS
     if set(manifest) != expected_fields:
         raise RecordingContractRefused()
     if any(manifest[name] != effect[name] for name in BINDING_FIELDS):
@@ -201,7 +212,7 @@ def _validate_manifest_shape(manifest, effect, dispatch_id):
     duration_ms = manifest["duration_ms"]
     if (
         not _is_int(manifest["version"])
-        or version not in {1, 2}
+        or version not in {1, 2, 3}
         or manifest["type"] != "mastrao.meeting-room-audio-source"
         or manifest["pipeline"] != "post"
         or effect["pipeline"] != "post"
@@ -234,12 +245,25 @@ def _validate_manifest_shape(manifest, effect, dispatch_id):
         or not 0 <= manifest["total_gap_ms"] <= duration_ms
     ):
         raise RecordingContractRefused()
-    if version == 2 and any(
+    if version in {2, 3} and any(
         not _is_int(manifest[name]) or manifest[name] < 0
         for name in MANIFEST_V2_METRIC_FIELDS
     ):
         raise RecordingContractRefused()
-    if version == 2 and manifest["rtc_sample_count"] < 1:
+    if version in {2, 3} and manifest["rtc_sample_count"] < 1:
+        raise RecordingContractRefused()
+    if version == 3 and (
+        not isinstance(manifest["speaker_evidence_object_ref"], str)
+        or not OBJECT_REFERENCE.fullmatch(manifest["speaker_evidence_object_ref"])
+        or any(
+            part in {"", ".", ".."}
+            for part in manifest["speaker_evidence_object_ref"].split("/")
+        )
+        or not _is_int(manifest["speaker_evidence_byte_size"])
+        or not 1 <= manifest["speaker_evidence_byte_size"] <= 5_000_000
+        or not isinstance(manifest["speaker_evidence_checksum_digest"], str)
+        or not DIGEST.fullmatch(manifest["speaker_evidence_checksum_digest"])
+    ):
         raise RecordingContractRefused()
 
 
