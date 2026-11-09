@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-ACTIVE_TRACK_RELEASE_SILENCE_FRAMES = 250
+ACTIVE_TRACK_RELEASE_SILENCE_FRAMES = 25
 
 
 @dataclass(frozen=True)

@@ -90,7 +90,7 @@ class RoomAudioRuntimeConfig:
     maximum_active_track_streams: int = 3
     maximum_provider_sessions: int = 3
     maximum_draining_sessions: int = 3
-    active_track_hangover_ms: int = 5_000
+    active_track_hangover_ms: int = 500
     opening_timeout_seconds: float = 10.0
     shutdown_timeout_seconds: float = 10.0
 

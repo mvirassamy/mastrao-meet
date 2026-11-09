@@ -190,6 +190,12 @@ def authorize_speaking_track(
 class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
     """Validate cardinality, forwarding and shutdown invariants."""
 
+    def test_live_profile_finalizes_short_pauses_with_successor_capacity(self):
+        """Fast finalization keeps the independent drain-capacity safeguard."""
+        self.assertEqual(LIVE_SOURCE_PROFILE["hangover_ms"], 500)
+        self.assertEqual(LIVE_SOURCE_PROFILE["maximum_provider_sessions"], 6)
+        self.assertEqual(LIVE_SOURCE_PROFILE["maximum_draining_sessions"], 6)
+
     def test_requires_at_least_one_pipeline_output(self):
         """A run cannot consume room audio without a declared output."""
         with self.assertRaisesRegex(
