@@ -396,6 +396,31 @@ def test_authenticate_verifies_the_id_token_and_keeps_pkce(
     assert captured_payload["code_verifier"] == "v" * 64
 
 
+def test_token_exchange_uses_basic_client_authentication(settings, monkeypatch):
+    """Meet authenticates to a provider registered for client_secret_basic."""
+
+    instance = build_backend(settings, OIDC_TOKEN_USE_BASIC_AUTH=True)
+    response = requests.Response()
+    response.status_code = 200
+    response._content = b'{"access_token":"access-token"}'
+    post = mock.Mock(return_value=response)
+    monkeypatch.setattr("mozilla_django_oidc.auth.requests.post", post)
+
+    token = instance.get_token(
+        {
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "code": "authorization-code",
+        }
+    )
+
+    request = post.call_args
+    assert token == {"access_token": "access-token"}
+    assert request.kwargs["auth"].username == CLIENT_ID
+    assert request.kwargs["auth"].password == CLIENT_SECRET
+    assert "client_secret" not in request.kwargs["data"]
+
+
 def test_authenticate_rejects_an_id_token_for_another_client(
     backend, signing_key, monkeypatch
 ):
