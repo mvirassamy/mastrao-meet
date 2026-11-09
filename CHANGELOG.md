@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-09: Keep the live transcript pinned to its latest message and
+  preserve participant names in the final Room Audio transcript.
+
 - 2026-11-09: Preserve live microphone sessions across conversational pauses
   and retry post-meeting ASR while its bounded finance window is closed.
 

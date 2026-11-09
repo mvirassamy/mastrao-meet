@@ -70,7 +70,7 @@ def _local_room_audio_prepare_fixture(audio=b"verified-room-audio"):
         "source_id": source_id,
         "run_id": "22222222-2222-4222-8222-222222222222",
         "coverage": "room_mix",
-        "speaker_attribution": "none",
+        "speaker_attribution": "participant_evidence",
         "metadata": {
             "audio_sha256": audio_digest,
             "provider": "mistral",
@@ -373,6 +373,7 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
                     "segment_id": "segment_1",
                     "start_ms": 0,
                     "end_ms": 1_000,
+                    "speaker": {"kind": "acoustic", "ref": "speaker_0"},
                     "text": "Bonjour depuis la salle.",
                 }
             ],
@@ -410,7 +411,7 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
             ),
             "source_id": prepared["source_id"],
             "coverage": "room_mix",
-            "speaker_attribution": "none",
+            "speaker_attribution": "participant_evidence",
             "outcome": "verified",
         }
 
@@ -423,6 +424,32 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
             "core.mastrao_room_audio_asr_client.post_core_json",
             side_effect=accept_result,
         ) as post_core,
+        patch(
+            "core.mastrao_room_audio_asr_client.read_speaker_evidence",
+            return_value={
+                "participants": [
+                    {
+                        "participant_ref": "participant_matthias",
+                        "display_name_events": [
+                            {"effective_at_ms": 0, "label": "Matthias"}
+                        ],
+                    }
+                ],
+                "events": [
+                    {
+                        "participant_ref": "participant_matthias",
+                        "type": "speech_start",
+                        "at_ms": 0,
+                    },
+                    {
+                        "participant_ref": "participant_matthias",
+                        "type": "speech_end",
+                        "at_ms": 1_000,
+                    },
+                ],
+                "timeline_ended_at_ms": 1_000,
+            },
+        ),
     ):
         receipt = upload_room_audio_asr_result(source, prepared, result)
         retry_receipt = upload_room_audio_asr_result(source, prepared, result)
@@ -435,6 +462,10 @@ def test_result_upload_preserves_gateway_cost_and_provenance():
     assert artifact["grant_semantic_digest"] == "c" * 64
     assert artifact["provider_egress_opened_at"] == 1_000
     assert artifact["provider_completed_at"] == 1_001
+    assert artifact["segments"][0]["speaker"] == {
+        "kind": "participant",
+        "label": "Matthias",
+    }
     assert receipt["attempt_ref"] == "room_asr_attempt_123"
     assert receipt["fingerprint"] == "f" * 64
     assert receipt["core"]["result_ref"] == artifact["result_ref"]

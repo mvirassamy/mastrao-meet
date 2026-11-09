@@ -1,6 +1,7 @@
 """Room-mix ASR protocol. Tenant Core owns grants and canonical results."""
 
 import base64
+import copy
 import hashlib
 import json
 import re
@@ -17,6 +18,8 @@ from core.mastrao_asr_gateway_response import read_asr_gateway_response
 from core.mastrao_core_http import post_core_json, read_bounded_core_json
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
 from core.mastrao_room_audio_authorization import room_audio_envelope
+from core.mastrao_speaker_evidence_reader import read_speaker_evidence
+from core.mastrao_speaker_mapping import map_speakers
 
 PREPARE_PATH = "/internal/v1/meetings/room-audio/asr/prepare"
 RESULT_PATH = "/internal/v1/meetings/room-audio/asr/result"
@@ -104,7 +107,7 @@ def prepare_room_audio_asr(source):
         raise RecordingContractRefused(status=503)
     if prepared["coverage"] != "room_mix":
         raise RecordingContractRefused(status=503)
-    if prepared["speaker_attribution"] != "none":
+    if prepared["speaker_attribution"] != "participant_evidence":
         raise RecordingContractRefused(status=503)
     if not isinstance(prepared["metadata"], dict):
         raise RecordingContractRefused(status=503)
@@ -180,7 +183,10 @@ def transcribe_room_audio(prepared, audio):
 
 def upload_room_audio_asr_result(source, prepared, result):
     """Upload one canonical room transcript with exact cost and provenance."""
-    transcript = result["transcript"]
+    transcript = map_speakers(
+        copy.deepcopy(result["transcript"]),
+        read_speaker_evidence(source),
+    )
     usage = result.get("usage")
     provenance = result.get("provenance")
     if (
@@ -227,7 +233,7 @@ def upload_room_audio_asr_result(source, prepared, result):
                     key: segment[key]
                     for key in ("segment_id", "start_ms", "end_ms", "text")
                 },
-                "speaker": None,
+                "speaker": segment["speaker"],
                 **(
                     {"confidence": segment["confidence"]}
                     if "confidence" in segment
@@ -285,7 +291,7 @@ def upload_room_audio_asr_result(source, prepared, result):
         raise RecordingContractRefused(status=503)
     if receipt["coverage"] != "room_mix":
         raise RecordingContractRefused(status=503)
-    if receipt["speaker_attribution"] != "none":
+    if receipt["speaker_attribution"] != "participant_evidence":
         raise RecordingContractRefused(status=503)
     return {
         "core": receipt,

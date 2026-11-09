@@ -366,6 +366,10 @@ def test_speaker_evidence_capture_reuses_active_dispatch_without_receipt():
     binding.recording.save(update_fields=["options"])
     with (
         mock.patch(
+            "core.mastrao_speaker_evidence_adapter.default_storage.exists",
+            return_value=False,
+        ),
+        mock.patch(
             "core.mastrao_speaker_evidence_adapter.MetadataCollectorService.start"
         ) as start,
         mock.patch(
@@ -376,6 +380,10 @@ def test_speaker_evidence_capture_reuses_active_dispatch_without_receipt():
         assert _apply_capture(_effect(binding)) == "receipt.payload.signature"
 
     start.assert_not_called()
+    binding.recording.refresh_from_db()
+    assert binding.recording.options["mastrao_speaker_evidence_object_ref"] == (
+        "mastrao-speaker-evidence/evidence_0123456789abcdef0123456789abcdef.json"
+    )
 
 
 def _guest_grant(binding, *, suffix, display_name, admitted):

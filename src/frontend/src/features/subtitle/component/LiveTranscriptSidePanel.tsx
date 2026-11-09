@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Text } from '@/primitives'
 import { Spinner } from '@/primitives/Spinner'
@@ -13,6 +14,8 @@ import { groupLiveTranscriptSpeakerTurns } from './liveTranscriptTurns'
 import { getLiveTranscriptSpeakerLabel } from './liveTranscriptSpeakerLabel'
 
 type EmptyTranscriptNotice = 'starting' | 'waiting' | 'stopped' | 'unavailable'
+
+const FOLLOW_LATEST_THRESHOLD_PX = 24
 
 /** What to say while no one has been transcribed yet, in plain words. */
 const emptyTranscriptNotice = (
@@ -151,6 +154,25 @@ export const LiveTranscriptSidePanel = () => {
     (identity) => resolveSpeaker(identity)?.identity
   )
   const isInterrupted = connectionStatus !== 'connected'
+  const transcriptRef = useRef<HTMLDivElement>(null)
+  const followsLatestRef = useRef(true)
+  const latestTurn = speakerTurns.at(-1)
+
+  useLayoutEffect(() => {
+    const transcript = transcriptRef.current
+    if (!transcript || !followsLatestRef.current) return
+
+    transcript.scrollTop = transcript.scrollHeight
+  }, [latestTurn?.key, latestTurn?.text])
+
+  const rememberScrollPosition = () => {
+    const transcript = transcriptRef.current
+    if (!transcript) return
+
+    const distanceFromBottom =
+      transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight
+    followsLatestRef.current = distanceFromBottom <= FOLLOW_LATEST_THRESHOLD_PX
+  }
 
   return (
     <div
@@ -170,6 +192,7 @@ export const LiveTranscriptSidePanel = () => {
       </span>
 
       <div
+        ref={transcriptRef}
         className={css({
           display: 'flex',
           flexDirection: 'column',
@@ -181,6 +204,7 @@ export const LiveTranscriptSidePanel = () => {
         role="log"
         aria-live="off"
         aria-label={t('segmentsLabel')}
+        onScroll={rememberScrollPosition}
       >
         {/* While interrupted, the floating bubble already says what happens. */}
         {!hasSegments && !isInterrupted && (
