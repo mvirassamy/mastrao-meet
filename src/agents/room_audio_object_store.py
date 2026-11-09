@@ -9,8 +9,10 @@ from typing import Protocol
 from minio.error import S3Error
 
 from room_audio_ogg import RoomAudioArtifact
+from room_audio_speaker_evidence import RoomAudioSpeakerEvidenceArtifact
 
 ROOM_AUDIO_PREFIX = "room-audio/v1"
+SPEAKER_EVIDENCE_PREFIX = "room-audio-speaker-evidence/v1"
 MISSING_OBJECT_CODES = frozenset({"NoSuchKey", "NoSuchObject", "NotFound"})
 
 
@@ -59,6 +61,19 @@ class RoomAudioObjectStore:
     def persist(self, audio_run_ref: str, artifact: RoomAudioArtifact) -> str:
         """Create once, recover ambiguous responses, and verify durable bytes."""
         object_ref = self.object_ref(audio_run_ref)
+        return self._persist(object_ref, artifact, content_type="audio/ogg")
+
+    def persist_speaker_evidence(
+        self,
+        audio_run_ref: str,
+        artifact: RoomAudioSpeakerEvidenceArtifact,
+    ) -> str:
+        """Persist the source-bound participant timeline beside room audio."""
+        object_ref = self.speaker_evidence_object_ref(audio_run_ref)
+        return self._persist(object_ref, artifact, content_type="application/json")
+
+    def _persist(self, object_ref: str, artifact, *, content_type: str) -> str:
+        """Create one immutable object and prove its exact durable identity."""
         expected = _ExpectedObject.from_artifact(artifact)
         existing = self._read_expected_state(object_ref, expected)
         if existing == "exact":
@@ -72,7 +87,7 @@ class RoomAudioObjectStore:
                 object_ref,
                 BytesIO(artifact.content),
                 artifact.byte_size,
-                content_type="audio/ogg",
+                content_type=content_type,
                 metadata={"sha256": artifact.sha256},
             )
         except (OSError, S3Error) as error:
@@ -99,6 +114,14 @@ class RoomAudioObjectStore:
             raise ValueError("audio_run_ref is invalid")
         digest = sha256(audio_run_ref.encode("utf-8")).hexdigest()
         return f"{ROOM_AUDIO_PREFIX}/{digest}.ogg"
+
+    @staticmethod
+    def speaker_evidence_object_ref(audio_run_ref: str) -> str:
+        """Derive a stable JSON key from the same opaque run reference."""
+        if not audio_run_ref or audio_run_ref.strip() != audio_run_ref:
+            raise ValueError("audio_run_ref is invalid")
+        digest = sha256(audio_run_ref.encode("utf-8")).hexdigest()
+        return f"{SPEAKER_EVIDENCE_PREFIX}/{digest}.json"
 
     def _read_expected_state(self, object_ref: str, expected: _ExpectedObject) -> str:
         """Classify storage state as missing, exact, or conflicting."""

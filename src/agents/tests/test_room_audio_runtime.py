@@ -12,6 +12,7 @@ from room_audio_runtime import (
     RoomAudioRun,
     RoomAudioRuntimeConfig,
     RoomLiveOutput,
+    TrackParticipantBinding,
     create_room_audio_run_for_effect,
 )
 from room_audio_start_authority import LIVE_SOURCE_PROFILE
@@ -183,6 +184,7 @@ def authorize_speaking_track(
         generation=1,
         expires_at_ms=int(time.time() * 1_000) + 10_000,
         authorization_digest="a" * 64,
+        participant=TrackParticipantBinding(identity, identity),
     )
     run._mixer.push_frame(track_ref, pcm)
 
@@ -502,6 +504,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             generation=3,
             expires_at_ms=int(time.time() * 1_000) + 10_000,
             authorization_digest="c" * 64,
+            participant=TrackParticipantBinding("alice", "alice"),
         )
         run._mixer.push_frame("TR_A", b"\xd0\x07" * 480)
         await asyncio.wait_for(predecessor_stream.finish_started.wait(), timeout=1)
@@ -564,6 +567,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             generation=3,
             expires_at_ms=int(time.time() * 1_000) + 10_000,
             authorization_digest="d" * 64,
+            participant=TrackParticipantBinding("alice", "alice"),
         )
         run._mixer.push_frame("TR_A", b"\xd0\x07" * 480)
         await asyncio.wait_for(second_stream.finish_started.wait(), timeout=1)
@@ -631,6 +635,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 generation=3,
                 expires_at_ms=expires_at_ms,
                 authorization_digest=digest,
+                participant=TrackParticipantBinding(track_ref, track_ref),
             )
             run._mixer.push_frame(track_ref, b"\xd0\x07" * 480)
 
@@ -1157,6 +1162,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
             generation=1,
             expires_at_ms=int(time.time() * 1_000) + 10_000,
             authorization_digest="c" * 64,
+            participant=TrackParticipantBinding("bob", "bob"),
         )
 
         run.revoke_track("TR_FIRST", generation=2, authorization_digest="b" * 64)
@@ -1430,6 +1436,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 generation=1,
                 expires_at_ms=expires_at_ms,
                 authorization_digest="a" * 64,
+                participant=TrackParticipantBinding(track_ref, track_ref),
             )
         alice_pcm = b"\xe8\x03" * 480
         bob_pcm = b"\xd0\x07" * 480
@@ -1498,6 +1505,7 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
                 generation=1,
                 expires_at_ms=expires_at_ms,
                 authorization_digest="a" * 64,
+                participant=TrackParticipantBinding(track_ref, track_ref),
             )
         run._mixer.push_frame("TR_A", b"\xe8\x03" * 480)
         run._mixer.push_frame("TR_B", b"\xd0\x07" * 480)

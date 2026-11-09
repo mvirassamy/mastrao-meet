@@ -8,6 +8,7 @@ from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 from room_audio_rtc import RoomAudioRtcSnapshot
 from room_audio_session import RoomAudioCompletion, RoomAudioGap
+from room_audio_speaker_evidence import RoomAudioSpeakerEvidenceArtifact
 
 
 def _effect():
@@ -71,6 +72,11 @@ def _completion(*, pipeline="post", duration_ms=10_000, gaps=()):
             maximum_jitter_ms=7,
             maximum_round_trip_time_ms=30,
         ),
+        speaker_evidence=RoomAudioSpeakerEvidenceArtifact(
+            content=b"{}",
+            byte_size=2,
+            sha256=sha256(b"{}").hexdigest(),
+        ),
     )
 
 
@@ -92,6 +98,9 @@ class RoomAudioManifestTests(unittest.TestCase):
             _completion(gaps=gaps),
             provider_session_ref="dispatch_12345678",
             object_ref="room-audio/audio_run_fixture_12345678.ogg",
+            speaker_evidence_object_ref=(
+                f"room-audio-speaker-evidence/v1/{'e' * 64}.json"
+            ),
         )
 
         self.assertEqual(bundle.manifest["pipeline"], "post")
@@ -100,7 +109,7 @@ class RoomAudioManifestTests(unittest.TestCase):
         self.assertEqual(bundle.manifest["generation_count"], 2)
         self.assertEqual(bundle.manifest["gap_count"], 1)
         self.assertEqual(bundle.manifest["total_gap_ms"], 120)
-        self.assertEqual(bundle.manifest["version"], 2)
+        self.assertEqual(bundle.manifest["version"], 3)
         self.assertEqual(bundle.manifest["mixer_underrun_frame_count"], 2)
         self.assertEqual(bundle.manifest["rtc_packets_received"], 1_000)
         self.assertEqual(bundle.manifest["rtc_maximum_round_trip_time_ms"], 30)
@@ -125,6 +134,9 @@ class RoomAudioManifestTests(unittest.TestCase):
                 _completion(pipeline="live"),
                 provider_session_ref="dispatch_12345678",
                 object_ref="room-audio/audio_run_fixture_12345678.ogg",
+                speaker_evidence_object_ref=(
+                    f"room-audio-speaker-evidence/v1/{'e' * 64}.json"
+                ),
             )
 
     def test_refuses_gap_outside_completed_run(self):
@@ -141,6 +153,9 @@ class RoomAudioManifestTests(unittest.TestCase):
                 _completion(gaps=(gap,)),
                 provider_session_ref="dispatch_12345678",
                 object_ref="room-audio/audio_run_fixture_12345678.ogg",
+                speaker_evidence_object_ref=(
+                    f"room-audio-speaker-evidence/v1/{'e' * 64}.json"
+                ),
             )
 
     def test_refuses_malformed_storage_reference(self):
@@ -150,6 +165,9 @@ class RoomAudioManifestTests(unittest.TestCase):
                 _completion(),
                 provider_session_ref="dispatch_12345678",
                 object_ref="room-audio/../../private-secret",
+                speaker_evidence_object_ref=(
+                    f"room-audio-speaker-evidence/v1/{'e' * 64}.json"
+                ),
             )
 
 

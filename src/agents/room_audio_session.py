@@ -15,6 +15,7 @@ from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 from room_audio_rtc import RoomAudioRtcObserver, RoomAudioRtcSnapshot
 from room_audio_runtime import RoomAudioRun
+from room_audio_speaker_evidence import RoomAudioSpeakerEvidenceArtifact
 
 logger = logging.getLogger("room-audio-worker.session")
 
@@ -42,6 +43,7 @@ class RoomAudioCompletion:
     gaps: tuple[RoomAudioGap, ...]
     mixer: RoomAudioMixerSnapshot
     rtc: RoomAudioRtcSnapshot
+    speaker_evidence: RoomAudioSpeakerEvidenceArtifact | None
 
 
 CompletionHandler = Callable[[RoomAudioCompletion], Awaitable[None]]
@@ -170,6 +172,12 @@ class RoomAudioSession:
                 mixer = self._runtime.snapshot()
                 rtc_snapshot = await self._rtc_observer.finish()
                 artifact = await self._runtime.aclose()
+                speaker_evidence = None
+                if self._runtime.speaker_timeline is not None:
+                    speaker_evidence = self._runtime.speaker_timeline.artifact(
+                        meeting_ref=self._effect["meeting_ref"],
+                        room_ref=self._effect["room_ref"],
+                    )
                 await self._handlers.complete(
                     RoomAudioCompletion(
                         effect=dict(self._effect),
@@ -181,6 +189,7 @@ class RoomAudioSession:
                         gaps=tuple(self._gaps),
                         mixer=mixer,
                         rtc=rtc_snapshot,
+                        speaker_evidence=speaker_evidence,
                     )
                 )
             except Exception as error:

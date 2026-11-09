@@ -17,6 +17,7 @@ from room_audio_authority import (
     RoomAudioAuthorityConfig,
     RoomAudioAuthorityRefused,
 )
+from room_audio_runtime import TrackParticipantBinding
 
 
 def _encode(value: bytes) -> str:
@@ -68,6 +69,7 @@ class RoomAudioAuthorityTests(unittest.TestCase):
             generation=1,
             expires_at_ms=(self.now + 1_800) * 1_000,
             authorization_digest="d" * 64,
+            participant=TrackParticipantBinding("participant_legal", "Matthias"),
         )
         with self.assertRaises(RoomAudioAuthorityRefused):
             self.authority.consume(packet, observed_at=self.now)
@@ -134,7 +136,7 @@ class RoomAudioAuthorityTests(unittest.TestCase):
 
     def _effect(self, **overrides):
         effect = {
-            "version": 2,
+            "version": 3,
             "type": "mastrao.core-meeting-room-audio-track-effect",
             "issuer": "tenant-core",
             "audience": "meeting-room-audio-worker",
@@ -152,6 +154,11 @@ class RoomAudioAuthorityTests(unittest.TestCase):
             "pipeline": "post",
             "authorization_generation": 1,
             "track_ref": "TR_legaltrack",
+            "participant_ref": "participant_legal",
+            "participant_label": {
+                "source": "meet_session_display_name",
+                "display_name": "Matthias",
+            },
             "media_token_binding_ref": "media_binding_legal",
             "authorization_ref": "authorization_legal",
             "authorization_digest": "d" * 64,

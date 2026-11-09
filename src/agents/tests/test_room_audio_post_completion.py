@@ -9,6 +9,7 @@ from room_audio_ogg import RoomAudioArtifact
 from room_audio_post_completion import RoomAudioPostCompletion
 from room_audio_rtc import RoomAudioRtcSnapshot
 from room_audio_session import RoomAudioCompletion
+from room_audio_speaker_evidence import RoomAudioSpeakerEvidenceArtifact
 
 
 def _effect(pipeline="post"):
@@ -66,6 +67,15 @@ def _completion(pipeline="post"):
             maximum_jitter_ms=2,
             maximum_round_trip_time_ms=10,
         ),
+        speaker_evidence=(
+            RoomAudioSpeakerEvidenceArtifact(
+                content=b"{}",
+                byte_size=2,
+                sha256=sha256(b"{}").hexdigest(),
+            )
+            if pipeline == "post"
+            else None
+        ),
     )
 
 
@@ -76,8 +86,14 @@ class RoomAudioPostCompletionTests(unittest.IsolatedAsyncioTestCase):
         """Create explicit in-memory completion collaborators."""
         self.object_store = Mock()
         self.object_store.object_ref.return_value = f"room-audio/v1/{'a' * 64}.ogg"
+        self.object_store.speaker_evidence_object_ref.return_value = (
+            f"room-audio-speaker-evidence/v1/{'b' * 64}.json"
+        )
         self.object_store.persist.return_value = (
             self.object_store.object_ref.return_value
+        )
+        self.object_store.persist_speaker_evidence.return_value = (
+            self.object_store.speaker_evidence_object_ref.return_value
         )
         self.publisher = AsyncMock()
         self.handler = RoomAudioPostCompletion(
@@ -98,6 +114,9 @@ class RoomAudioPostCompletionTests(unittest.IsolatedAsyncioTestCase):
         self.object_store.persist.assert_called_once_with(
             "audio_run_fixture_12345678", completion.artifact
         )
+        self.object_store.persist_speaker_evidence.assert_called_once_with(
+            "audio_run_fixture_12345678", completion.speaker_evidence
+        )
         bundle = self.publisher.publish.await_args.args[0]
         self.assertEqual(
             bundle.manifest["object_ref"], self.object_store.object_ref.return_value
@@ -111,6 +130,7 @@ class RoomAudioPostCompletionTests(unittest.IsolatedAsyncioTestCase):
 
         self.object_store.object_ref.assert_not_called()
         self.object_store.persist.assert_not_called()
+        self.object_store.persist_speaker_evidence.assert_not_called()
         self.publisher.publish.assert_not_awaited()
 
     async def test_refuses_storage_reference_changed_during_persistence(self):

@@ -15,7 +15,7 @@ from room_audio_jws import (
     RoomAudioJwsRefused,
     RoomAudioJwsVerifier,
 )
-from room_audio_runtime import RoomAudioRun
+from room_audio_runtime import RoomAudioRun, TrackParticipantBinding
 
 logger = logging.getLogger("room-audio-worker.authority")
 
@@ -23,7 +23,8 @@ AUTHORITY_TOPIC = "mastrao.room-audio.track-authority.v1"
 JOSE_TYPE = "mastrao-meeting-room-audio-track-effect+jws"
 MAX_EFFECT_LIFETIME_SECONDS = 30
 MAX_AUTHORIZATION_LIFETIME_SECONDS = 14_400
-CONTRACT_VERSION = 2
+MAX_PARTICIPANT_LABEL_LENGTH = 160
+CONTRACT_VERSION = 3
 REFERENCE = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 TRACK_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,200}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
@@ -46,6 +47,8 @@ FIELDS = {
     "pipeline",
     "authorization_generation",
     "track_ref",
+    "participant_ref",
+    "participant_label",
     "media_token_binding_ref",
     "authorization_ref",
     "authorization_digest",
@@ -174,6 +177,7 @@ class RoomAudioAuthority:
             "room_ref",
             "audio_run_ref",
             "policy_ref",
+            "participant_ref",
             "media_token_binding_ref",
             "authorization_ref",
             "jti",
@@ -184,6 +188,21 @@ class RoomAudioAuthority:
                 raise RoomAudioAuthorityRefused(f"invalid {name}")
         if not TRACK_REFERENCE.fullmatch(effect["track_ref"]):
             raise RoomAudioAuthorityRefused("invalid track_ref")
+        label = effect["participant_label"]
+        if (
+            not isinstance(label, dict)
+            or set(label) != {"source", "display_name"}
+            or label["source"] != "meet_session_display_name"
+            or (
+                label["display_name"] is not None
+                and (
+                    not isinstance(label["display_name"], str)
+                    or not label["display_name"].strip()
+                    or len(label["display_name"]) > MAX_PARTICIPANT_LABEL_LENGTH
+                )
+            )
+        ):
+            raise RoomAudioAuthorityRefused("invalid participant_label")
         for name in (
             "policy_digest",
             "notice_digest",
@@ -202,6 +221,10 @@ class RoomAudioAuthority:
             self._runtime.admit_track(
                 effect["track_ref"],
                 expires_at_ms=effect["authorization_expires_at"] * 1_000,
+                participant=TrackParticipantBinding(
+                    participant_ref=effect["participant_ref"],
+                    display_name=effect["participant_label"]["display_name"],
+                ),
                 **arguments,
             )
             return

@@ -281,6 +281,37 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(completion.artifact)
         self.assertEqual(completion.reason, "live-complete")
 
+    async def test_post_completion_includes_bound_speaker_evidence(self):
+        """A post run binds its speaker timeline to the signed meeting and room."""
+        room = FakeRoom([_participant("human")])
+        runtime = self._runtime()
+        speaker_evidence = object()
+        runtime.speaker_timeline = Mock()
+        runtime.speaker_timeline.artifact.return_value = speaker_evidence
+        handler = AsyncMock()
+        effect = {
+            **_effect(),
+            "meeting_ref": "meeting_fixture_12345678",
+            "room_ref": "room_fixture_12345678",
+        }
+        session = RoomAudioSession(
+            room=room,
+            effect=effect,
+            runtime=runtime,
+            authority=Mock(),
+            handlers=_handlers(handler),
+        )
+
+        await session.start()
+        await session.aclose("post-complete")
+
+        runtime.speaker_timeline.artifact.assert_called_once_with(
+            meeting_ref="meeting_fixture_12345678",
+            room_ref="room_fixture_12345678",
+        )
+        completion = handler.await_args.args[0]
+        self.assertIs(completion.speaker_evidence, speaker_evidence)
+
     async def test_reconnect_records_gap_and_advances_generation(self):
         """A LiveKit reconnect produces one bounded, content-free source gap."""
         room = FakeRoom([_participant("human")])
@@ -394,6 +425,7 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
 
         runtime.start = AsyncMock()
         runtime.aclose = AsyncMock(return_value=artifact)
+        runtime.speaker_timeline = None
         runtime.has_live_output = False
         runtime.restart_live = AsyncMock()
         runtime.wait_terminal_failure = AsyncMock(side_effect=wait_terminal_failure)

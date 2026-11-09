@@ -17,6 +17,10 @@ class _ObjectStore(Protocol):
 
     def persist(self, audio_run_ref: str, artifact: RoomAudioArtifact) -> str: ...
 
+    def speaker_evidence_object_ref(self, audio_run_ref: str) -> str: ...
+
+    def persist_speaker_evidence(self, audio_run_ref: str, artifact) -> str: ...
+
 
 class RoomAudioSourcePublisher(Protocol):
     """Publish one exact source bundle to its canonical Core owner."""
@@ -48,10 +52,14 @@ class RoomAudioPostCompletion:
             raise ValueError("post room audio completion with artifact is required")
         audio_run_ref = completion.effect.get("audio_run_ref", "")
         planned_object_ref = self._object_store.object_ref(audio_run_ref)
+        planned_evidence_ref = self._object_store.speaker_evidence_object_ref(
+            audio_run_ref
+        )
         bundle = build_room_audio_source_bundle(
             completion,
             provider_session_ref=self._provider_session_ref,
             object_ref=planned_object_ref,
+            speaker_evidence_object_ref=planned_evidence_ref,
         )
         persisted_object_ref = await asyncio.to_thread(
             self._object_store.persist,
@@ -60,4 +68,13 @@ class RoomAudioPostCompletion:
         )
         if persisted_object_ref != planned_object_ref:
             raise RuntimeError("room audio object reference changed during persistence")
+        persisted_evidence_ref = await asyncio.to_thread(
+            self._object_store.persist_speaker_evidence,
+            audio_run_ref,
+            completion.speaker_evidence,
+        )
+        if persisted_evidence_ref != planned_evidence_ref:
+            raise RuntimeError(
+                "room audio speaker evidence reference changed during persistence"
+            )
         await self._publisher.publish(bundle)

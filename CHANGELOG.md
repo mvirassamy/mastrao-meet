@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-09: Bind post-meeting speaker evidence directly to the Room Audio
+  source so final transcripts no longer depend on cancelled legacy recordings.
+
 - 2026-11-09: Keep the live transcript pinned to its latest message and
   preserve participant names in the final Room Audio transcript.
 

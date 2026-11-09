@@ -8,6 +8,7 @@ from minio.error import S3Error
 
 from room_audio_object_store import RoomAudioObjectConflict, RoomAudioObjectStore
 from room_audio_ogg import RoomAudioArtifact
+from room_audio_speaker_evidence import RoomAudioSpeakerEvidenceArtifact
 
 
 @dataclass
@@ -50,7 +51,10 @@ class _FakeObjectStore:
     ):
         self.put_count += 1
         content = data.read()
-        if len(content) != length or content_type != "audio/ogg":
+        if len(content) != length or content_type not in {
+            "audio/ogg",
+            "application/json",
+        }:
             raise AssertionError("unexpected upload")
         self.objects[(bucket_name, object_name)] = (
             content,
@@ -131,6 +135,20 @@ class RoomAudioObjectStoreTests(unittest.TestCase):
             self.store.persist("audio_run_12345678", artifact)
 
         self.assertEqual(self.client.put_count, 0)
+
+    def test_persists_speaker_evidence_under_a_distinct_immutable_key(self):
+        """Participant evidence cannot overwrite or alias the mixed audio."""
+        content = b'{"events":[]}'
+        artifact = RoomAudioSpeakerEvidenceArtifact(
+            content=content,
+            byte_size=len(content),
+            sha256=sha256(content).hexdigest(),
+        )
+
+        object_ref = self.store.persist_speaker_evidence("audio_run_12345678", artifact)
+
+        self.assertTrue(object_ref.startswith("room-audio-speaker-evidence/v1/"))
+        self.assertNotEqual(object_ref, self.store.object_ref("audio_run_12345678"))
 
 
 if __name__ == "__main__":
