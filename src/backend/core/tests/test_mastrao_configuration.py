@@ -84,6 +84,36 @@ def test_development_csrf_origins_follow_the_configured_public_proxy():
     assert json.loads(result.stdout.strip()) == ["http://localhost:3020"]
 
 
+def test_oidc_token_endpoint_can_use_client_secret_basic():
+    """The OAuth client authentication method must be configurable by deployment."""
+
+    environment = {
+        **os.environ,
+        "DJANGO_CONFIGURATION": "Development",
+        "DJANGO_SETTINGS_MODULE": "meet.settings",
+        "OIDC_TOKEN_USE_BASIC_AUTH": "True",
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from configurations import importer; "
+                "importer.install(); "
+                "from django.conf import settings; "
+                "print(settings.OIDC_TOKEN_USE_BASIC_AUTH)"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        env=environment,
+        text=True,
+    )
+
+    assert result.stdout.strip() == "True"
+
+
 def test_room_adapter_requires_explicit_room_creation():
     """A governed room cannot let stale media tokens recreate its provider room."""
 
