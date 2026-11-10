@@ -199,16 +199,17 @@ def schedule_room_audio_asr(source_id=None, limit=20):
     eligible = _eligible(now)
     if source_id is not None:
         eligible = eligible.filter(pk=source_id)
-    source_ids = list(
-        eligible.order_by("asr_next_at", "pk").values_list("pk", flat=True)[:limit]
+    sources = list(
+        eligible.order_by("asr_next_at", "pk").values_list("pk", "source_id")[:limit]
     )
     dispatched = 0
-    for eligible_source_id in source_ids:
+    for eligible_source_id, canonical_source_id in sources:
         try:
             current_app.send_task(
                 "core.process_room_audio_asr",
                 args=[str(eligible_source_id)],
                 queue=ROOM_AUDIO_PROCESSING_QUEUE,
+                task_id=f"room-audio-asr-{canonical_source_id}",
             )
             dispatched += 1
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught

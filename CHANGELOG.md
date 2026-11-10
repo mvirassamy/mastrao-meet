@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-10: Publish every Room Audio post-processing intent with the
+  deterministic canonical source identity so broker retries cannot create a
+  second technical run identity.
+
 - 2026-11-10: Canonicalize Unicode participant labels identically in Meet and
   Tenant Core so accepted Room Audio tracks do not fail receipt verification.
 
