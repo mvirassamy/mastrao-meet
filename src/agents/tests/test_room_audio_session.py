@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 
 from livekit import rtc
 
-from room_audio_authority import RoomAudioAuthorityRefused
+from room_audio_authority import AUTHORITY_TOPIC, RoomAudioAuthorityRefused
 from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 from room_audio_session import (
@@ -117,14 +117,15 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         await session.start()
-        room.callbacks["data_received"](SimpleNamespace())
+        authority_packet = SimpleNamespace(topic=AUTHORITY_TOPIC)
+        room.callbacks["data_received"](authority_packet)
         first = await session.aclose("test-complete")
         second = await session.aclose("ignored-second-close")
 
         runtime.observe_track.assert_called_once_with(
             "TR_human_audio", human_audio.track, "human"
         )
-        authority.consume.assert_called_once()
+        authority.consume.assert_called_once_with(authority_packet)
         runtime.start.assert_awaited_once_with()
         runtime.aclose.assert_awaited_once_with()
         completion = completion_handler.await_args.args[0]
@@ -228,9 +229,29 @@ class RoomAudioSessionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         await session.start()
-        room.callbacks["data_received"](SimpleNamespace())
+        room.callbacks["data_received"](SimpleNamespace(topic=AUTHORITY_TOPIC))
 
         runtime.admit_track.assert_not_called()
+        await session.aclose()
+
+    async def test_unrelated_server_data_is_not_treated_as_track_authority(self):
+        """Other room control topics are routed without false refusals."""
+        room = FakeRoom([_participant("human")])
+        authority = Mock()
+        session = RoomAudioSession(
+            room=room,
+            effect=_effect(),
+            runtime=self._runtime(),
+            authority=authority,
+            handlers=_handlers(AsyncMock()),
+        )
+
+        await session.start()
+        room.callbacks["data_received"](
+            SimpleNamespace(topic="mastrao.room-audio.participant-evidence.v1")
+        )
+
+        authority.consume.assert_not_called()
         await session.aclose()
 
     async def test_finalization_failure_is_visible_to_waiter(self):

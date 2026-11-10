@@ -10,7 +10,11 @@ from dataclasses import dataclass
 
 from livekit import rtc
 
-from room_audio_authority import RoomAudioAuthority, RoomAudioAuthorityRefused
+from room_audio_authority import (
+    AUTHORITY_TOPIC,
+    RoomAudioAuthority,
+    RoomAudioAuthorityRefused,
+)
 from room_audio_mixer import RoomAudioMixerSnapshot
 from room_audio_ogg import RoomAudioArtifact
 from room_audio_rtc import RoomAudioRtcObserver, RoomAudioRtcSnapshot
@@ -246,7 +250,7 @@ class RoomAudioSession:
 
     def on_data_received(self, packet: rtc.DataPacket) -> None:
         """Apply only server-originated, signed Core track authority."""
-        if self._closed.is_set():
+        if self._closed.is_set() or packet.topic != AUTHORITY_TOPIC:
             return
         try:
             self._authority.consume(packet)

@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-10: Align Meet's Room Audio receiver with Tenant Core authority v3
+  so participant-labelled tracks reach live and post-meeting workers.
+
 - 2026-11-09: Bind post-meeting speaker evidence directly to the Room Audio
   source so final transcripts no longer depend on cancelled legacy recordings.
 
