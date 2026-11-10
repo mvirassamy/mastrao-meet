@@ -315,7 +315,25 @@ def test_room_asr_scheduler_dispatches_the_requested_source(
         "core.process_room_audio_asr",
         args=[str(delivered_room_source.pk)],
         queue="mastrao-room-audio-processing",
+        task_id=f"room-audio-asr-{delivered_room_source.source_id}",
     )
+
+
+def test_room_asr_scheduler_republishes_the_same_deterministic_intent(
+    delivered_room_source,
+    settings,
+):
+    settings.CELERY_ENABLED = True
+
+    with patch("core.mastrao_room_audio_asr_worker.current_app.send_task") as send_task:
+        assert schedule_room_audio_asr(delivered_room_source.pk, limit=1) == 1
+        assert schedule_room_audio_asr(delivered_room_source.pk, limit=1) == 1
+
+    task_ids = [call.kwargs["task_id"] for call in send_task.call_args_list]
+    assert task_ids == [
+        f"room-audio-asr-{delivered_room_source.source_id}",
+        f"room-audio-asr-{delivered_room_source.source_id}",
+    ]
 
 
 def test_ack_failure_keeps_core_receipt_for_retry(delivered_room_source):
