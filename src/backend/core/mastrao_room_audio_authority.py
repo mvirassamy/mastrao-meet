@@ -39,7 +39,8 @@ TOPIC = "mastrao.room-audio.track-authority.v1"
 DESTINATION_READY_ATTEMPTS = 12
 DESTINATION_READY_INTERVAL_SECONDS = 0.25
 MAX_AUTHORIZATION_LIFETIME_SECONDS = 14_400
-CONTRACT_VERSION = 2
+MAX_PARTICIPANT_LABEL_LENGTH = 160
+CONTRACT_VERSION = 3
 FIELDS = {
     "version",
     "type",
@@ -59,6 +60,8 @@ FIELDS = {
     "pipeline",
     "authorization_generation",
     "track_ref",
+    "participant_ref",
+    "participant_label",
     "media_token_binding_ref",
     "authorization_ref",
     "authorization_digest",
@@ -67,6 +70,23 @@ FIELDS = {
     "expires_at",
     "jti",
 }
+
+
+def _validate_participant_label(label):
+    """Require the exact display-name evidence produced by Tenant Core."""
+    if not isinstance(label, dict) or set(label) != {"source", "display_name"}:
+        raise RecordingContractRefused()
+    display_name = label["display_name"]
+    if label["source"] != "meet_session_display_name":
+        raise RecordingContractRefused()
+    if display_name is None:
+        return
+    if (
+        not isinstance(display_name, str)
+        or not display_name.strip()
+        or len(display_name) > MAX_PARTICIPANT_LABEL_LENGTH
+    ):
+        raise RecordingContractRefused()
 
 
 def _semantic_digest(effect):
@@ -143,6 +163,7 @@ def read_room_audio_track_effect(compact):
         "room_ref",
         "audio_run_ref",
         "policy_ref",
+        "participant_ref",
         "media_token_binding_ref",
         "authorization_ref",
         "jti",
@@ -152,6 +173,7 @@ def read_room_audio_track_effect(compact):
         raise RecordingContractRefused()
     if not re.fullmatch(r"[A-Za-z0-9_-]{8,200}", effect["track_ref"]):
         raise RecordingContractRefused()
+    _validate_participant_label(effect["participant_label"])
     for name in (
         "policy_digest",
         "notice_digest",

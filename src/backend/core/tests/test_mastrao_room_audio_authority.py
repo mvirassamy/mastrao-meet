@@ -31,8 +31,13 @@ ENDPOINT = "/internal/mastrao/room-audio/tracks/dispatch/"
 
 def test_semantic_digest_matches_tenant_core_canonical_json():
     effect = {
-        "version": 2,
+        "version": 3,
         "operation": "start",
+        "participant_ref": "participant_fixture",
+        "participant_label": {
+            "source": "meet_session_display_name",
+            "display_name": "Matthias",
+        },
         "issuer": "renewable-issuer",
         "audience": "renewable-audience",
         "issued_at": 10,
@@ -41,7 +46,7 @@ def test_semantic_digest_matches_tenant_core_canonical_json():
     }
 
     assert _semantic_digest(effect) == (
-        "e8f37e9da0aa9a3b2d984232fa87b4b1fed9e989e564d53e57403a5cba44fa5f"
+        "93a2c707b46c62d95134489fb138d0465c0c051bf5c98ae127537fa671c2cfff"
     )
 
 
@@ -100,7 +105,7 @@ def binding():
 def _effect(binding, **changes):
     now = int(time.time())
     return {
-        "version": 2,
+        "version": 3,
         "type": "mastrao.core-meeting-room-audio-track-effect",
         "issuer": "tenant-core-test",
         "audience": "mastrao-meet-test",
@@ -118,6 +123,11 @@ def _effect(binding, **changes):
         "pipeline": "post",
         "authorization_generation": 1,
         "track_ref": "track_audio_fixture_12345678",
+        "participant_ref": "participant_audio_fixture_12345678",
+        "participant_label": {
+            "source": "meet_session_display_name",
+            "display_name": "LDS fixture",
+        },
         "media_token_binding_ref": "media_token_binding_fixture_12345678",
         "authorization_ref": "authorization_audio_fixture_12345678",
         "authorization_digest": "e" * 64,
@@ -127,6 +137,35 @@ def _effect(binding, **changes):
         "jti": "effect_audio_fixture_12345678",
         **changes,
     }
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"version": 2},
+        {"participant_ref": ""},
+        {"participant_label": None},
+        {
+            "participant_label": {
+                "source": "untrusted_source",
+                "display_name": "LDS fixture",
+            }
+        },
+        {
+            "participant_label": {
+                "source": "meet_session_display_name",
+                "display_name": " ",
+            }
+        },
+    ),
+)
+def test_effect_refuses_non_v3_participant_binding(authority_key, binding, changes):
+    compact = _signed(authority_key, _effect(binding, **changes))
+
+    response = _post(compact)
+
+    assert response.status_code == 404
+    assert not models.MastraoRoomAudioTrackEffect.objects.exists()
 
 
 def _livekit_client(*, error=None, worker_active=True):
