@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-10: Canonicalize Unicode participant labels identically in Meet and
+  Tenant Core so accepted Room Audio tracks do not fail receipt verification.
+
 - 2026-11-10: Align Meet's Room Audio receiver with Tenant Core authority v3
   so participant-labelled tracks reach live and post-meeting workers.
 

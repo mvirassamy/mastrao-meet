@@ -50,6 +50,27 @@ def test_semantic_digest_matches_tenant_core_canonical_json():
     )
 
 
+def test_semantic_digest_matches_tenant_core_for_unicode_participant_label():
+    effect = {
+        "version": 3,
+        "operation": "start",
+        "participant_ref": "participant_fixture",
+        "participant_label": {
+            "source": "meet_session_display_name",
+            "display_name": "LDS 01 Hôte",
+        },
+        "issuer": "renewable-issuer",
+        "audience": "renewable-audience",
+        "issued_at": 10,
+        "expires_at": 20,
+        "jti": "renewable-jti",
+    }
+
+    assert _semantic_digest(effect) == (
+        "ca7a315c437aed7883eaf3bf933543e9d91afffeed928974e37ca712e4c25f39"
+    )
+
+
 def test_room_audio_worker_identity_is_stable():
     assert room_audio_worker_identity("room_audio_fixture", "post") == (
         "room-audio-worker-post-92e2b6959c485ddf6e511997ceb9681f"

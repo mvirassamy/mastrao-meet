@@ -5,7 +5,6 @@
 
 import asyncio
 import hashlib
-import json
 import re
 from datetime import UTC, datetime
 
@@ -33,6 +32,7 @@ from core.mastrao_recording_contract import (
     _verify,
     compact_digest,
 )
+from core.mastrao_room_contract import _canonical_json
 
 JOSE_TYPE = "mastrao-meeting-room-audio-track-effect+jws"
 TOPIC = "mastrao.room-audio.track-authority.v1"
@@ -96,10 +96,7 @@ def _semantic_digest(effect):
         for name, value in effect.items()
         if name not in {"issuer", "audience", "issued_at", "expires_at", "jti"}
     }
-    canonical_binding = (
-        json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\n"
-    )
-    return hashlib.sha256(canonical_binding.encode()).hexdigest()
+    return hashlib.sha256(_canonical_json(binding)).hexdigest()
 
 
 def _stable_authority_binding(effect):
