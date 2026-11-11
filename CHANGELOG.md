@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-11: Retry the exact persisted Room Audio source after bounded
+  transient callback failures, while keeping permanent refusals fail-closed.
+
 - 2026-11-11: Add the visitor host result page `/compte-rendu`. The page reads
   the signed link from its fragment, clears it, and asks Tenant Core through a
   same-origin relay that keeps every refusal opaque and the link out of
