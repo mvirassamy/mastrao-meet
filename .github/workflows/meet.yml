@@ -207,7 +207,7 @@ jobs:
         run: ~/.local/bin/ruff check .
 
   test-back:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-mails
     permissions:
       contents: read
@@ -324,7 +324,7 @@ jobs:
         run: uv run pytest -n 2
 
   test-summary:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     defaults:
@@ -371,7 +371,7 @@ jobs:
         run: ~/.local/bin/pytest
 
   lint-front:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
