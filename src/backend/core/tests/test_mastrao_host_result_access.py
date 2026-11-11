@@ -30,6 +30,7 @@ pytestmark = pytest.mark.usefixtures("clear_cache")
 
 @pytest.fixture(name="clear_cache")
 def fixture_clear_cache():
+    """Isolate the per-link attempt counters between tests."""
     cache.clear()
     yield
     cache.clear()
@@ -51,6 +52,7 @@ def _post(body, *, origin=ORIGIN, fetch_site="same-origin"):
     APPLICATION_BASE_URL=ORIGIN, MASTRAO_CORE_HOST_RESULT_READ_ENDPOINT=ENDPOINT
 )
 def test_relays_the_link_once_and_hardens_the_response():
+    """A valid link is relayed once and the response is kept out of caches."""
     with mock.patch(
         "core.mastrao_host_result_access.post_core_json", return_value=RESULT
     ) as core:
@@ -85,6 +87,7 @@ def test_relays_the_link_once_and_hardens_the_response():
     ],
 )
 def test_refuses_foreign_or_malformed_requests_before_core(body, origin, fetch_site):
+    """Cross-origin or malformed requests never reach Core."""
     with mock.patch("core.mastrao_host_result_access.post_core_json") as core:
         response = _post(body, origin=origin, fetch_site=fetch_site)
 
@@ -97,6 +100,7 @@ def test_refuses_foreign_or_malformed_requests_before_core(body, origin, fetch_s
     APPLICATION_BASE_URL=ORIGIN, MASTRAO_CORE_HOST_RESULT_READ_ENDPOINT=ENDPOINT
 )
 def test_keeps_a_core_refusal_opaque():
+    """A Core refusal reaches the browser as the same opaque 404."""
     with mock.patch(
         "core.mastrao_host_result_access.post_core_json",
         side_effect=HostResultRefused(),
@@ -111,6 +115,7 @@ def test_keeps_a_core_refusal_opaque():
     APPLICATION_BASE_URL=ORIGIN, MASTRAO_CORE_HOST_RESULT_READ_ENDPOINT=ENDPOINT
 )
 def test_limits_attempts_per_link():
+    """Each link is limited to a few reads per minute."""
     with mock.patch(
         "core.mastrao_host_result_access.post_core_json", return_value=RESULT
     ) as core:
@@ -124,6 +129,7 @@ def test_limits_attempts_per_link():
     APPLICATION_BASE_URL=ORIGIN, MASTRAO_CORE_HOST_RESULT_READ_ENDPOINT=""
 )
 def test_is_unavailable_until_configured():
+    """Without a Core endpoint the page is unavailable."""
     with mock.patch("core.mastrao_host_result_access.post_core_json") as core:
         response = _post({"access": ACCESS})
 
