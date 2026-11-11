@@ -3,7 +3,7 @@
 import json
 import unittest
 from hashlib import sha256
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 from livekit import api
@@ -62,9 +62,8 @@ class _Response:
 
 
 class _Session:
-    def __init__(self, response):
-        self._response = response
-        self.post = Mock(return_value=response)
+    def __init__(self, *responses):
+        self.post = Mock(side_effect=responses)
 
     async def __aenter__(self):
         return self
@@ -146,26 +145,134 @@ class DurableRoomAudioSourcePublisherTests(unittest.IsolatedAsyncioTestCase):
         ).encode()
         session = _Session(_Response(status=200, payload=payload))
 
-        with patch(
-            "room_audio_source_publisher.aiohttp.ClientSession",
-            return_value=session,
+        with (
+            patch(
+                "room_audio_source_publisher.aiohttp.ClientSession",
+                return_value=session,
+            ),
+            patch(
+                "room_audio_source_publisher.asyncio.sleep",
+                new=AsyncMock(),
+            ) as sleep,
         ):
             with self.assertRaises(RoomAudioSourcePublicationError):
                 await self.publisher.publish(self.bundle)
 
-    async def test_refuses_non_success_status_without_leaking_body(self):
-        """Private error bodies are reduced to one closed local exception."""
-        session = _Session(_Response(status=503, payload=b'{"error":"private"}'))
+        self.assertEqual(session.post.call_count, 1)
+        sleep.assert_not_awaited()
 
-        with patch(
-            "room_audio_source_publisher.aiohttp.ClientSession",
-            return_value=session,
+    async def test_retries_transient_status_then_accepts_exact_source(self):
+        """A transient callback refusal retries the same durable source."""
+        source_id = str(uuid4())
+        success = json.dumps(
+            {
+                "state": "delivered",
+                "manifest_digest": _digest(self.manifest),
+                "source_id": source_id,
+                "replayed": True,
+            }
+        ).encode()
+        session = _Session(
+            _Response(status=503, payload=b'{"error":"private"}'),
+            _Response(status=200, payload=success),
+        )
+
+        with (
+            patch(
+                "room_audio_source_publisher.aiohttp.ClientSession",
+                return_value=session,
+            ),
+            patch(
+                "room_audio_source_publisher.asyncio.sleep",
+                new=AsyncMock(),
+            ) as sleep,
+        ):
+            await self.publisher.publish(self.bundle)
+
+        self.assertEqual(session.post.call_count, 2)
+        sleep.assert_awaited_once_with(0.25)
+
+    async def test_retries_transport_timeout_then_accepts_exact_source(self):
+        """A transport timeout retries without selecting another source."""
+        success = json.dumps(
+            {
+                "state": "delivered",
+                "manifest_digest": _digest(self.manifest),
+                "source_id": str(uuid4()),
+                "replayed": False,
+            }
+        ).encode()
+        session = _Session(
+            TimeoutError("private timeout"),
+            _Response(status=200, payload=success),
+        )
+
+        with (
+            patch(
+                "room_audio_source_publisher.aiohttp.ClientSession",
+                return_value=session,
+            ),
+            patch(
+                "room_audio_source_publisher.asyncio.sleep",
+                new=AsyncMock(),
+            ) as sleep,
+        ):
+            await self.publisher.publish(self.bundle)
+
+        self.assertEqual(session.post.call_count, 2)
+        sleep.assert_awaited_once_with(0.25)
+
+    async def test_exhausts_transient_retries_without_leaking_body(self):
+        """Repeated transient failures close after the bounded retry budget."""
+        session = _Session(
+            *(
+                _Response(status=503, payload=b'{"error":"private"}')
+                for _attempt in range(3)
+            )
+        )
+
+        with (
+            patch(
+                "room_audio_source_publisher.aiohttp.ClientSession",
+                return_value=session,
+            ),
+            patch(
+                "room_audio_source_publisher.asyncio.sleep",
+                new=AsyncMock(),
+            ) as sleep,
+        ):
+            with self.assertRaisesRegex(
+                RoomAudioSourcePublicationError,
+                "publication unavailable",
+            ):
+                await self.publisher.publish(self.bundle)
+
+        self.assertEqual(session.post.call_count, 3)
+        self.assertEqual(sleep.await_args_list[0].args, (0.25,))
+        self.assertEqual(sleep.await_args_list[1].args, (1.0,))
+
+    async def test_refuses_permanent_status_without_retry(self):
+        """A permanent callback refusal cannot consume the retry budget."""
+        session = _Session(_Response(status=403, payload=b'{"error":"private"}'))
+
+        with (
+            patch(
+                "room_audio_source_publisher.aiohttp.ClientSession",
+                return_value=session,
+            ),
+            patch(
+                "room_audio_source_publisher.asyncio.sleep",
+                new=AsyncMock(),
+            ) as sleep,
         ):
             with self.assertRaisesRegex(
                 RoomAudioSourcePublicationError,
                 "was not accepted",
             ):
                 await self.publisher.publish(self.bundle)
+
+        self.assertEqual(session.post.call_count, 1)
+        sleep.assert_not_awaited()
 
     def test_refuses_redirecting_or_public_endpoint_shapes(self):
         """Only the exact non-redirecting internal callback path is accepted."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import dataclass
@@ -28,11 +29,19 @@ CALLBACK_HOSTS = {
 MAX_RESPONSE_BYTES = 16_384
 MAX_TIMEOUT_SECONDS = 30
 HTTP_OK = 200
+HTTP_SERVER_ERROR_MIN = 500
+HTTP_SERVER_ERROR_MAX = 599
+RETRYABLE_HTTP_STATUSES = frozenset({408, 429})
+RETRY_DELAYS_SECONDS = (0.25, 1.0)
 WORKER_IDENTITY = re.compile(r"^room-audio-worker-(?:post|live)-[a-f0-9]{32}$")
 
 
 class RoomAudioSourcePublicationError(RuntimeError):
     """One source bundle was not durably accepted by Meet."""
+
+
+class _RetryablePublicationError(RuntimeError):
+    """One transient callback attempt failed without exposing response data."""
 
 
 @dataclass(frozen=True)
@@ -79,34 +88,65 @@ class DurableRoomAudioSourcePublisher:
             "source_manifest": bundle.manifest,
             "source_gaps": list(bundle.gaps),
         }
-        authorization = self._authorization_token()
         try:
             async with aiohttp.ClientSession(timeout=self._timeout) as session:
-                async with session.post(
-                    self._endpoint,
-                    json=body,
-                    headers={
-                        "Authorization": f"Bearer {authorization}",
-                        "X-Forwarded-Proto": "https",
-                    },
-                    allow_redirects=False,
-                ) as response:
-                    raw = await response.content.read(MAX_RESPONSE_BYTES + 1)
-                    if len(raw) > MAX_RESPONSE_BYTES:
-                        raise RoomAudioSourcePublicationError(
-                            "room audio source response exceeded limit"
-                        )
-                    payload = json.loads(raw)
-                    if response.status != HTTP_OK or not _is_success(payload, bundle):
-                        raise RoomAudioSourcePublicationError(
-                            "room audio source was not accepted"
-                        )
+                await self._publish_with_retries(session, body, bundle)
         except RoomAudioSourcePublicationError:
             raise
-        except (aiohttp.ClientError, TimeoutError, UnicodeError, ValueError) as error:
+        except (aiohttp.ClientError, TimeoutError) as error:
             raise RoomAudioSourcePublicationError(
                 "room audio source publication unavailable"
             ) from error
+
+    async def _publish_with_retries(self, session, body, bundle) -> None:
+        attempt_count = len(RETRY_DELAYS_SECONDS) + 1
+        for attempt in range(attempt_count):
+            try:
+                await self._publish_once(session, body, bundle)
+                return
+            except (
+                _RetryablePublicationError,
+                aiohttp.ClientError,
+                TimeoutError,
+            ) as error:
+                if attempt == attempt_count - 1:
+                    raise RoomAudioSourcePublicationError(
+                        "room audio source publication unavailable"
+                    ) from error
+                await asyncio.sleep(RETRY_DELAYS_SECONDS[attempt])
+
+    async def _publish_once(self, session, body, bundle) -> None:
+        authorization = self._authorization_token()
+        async with session.post(
+            self._endpoint,
+            json=body,
+            headers={
+                "Authorization": f"Bearer {authorization}",
+                "X-Forwarded-Proto": "https",
+            },
+            allow_redirects=False,
+        ) as response:
+            raw = await response.content.read(MAX_RESPONSE_BYTES + 1)
+            if len(raw) > MAX_RESPONSE_BYTES:
+                raise RoomAudioSourcePublicationError(
+                    "room audio source response exceeded limit"
+                )
+            if _is_retryable_status(response.status):
+                raise _RetryablePublicationError("transient callback refusal")
+            if response.status != HTTP_OK:
+                raise RoomAudioSourcePublicationError(
+                    "room audio source was not accepted"
+                )
+            try:
+                payload = json.loads(raw)
+            except (UnicodeError, ValueError) as error:
+                raise RoomAudioSourcePublicationError(
+                    "room audio source was not accepted"
+                ) from error
+            if not _is_success(payload, bundle):
+                raise RoomAudioSourcePublicationError(
+                    "room audio source was not accepted"
+                )
 
     def _authorization_token(self) -> str:
         grants = api.VideoGrants(
@@ -141,6 +181,13 @@ def _validate_endpoint(value: str) -> str:
     ):
         raise ValueError("room audio source endpoint is invalid")
     return value
+
+
+def _is_retryable_status(status: int) -> bool:
+    return (
+        status in RETRYABLE_HTTP_STATUSES
+        or HTTP_SERVER_ERROR_MIN <= status <= HTTP_SERVER_ERROR_MAX
+    )
 
 
 def _is_success(payload, bundle: RoomAudioSourceBundle) -> bool:
