@@ -56,7 +56,7 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'noChangeLog') == false &&
       github.event_name == 'pull_request'
     permissions:
-        contents: read
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -306,13 +306,17 @@ jobs:
         run: uv run python ../../scripts/ci/s3_smoke.py
 
       - name: Install backend system dependencies
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
-          # Keep Ubuntu's archive signatures while bypassing the slow Azure mirror.
-          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
-          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
-          sudo apt-get "${apt_options[@]}" -o APT::Update::Error-Mode=any update
-          sudo apt-get "${apt_options[@]}" install -y ffmpeg gettext
+          missing=()
+          command -v ffmpeg >/dev/null || missing+=(ffmpeg)
+          command -v msgfmt >/dev/null || missing+=(gettext)
+          if ((${#missing[@]})); then
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install "${missing[@]}"
+            printf '%s\n' "$(brew --prefix)/bin" >>"$GITHUB_PATH"
+            printf '%s\n' "$(brew --prefix gettext)/bin" >>"$GITHUB_PATH"
+          fi
 
       - name: Generate a MO file from strings extracted from the project
         run: uv run python manage.py compilemessages
@@ -350,13 +354,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install ffmpeg
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
-          # Keep Ubuntu's archive signatures while bypassing the slow Azure mirror.
-          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
-          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
-          sudo apt-get "${apt_options[@]}" -o APT::Update::Error-Mode=any update
-          sudo apt-get "${apt_options[@]}" install -y ffmpeg
+          if ! command -v ffmpeg >/dev/null; then
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg
+            printf '%s\n' "$(brew --prefix)/bin" >>"$GITHUB_PATH"
+          fi
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -396,8 +400,10 @@ jobs:
       - name: Install Chromium for the isolated media probe test
         timeout-minutes: 5
         run: |
-          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
-          cd src/frontend/ && npx playwright install --with-deps chromium
+          # GitHub's Ubuntu image already carries the shared libraries used by
+          # Chromium. Avoid an unrelated apt transaction; the probe below still
+          # fails closed if a required runtime library is actually absent.
+          cd src/frontend/ && npx playwright install chromium
 
       - name: Verify the media probe with local synthetic WebRTC peers
         timeout-minutes: 1
