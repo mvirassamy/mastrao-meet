@@ -64,8 +64,9 @@ const StateDot = ({ look }: { look: SectionLook }) => {
 }
 
 /**
- * Summary, transcript and private notes as pill tabs. Every panel stays
- * mounted so a draft note or a scrolled transcript survives a tab change.
+ * Summary, transcript and, for a signed-in user, private notes as pill tabs.
+ * Every panel stays mounted so a draft note or a scrolled transcript survives
+ * a tab change.
  */
 export function MeetingResultTabs({
   summary,
@@ -75,7 +76,8 @@ export function MeetingResultTabs({
 }: {
   summary: ReactNode
   transcript: ReactNode
-  notes: ReactNode
+  /** Without notes, the page shows no notes tab. */
+  notes?: ReactNode
   /** Tabs without readable content show a small coloured dot. */
   states: Partial<Record<ResultTab, SectionLook>>
 }) {
@@ -87,6 +89,7 @@ export function MeetingResultTabs({
     notes: notesT('title', { defaultValue: 'Mes notes' }),
   }
   const panels: Record<ResultTab, ReactNode> = { summary, transcript, notes }
+  const tabIds = TAB_IDS.filter((id) => id !== 'notes' || notes !== undefined)
   return (
     <Tabs defaultSelectedKey="summary">
       <TabList
@@ -99,7 +102,7 @@ export function MeetingResultTabs({
           borderBottom: '1px solid token(colors.border)',
         })}
       >
-        {TAB_IDS.map((id) => (
+        {tabIds.map((id) => (
           <Tab key={id} id={id} className={pillTab}>
             <img
               src={TAB_ICONS[id]}
@@ -113,7 +116,7 @@ export function MeetingResultTabs({
           </Tab>
         ))}
       </TabList>
-      {TAB_IDS.map((id) => (
+      {tabIds.map((id) => (
         <TabPanel
           key={id}
           id={id}

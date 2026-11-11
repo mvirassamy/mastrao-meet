@@ -24,16 +24,21 @@ const proConnectButtonRecipe = cva({
 
 export type ProConnectButtonProps = {
   hint?: boolean // Hide hint in layouts where space doesn't allow it.
+  /** Page shown after login; the current page by default. */
+  returnTo?: string
 }
 
-export const ProConnectButton = ({ hint = true }: ProConnectButtonProps) => {
+export const ProConnectButton = ({
+  hint = true,
+  returnTo,
+}: ProConnectButtonProps) => {
   const { t } = useTranslation('global', { keyPrefix: 'login' })
   return (
     <VStack alignItems="start">
       <RALink
         className={proConnectButtonRecipe()}
         aria-label={t('proconnectButtonLabel')}
-        href={authUrl()}
+        href={authUrl({ returnTo })}
         data-attr="login"
       />
       {hint && (

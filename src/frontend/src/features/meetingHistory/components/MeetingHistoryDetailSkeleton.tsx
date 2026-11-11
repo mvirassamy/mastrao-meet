@@ -33,11 +33,20 @@ const sheetRow = css({
   borderBottom: '1px solid token(colors.border)',
 })
 
+const TAB_WIDTHS = ['6.5rem', '8rem', '6.5rem']
+
 /**
  * Loading state of the meeting detail with the page's own shape: title,
  * date line, the pill tabs, then the summary sheet.
  */
-export const MeetingHistoryDetailSkeleton = ({ label }: { label: string }) => (
+export const MeetingHistoryDetailSkeleton = ({
+  label,
+  tabCount = TAB_WIDTHS.length,
+}: {
+  label: string
+  /** Number of result tabs the loaded page will show. */
+  tabCount?: number
+}) => (
   <div role="status" aria-live="polite">
     <span className={css({ srOnly: true })}>{label}</span>
     <div aria-hidden="true">
@@ -68,9 +77,9 @@ export const MeetingHistoryDetailSkeleton = ({ label }: { label: string }) => (
           borderBottom: '1px solid token(colors.border)',
         })}
       >
-        <Bar width="6.5rem" height={36} round />
-        <Bar width="8rem" height={36} round />
-        <Bar width="6.5rem" height={36} round />
+        {TAB_WIDTHS.slice(0, tabCount).map((width, index) => (
+          <Bar key={index} width={width} height={36} round />
+        ))}
       </div>
       <div className={css({ marginTop: '1rem' })}>
         <Bar width="14rem" height={14} />

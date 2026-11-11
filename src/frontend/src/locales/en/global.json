@@ -57,6 +57,31 @@
     "temporaryError": "The service is temporarily unavailable. You can try again.",
     "retry": "Try again"
   },
+  "hostResult": {
+    "loading": "Loading your meeting report…",
+    "unavailable": {
+      "title": "This link is no longer available",
+      "description": "It has expired or been deactivated. This report can no longer be opened with this link."
+    },
+    "temporaryError": {
+      "title": "Meeting report temporarily unavailable",
+      "description": "The service is not responding right now. You can try again."
+    },
+    "retry": "Try again",
+    "validUntil": "Personal link, valid until {{date}}.",
+    "doNotForward": "Do not forward it.",
+    "hostOnly": "This report is for the meeting host only. It is not shared with the application that organised the meeting.",
+    "anonymousSpeaker": "Speaker {{index}}",
+    "sections": {
+      "decision": "Decisions",
+      "action": "Actions",
+      "deadline": "Deadlines"
+    },
+    "files": {
+      "summary": "summary.txt",
+      "transcript": "transcript.txt"
+    }
+  },
   "forbidden": {
     "heading": "You don't have the permission to view this page"
   },

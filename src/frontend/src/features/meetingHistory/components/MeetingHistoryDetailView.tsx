@@ -43,7 +43,12 @@ import { MeetingAssistantDrawer } from './MeetingAssistantDrawer'
 import { ASSISTANT_ICON } from './meetingContent'
 import { MeetingRecordingSection } from './MeetingRecordingSection'
 import { MeetingPersonalNotesSection } from './MeetingPersonalNotesSection'
-import { detailHeader } from './meetingDetailLayout'
+import {
+  detailHeader,
+  detailMeta,
+  detailMetaItem,
+  detailTitle,
+} from './meetingDetailLayout'
 import { MeetingResultTabs } from './MeetingResultTabs'
 import { MeetingResultOverview } from './MeetingResultOverview'
 import { MeetingContentSection, SummaryBody } from './MeetingResultSections'
@@ -319,12 +324,6 @@ const MeetingDetailContent = ({
     meeting.transcript.status,
     summaryRequestState
   )
-  const metaItemClass = css({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-  })
-
   const classificationLine = identityKey && (
     <>
       <ClassificationStatus
@@ -371,39 +370,15 @@ const MeetingDetailContent = ({
         })}`}
       >
         <div className={css({ minWidth: 0 })}>
-          <h1
-            ref={headingRef}
-            tabIndex={-1}
-            className={css({
-              margin: 0,
-              fontSize: { base: '1.375rem', md: '1.625rem' },
-              lineHeight: 1.25,
-              fontWeight: 600,
-              letterSpacing: '-0.025em',
-              overflowWrap: 'anywhere',
-            })}
-          >
+          <h1 ref={headingRef} tabIndex={-1} className={detailTitle}>
             {meeting.title ?? t('untitled')}
           </h1>
-          <p
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              columnGap: '1rem',
-              rowGap: '0.25rem',
-              marginTop: '0.5rem',
-              marginBottom: 0,
-              color: 'muted-foreground',
-              fontSize: '0.8125rem',
-              lineHeight: '1.25rem',
-            })}
-          >
-            <span className={metaItemClass}>
+          <p className={detailMeta}>
+            <span className={detailMetaItem}>
               <CalendarIcon size={15} aria-hidden="true" />
               {formatMeetingDay(meeting.startedAt, locale, timeZone)}
             </span>
-            <span className={metaItemClass}>
+            <span className={detailMetaItem}>
               <TimeIcon size={15} aria-hidden="true" />
               {formatMeetingTime(
                 meeting.startedAt,
@@ -413,7 +388,7 @@ const MeetingDetailContent = ({
               )}
             </span>
             {meeting.participantCount !== null && (
-              <span className={metaItemClass}>
+              <span className={detailMetaItem}>
                 {t('participants', { count: meeting.participantCount })}
               </span>
             )}

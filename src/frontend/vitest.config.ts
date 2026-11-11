@@ -15,7 +15,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: [
       'src/features/meeting-notes/**/*.test.{ts,tsx}',
-      'src/features/{rooms,home,meetingHistory,recordingTemplate,settings,subtitle}/**/*.test.{ts,tsx}',
+      'src/features/{rooms,home,hostResult,meetingHistory,recordingTemplate,settings,subtitle}/**/*.test.{ts,tsx}',
       'src/primitives/**/*.test.{ts,tsx}',
       'src/i18n/**/*.test.{ts,tsx}',
       'src/navigation/**/*.test.{ts,tsx}',

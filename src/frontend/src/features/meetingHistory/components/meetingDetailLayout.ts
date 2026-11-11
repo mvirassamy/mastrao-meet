@@ -7,6 +7,35 @@ import { css } from '@/styled-system/css'
 
 export const detailHeader = css({ marginBottom: '1.5rem' })
 
+export const detailTitle = css({
+  margin: 0,
+  fontSize: { base: '1.375rem', md: '1.625rem' },
+  lineHeight: 1.25,
+  fontWeight: 600,
+  letterSpacing: '-0.025em',
+  overflowWrap: 'anywhere',
+})
+
+/** Date, time range and participants under the title. */
+export const detailMeta = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  columnGap: '1rem',
+  rowGap: '0.25rem',
+  marginTop: '0.5rem',
+  marginBottom: 0,
+  color: 'muted-foreground',
+  fontSize: '0.8125rem',
+  lineHeight: '1.25rem',
+})
+
+export const detailMetaItem = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+})
+
 export const sectionCard = css({
   minWidth: 0,
   border: '1px solid token(colors.border)',
