@@ -409,6 +409,12 @@ class Base(Configuration):
         environ_name="MASTRAO_CORE_HOST_INVITATION_EXCHANGE_ENDPOINT",
         environ_prefix=None,
     )
+    # Optional: the visitor result page is unavailable while this is empty.
+    MASTRAO_CORE_HOST_RESULT_READ_ENDPOINT = values.Value(
+        "",
+        environ_name="MASTRAO_CORE_HOST_RESULT_READ_ENDPOINT",
+        environ_prefix=None,
+    )
     MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS = values.FloatValue(
         5.0,
         environ_name="MASTRAO_CORE_REDEMPTION_TIMEOUT_SECONDS",

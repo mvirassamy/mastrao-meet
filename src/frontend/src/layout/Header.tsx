@@ -18,7 +18,7 @@ import { useMemo } from 'react'
 import { useSnapshot } from 'valtio'
 import { layoutStore } from '@/stores/layout'
 
-const Logo = () => (
+export const Logo = () => (
   <span
     className={`Header-logo ${css({ display: 'inline-flex', alignItems: 'center', gap: '0.625rem', whiteSpace: 'nowrap', fontFamily: 'sans' })}`}
   >

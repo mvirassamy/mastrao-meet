@@ -57,6 +57,31 @@
     "temporaryError": "Le service est momentanément indisponible. Vous pouvez réessayer.",
     "retry": "Réessayer"
   },
+  "hostResult": {
+    "loading": "Chargement de votre compte rendu…",
+    "unavailable": {
+      "title": "Ce lien n’est plus disponible",
+      "description": "Il a expiré ou a été désactivé. Ce compte rendu ne peut plus être ouvert avec ce lien."
+    },
+    "temporaryError": {
+      "title": "Compte rendu momentanément indisponible",
+      "description": "Le service ne répond pas pour le moment. Vous pouvez réessayer."
+    },
+    "retry": "Réessayer",
+    "validUntil": "Lien personnel, valable jusqu’au {{date}}.",
+    "doNotForward": "Ne le transférez pas.",
+    "hostOnly": "Ce compte rendu est réservé à l’hôte de la réunion. Il n’est pas partagé avec l’application qui l’a organisée.",
+    "anonymousSpeaker": "Intervenant {{index}}",
+    "sections": {
+      "decision": "Décisions",
+      "action": "Actions",
+      "deadline": "Échéances"
+    },
+    "files": {
+      "summary": "synthese.txt",
+      "transcript": "transcription.txt"
+    }
+  },
   "forbidden": {
     "heading": "Accès interdit"
   },

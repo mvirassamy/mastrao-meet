@@ -178,6 +178,23 @@ export const SummaryBody = ({
   if (!isReadableStatus(view))
     return <UnavailableContent kind="summary" status={view} />
 
+  return <SummarySheet summary={summary} />
+}
+
+type ReadableSummary = Pick<
+  MeetingSummary,
+  'status' | 'productState' | 'paragraphs' | 'sections'
+>
+
+/** A readable summary: its review note, then one row per rubric. */
+export const SummarySheet = ({
+  summary,
+  downloadName,
+}: {
+  summary: ReadableSummary
+  downloadName?: string
+}) => {
+  const { t } = useTranslation('meetingHistory')
   return (
     <div>
       {summary.status === 'partial' && (
@@ -193,6 +210,7 @@ export const SummaryBody = ({
           </>
         }
         copyText={summaryPlainText(summary)}
+        downloadName={downloadName}
       />
       <div className={css({ borderTop: '1px solid token(colors.border)' })}>
         {summary.paragraphs.length > 0 && (
@@ -286,7 +304,7 @@ const SummaryRow = ({
 )
 
 /** The summary as plain text, ready to paste into an e-mail. */
-const summaryPlainText = (summary: MeetingSummary) =>
+const summaryPlainText = (summary: ReadableSummary) =>
   [
     summary.paragraphs.join('\n\n'),
     ...summary.sections.map((section) =>
@@ -348,10 +366,20 @@ export const TranscriptBody = ({
 }: {
   transcript: MeetingTranscript
 }) => {
-  const { t } = useTranslation('meetingHistory')
   if (!isReadableStatus(transcript.status))
     return <UnavailableContent kind="transcript" status={transcript.status} />
+  return <TranscriptSheet transcript={transcript} />
+}
 
+/** A readable transcript: one coloured turn per speaker change. */
+export const TranscriptSheet = ({
+  transcript,
+  downloadName,
+}: {
+  transcript: Pick<MeetingTranscript, 'status' | 'segments' | 'truncated'>
+  downloadName?: string
+}) => {
+  const { t } = useTranslation('meetingHistory')
   const turns = groupTurns(transcript.segments)
   const colors = speakerColors(turns)
   const unknownSpeaker = t('transcript.unknownSpeaker')
@@ -373,6 +401,7 @@ export const TranscriptBody = ({
           )
         }
         copyText={transcriptPlainText(turns, unknownSpeaker)}
+        downloadName={downloadName}
       />
       <ol
         className={css({

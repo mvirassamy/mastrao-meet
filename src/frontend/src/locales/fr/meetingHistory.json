@@ -220,6 +220,7 @@
   "content": {
     "copy": "Copier",
     "copied": "Copié",
-    "failed": "Copie impossible"
+    "failed": "Copie impossible",
+    "download": "Télécharger"
   }
 }

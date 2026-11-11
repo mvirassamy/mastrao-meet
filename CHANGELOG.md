@@ -1,5 +1,12 @@
 # Changelog
 
+- 2026-11-11: Add the visitor host result page `/compte-rendu`. The page reads
+  the signed link from its fragment, clears it, and asks Tenant Core through a
+  same-origin relay that keeps every refusal opaque and the link out of
+  referrers, indexes and caches. It reuses the meeting history detail layout
+  (date, pill tabs, summary rubrics, coloured transcript, copy and download)
+  under a public header with login, without reading the visitor's session.
+
 - 2026-11-10: Publish every Room Audio post-processing intent with the
   deterministic canonical source identity so broker retries cannot create a
   second technical run identity.

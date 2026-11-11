@@ -21,6 +21,7 @@ from core.mastrao_host_invitation import (
     exchange_mastrao_host_invitation,
 )
 from core.mastrao_host_recovery import recover_meeting_host
+from core.mastrao_host_result_access import read_mastrao_host_result
 from core.mastrao_meeting_assistant import meeting_assistant, meeting_assistant_citation
 from core.mastrao_meeting_classification import meeting_classification, meeting_matters
 from core.mastrao_meeting_history import (
@@ -134,6 +135,11 @@ urlpatterns = [
         "handoff/host/invitation/",
         exchange_mastrao_host_invitation,
         name="exchange_mastrao_host_invitation",
+    ),
+    path(
+        "handoff/host/result/",
+        read_mastrao_host_result,
+        name="read_mastrao_host_result",
     ),
     path(
         "internal/mastrao/rooms/ensure/",
