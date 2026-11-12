@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-12: Accept Tenant Core partner host handoffs up to the shared
+  ten-minute contract ceiling. API-created meetings now let their host join
+  instead of failing with "Ce lien d'hôte n'est plus disponible".
+
 - 2026-11-11: Retry the exact persisted Room Audio source after bounded
   transient callback failures, while keeping permanent refusals fail-closed.
 - 2026-11-11: Pin media CI jobs to Ubuntu 24.04 after the `ubuntu-latest`
