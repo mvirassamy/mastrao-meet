@@ -113,6 +113,7 @@ def _active_recording_binding():
 
 def _effect(binding):
     return {
+        "operation_version": 1,
         "organization_external_id": binding.organization_external_id,
         "meeting_ref": binding.meeting_ref,
         "room_ref": binding.room_ref,

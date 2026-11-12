@@ -17,12 +17,7 @@ export const meetingContentStatuses = [
 export type MeetingContentStatus = (typeof meetingContentStatuses)[number]
 
 export type MeetingRecordingStatus =
-  | 'absent'
-  | 'processing'
-  | 'available'
-  | 'expired'
-  | 'failed'
-  | 'unknown'
+  'absent' | 'processing' | 'available' | 'expired' | 'failed' | 'unknown'
 
 export type MeetingRecordingAccess = {
   actionPath: string
@@ -34,6 +29,7 @@ export type MeetingRecordingAccess = {
 
 export type MeetingRecording = {
   status: MeetingRecordingStatus
+  retentionMode?: 'until_deleted'
   retentionExpiresAt: Date | null
   access: MeetingRecordingAccess | null
 }

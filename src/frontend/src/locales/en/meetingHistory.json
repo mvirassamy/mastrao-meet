@@ -169,6 +169,7 @@
   "recording": {
     "title": "Video",
     "open": "Download video",
+    "retainedUntilDeleted": "Retained until deletion",
     "retainedUntil": "Video available until {{date}}",
     "accessUnavailable": "Video access is currently unavailable."
   },

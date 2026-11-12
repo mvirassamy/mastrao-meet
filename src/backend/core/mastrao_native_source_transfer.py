@@ -17,6 +17,7 @@ from core import models
 from core.mastrao_core_http import post_core_json
 from core.mastrao_native_authorization import native_envelope
 from core.mastrao_recording_contract import RecordingContractRefused, _sign
+from core.mastrao_retention import active_retention
 from core.mastrao_room_contract import _sha256_canonical
 
 SOURCE_PATH = "/internal/v1/meetings/capture/native/source"
@@ -26,13 +27,13 @@ logger = logging.getLogger(__name__)
 
 def _eligible_sources(now):
     return models.MastraoNativeCaptureStart.objects.filter(
+        active_retention(now),
         drained_at__isnull=False,
         provider_job_ref__isnull=False,
         source_receipt__isnull=True,
         source_manifest__isnull=False,
         source_next_at__lte=now,
         source_attempts__lt=8,
-        retention_expires_at__gt=now,
         observed_status__in=[3, 6],
         epoch__conflict=False,
         epoch__connection__correlation="correlated",
@@ -177,10 +178,10 @@ def transfer_native_source(source_id, queued_claim, queued_attempts):
         return False
     try:
         if not models.MastraoNativeCaptureStart.objects.filter(
+            active_retention(timezone.now()),
             pk=intent.pk,
             source_claim=intent.source_claim,
             source_claim_until__gt=timezone.now(),
-            retention_expires_at__gt=timezone.now(),
             epoch__conflict=False,
             epoch__connection__correlation="correlated",
         ).exists():

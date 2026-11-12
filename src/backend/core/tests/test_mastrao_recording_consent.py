@@ -357,6 +357,7 @@ def test_sync_binding_does_not_touch_an_unchanged_projection():
         notice_digest=status["notice_digest"],
         purpose=status["purpose"],
         scope=status["scope"],
+        retention_mode="bounded",
         retention_expires_at=datetime.fromtimestamp(retention_expires_at, tz=UTC),
         state=models.MastraoRecordingBinding.State.PROCESSING,
         save=mock.Mock(),
@@ -389,7 +390,11 @@ def test_sync_binding_recovers_from_concurrent_binding_creation():
         "retention_expires_at": retention_expires_at,
         "recording_state": "collecting",
     }
-    binding = SimpleNamespace(recording_ref=status["recording_ref"])
+    binding = SimpleNamespace(
+        recording_ref=status["recording_ref"],
+        retention_mode="bounded",
+        retention_expires_at=datetime.fromtimestamp(retention_expires_at, tz=UTC),
+    )
 
     with mock.patch(
         "core.mastrao_recording_session.models.MastraoRecordingBinding.objects"

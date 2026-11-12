@@ -1084,6 +1084,11 @@ class Base(Configuration):
     OIDC_OP_TOKEN_ENDPOINT = values.Value(
         None, environ_name="OIDC_OP_TOKEN_ENDPOINT", environ_prefix=None
     )
+    OIDC_TOKEN_USE_BASIC_AUTH = values.BooleanValue(
+        default=False,
+        environ_name="OIDC_TOKEN_USE_BASIC_AUTH",
+        environ_prefix=None,
+    )
     OIDC_OP_USER_ENDPOINT = values.Value(
         None, environ_name="OIDC_OP_USER_ENDPOINT", environ_prefix=None
     )

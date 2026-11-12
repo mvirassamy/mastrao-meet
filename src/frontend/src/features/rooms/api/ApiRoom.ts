@@ -59,7 +59,8 @@ export type ApiRoom = {
     notice_digest?: string
     purpose?: 'meeting_recording'
     scope?: 'room_composite_audio_video_screen'
-    retention_expires_at?: number
+    retention_mode?: 'bounded' | 'until_deleted'
+    retention_expires_at?: number | null
     recording_state?:
       | 'collecting'
       | 'authorized'

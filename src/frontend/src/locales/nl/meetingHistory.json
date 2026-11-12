@@ -168,6 +168,7 @@
   "recording": {
     "title": "Video",
     "open": "Video downloaden",
+    "retainedUntilDeleted": "Bewaard tot verwijdering",
     "retainedUntil": "Video beschikbaar tot {{date}}",
     "accessUnavailable": "Toegang tot de video is momenteel niet beschikbaar."
   },

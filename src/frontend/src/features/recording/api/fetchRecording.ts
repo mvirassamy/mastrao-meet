@@ -10,7 +10,7 @@ export type RecordingApi = {
   mode: RecordingMode
   status: RecordingStatus
   is_expired: boolean
-  expired_at: string
+  expired_at: string | null
 }
 
 export const fetchRecording = ({ recordingId }: { recordingId?: string }) => {

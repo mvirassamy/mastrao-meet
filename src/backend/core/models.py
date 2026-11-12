@@ -1118,6 +1118,7 @@ class MastraoNativeCaptureStart(BaseModel):
     )
     # No bearer retained. Claims are persisted before returning a signed receipt.
     receipt_claims = models.JSONField(default=dict, blank=True)
+    retention_mode = models.CharField(max_length=20, default="bounded")
     retention_expires_at = models.DateTimeField(null=True, blank=True)
     stop_requested_at = models.DateTimeField(null=True, blank=True)
     stop_reason = models.CharField(max_length=32, blank=True, default="")
@@ -1149,6 +1150,16 @@ class MastraoNativeCaptureStart(BaseModel):
     class Meta:
         db_table = "meet_mastrao_native_capture_start"
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(retention_mode="bounded")
+                    | models.Q(
+                        retention_mode="until_deleted",
+                        retention_expires_at__isnull=True,
+                    )
+                ),
+                name="mastrao_native_retention_coherent",
+            ),
             models.CheckConstraint(
                 condition=models.Q(arguments_digest__regex=r"^[a-f0-9]{64}$"),
                 name="mastrao_native_start_digest",
@@ -1196,7 +1207,8 @@ class MastraoRecordingBinding(BaseModel):
     notice_digest = models.CharField(max_length=64)
     purpose = models.CharField(max_length=64, default="meeting_recording")
     scope = models.CharField(max_length=80, default="room_composite_audio_video_screen")
-    retention_expires_at = models.DateTimeField()
+    retention_mode = models.CharField(max_length=20, default="bounded")
+    retention_expires_at = models.DateTimeField(null=True, blank=True)
     state = models.CharField(
         max_length=20,
         choices=State.choices,
@@ -1223,6 +1235,16 @@ class MastraoRecordingBinding(BaseModel):
     class Meta:
         db_table = "meet_mastrao_recording_binding"
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(retention_mode="bounded", retention_expires_at__isnull=False)
+                    | models.Q(
+                        retention_mode="until_deleted",
+                        retention_expires_at__isnull=True,
+                    )
+                ),
+                name="mastrao_recording_retention_coherent",
+            ),
             models.CheckConstraint(
                 condition=models.Q(provider_binding_digest__regex=r"^[a-f0-9]{64}$"),
                 name="mastrao_recording_provider_digest_format",
@@ -1472,7 +1494,7 @@ class MastraoTranscriptionBinding(BaseModel):
                 name="mastrao_transcription_scope_fixed",
             ),
             models.CheckConstraint(
-                condition=models.Q(contract_operation_version__in=[1, 2, 3, 4]),
+                condition=models.Q(contract_operation_version__in=[1, 2, 3, 4, 5]),
                 name="mastrao_tx_contract_version_closed",
             ),
             models.CheckConstraint(
@@ -1538,7 +1560,7 @@ class MastraoTranscriptionBinding(BaseModel):
                         tariff_catalog_version__isnull=False,
                     )
                     | models.Q(
-                        contract_operation_version=4,
+                        contract_operation_version__in=[4, 5],
                         notice_version__isnull=False,
                         notice_digest__isnull=False,
                         notice_digest__regex=r"^[a-f0-9]{64}$",
@@ -2029,6 +2051,17 @@ class Recording(BaseModel):
         """
 
         if not settings.RECORDING_EXPIRATION_DAYS:
+            return None
+
+        try:
+            binding = self.mastrao_binding
+        except MastraoRecordingBinding.DoesNotExist:
+            binding = None
+        if (
+            binding is not None
+            and binding.retention_mode == "until_deleted"
+            and binding.retention_expires_at is None
+        ):
             return None
 
         return self.created_at + timedelta(days=settings.RECORDING_EXPIRATION_DAYS)

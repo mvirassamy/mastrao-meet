@@ -47,6 +47,44 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('recording history UI', () => {
+  it('labels persistent retention and reuses the existing exact POST form', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-03T12:00:00Z'))
+    try {
+      render(
+        <MeetingRecordingSection
+          recording={normalizeMeetingRecording({
+            ...available,
+            retention_mode: 'until_deleted',
+            retention_expires_at: null,
+          })}
+        />
+      )
+      expect(screen.getByText('recording.retainedUntilDeleted')).toBeTruthy()
+      expect(screen.queryByText(/recording.retainedUntil:/)).toBeNull()
+      const form = screen
+        .getByRole('button', { name: 'recording.open' })
+        .closest('form')!
+      expect(form.action).toBe(config.origin + available.access.action_path)
+      expect(form.method).toBe('post')
+      expect(Object.fromEntries(new FormData(form))).toEqual({
+        matter_ref: available.access.matter_ref,
+        meeting_ref: available.access.meeting_ref,
+        recording_ref: available.access.recording_ref,
+        artifact_ref: available.access.artifact_ref,
+        command_id: expect.stringMatching(/^recording_access_[a-f0-9]{32}$/),
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(86_400_000)
+      })
+      expect(
+        screen.getByRole('button', { name: 'recording.open' })
+      ).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('hides video UI for an older response without a video projection', () => {
     const item = normalizeHistoryPage({
       results: [{ id: 'm1', started_at: '2026-10-11T10:00:00Z' }],

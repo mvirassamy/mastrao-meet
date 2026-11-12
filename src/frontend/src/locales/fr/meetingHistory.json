@@ -169,6 +169,7 @@
   "recording": {
     "title": "Vidéo",
     "open": "Télécharger la vidéo",
+    "retainedUntilDeleted": "Conservée jusqu’à suppression",
     "retainedUntil": "Vidéo disponible jusqu’au {{date}}",
     "accessUnavailable": "L’accès à la vidéo est indisponible pour le moment."
   },

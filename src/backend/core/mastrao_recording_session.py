@@ -5,7 +5,6 @@
 
 import hashlib
 import time
-from datetime import UTC, datetime
 from uuid import uuid4
 
 from django.conf import settings
@@ -32,7 +31,9 @@ from core.mastrao_recording_contract import (
     sign_activation_assertion,
     sign_decision_assertion,
     sign_stop_request_assertion,
+    validate_retention,
 )
+from core.mastrao_retention import BOUNDED, retention_datetime, retention_matches
 from core.mastrao_room_contract import DIGEST, OPAQUE_REFERENCE
 from core.mastrao_transcription_contract import (
     DECISION_TYPE as TRANSCRIPTION_DECISION_TYPE,
@@ -130,6 +131,9 @@ def _validate_status(status, participant, room):
         ):
             raise RecordingContractRefused(status=503)
         expected = expected | {"transcription_profile_ref"}
+    persistent = status.get("retention_mode") == "until_deleted"
+    if persistent and status.get("mode") == "recorded":
+        expected = expected | {"retention_mode"}
     claims = participant["claims"]
     if (
         fields != expected
@@ -160,11 +164,13 @@ def _validate_status(status, participant, room):
             )
         )
         or not DIGEST.fullmatch(status["notice_digest"])
-        or not isinstance(status["retention_expires_at"], int)
-        or isinstance(status["retention_expires_at"], bool)
-        or status["retention_expires_at"] <= int(time.time())
     ):
         raise RecordingContractRefused(status=503)
+    if status["mode"] == "recorded":
+        try:
+            validate_retention(status, persistent=persistent, after=int(time.time()))
+        except RecordingContractRefused as error:
+            raise RecordingContractRefused(status=503) from error
     if (
         status["mode"] == "recorded"
         and status["transcription_mode"] == "transcribed"
@@ -245,15 +251,17 @@ def _sync_binding(room, status):
         "notice_digest": status["notice_digest"],
         "purpose": status["purpose"],
         "scope": status["scope"],
-        "retention_expires_at": datetime.fromtimestamp(
-            status["retention_expires_at"], tz=UTC
-        ),
+        "retention_mode": status.get("retention_mode", BOUNDED),
+        "retention_expires_at": retention_datetime(status),
         "state": local_state,
     }
     binding = models.MastraoRecordingBinding.objects.filter(
         room_binding=room.mastrao_binding
     ).first()
-    if binding and binding.recording_ref != status["recording_ref"]:
+    if binding and (
+        binding.recording_ref != status["recording_ref"]
+        or binding.retention_mode != defaults["retention_mode"]
+    ):
         raise RecordingContractRefused(status=409)
     if binding:
         changed_fields = []
@@ -275,7 +283,7 @@ def _sync_binding(room, status):
                 room_binding=room.mastrao_binding,
                 recording_ref=status["recording_ref"],
             ).first()
-            if not binding:
+            if not binding or not retention_matches(binding, status):
                 raise RecordingContractRefused(status=409) from None
     return binding
 
@@ -350,6 +358,8 @@ def public_projection(status):
             "video",
         )
     }
+    if "retention_mode" in status:
+        projection["retention_mode"] = status["retention_mode"]
     projection["transcription_mode"] = status["transcription_mode"]
     projection["video"] = {
         **status["video"],
@@ -401,6 +411,8 @@ def _validate_core_status(result, session_status):
         expected = base
     else:
         raise RecordingContractRefused(status=503)
+    if mode == "recorded" and session_status.get("retention_mode") == "until_deleted":
+        expected = expected | {"retention_mode"}
     profile_ref = session_status.get("transcription_profile_ref")
     if profile_ref:
         managed = result.get("managed_transcription")
@@ -422,7 +434,8 @@ def _validate_core_status(result, session_status):
     ):
         raise RecordingContractRefused(status=503)
     if mode == "recorded" and (
-        result.get("recording_ref") != session_status["recording_ref"]
+        result.get("retention_mode") != session_status.get("retention_mode")
+        or result.get("recording_ref") != session_status["recording_ref"]
         or result.get("state") not in CAPTURE_STATES | NO_CAPTURE_STATES | {"stopping"}
         or result.get("purpose") != PURPOSE
         or result.get("scope") != SCOPE
@@ -487,6 +500,8 @@ def record_decision(request, room, decision, decision_request_id):
         "retention_expires_at": status["retention_expires_at"],
         "participant_grant_digest": compact_digest(participant["compact"]),
     }
+    if status.get("retention_mode") == "until_deleted":
+        payload.update(operation_version=2, retention_mode="until_deleted")
     compact = sign_decision_assertion(payload)
     result = post_core_json(
         endpoint=settings.MASTRAO_CORE_RECORDING_DECISION_ENDPOINT,
@@ -585,6 +600,8 @@ def record_transcription_decision(request, room, decision, decision_request_id):
         "retention_expires_at": status["retention_expires_at"],
         "participant_grant_digest": compact_digest(participant["compact"]),
     }
+    if status.get("retention_mode") == "until_deleted":
+        payload.update(operation_version=2, retention_mode="until_deleted")
     compact = sign_transcription_decision_assertion(payload)
     result = post_core_json(
         endpoint=settings.MASTRAO_CORE_TRANSCRIPTION_DECISION_ENDPOINT,

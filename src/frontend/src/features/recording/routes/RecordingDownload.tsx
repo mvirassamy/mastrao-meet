@@ -107,7 +107,7 @@ const RecordingDownload = () => {
       <ErrorScreen
         title={t('expired.title')}
         body={t('expired.body', {
-          date: formatDate(data?.expired_at, 'YYYY-MM-DD HH:mm'),
+          date: formatDate(data.expired_at ?? '', 'YYYY-MM-DD HH:mm'),
         })}
       />
     )
@@ -136,14 +136,15 @@ const RecordingDownload = () => {
                 })}
               </span>
               <span>
-                {configData?.recording?.expiration_days && (
-                  <>
-                    {' '}
-                    {t('success.expiration', {
-                      expiration_days: configData?.recording?.expiration_days,
-                    })}
-                  </>
-                )}
+                {!!data.expired_at &&
+                  !!configData?.recording?.expiration_days && (
+                    <>
+                      {' '}
+                      {t('success.expiration', {
+                        expiration_days: configData?.recording?.expiration_days,
+                      })}
+                    </>
+                  )}
               </span>
             </Text>
             <LinkButton
