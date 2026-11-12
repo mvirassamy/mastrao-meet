@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-12: Stop requiring Tenant Core to echo the browser exchange session
+  reference in partner host handoffs. Core returns a tenant-scoped opaque
+  digest instead, so API-created meetings could never admit their host.
+
 - 2026-11-12: Accept Tenant Core partner host handoffs up to the shared
   ten-minute contract ceiling. API-created meetings now let their host join
   instead of failing with "Ce lien d'hôte n'est plus disponible".
