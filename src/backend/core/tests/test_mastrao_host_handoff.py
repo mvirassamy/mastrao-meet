@@ -56,7 +56,7 @@ def _b64(value):
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
-def _host_handoff(private_key, suffix):
+def _host_handoff(private_key, suffix, lifetime_seconds=120):
     now = int(time.time())
     payload = {
         "version": 1,
@@ -72,7 +72,7 @@ def _host_handoff(private_key, suffix):
         "platform_session_ref": "platformsession_0123456789abcdef",
         "provider_binding_digest": "b" * 64,
         "issued_at": now,
-        "expires_at": now + 120,
+        "expires_at": now + lifetime_seconds,
         "grant_expires_at": now + 3_600,
         "nonce": f"nonce_{suffix:016d}",
     }
@@ -276,6 +276,20 @@ def test_host_handoff_refuses_nonstandard_json_constants(constant):
 
     with pytest.raises(HostHandoffRefused):
         verify_host_handoff_contract(f"{header}.{payload}.{signature}")
+
+
+def test_host_handoff_accepts_core_partner_lifetime_and_refuses_longer(
+    handoff_signing,
+):
+    """Partner handoffs follow Core's ten-minute contract ceiling."""
+
+    partner_handoff = _host_handoff(handoff_signing, 1, lifetime_seconds=600)
+    assert verify_host_handoff_contract(partner_handoff)["expires_at"] > 0
+
+    with pytest.raises(HostHandoffRefused):
+        verify_host_handoff_contract(
+            _host_handoff(handoff_signing, 2, lifetime_seconds=601)
+        )
 
 
 def test_host_handoff_reports_malformed_public_key_as_unavailable(handoff_signing):

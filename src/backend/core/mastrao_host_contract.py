@@ -33,7 +33,9 @@ HOST_HANDOFF_JOSE_TYPE = "mastrao-meeting-host-handoff+jws"
 HOST_GRANT_TYPE = "mastrao.core-meeting-host-grant"
 HOST_GRANT_JOSE_TYPE = "mastrao-meeting-host-grant+jws"
 MAX_REDEMPTION_SECONDS = 30
-MAX_HANDOFF_SECONDS = 120
+# Matches MAX_HOST_HANDOFF_LIFETIME_SECONDS in Core's meeting-runtime-contract:
+# partner host invitations exchange into handoffs valid for up to ten minutes.
+MAX_HANDOFF_SECONDS = 600
 MAX_GRANT_SECONDS = 14_400
 EXTERNAL_ID = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 HOST_HANDOFF_FIELDS = {
