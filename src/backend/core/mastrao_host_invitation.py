@@ -166,23 +166,22 @@ def _exchange_invitation(host_invitation, exchange_id, session_ref, expires_at):
     )
     host_handoff = body["host_handoff"]
     handoff = verify_host_handoff(host_handoff)
-    if not _handoff_matches_exchange(body, handoff, session_ref, expires_at):
+    if not _handoff_matches_exchange(body, handoff, expires_at):
         raise HostHandoffRefused()
     return host_handoff, handoff
 
 
-def _handoff_matches_exchange(body, handoff, session_ref, expires_at):
+def _handoff_matches_exchange(body, handoff, expires_at):
     response_matches_handoff = (
         body["version"] == 1
         and body["meeting_ref"] == handoff["meeting_ref"]
         and body["handoff_ref"] == handoff["handoff_ref"]
         and body["expires_at"] == handoff["expires_at"]
     )
-    session_matches_exchange = (
-        handoff["platform_session_ref"] == session_ref
-        and handoff["grant_expires_at"] <= expires_at
-    )
-    return response_matches_handoff and session_matches_exchange
+    # Core binds the handoff to this exchange through its signed request digest
+    # and returns a tenant-scoped opaque digest of session_ref, so Meet can only
+    # check that the host grant never outlives the browser exchange session.
+    return response_matches_handoff and handoff["grant_expires_at"] <= expires_at
 
 
 def _exchange_result_key(session_ref, host_handoff):

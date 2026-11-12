@@ -514,7 +514,7 @@ def test_host_invitation_exchange_requests_one_short_handoff():
             return_value={
                 "meeting_ref": "meeting_0123456789abcdef",
                 "handoff_ref": "handoff_0123456789abcdef",
-                "platform_session_ref": f"hostsession_{'1' * 32}",
+                "platform_session_ref": f"platformsession_{'a' * 32}",
                 "grant_expires_at": 1_800_014_280,
                 "expires_at": 1_800_000_000,
             },
@@ -528,7 +528,8 @@ def test_host_invitation_exchange_requests_one_short_handoff():
         )
 
     assert result == "short.handoff.signature"
-    assert claims["platform_session_ref"] == f"hostsession_{'1' * 32}"
+    # Core returns an opaque tenant-scoped digest, never the browser session ref.
+    assert claims["platform_session_ref"] == f"platformsession_{'a' * 32}"
     post.assert_called_once_with(
         endpoint=(
             "http://cabinet-core/internal/v1/application-meetings/"
@@ -557,8 +558,9 @@ def test_host_invitation_exchange_requests_one_short_handoff():
 @pytest.mark.parametrize(
     ("claim", "invalid_value"),
     [
-        ("platform_session_ref", f"hostsession_{'2' * 32}"),
         ("grant_expires_at", 1_800_014_281),
+        ("expires_at", 1_800_000_001),
+        ("handoff_ref", "handoff_fedcba9876543210"),
     ],
 )
 @override_settings(
@@ -572,7 +574,7 @@ def test_host_invitation_exchange_rejects_unbound_handoff(claim, invalid_value):
     handoff = {
         "meeting_ref": "meeting_0123456789abcdef",
         "handoff_ref": "handoff_0123456789abcdef",
-        "platform_session_ref": f"hostsession_{'1' * 32}",
+        "platform_session_ref": f"platformsession_{'a' * 32}",
         "grant_expires_at": 1_800_014_280,
         "expires_at": 1_800_000_000,
     }
