@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-13: Bound each Room Audio worker to an explicit room capacity so
+  concurrent meetings are distributed across staging replicas before process
+  scheduling can delay live or post-meeting audio.
+
 - 2026-11-12: Stop requiring Tenant Core to echo the browser exchange session
   reference in partner host handoffs. Core returns a tenant-scoped opaque
   digest instead, so API-created meetings could never admit their host.
