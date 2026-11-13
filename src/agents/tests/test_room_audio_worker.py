@@ -10,6 +10,7 @@ from room_audio_session import RoomAudioSessionHandlers
 from room_audio_worker import (
     ROOM_AUDIO_AGENT_NAME,
     ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
+    ROOM_AUDIO_WORKER_LOAD_THRESHOLD,
     RoomAudioPostConfig,
     RoomAudioWorkerConfig,
     create_live_room_audio_session,
@@ -17,6 +18,7 @@ from room_audio_worker import (
     create_room_audio_session,
     create_worker_options,
     entrypoint,
+    room_audio_worker_load,
     room_audio_worker_permissions,
 )
 
@@ -367,13 +369,28 @@ class RoomAudioWorkerCompositionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_worker_shutdown_budget_covers_room_grace_and_finalization(self):
         """LiveKit must not kill the process while post audio is being persisted."""
-        options = create_worker_options(ROOM_AUDIO_AGENT_NAME, "live")
+        options = create_worker_options(ROOM_AUDIO_AGENT_NAME, "live", 5)
 
         self.assertEqual(
             options.shutdown_process_timeout,
             ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
         )
         self.assertGreater(options.shutdown_process_timeout, 300)
+
+    def test_worker_capacity_counts_active_jobs(self):
+        """One worker reports exact room occupancy instead of host CPU load."""
+        server = SimpleNamespace(active_jobs=[object(), object(), object()])
+
+        self.assertEqual(room_audio_worker_load(server, 5), 0.6)
+
+    def test_worker_options_bind_exact_capacity(self):
+        """Reservations and running jobs cannot exceed the configured room limit."""
+        options = create_worker_options(ROOM_AUDIO_AGENT_NAME, "live", 5)
+
+        self.assertEqual(options.load_threshold, ROOM_AUDIO_WORKER_LOAD_THRESHOLD)
+        self.assertEqual(options.num_idle_processes, 5)
+        server = SimpleNamespace(active_jobs=[object()] * 5)
+        self.assertEqual(options.load_fnc(server), ROOM_AUDIO_WORKER_LOAD_THRESHOLD)
 
 
 if __name__ == "__main__":

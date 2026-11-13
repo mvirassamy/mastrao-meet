@@ -6,8 +6,10 @@ import logging
 import os
 import re
 from dataclasses import dataclass
+from functools import partial
 
 from livekit.agents import (
+    AgentServer,
     AutoSubscribe,
     JobContext,
     WorkerOptions,
@@ -40,6 +42,7 @@ logger = logging.getLogger("room-audio-worker")
 
 ROOM_AUDIO_AGENT_NAME = "room-audio-worker"
 ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS = 360.0
+ROOM_AUDIO_WORKER_LOAD_THRESHOLD = 1.0
 DISPATCH_REFERENCE = re.compile(r"^[A-Za-z0-9_-]{8,200}$")
 
 
@@ -118,6 +121,16 @@ def _load_post_config() -> RoomAudioPostConfig:
 def _positive_float_environment(name: str) -> float:
     try:
         value = float(_required_environment(name))
+    except ValueError as error:
+        raise ValueError(f"invalid {name}") from error
+    if value <= 0:
+        raise ValueError(f"invalid {name}")
+    return value
+
+
+def _positive_integer_environment(name: str) -> int:
+    try:
+        value = int(_required_environment(name))
     except ValueError as error:
         raise ValueError(f"invalid {name}") from error
     if value <= 0:
@@ -315,19 +328,44 @@ def room_audio_worker_permissions(pipeline: str) -> WorkerPermissions:
     )
 
 
-def create_worker_options(agent_name: str, pipeline: str) -> WorkerOptions:
+def room_audio_worker_load(server: AgentServer, maximum_jobs: int) -> float:
+    """Report exact room occupancy so one pod cannot over-accept work."""
+    if maximum_jobs <= 0:
+        raise ValueError("maximum room-audio jobs must be positive")
+    return len(server.active_jobs) / maximum_jobs
+
+
+def create_worker_options(
+    agent_name: str,
+    pipeline: str,
+    maximum_jobs: int,
+) -> WorkerOptions:
     """Keep the job alive through the longest room grace and final upload."""
+    if maximum_jobs <= 0:
+        raise ValueError("maximum room-audio jobs must be positive")
     return WorkerOptions(
         entrypoint_fnc=entrypoint,
         request_fnc=handle_room_audio_job_request,
         agent_name=agent_name,
         permissions=room_audio_worker_permissions(pipeline),
         shutdown_process_timeout=ROOM_AUDIO_SHUTDOWN_PROCESS_TIMEOUT_SECONDS,
+        load_fnc=partial(room_audio_worker_load, maximum_jobs=maximum_jobs),
+        load_threshold=ROOM_AUDIO_WORKER_LOAD_THRESHOLD,
+        num_idle_processes=maximum_jobs,
     )
 
 
 if __name__ == "__main__":
     configured_agent_name = _required_environment("ROOM_AUDIO_AGENT_NAME")
     configured_pipeline = _required_environment("ROOM_AUDIO_PIPELINE")
+    configured_maximum_jobs = _positive_integer_environment(
+        "ROOM_AUDIO_MAX_CONCURRENT_JOBS"
+    )
     configure_sentry(configured_agent_name)
-    cli.run_app(create_worker_options(configured_agent_name, configured_pipeline))
+    cli.run_app(
+        create_worker_options(
+            configured_agent_name,
+            configured_pipeline,
+            configured_maximum_jobs,
+        )
+    )
