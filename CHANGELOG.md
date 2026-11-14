@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-14: Retry transient Mistral realtime tier refusals with bounded,
+  track-scoped backoff so provider turnover does not terminate a meeting.
+
 - 2026-11-13: Bound each Room Audio worker to an explicit room capacity so
   concurrent meetings are distributed across staging replicas before process
   scheduling can delay live or post-meeting audio.

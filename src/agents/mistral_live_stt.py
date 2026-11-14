@@ -17,6 +17,7 @@ import aiohttp
 from livekit import rtc
 
 from live_transcript_event import LiveTranscriptEvent, LiveTranscriptEventKind
+from room_audio_runtime import ProviderSessionCapacityUnavailable
 
 MODEL: Final = "voxtral-mini-transcribe-realtime-3"
 DEFAULT_LANGUAGE: Final = "fr"
@@ -133,6 +134,11 @@ class MistralRealtimeStream(AsyncIterator[LiveTranscriptEvent]):
         """Wait until the WebSocket accepted the configured session."""
         await self._ready.wait()
         if self._opening_error is not None:
+            if isinstance(
+                self._opening_error,
+                ProviderSessionCapacityUnavailable,
+            ):
+                raise self._opening_error
             raise RuntimeError("Mistral realtime session failed to open") from (
                 self._opening_error
             )
@@ -192,10 +198,11 @@ class MistralRealtimeStream(AsyncIterator[LiveTranscriptEvent]):
         except asyncio.CancelledError:
             raise
         except Exception as error:
+            normalized_error = _normalize_provider_error(error)
             if not self._ready.is_set():
-                self._opening_error = error
+                self._opening_error = normalized_error
                 self._ready.set()
-            await self._output.put(error)
+            await self._output.put(normalized_error)
         finally:
             if not self._ready.is_set():
                 self._opening_error = RuntimeError(
@@ -331,6 +338,15 @@ class MistralRealtimeStream(AsyncIterator[LiveTranscriptEvent]):
         if isinstance(details, dict):
             code = details.get("code", "mistral_error")
             message = details.get("message", "unknown provider error")
+            normalized_code = str(code).casefold()
+            normalized_message = str(message).casefold()
+            if (
+                normalized_code in {"429", "rate_limit_exceeded"}
+                or "toomanyrequestserror" in normalized_message
+                or "too many requests" in normalized_message
+                or "rate limit" in normalized_message
+            ):
+                raise ProviderSessionCapacityUnavailable("provider-rate-limit")
             raise RuntimeError(f"{code}: {message}")
         raise RuntimeError("Mistral realtime provider error")
 
@@ -369,3 +385,28 @@ def _split_complete_words(text: str) -> tuple[str, str]:
     if boundary < 0:
         return "", text
     return text[:boundary], text[boundary + 1 :]
+
+
+def _normalize_provider_error(error: Exception) -> Exception:
+    """Unwrap one provider capacity refusal from a TaskGroup failure."""
+    if not isinstance(error, BaseExceptionGroup):
+        return error
+    leaves = _exception_leaves(error)
+    if len(leaves) == 1 and isinstance(
+        leaves[0],
+        ProviderSessionCapacityUnavailable,
+    ):
+        return leaves[0]
+    return error
+
+
+def _exception_leaves(error: BaseException) -> list[Exception]:
+    """Flatten nested exception groups while retaining ordinary errors."""
+    if isinstance(error, BaseExceptionGroup):
+        leaves: list[Exception] = []
+        for nested_error in error.exceptions:
+            leaves.extend(_exception_leaves(nested_error))
+        return leaves
+    if isinstance(error, Exception):
+        return [error]
+    return []

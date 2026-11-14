@@ -125,6 +125,20 @@ class FailingDrainSpeechStream(FakeSpeechStream):
         raise RuntimeError("provider drain failed")
 
 
+class RateLimitedSpeechStream(FakeSpeechStream):
+    """Fail one accepted provider session with a recoverable tier refusal."""
+
+    def __init__(self):
+        """Wait until the test releases the provider-side refusal."""
+        super().__init__()
+        self.fail = asyncio.Event()
+
+    async def __anext__(self):
+        """Raise the same capacity signal used by the provider adapter."""
+        await self.fail.wait()
+        raise ProviderSessionCapacityUnavailable("provider-rate-limit")
+
+
 class BlockingReadySpeechStream(FakeSpeechStream):
     """Keep the provider handshake in OPENING for timeout tests."""
 
@@ -588,6 +602,70 @@ class RoomAudioRunTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(failures), 1)
         second_stream.allow_finish.set()
         await run.aclose()
+
+    async def test_provider_rate_limit_retries_without_terminating_the_room(self):
+        """A transient provider tier refusal resumes the same speaking track."""
+        refused_stream = RateLimitedSpeechStream()
+        resumed_stream = FakeSpeechStream()
+        providers = [
+            FakeProvider(refused_stream),
+            FakeProvider(resumed_stream),
+        ]
+        failures = []
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(error):
+            failures.append(error)
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: providers.pop(0),
+                lambda: handle_event,
+                handle_failure,
+            )
+        )
+        await run.start()
+        authorize_speaking_track(run, track_ref="TR_A", identity="alice")
+        await wait_for_frames(refused_stream, 1)
+
+        refused_stream.fail.set()
+        for _ in range(500):
+            run._mixer.push_frame("TR_A", b"\xe8\x03" * 480)
+            if resumed_stream.frames:
+                break
+            await asyncio.sleep(0.002)
+
+        self.assertGreaterEqual(len(resumed_stream.frames), 1)
+        self.assertFalse(run._terminal_failure.is_set())
+        self.assertTrue(any("capacity" in str(error) for error in failures))
+        await run.aclose()
+
+    async def test_provider_rate_limit_retry_budget_is_bounded(self):
+        """Stop retry admission after the exact provider refusal budget."""
+
+        async def handle_event(_event):
+            return None
+
+        async def handle_failure(_error):
+            return None
+
+        run = RoomAudioRun(
+            live_output=live_output(
+                lambda: FakeProvider(FakeSpeechStream()),
+                lambda: handle_event,
+                handle_failure,
+            )
+        )
+        refusal = ProviderSessionCapacityUnavailable("provider-rate-limit")
+
+        for _ in range(4):
+            self.assertTrue(run._wait_for_provider_rate_limit("TR_A", refusal))
+        self.assertFalse(run._wait_for_provider_rate_limit("TR_A", refusal))
+
+        run._clear_all_capacity_waiters()
+        await asyncio.gather(*run._failure_notification_tasks)
 
     async def test_two_speakers_resume_while_predecessors_drain_without_gaps(self):
         """Normal two-speaker turnover keeps both microphones transcribed."""
