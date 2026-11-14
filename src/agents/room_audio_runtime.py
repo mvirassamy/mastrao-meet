@@ -22,6 +22,10 @@ from room_audio_speaker_evidence import RoomAudioSpeakerTimeline
 
 LIVEKIT_AUDIO_STREAM_CAPACITY = 0
 LIVE_METRICS_INTERVAL_FRAMES = 500
+PROVIDER_RATE_LIMIT_MAXIMUM_RETRIES = 4
+PROVIDER_RATE_LIMIT_BASE_DELAY_SECONDS = 0.5
+PROVIDER_RATE_LIMIT_MAXIMUM_DELAY_SECONDS = 4.0
+PROVIDER_RATE_LIMIT_MAXIMUM_JITTER_SECONDS = 0.25
 
 logger = logging.getLogger("room-audio-worker.runtime")
 
@@ -262,6 +266,8 @@ class RoomAudioRun:
         self._track_close_tasks: set[asyncio.Task] = set()
         self._track_close_errors: list[BaseException] = []
         self._capacity_waiters: OrderedDict[str, tuple[int, int]] = OrderedDict()
+        self._provider_rate_limit_attempts: dict[str, int] = {}
+        self._provider_rate_limit_retry_at: dict[str, float] = {}
         self._room_capacity_version = 0
         self._capacity_gap_track_refs: set[str] = set()
         self._capacity_gap_dropped_frames: dict[str, int] = {}
@@ -644,6 +650,12 @@ class RoomAudioRun:
 
     def _track_can_retry_capacity(self, track_ref: str) -> bool:
         """Retry only the oldest waiter after a proven capacity release."""
+        retry_at = self._provider_rate_limit_retry_at.get(track_ref)
+        if retry_at is not None:
+            if asyncio.get_running_loop().time() < retry_at:
+                return False
+            self._provider_rate_limit_retry_at.pop(track_ref, None)
+            return True
         observed_version = self._capacity_waiters.get(track_ref)
         if observed_version is None:
             return True
@@ -660,6 +672,35 @@ class RoomAudioRun:
         """Queue one track once without turning each frame into a retry."""
         self._capacity_waiters[track_ref] = self._capacity_version()
         self._record_capacity_gap(track_ref, scope=error.scope)
+
+    def _wait_for_provider_rate_limit(
+        self,
+        track_ref: str,
+        error: ProviderSessionCapacityUnavailable,
+    ) -> bool:
+        """Back off one refused track until its bounded provider retry."""
+        attempt = self._provider_rate_limit_attempts.get(track_ref, 0) + 1
+        self._provider_rate_limit_attempts[track_ref] = attempt
+        if attempt > PROVIDER_RATE_LIMIT_MAXIMUM_RETRIES:
+            return False
+        delay = min(
+            PROVIDER_RATE_LIMIT_BASE_DELAY_SECONDS * (2 ** (attempt - 1)),
+            PROVIDER_RATE_LIMIT_MAXIMUM_DELAY_SECONDS,
+        )
+        jitter_fraction = (sum(track_ref.encode("utf-8")) % 1_000) / 1_000
+        jitter = jitter_fraction * PROVIDER_RATE_LIMIT_MAXIMUM_JITTER_SECONDS
+        retry_delay = delay + jitter
+        self._provider_rate_limit_retry_at[track_ref] = (
+            asyncio.get_running_loop().time() + retry_delay
+        )
+        self._capacity_waiters[track_ref] = self._capacity_version()
+        self._record_capacity_gap(track_ref, scope=error.scope)
+        logger.warning(
+            "Room live provider rate limit retry scheduled attempt=%d delay_ms=%d",
+            attempt,
+            round(retry_delay * 1_000),
+        )
+        return True
 
     def _capacity_version(self) -> tuple[int, int]:
         """Bind retries to local or process-wide proven capacity changes."""
@@ -696,6 +737,8 @@ class RoomAudioRun:
     def _clear_track_capacity_waiter(self, track_ref: str) -> None:
         """Forget one no-longer-eligible track and its degraded episode."""
         self._capacity_waiters.pop(track_ref, None)
+        self._provider_rate_limit_attempts.pop(track_ref, None)
+        self._provider_rate_limit_retry_at.pop(track_ref, None)
         self._close_capacity_gap(track_ref)
 
     def _clear_all_capacity_waiters(self) -> None:
@@ -703,6 +746,8 @@ class RoomAudioRun:
         for track_ref in tuple(self._capacity_gap_track_refs):
             self._close_capacity_gap(track_ref)
         self._capacity_waiters.clear()
+        self._provider_rate_limit_attempts.clear()
+        self._provider_rate_limit_retry_at.clear()
 
     async def _wait_for_session_ready(self, session: _TrackBoundSession) -> None:
         """Apply the signed provider opening deadline."""
@@ -715,6 +760,8 @@ class RoomAudioRun:
                 session.state = "active"
         except asyncio.CancelledError:
             raise
+        except ProviderSessionCapacityUnavailable as error:
+            self._recover_provider_rate_limit(session.binding.track_ref, session, error)
         except Exception as error:
             if not session.closing:
                 asyncio.create_task(self._fail_live(error))
@@ -727,6 +774,7 @@ class RoomAudioRun:
         """Publish one microphone until its active speech window closes."""
         try:
             async for event in session.stream:
+                self._provider_rate_limit_attempts.pop(track_ref, None)
                 await session.handler(event)
             if not session.closing and not self._closed:
                 asyncio.create_task(
@@ -734,9 +782,25 @@ class RoomAudioRun:
                 )
         except asyncio.CancelledError:
             raise
+        except ProviderSessionCapacityUnavailable as error:
+            self._recover_provider_rate_limit(track_ref, session, error)
         except Exception as error:  # provider SDK boundary
             if not session.closing:
                 asyncio.create_task(self._fail_live(error))
+
+    def _recover_provider_rate_limit(
+        self,
+        track_ref: str,
+        session: _TrackBoundSession,
+        error: ProviderSessionCapacityUnavailable,
+    ) -> None:
+        """Replace one rate-limited session or fail after bounded retries."""
+        if session.closing or self._track_sessions.get(track_ref) is not session:
+            return
+        retrying = self._wait_for_provider_rate_limit(track_ref, error)
+        self._schedule_track_close(track_ref)
+        if not retrying:
+            asyncio.create_task(self._fail_live(error))
 
     def _schedule_track_close(self, track_ref: str) -> None:
         """Drain one track stream without blocking the room clock."""

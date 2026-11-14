@@ -19,9 +19,11 @@ from mistral_live_stt import (
     MistralRealtimeConfig,
     MistralRealtimeStream,
     MistralRealtimeSTT,
+    _normalize_provider_error,
     configured_context_bias,
     load_config,
 )
+from room_audio_runtime import ProviderSessionCapacityUnavailable
 
 
 class FakeSocket:
@@ -265,7 +267,7 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
             await stream._receive_events(FakeSocket())
 
     async def test_provider_rate_limit_is_an_explicit_failure(self):
-        """A provider 429 cannot become an empty successful transcript."""
+        """A provider 429 becomes the runtime's recoverable capacity signal."""
         stream = detached_stream(self.config)
         socket = FakeSocket(
             messages=[
@@ -284,8 +286,47 @@ class MistralRealtimeStreamTests(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with self.assertRaisesRegex(RuntimeError, "rate_limit_exceeded"):
+        with self.assertRaisesRegex(
+            ProviderSessionCapacityUnavailable,
+            "provider-rate-limit",
+        ):
             await stream._receive_events(socket)
+
+    async def test_observed_grpc_tier_limit_is_recoverable_capacity(self):
+        """Classify the exact Mistral 3800 payload observed by G5."""
+        stream = detached_stream(self.config)
+        socket = FakeSocket(
+            messages=[
+                SimpleNamespace(
+                    type=aiohttp.WSMsgType.TEXT,
+                    data=json.dumps(
+                        {
+                            "type": "error",
+                            "error": {
+                                "code": 3800,
+                                "message": (
+                                    "gRPC streaming transcription error: "
+                                    "Unexpected TooManyRequestsError: "
+                                    "Rate limit reached for given tier."
+                                ),
+                            },
+                        }
+                    ),
+                )
+            ]
+        )
+
+        with self.assertRaises(ProviderSessionCapacityUnavailable):
+            await stream._receive_events(socket)
+
+    def test_task_group_preserves_single_rate_limit_signal(self):
+        """Unwrap the typed refusal emitted through an asyncio TaskGroup."""
+        refusal = ProviderSessionCapacityUnavailable("provider-rate-limit")
+        grouped = ExceptionGroup("provider task failed", [refusal])
+
+        normalized = _normalize_provider_error(grouped)
+
+        self.assertIs(normalized, refusal)
 
     async def test_full_input_queue_makes_close_fail_closed(self):
         """A saturated sender cannot silently discard the terminal marker."""
