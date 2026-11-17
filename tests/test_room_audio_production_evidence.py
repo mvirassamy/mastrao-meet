@@ -463,6 +463,13 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                 {"name": "Trivy", "version": "0.74.0"},
             )
             self.assertEqual(
+                evidence["scan"]["policy"],
+                {
+                    "ignoreUnfixed": True,
+                    "severities": ["HIGH", "CRITICAL"],
+                },
+            )
+            self.assertEqual(
                 evidence["provenance"],
                 {
                     "status": "PASS",
@@ -823,6 +830,7 @@ class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
         self.assertIn("--to-oci-layout", workflow)
         self.assertIn("docker logout rg.fr-par.scw.cloud/mastrao-staging", workflow)
         self.assertIn("--trivy-binary", workflow)
+        self.assertIn("--ignore-unfixed", workflow)
         self.assertIn(evidence_module.TRIVY_BINARY_DIGEST, workflow)
         self.assertIn("Upload evidence only", workflow)
         install_position = workflow.index("Install the approved Trivy scanner")
