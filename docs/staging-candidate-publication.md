@@ -36,6 +36,38 @@ A push to `main` runs CI only. Production automation is deferred. It will need
 its own registry, credentials and release contract; the staging publisher
 cannot publish production releases.
 
+## Room Audio production evidence
+
+`Prepare Room Audio production evidence` is a separate manual, read-only
+workflow. It is closed to the two immutable `meet-agents` and `meet-backend`
+candidates selected by `PROD-MEET-PROMOTION-002`. It downloads each original
+V1 candidate receipt from its historical Actions run, copies the exact
+`repository@sha256` candidate into a temporary OCI layout, verifies every
+manifest, config and layer descriptor, and scans the isolated linux/amd64
+runtime with Trivy `0.74.0`. The workflow installs and verifies the pinned
+Linux amd64 Trivy binary before registry authentication, removes the registry
+credential immediately after the ORAS readback, and records the verified
+binary digest in the evidence.
+
+The workflow uploads the original receipt, a complete OCI graph and one
+`room-audio-scan-provenance-v1` record. Evidence is emitted only when the
+receipt and graph match the closed candidate, the BuildKit attestation contains
+exactly one in-toto SLSA v1 provenance statement whose subject is the runtime
+manifest, and any source commit or build-recipe fields present match the closed
+candidate. Trivy must report the exact config digest, an explicit vulnerability
+list for every result and a known severity for every finding, a fresh database,
+and no HIGH or CRITICAL finding. The evidence expiry is the earlier of the
+60-minute scan limit and the 360-minute database limit.
+
+The workflow has no publication command and cannot select, deploy, restart or
+activate a workload. Its `room-audio-production-evidence` environment must be
+restricted to protected `develop` and expose only a pre-existing
+`MEET_STAGING_REGISTRY_READ_PASSWORD` identity with registry read access. Do
+not reuse the staging publisher credential. Environment policy, credential
+scope, the independent source-read authorization and the protected production
+destination acceptance remain human-controlled prerequisites outside this
+repository.
+
 ## What the workflow proves
 
 - A credential-free validation job rejects foreign repositories, events other
