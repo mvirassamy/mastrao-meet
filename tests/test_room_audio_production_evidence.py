@@ -596,8 +596,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             database.write_bytes(b"db")
             report = directory / "report.json"
             cases = (
-                ({"Target": "fixture"}, "vulnerabilities"),
-                ({"Target": "fixture", "Vulnerabilities": None}, "vulnerabilities"),
+                ({"Target": "fixture", "Vulnerabilities": {}}, "vulnerabilities"),
                 (
                     {
                         "Target": "fixture",
@@ -645,6 +644,57 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                                 2026, 11, 17, 18, 5, tzinfo=dt.timezone.utc
                             ),
                         )
+
+    def test_renderer_accepts_omitted_or_null_empty_vulnerability_collections(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, config = self.fixture(directory)
+            graph_path = directory / "graph.json"
+            write_json(
+                graph_path,
+                inspect_candidate(
+                    candidate=candidate,
+                    receipt_path=receipt,
+                    layout=layout,
+                    scan_layout=directory / "scan-layout",
+                ),
+            )
+            report = directory / "report.json"
+            write_json(
+                report,
+                {
+                    "Metadata": {"ImageID": config["digest"]},
+                    "Results": [
+                        {"Target": "omitted"},
+                        {"Target": "null", "Vulnerabilities": None},
+                    ],
+                },
+            )
+            version = directory / "version.json"
+            write_json(
+                version,
+                {
+                    "Version": "0.74.0",
+                    "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                },
+            )
+            database = directory / "trivy.db"
+            database.write_bytes(b"db")
+
+            evidence = render_evidence(
+                candidate=candidate,
+                graph_path=graph_path,
+                trivy_report_path=report,
+                trivy_version_path=version,
+                trivy_database_path=database,
+                trivy_binary_path=self.trivy_binary_path(directory),
+                scanned_at=dt.datetime(2026, 11, 17, 18, 5, tzinfo=dt.timezone.utc),
+            )
+
+            self.assertEqual(
+                evidence["scan"]["findings"],
+                {"critical": 0, "high": 0, "fixableHighCritical": 0},
+            )
 
 
 class DeploymentsEvidenceContractIntegrationTests(unittest.TestCase):

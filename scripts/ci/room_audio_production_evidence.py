@@ -351,6 +351,8 @@ def _count_findings(report: object) -> dict[str, int]:
         ):
             raise ValueError("Trivy result is malformed")
         vulnerabilities = result.get("Vulnerabilities")
+        if vulnerabilities is None:
+            continue
         if not isinstance(vulnerabilities, list):
             raise ValueError("Trivy vulnerabilities are malformed")
         for vulnerability in vulnerabilities:
