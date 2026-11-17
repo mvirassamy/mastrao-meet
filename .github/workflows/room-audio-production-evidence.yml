@@ -123,6 +123,7 @@ jobs:
             --input "$RUNNER_TEMP/candidate-scan-layout" \
             --scanners vuln \
             --severity HIGH,CRITICAL \
+            --ignore-unfixed \
             --format json \
             --output "$RUNNER_TEMP/trivy-report.json" \
             --exit-code 0

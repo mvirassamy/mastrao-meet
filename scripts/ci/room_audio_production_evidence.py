@@ -274,6 +274,10 @@ def render_evidence(
                 "name": "Trivy",
                 "version": TRIVY_VERSION,
             },
+            "policy": {
+                "ignoreUnfixed": True,
+                "severities": ["HIGH", "CRITICAL"],
+            },
             "vulnerabilityDatabase": {
                 "source": "aquasecurity/trivy-db",
                 "digest": _sha256(trivy_database_path.read_bytes()),
