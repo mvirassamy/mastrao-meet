@@ -161,3 +161,15 @@ COPY --from=mail-builder /mail/backend/core/templates/mail /app/core/templates/m
 
 # The default command runs gunicorn WSGI server in Meet's main module
 CMD ["gunicorn", "-c", "/usr/local/etc/gunicorn/meet.py", "meet.wsgi:application"]
+
+# ---- LiveKit and Egress configuration renderer ----
+FROM core AS livekit-render-production
+
+# Remove pip to reduce attack surface in production
+RUN pip uninstall -y pip
+
+# Un-privileged user running the renderer
+ARG DOCKER_USER
+USER ${DOCKER_USER}
+
+ENTRYPOINT ["/app/.venv/bin/python", "-m", "livekit_config_renderer"]

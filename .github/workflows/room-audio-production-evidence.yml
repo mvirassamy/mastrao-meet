@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        role: [meet-agents, meet-backend, metadata-collector]
+        role: [meet-agents, meet-backend, metadata-collector, livekit-render]
     defaults:
       run:
         shell: bash
@@ -61,59 +61,73 @@ jobs:
           test "$(find "$RUNNER_TEMP/candidate-receipt" -type f | wc -l | tr -d ' ')" = 1
           test -f "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json"
 
-      - name: Checkout the immutable metadata collector source
+      - name: Checkout the immutable local-build source
         if: steps.candidate.outputs.acquisition == 'local-build'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ref: ${{ steps.candidate.outputs.source_sha }}
-          path: metadata-collector-source
+          ref: ${{ steps.candidate.outputs.source_sha || github.sha }}
+          path: candidate-source
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify the immutable metadata collector source
+      - name: Verify and bind the immutable local-build source
+        id: local-source
         if: steps.candidate.outputs.acquisition == 'local-build'
-        working-directory: metadata-collector-source
+        working-directory: candidate-source
         env:
           EXPECTED_ARCHIVE_SHA256: ${{ steps.candidate.outputs.source_archive_sha256 }}
           EXPECTED_SHA: ${{ steps.candidate.outputs.source_sha }}
           EXPECTED_TREE: ${{ steps.candidate.outputs.source_tree }}
         run: |
-          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-          test "$(git rev-parse "${EXPECTED_SHA}^{tree}")" = "$EXPECTED_TREE"
-          test "$(git archive --format=tar "$EXPECTED_SHA" | sha256sum | awk '{print $1}')" = "$EXPECTED_ARCHIVE_SHA256"
+          source_sha="$(git rev-parse HEAD)"
+          source_tree="$(git rev-parse 'HEAD^{tree}')"
+          source_archive_sha256="$(git archive --format=tar HEAD | sha256sum | awk '{print $1}')"
+          test "$source_sha" = "$GITHUB_SHA" || test -n "$EXPECTED_SHA"
+          test -z "$EXPECTED_SHA" || test "$source_sha" = "$EXPECTED_SHA"
+          test -z "$EXPECTED_TREE" || test "$source_tree" = "$EXPECTED_TREE"
+          test -z "$EXPECTED_ARCHIVE_SHA256" || test "$source_archive_sha256" = "$EXPECTED_ARCHIVE_SHA256"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'source_tree=%s\n' "$source_tree" >> "$GITHUB_OUTPUT"
+          printf 'source_archive_sha256=%s\n' "$source_archive_sha256" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Docker Buildx for metadata collector
+      - name: Set up Docker Buildx for local evidence
         if: steps.candidate.outputs.acquisition == 'local-build'
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-      - name: Build the metadata collector evidence image once
+      - name: Build the local evidence image once
         if: steps.candidate.outputs.acquisition == 'local-build'
-        id: metadata-build
+        id: local-build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
-          context: metadata-collector-source/${{ steps.candidate.outputs.context }}
-          file: metadata-collector-source/${{ steps.candidate.outputs.dockerfile }}
+          context: candidate-source/${{ steps.candidate.outputs.context }}
+          file: candidate-source/${{ steps.candidate.outputs.dockerfile }}
           target: ${{ steps.candidate.outputs.build_target }}
           platforms: linux/amd64
           build-args: ${{ steps.candidate.outputs.build_args }}
           push: false
-          outputs: type=oci,dest=${{ runner.temp }}/metadata-collector.tar,rewrite-timestamp=true
-          tags: ${{ steps.candidate.outputs.repository }}:production-evidence-${{ steps.candidate.outputs.source_sha }}
+          outputs: type=oci,dest=${{ runner.temp }}/local-build.tar,rewrite-timestamp=true
+          tags: ${{ steps.candidate.outputs.repository }}:production-evidence-${{ steps.local-source.outputs.source_sha }}
           provenance: mode=max
           sbom: true
 
-      - name: Bind the local metadata collector build and render its receipt
+      - name: Bind the local build and render its receipt
         if: steps.candidate.outputs.acquisition == 'local-build'
         env:
-          ROOT_DIGEST: ${{ steps.metadata-build.outputs.digest }}
+          ROOT_DIGEST: ${{ steps.local-build.outputs.digest }}
           ROLE: ${{ matrix.role }}
+          SOURCE_ARCHIVE_SHA256: ${{ steps.local-source.outputs.source_archive_sha256 }}
+          SOURCE_SHA: ${{ steps.local-source.outputs.source_sha }}
+          SOURCE_TREE: ${{ steps.local-source.outputs.source_tree }}
         run: |
           [[ "$ROOT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           mkdir "$RUNNER_TEMP/candidate-layout" "$RUNNER_TEMP/candidate-receipt"
-          tar -xf "$RUNNER_TEMP/metadata-collector.tar" -C "$RUNNER_TEMP/candidate-layout"
+          tar -xf "$RUNNER_TEMP/local-build.tar" -C "$RUNNER_TEMP/candidate-layout"
           python -m scripts.ci.room_audio_production_evidence render-local-build-receipt \
             --role "$ROLE" \
+            --source-sha "$SOURCE_SHA" \
+            --source-tree "$SOURCE_TREE" \
+            --source-archive-sha256 "$SOURCE_ARCHIVE_SHA256" \
             --layout "$RUNNER_TEMP/candidate-layout" \
             --expected-root-digest "$ROOT_DIGEST" \
             --run-id "$GITHUB_RUN_ID" \
