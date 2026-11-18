@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        role: [meet-agents, meet-backend]
+        role: [meet-agents, meet-backend, metadata-collector]
     defaults:
       run:
         shell: bash
@@ -43,6 +43,7 @@ jobs:
             --role "$ROLE" >> "$GITHUB_OUTPUT"
 
       - name: Download the original candidate receipt
+        if: steps.candidate.outputs.acquisition == 'registry'
         env:
           ARTIFACT_NAME: ${{ steps.candidate.outputs.artifact_name }}
           GH_TOKEN: ${{ github.token }}
@@ -59,6 +60,65 @@ jobs:
           unzip -q "$RUNNER_TEMP/candidate-receipt.zip" -d "$RUNNER_TEMP/candidate-receipt"
           test "$(find "$RUNNER_TEMP/candidate-receipt" -type f | wc -l | tr -d ' ')" = 1
           test -f "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json"
+
+      - name: Checkout the immutable metadata collector source
+        if: steps.candidate.outputs.acquisition == 'local-build'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ steps.candidate.outputs.source_sha }}
+          path: metadata-collector-source
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify the immutable metadata collector source
+        if: steps.candidate.outputs.acquisition == 'local-build'
+        working-directory: metadata-collector-source
+        env:
+          EXPECTED_ARCHIVE_SHA256: ${{ steps.candidate.outputs.source_archive_sha256 }}
+          EXPECTED_SHA: ${{ steps.candidate.outputs.source_sha }}
+          EXPECTED_TREE: ${{ steps.candidate.outputs.source_tree }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git rev-parse "${EXPECTED_SHA}^{tree}")" = "$EXPECTED_TREE"
+          test "$(git archive --format=tar "$EXPECTED_SHA" | sha256sum | awk '{print $1}')" = "$EXPECTED_ARCHIVE_SHA256"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up Docker Buildx for metadata collector
+        if: steps.candidate.outputs.acquisition == 'local-build'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build the metadata collector evidence image once
+        if: steps.candidate.outputs.acquisition == 'local-build'
+        id: metadata-build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: metadata-collector-source/${{ steps.candidate.outputs.context }}
+          file: metadata-collector-source/${{ steps.candidate.outputs.dockerfile }}
+          target: ${{ steps.candidate.outputs.build_target }}
+          platforms: linux/amd64
+          build-args: ${{ steps.candidate.outputs.build_args }}
+          push: false
+          outputs: type=oci,dest=${{ runner.temp }}/metadata-collector.tar,rewrite-timestamp=true
+          tags: ${{ steps.candidate.outputs.repository }}:production-evidence-${{ steps.candidate.outputs.source_sha }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Bind the local metadata collector build and render its receipt
+        if: steps.candidate.outputs.acquisition == 'local-build'
+        env:
+          ROOT_DIGEST: ${{ steps.metadata-build.outputs.digest }}
+          ROLE: ${{ matrix.role }}
+        run: |
+          [[ "$ROOT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          mkdir "$RUNNER_TEMP/candidate-layout" "$RUNNER_TEMP/candidate-receipt"
+          tar -xf "$RUNNER_TEMP/metadata-collector.tar" -C "$RUNNER_TEMP/candidate-layout"
+          python -m scripts.ci.room_audio_production_evidence render-local-build-receipt \
+            --role "$ROLE" \
+            --layout "$RUNNER_TEMP/candidate-layout" \
+            --expected-root-digest "$ROOT_DIGEST" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json"
 
       - name: Install the approved Trivy scanner
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
@@ -77,16 +137,19 @@ jobs:
           test "$actual_digest" = "$EXPECTED_TRIVY_DIGEST"
 
       - name: Require the dedicated read-only registry identity
+        if: steps.candidate.outputs.acquisition == 'registry'
         env:
           REGISTRY_PASSWORD: ${{ secrets.MEET_STAGING_REGISTRY_READ_PASSWORD }}
         run: test -n "$REGISTRY_PASSWORD"
 
       - name: Set up ORAS
+        if: steps.candidate.outputs.acquisition == 'registry'
         uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1
         with:
           version: 1.3.0
 
       - name: Authenticate to the staging registry for readback
+        if: steps.candidate.outputs.acquisition == 'registry'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: rg.fr-par.scw.cloud/mastrao-staging
@@ -94,6 +157,7 @@ jobs:
           password: ${{ secrets.MEET_STAGING_REGISTRY_READ_PASSWORD }}
 
       - name: Copy the exact candidate into a local OCI layout
+        if: steps.candidate.outputs.acquisition == 'registry'
         env:
           ROLE: ${{ matrix.role }}
           SOURCE_REFERENCE: ${{ steps.candidate.outputs.source_reference }}
@@ -101,6 +165,7 @@ jobs:
           oras cp --to-oci-layout "$SOURCE_REFERENCE" "$RUNNER_TEMP/candidate-layout:$ROLE"
 
       - name: Remove registry credentials before validation and scan
+        if: steps.candidate.outputs.acquisition == 'registry'
         run: docker logout rg.fr-par.scw.cloud/mastrao-staging
 
       - name: Verify the complete OCI graph and prepare the runtime scan layout
@@ -140,6 +205,7 @@ jobs:
         run: |
           python -m scripts.ci.room_audio_production_evidence render \
             --role "$ROLE" \
+            --receipt "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json" \
             --graph "$RUNNER_TEMP/oci-graph.json" \
             --trivy-report "$RUNNER_TEMP/trivy-report.json" \
             --trivy-version "$RUNNER_TEMP/trivy-version.json" \

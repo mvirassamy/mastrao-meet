@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-18: Produce fail-closed production evidence for the Room Audio
+  metadata collector from its immutable source and dedicated Docker target,
+  without publishing or deploying the image.
+
 - 2026-11-14: Retry transient Mistral realtime tier refusals with bounded,
   track-scoped backoff so provider turnover does not terminate a meeting.
 

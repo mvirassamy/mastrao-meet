@@ -39,28 +39,36 @@ cannot publish production releases.
 ## Room Audio production evidence
 
 `Prepare Room Audio production evidence` is a separate manual, read-only
-workflow. It is closed to the two immutable `meet-agents` and `meet-backend`
-candidates selected by `PROD-MEET-PROMOTION-002`. It downloads each original
-V1 candidate receipt from its historical Actions run, copies the exact
-`repository@sha256` candidate into a temporary OCI layout, verifies every
-manifest, config and layer descriptor, and scans the isolated linux/amd64
-runtime with Trivy `0.74.0`. The workflow installs and verifies the pinned
-Linux amd64 Trivy binary before registry authentication, removes the registry
-credential immediately after the ORAS readback, and records the verified
-binary digest in the evidence.
+workflow. It is closed to the immutable `meet-agents` and `meet-backend`
+candidates selected by `PROD-MEET-PROMOTION-002`, plus the dedicated
+`metadata-collector-production` Docker target at source commit
+`9077554dbed793e14d0c334b8217e5cbefff7b8b`. For the two published candidates,
+it downloads the original V1 receipt from the historical Actions run and
+copies the exact `repository@sha256` candidate into a temporary OCI layout.
+For the metadata collector, it verifies the immutable source tree and archive,
+builds one local linux/amd64 OCI archive with the closed recipe and deterministic
+source timestamp, and records a `BUILT_NOT_PUBLISHED_NOT_DEPLOYED` receipt. It
+does not add the metadata collector to the staging publication targets.
 
-The workflow uploads the original receipt, a complete OCI graph and one
-`room-audio-scan-provenance-v1` record. Evidence is emitted only when the
-receipt and graph match the closed candidate, the BuildKit attestation contains
-exactly one in-toto SLSA v1 provenance statement whose subject is the runtime
+All three paths verify every manifest, config and layer descriptor and scan the
+isolated linux/amd64 runtime with Trivy `0.74.0`. The workflow installs and
+verifies the pinned Linux amd64 Trivy binary before registry authentication,
+removes the registry credential immediately after the ORAS readback, and
+records the verified binary digest in the evidence. The metadata collector job
+never receives or requires that registry credential.
+
+The workflow uploads the original or local-build receipt, a complete OCI graph
+and one `room-audio-scan-provenance-v1` record. Evidence is emitted only when
+the receipt and graph match the closed candidate, the BuildKit attestation
+contains exactly one in-toto SLSA v1 provenance statement whose subject is the runtime
 manifest, and any source commit or build-recipe fields present match the closed
 candidate. Trivy must report the exact config digest, an explicit vulnerability
 list for every result and a known severity for every finding, a fresh database,
 and no HIGH or CRITICAL finding. The evidence expiry is the earlier of the
 60-minute scan limit and the 360-minute database limit.
 
-The workflow has no publication command and cannot select, deploy, restart or
-activate a workload. Its `room-audio-production-evidence` environment must be
+The workflow has no publication command and cannot deploy, restart or activate
+a workload. Its `room-audio-production-evidence` environment must be
 restricted to protected `develop` and expose only a pre-existing
 `MEET_STAGING_REGISTRY_READ_PASSWORD` identity with registry read access. Do
 not reuse the staging publisher credential. Environment policy, credential
