@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-18: Bind the selected Meet backend candidate exclusively to the
+  zero-replica production worker-general workload with fresh read-only OCI and
+  vulnerability evidence, without rebuilding or publishing it.
+
 - 2026-11-18: Retain verified metadata collector and LiveKit renderer OCI
   archives for one day, bound to their receipt and graph for a later separately
   authorized digest-only production publication, using an explicit flat
