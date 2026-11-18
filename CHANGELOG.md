@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-18: Add a dedicated fail-closed LiveKit and Egress configuration
+  renderer plus local production OCI evidence, without publishing or deploying
+  the image.
+
 - 2026-11-18: Produce fail-closed production evidence for the Room Audio
   metadata collector from its immutable source and dedicated Docker target,
   without publishing or deploying the image.

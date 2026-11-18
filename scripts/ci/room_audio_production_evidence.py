@@ -17,6 +17,8 @@ from urllib.parse import urlsplit
 from scripts.ci.staging_candidate_recipe import TARGETS, Recipe
 
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+GIT_OBJECT = re.compile(r"^[0-9a-f]{40}$")
+SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 TRIVY_VERSION = "0.74.0"
 TRIVY_BINARY_DIGEST = (
     "sha256:d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791"
@@ -30,6 +32,8 @@ IN_TOTO_STATEMENT_TYPE = "https://in-toto.io/Statement/v1"
 SLSA_PROVENANCE_TYPE = "https://slsa.dev/provenance/v1"
 TRIVY_SEVERITIES = {"UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"}
 METADATA_COLLECTOR_ROLE = "metadata-collector"
+LIVEKIT_RENDER_ROLE = "livekit-render"
+LOCAL_BUILD_ROLES = {METADATA_COLLECTOR_ROLE, LIVEKIT_RENDER_ROLE}
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,16 @@ EVIDENCE_RECIPES = {
         build_args=(
             "DOCKER_USER=10001:10001",
             "SOURCE_DATE_EPOCH=1794617901",
+        ),
+    ),
+    LIVEKIT_RENDER_ROLE: Recipe(
+        context=".",
+        dockerfile="Dockerfile",
+        build_target="livekit-render-production",
+        repository="rg.fr-par.scw.cloud/mastrao-production/livekit-render",
+        build_args=(
+            "DOCKER_USER=10001:10001",
+            "SOURCE_DATE_EPOCH=1794960000",
         ),
     ),
 }
@@ -137,7 +151,7 @@ def candidate_for(role: str) -> Candidate:
 
 
 def expected_receipt(candidate: Candidate) -> dict[str, object]:
-    if candidate.role == METADATA_COLLECTOR_ROLE:
+    if candidate.role in LOCAL_BUILD_ROLES:
         return _expected_local_build_receipt(candidate)
     recipe = evidence_recipe_for(candidate.role)
     return {
@@ -213,7 +227,7 @@ def _expected_local_build_receipt(candidate: Candidate) -> dict[str, object]:
 
 
 def candidate_from_receipt(role: str, receipt_path: Path) -> Candidate:
-    if role != METADATA_COLLECTOR_ROLE:
+    if role not in LOCAL_BUILD_ROLES:
         candidate = candidate_for(role)
         if _read_json(receipt_path) != expected_receipt(candidate):
             raise ValueError("candidate receipt does not match the closed candidate")
@@ -230,6 +244,7 @@ def candidate_from_receipt(role: str, receipt_path: Path) -> Candidate:
     runtime_digest = image.get("runtimeManifestDigest")
     run_id = workflow.get("runId")
     run_attempt = workflow.get("runAttempt")
+    source = receipt.get("source")
     if (
         not _is_digest(root_digest)
         or not _is_digest(runtime_digest)
@@ -237,13 +252,20 @@ def candidate_from_receipt(role: str, receipt_path: Path) -> Candidate:
         or run_id < 1
         or not isinstance(run_attempt, int)
         or run_attempt < 1
+        or not isinstance(source, dict)
     ):
         raise ValueError("local build receipt is malformed")
+    selected_source = Source(
+        commit=source.get("sha", ""),
+        tree=source.get("tree", ""),
+        archive_sha256=source.get("archiveSha256", ""),
+    )
+    _validate_local_source(role, selected_source)
     candidate = Candidate(
-        role=METADATA_COLLECTOR_ROLE,
-        source_commit=METADATA_COLLECTOR_SOURCE.commit,
-        source_tree=METADATA_COLLECTOR_SOURCE.tree,
-        source_archive_sha256=METADATA_COLLECTOR_SOURCE.archive_sha256,
+        role=role,
+        source_commit=selected_source.commit,
+        source_tree=selected_source.tree,
+        source_archive_sha256=selected_source.archive_sha256,
         run_id=run_id,
         run_attempt=run_attempt,
         root_digest=root_digest,
@@ -256,11 +278,14 @@ def candidate_from_receipt(role: str, receipt_path: Path) -> Candidate:
 
 def render_local_build_receipt(
     *,
+    role: str,
+    source: Source,
     layout: Path,
     expected_root_digest: str,
     run_id: int,
     run_attempt: int,
 ) -> dict[str, object]:
+    _validate_local_source(role, source)
     if not _is_digest(expected_root_digest):
         raise ValueError("local build root digest is invalid")
     if run_id < 1 or run_attempt < 1:
@@ -279,10 +304,10 @@ def render_local_build_receipt(
         raise ValueError("local build must contain exactly one runtime manifest")
     runtime = runtime_descriptors[0]
     candidate = Candidate(
-        role=METADATA_COLLECTOR_ROLE,
-        source_commit=METADATA_COLLECTOR_SOURCE.commit,
-        source_tree=METADATA_COLLECTOR_SOURCE.tree,
-        source_archive_sha256=METADATA_COLLECTOR_SOURCE.archive_sha256,
+        role=role,
+        source_commit=source.commit,
+        source_tree=source.tree,
+        source_archive_sha256=source.archive_sha256,
         run_id=run_id,
         run_attempt=run_attempt,
         root_digest=expected_root_digest,
@@ -290,6 +315,22 @@ def render_local_build_receipt(
     )
     _inspect_graph(candidate, layout)
     return expected_receipt(candidate)
+
+
+def _validate_local_source(role: str, source: Source) -> None:
+    if role not in LOCAL_BUILD_ROLES:
+        raise ValueError("role does not support a local evidence build")
+    if (
+        not isinstance(source.commit, str)
+        or GIT_OBJECT.fullmatch(source.commit) is None
+        or not isinstance(source.tree, str)
+        or GIT_OBJECT.fullmatch(source.tree) is None
+        or not isinstance(source.archive_sha256, str)
+        or SHA256_HEX.fullmatch(source.archive_sha256) is None
+    ):
+        raise ValueError("local build source identity is malformed")
+    if role == METADATA_COLLECTOR_ROLE and source != METADATA_COLLECTOR_SOURCE:
+        raise ValueError("metadata collector source identity does not match")
 
 
 def inspect_candidate(
@@ -407,7 +448,10 @@ def render_evidence(
         raise ValueError("Trivy vulnerability database is stale")
 
     metadata = report.get("Metadata")
-    if not isinstance(metadata, dict) or metadata.get("ImageID") != graph["configDigest"]:
+    if (
+        not isinstance(metadata, dict)
+        or metadata.get("ImageID") != graph["configDigest"]
+    ):
         raise ValueError("Trivy report is not bound to the candidate config digest")
     findings = _count_findings(report)
     if findings != {"critical": 0, "high": 0, "fixableHighCritical": 0}:
@@ -481,7 +525,10 @@ def _validate_graph_identity(graph: object, candidate: Candidate) -> None:
         not isinstance(manifest_digests, list)
         or candidate.amd64_manifest_digest not in manifest_digests
         or len(manifest_digests) != len(set(manifest_digests))
-        or not all(isinstance(item, str) and DIGEST.fullmatch(item) for item in manifest_digests)
+        or not all(
+            isinstance(item, str) and DIGEST.fullmatch(item)
+            for item in manifest_digests
+        )
     ):
         raise ValueError("OCI graph manifest list is incomplete")
     config_digest = graph.get("configDigest")
@@ -537,7 +584,9 @@ def _count_findings(report: object) -> dict[str, int]:
     return {"critical": critical, "high": high, "fixableHighCritical": fixable}
 
 
-def _prepare_scan_layout(source: Path, destination: Path, runtime: dict[str, object]) -> None:
+def _prepare_scan_layout(
+    source: Path, destination: Path, runtime: dict[str, object]
+) -> None:
     if destination.exists():
         raise ValueError("scan layout destination already exists")
     shutil.copytree(source, destination)
@@ -574,7 +623,9 @@ def _descriptor_list(value: object, label: str) -> list[dict[str, object]]:
     return descriptors
 
 
-def _read_descriptor_blob(layout: Path, descriptor: object, label: str) -> dict[str, object]:
+def _read_descriptor_blob(
+    layout: Path, descriptor: object, label: str
+) -> dict[str, object]:
     if not isinstance(descriptor, dict):
         raise ValueError(f"OCI {label} descriptor is missing")
     descriptors = _descriptor_list([descriptor], f"OCI {label} descriptor")
@@ -772,22 +823,22 @@ def _validate_optional_build_parameters(
             key = f"build-arg:{name}"
             if key in arguments and arguments[key] != expected_value:
                 raise ValueError("BuildKit provenance build recipe does not match")
-    if candidate.role == METADATA_COLLECTOR_ROLE:
-        _require_metadata_collector_build_parameters(
+    if candidate.role in LOCAL_BUILD_ROLES:
+        _require_local_build_parameters(
             config_source=config_source,
             argument_maps=argument_maps,
             recipe=recipe,
         )
 
 
-def _require_metadata_collector_build_parameters(
+def _require_local_build_parameters(
     *,
     config_source: object,
     argument_maps: list[dict[str, object]],
     recipe: Recipe,
 ) -> None:
     if config_source is None or not argument_maps:
-        raise ValueError("metadata collector BuildKit recipe is incomplete")
+        raise ValueError("local BuildKit recipe is incomplete")
     for arguments in argument_maps:
         if arguments.get("target") != recipe.build_target:
             continue
@@ -798,7 +849,7 @@ def _require_metadata_collector_build_parameters(
             )
         ):
             return
-    raise ValueError("metadata collector BuildKit recipe is incomplete")
+    raise ValueError("local BuildKit recipe is incomplete")
 
 
 def _build_argument_maps(external: dict[str, object]) -> list[dict[str, object]]:
@@ -845,7 +896,9 @@ def _parse_json_object(raw: bytes, label: str) -> dict[str, object]:
     return value
 
 
-def _read_blob(layout: Path, digest: str, expected_size: int | None = None) -> dict[str, object]:
+def _read_blob(
+    layout: Path, digest: str, expected_size: int | None = None
+) -> dict[str, object]:
     raw = _read_blob_bytes(layout, digest, expected_size)
     try:
         value = json.loads(raw)
@@ -856,7 +909,9 @@ def _read_blob(layout: Path, digest: str, expected_size: int | None = None) -> d
     return value
 
 
-def _read_blob_bytes(layout: Path, digest: str, expected_size: int | None = None) -> bytes:
+def _read_blob_bytes(
+    layout: Path, digest: str, expected_size: int | None = None
+) -> bytes:
     if not DIGEST.fullmatch(digest):
         raise ValueError("OCI blob digest is invalid")
     raw = (layout / "blobs" / "sha256" / digest.removeprefix("sha256:")).read_bytes()
@@ -913,22 +968,28 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _select(role: str) -> str:
-    if role == METADATA_COLLECTOR_ROLE:
+    if role in LOCAL_BUILD_ROLES:
         recipe = evidence_recipe_for(role)
+        source_lines: tuple[str, ...] = ()
+        if role == METADATA_COLLECTOR_ROLE:
+            source_lines = (
+                f"source_sha={METADATA_COLLECTOR_SOURCE.commit}\n",
+                f"source_tree={METADATA_COLLECTOR_SOURCE.tree}\n",
+                f"source_archive_sha256={METADATA_COLLECTOR_SOURCE.archive_sha256}\n",
+            )
+        delimiter = f"{role.upper().replace('-', '_')}_BUILD_ARGS"
         return "".join(
             (
                 "acquisition=local-build\n",
                 f"role={role}\n",
-                f"source_sha={METADATA_COLLECTOR_SOURCE.commit}\n",
-                f"source_tree={METADATA_COLLECTOR_SOURCE.tree}\n",
-                f"source_archive_sha256={METADATA_COLLECTOR_SOURCE.archive_sha256}\n",
+                *source_lines,
                 f"context={recipe.context}\n",
                 f"dockerfile={recipe.dockerfile}\n",
                 f"build_target={recipe.build_target}\n",
                 f"repository={recipe.repository}\n",
-                "build_args<<METADATA_COLLECTOR_BUILD_ARGS\n",
+                f"build_args<<{delimiter}\n",
                 *(f"{build_arg}\n" for build_arg in recipe.build_args),
-                "METADATA_COLLECTOR_BUILD_ARGS\n",
+                f"{delimiter}\n",
             )
         )
     candidate = candidate_for(role)
@@ -984,6 +1045,9 @@ def main() -> None:
 
     local_receipt = subparsers.add_parser("render-local-build-receipt")
     local_receipt.add_argument("--role", required=True)
+    local_receipt.add_argument("--source-sha", required=True)
+    local_receipt.add_argument("--source-tree", required=True)
+    local_receipt.add_argument("--source-archive-sha256", required=True)
     local_receipt.add_argument("--layout", required=True, type=Path)
     local_receipt.add_argument("--expected-root-digest", required=True)
     local_receipt.add_argument("--run-id", required=True, type=int)
@@ -1009,13 +1073,15 @@ def main() -> None:
         sys.stdout.write(f"{artifact_id_from_listing(args.listing, args.name)}\n")
         return
     if args.command == "render-local-build-receipt":
-        if args.role != METADATA_COLLECTOR_ROLE:
-            raise ValueError(
-                "local build receipt is only supported for metadata-collector"
-            )
         _write_json(
             args.output,
             render_local_build_receipt(
+                role=args.role,
+                source=Source(
+                    commit=args.source_sha,
+                    tree=args.source_tree,
+                    archive_sha256=args.source_archive_sha256,
+                ),
                 layout=args.layout,
                 expected_root_digest=args.expected_root_digest,
                 run_id=args.run_id,

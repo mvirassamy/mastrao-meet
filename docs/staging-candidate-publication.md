@@ -42,20 +42,23 @@ cannot publish production releases.
 workflow. It is closed to the immutable `meet-agents` and `meet-backend`
 candidates selected by `PROD-MEET-PROMOTION-002`, plus the dedicated
 `metadata-collector-production` Docker target at source commit
-`9077554dbed793e14d0c334b8217e5cbefff7b8b`. For the two published candidates,
+`9077554dbed793e14d0c334b8217e5cbefff7b8b` and the dedicated
+`livekit-render-production` target from the protected workflow commit. For the
+two published candidates,
 it downloads the original V1 receipt from the historical Actions run and
 copies the exact `repository@sha256` candidate into a temporary OCI layout.
-For the metadata collector, it verifies the immutable source tree and archive,
-builds one local linux/amd64 OCI archive with the closed recipe and deterministic
-source timestamp, and records a `BUILT_NOT_PUBLISHED_NOT_DEPLOYED` receipt. It
-does not add the metadata collector to the staging publication targets.
+For both dedicated targets, it verifies the immutable source tree and archive,
+builds one local linux/amd64 OCI archive with the closed recipe and
+deterministic source timestamp, and records a
+`BUILT_NOT_PUBLISHED_NOT_DEPLOYED` receipt. It does not add either target to
+the staging publication targets.
 
-All three paths verify every manifest, config and layer descriptor and scan the
+All four paths verify every manifest, config and layer descriptor and scan the
 isolated linux/amd64 runtime with Trivy `0.74.0`. The workflow installs and
 verifies the pinned Linux amd64 Trivy binary before registry authentication,
 removes the registry credential immediately after the ORAS readback, and
-records the verified binary digest in the evidence. The metadata collector job
-never receives or requires that registry credential.
+records the verified binary digest in the evidence. The metadata collector and
+LiveKit renderer jobs never receive or require that registry credential.
 
 The workflow uploads the original or local-build receipt, a complete OCI graph
 and one `room-audio-scan-provenance-v1` record. Evidence is emitted only when

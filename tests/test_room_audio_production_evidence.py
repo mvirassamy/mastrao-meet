@@ -14,9 +14,11 @@ from unittest import mock
 import scripts.ci.room_audio_production_evidence as evidence_module
 from scripts.ci.room_audio_production_evidence import (
     CANDIDATES,
+    LIVEKIT_RENDER_ROLE,
     METADATA_COLLECTOR_ROLE,
     METADATA_COLLECTOR_SOURCE,
     Candidate,
+    Source,
     artifact_id_from_listing,
     candidate_from_receipt,
     evidence_recipe_for,
@@ -223,6 +225,8 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
         write_json(
             receipt,
             render_local_build_receipt(
+                role=METADATA_COLLECTOR_ROLE,
+                source=source,
                 layout=layout,
                 expected_root_digest=root["digest"],
                 run_id=77,
@@ -230,6 +234,41 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             ),
         )
         candidate = candidate_from_receipt(METADATA_COLLECTOR_ROLE, receipt)
+        self.assertEqual(candidate.amd64_manifest_digest, runtime["digest"])
+        return candidate, layout, receipt, config
+
+    def renderer_fixture(self, directory, **layout_options):
+        source = Source(
+            commit="1" * 40,
+            tree="2" * 40,
+            archive_sha256="3" * 64,
+        )
+        original = Candidate(
+            role=LIVEKIT_RENDER_ROLE,
+            source_commit=source.commit,
+            source_tree=source.tree,
+            source_archive_sha256=source.archive_sha256,
+            run_id=88,
+            run_attempt=1,
+            root_digest="sha256:" + "a" * 64,
+            amd64_manifest_digest="sha256:" + "b" * 64,
+        )
+        layout, runtime, config, root = candidate_layout(
+            directory, original, **layout_options
+        )
+        receipt = directory / "livekit-render-receipt.json"
+        write_json(
+            receipt,
+            render_local_build_receipt(
+                role=LIVEKIT_RENDER_ROLE,
+                source=source,
+                layout=layout,
+                expected_root_digest=root["digest"],
+                run_id=88,
+                run_attempt=1,
+            ),
+        )
+        candidate = candidate_from_receipt(LIVEKIT_RENDER_ROLE, receipt)
         self.assertEqual(candidate.amd64_manifest_digest, runtime["digest"])
         return candidate, layout, receipt, config
 
@@ -278,6 +317,76 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
         self.assertIn("SOURCE_DATE_EPOCH=1794617901\n", result.stdout)
         self.assertNotIn("password", result.stdout.lower())
 
+    def test_livekit_renderer_selection_uses_the_current_protected_source(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "scripts.ci.room_audio_production_evidence",
+                "select",
+                "--role",
+                LIVEKIT_RENDER_ROLE,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("acquisition=local-build\n", result.stdout)
+        self.assertIn("build_target=livekit-render-production\n", result.stdout)
+        self.assertIn(
+            "repository=rg.fr-par.scw.cloud/mastrao-production/livekit-render\n",
+            result.stdout,
+        )
+        self.assertNotIn("source_sha=", result.stdout)
+        self.assertNotIn("password", result.stdout.lower())
+
+    def test_livekit_renderer_receipt_binds_current_source_recipe_and_oci_graph(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, config = self.renderer_fixture(directory)
+            receipt_value = json.loads(receipt.read_text())
+            self.assertEqual(
+                receipt_value["status"], "BUILT_NOT_PUBLISHED_NOT_DEPLOYED"
+            )
+            self.assertEqual(receipt_value["role"], LIVEKIT_RENDER_ROLE)
+            self.assertEqual(
+                receipt_value["recipe"]["buildTarget"],
+                "livekit-render-production",
+            )
+            self.assertEqual(receipt_value["source"]["sha"], "1" * 40)
+            self.assertFalse(receipt_value["publicationPerformed"])
+            self.assertFalse(receipt_value["deploymentApplied"])
+
+            graph = inspect_candidate(
+                candidate=candidate,
+                receipt_path=receipt,
+                layout=layout,
+                scan_layout=directory / "renderer-scan-layout",
+            )
+            self.assertEqual(graph["configDigest"], config["digest"])
+            self.assertEqual(graph["role"], LIVEKIT_RENDER_ROLE)
+
+    def test_livekit_renderer_receipt_rejects_malformed_source_identity(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            _, layout, _, _ = self.renderer_fixture(directory)
+            with self.assertRaisesRegex(ValueError, "source identity"):
+                render_local_build_receipt(
+                    role=LIVEKIT_RENDER_ROLE,
+                    source=Source(
+                        commit="not-a-commit",
+                        tree="2" * 40,
+                        archive_sha256="3" * 64,
+                    ),
+                    layout=layout,
+                    expected_root_digest=json.loads(
+                        (layout / "index.json").read_text()
+                    )["manifests"][0]["digest"],
+                    run_id=88,
+                    run_attempt=1,
+                )
+
     def test_metadata_collector_receipt_binds_source_recipe_and_local_oci_graph(self):
         with tempfile.TemporaryDirectory() as name:
             directory = Path(name)
@@ -311,6 +420,8 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             _, layout, _, _ = self.metadata_fixture(directory)
             with self.assertRaisesRegex(ValueError, "root digest"):
                 render_local_build_receipt(
+                    role=METADATA_COLLECTOR_ROLE,
+                    source=METADATA_COLLECTOR_SOURCE,
                     layout=layout,
                     expected_root_digest="sha256:" + "f" * 64,
                     run_id=77,
@@ -341,6 +452,8 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "build recipe"):
                 render_local_build_receipt(
+                    role=METADATA_COLLECTOR_ROLE,
+                    source=METADATA_COLLECTOR_SOURCE,
                     layout=layout,
                     expected_root_digest=root["digest"],
                     run_id=77,
@@ -371,6 +484,8 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "recipe is incomplete"):
                 render_local_build_receipt(
+                    role=METADATA_COLLECTOR_ROLE,
+                    source=METADATA_COLLECTOR_SOURCE,
                     layout=layout,
                     expected_root_digest=root["digest"],
                     run_id=77,
@@ -390,7 +505,9 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             )
             self.assertEqual(graph["rootDigest"], candidate.root_digest)
             self.assertEqual(graph["configDigest"], config["digest"])
-            self.assertIn(candidate.amd64_manifest_digest, graph["ociGraphManifestDigests"])
+            self.assertIn(
+                candidate.amd64_manifest_digest, graph["ociGraphManifestDigests"]
+            )
             self.assertEqual(graph["provenance"]["status"], "VALIDATED")
             self.assertEqual(
                 graph["provenance"]["subjectDigest"],
@@ -418,8 +535,11 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                 )
 
             write_json(receipt, expected_receipt(candidate))
-            root = layout / "blobs" / "sha256" / candidate.root_digest.removeprefix(
-                "sha256:"
+            root = (
+                layout
+                / "blobs"
+                / "sha256"
+                / candidate.root_digest.removeprefix("sha256:")
             )
             root.write_bytes(b"changed")
             with self.assertRaisesRegex(ValueError, "do not match"):
@@ -637,9 +757,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                     "sourceArchiveSha256": candidate.source_archive_sha256,
                 },
             )
-            self.assertEqual(
-                evidence["scannerBinaryDigest"], digest(self.trivy_binary)
-            )
+            self.assertEqual(evidence["scannerBinaryDigest"], digest(self.trivy_binary))
             graph_provenance = json.loads(graph_path.read_text())["provenance"]
             self.assertEqual(
                 evidence["slsaProvenance"],
@@ -664,9 +782,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                     trivy_version_path=version,
                     trivy_database_path=database,
                     trivy_binary_path=altered_binary,
-                    scanned_at=dt.datetime(
-                        2026, 11, 17, 18, 5, tzinfo=dt.timezone.utc
-                    ),
+                    scanned_at=dt.datetime(2026, 11, 17, 18, 5, tzinfo=dt.timezone.utc),
                 )
 
     def test_renderer_rejects_findings_stale_database_or_wrong_config(self):
@@ -694,7 +810,10 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                         "Metadata": {"ImageID": "sha256:" + "f" * 64},
                         "Results": [{"Target": "fixture", "Vulnerabilities": []}],
                     },
-                    {"Version": "0.74.0", "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"}},
+                    {
+                        "Version": "0.74.0",
+                        "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                    },
                     "config digest",
                 ),
                 (
@@ -709,7 +828,10 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                             }
                         ],
                     },
-                    {"Version": "0.74.0", "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"}},
+                    {
+                        "Version": "0.74.0",
+                        "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                    },
                     "findings",
                 ),
                 (
@@ -717,7 +839,10 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                         "Metadata": {"ImageID": config["digest"]},
                         "Results": [{"Target": "fixture", "Vulnerabilities": []}],
                     },
-                    {"Version": "0.74.0", "VulnerabilityDB": {"UpdatedAt": "2026-11-17T11:00:00Z"}},
+                    {
+                        "Version": "0.74.0",
+                        "VulnerabilityDB": {"UpdatedAt": "2026-11-17T11:00:00Z"},
+                    },
                     "stale",
                 ),
             )
@@ -985,7 +1110,10 @@ class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
         workflow = Path(
             ".github/workflows/room-audio-production-evidence.yml"
         ).read_text()
-        self.assertIn("role: [meet-agents, meet-backend, metadata-collector]", workflow)
+        self.assertIn(
+            "role: [meet-agents, meet-backend, metadata-collector, livekit-render]",
+            workflow,
+        )
         self.assertIn("MEET_STAGING_REGISTRY_READ_PASSWORD", workflow)
         self.assertIn("version: v0.74.0", workflow)
         self.assertIn("--to-oci-layout", workflow)
@@ -993,6 +1121,10 @@ class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
         self.assertEqual(
             evidence_recipe_for(METADATA_COLLECTOR_ROLE).build_target,
             "metadata-collector-production",
+        )
+        self.assertEqual(
+            evidence_recipe_for(LIVEKIT_RENDER_ROLE).build_target,
+            "livekit-render-production",
         )
         self.assertIn("render-local-build-receipt", workflow)
         self.assertIn("rewrite-timestamp=true", workflow)
