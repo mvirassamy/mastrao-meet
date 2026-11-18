@@ -3,6 +3,8 @@ import hashlib
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,10 +14,16 @@ from unittest import mock
 import scripts.ci.room_audio_production_evidence as evidence_module
 from scripts.ci.room_audio_production_evidence import (
     CANDIDATES,
+    METADATA_COLLECTOR_ROLE,
+    METADATA_COLLECTOR_SOURCE,
+    Candidate,
     artifact_id_from_listing,
+    candidate_from_receipt,
+    evidence_recipe_for,
     expected_receipt,
     inspect_candidate,
     render_evidence,
+    render_local_build_receipt,
 )
 
 MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
@@ -43,7 +51,7 @@ def add_blob(layout, value):
 
 
 def provenance_statement(candidate, runtime_digest):
-    recipe = evidence_module.TARGETS[candidate.role]
+    recipe = evidence_recipe_for(candidate.role)
     dockerfile = Path(recipe.dockerfile)
     if recipe.context != ".":
         dockerfile = dockerfile.relative_to(recipe.context)
@@ -196,6 +204,35 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
         write_json(receipt, expected_receipt(candidate))
         return candidate, layout, receipt, config
 
+    def metadata_fixture(self, directory, **layout_options):
+        source = METADATA_COLLECTOR_SOURCE
+        original = Candidate(
+            role=METADATA_COLLECTOR_ROLE,
+            source_commit=source.commit,
+            source_tree=source.tree,
+            source_archive_sha256=source.archive_sha256,
+            run_id=77,
+            run_attempt=2,
+            root_digest="sha256:" + "a" * 64,
+            amd64_manifest_digest="sha256:" + "b" * 64,
+        )
+        layout, runtime, config, root = candidate_layout(
+            directory, original, **layout_options
+        )
+        receipt = directory / "metadata-receipt.json"
+        write_json(
+            receipt,
+            render_local_build_receipt(
+                layout=layout,
+                expected_root_digest=root["digest"],
+                run_id=77,
+                run_attempt=2,
+            ),
+        )
+        candidate = candidate_from_receipt(METADATA_COLLECTOR_ROLE, receipt)
+        self.assertEqual(candidate.amd64_manifest_digest, runtime["digest"])
+        return candidate, layout, receipt, config
+
     def trivy_binary_path(self, directory):
         path = directory / "trivy"
         path.write_bytes(self.trivy_binary)
@@ -217,6 +254,128 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             self.assertEqual(artifact_id_from_listing(listing, "expected"), "11")
             with self.assertRaisesRegex(ValueError, "exactly one"):
                 artifact_id_from_listing(listing, "missing")
+
+    def test_metadata_collector_selection_is_closed_to_the_requested_source_and_target(
+        self,
+    ):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "scripts.ci.room_audio_production_evidence",
+                "select",
+                "--role",
+                METADATA_COLLECTOR_ROLE,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("acquisition=local-build\n", result.stdout)
+        self.assertIn(f"source_sha={METADATA_COLLECTOR_SOURCE.commit}\n", result.stdout)
+        self.assertIn("build_target=metadata-collector-production\n", result.stdout)
+        self.assertIn("SOURCE_DATE_EPOCH=1794617901\n", result.stdout)
+        self.assertNotIn("password", result.stdout.lower())
+
+    def test_metadata_collector_receipt_binds_source_recipe_and_local_oci_graph(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, config = self.metadata_fixture(directory)
+            receipt_value = json.loads(receipt.read_text())
+            self.assertEqual(
+                receipt_value["status"], "BUILT_NOT_PUBLISHED_NOT_DEPLOYED"
+            )
+            self.assertEqual(
+                receipt_value["recipe"]["buildTarget"],
+                "metadata-collector-production",
+            )
+            self.assertEqual(
+                receipt_value["source"]["sha"], METADATA_COLLECTOR_SOURCE.commit
+            )
+            self.assertFalse(receipt_value["publicationPerformed"])
+            self.assertFalse(receipt_value["deploymentApplied"])
+
+            graph = inspect_candidate(
+                candidate=candidate,
+                receipt_path=receipt,
+                layout=layout,
+                scan_layout=directory / "metadata-scan-layout",
+            )
+            self.assertEqual(graph["configDigest"], config["digest"])
+            self.assertEqual(graph["role"], METADATA_COLLECTOR_ROLE)
+
+    def test_metadata_collector_receipt_rejects_root_or_recipe_drift(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            _, layout, _, _ = self.metadata_fixture(directory)
+            with self.assertRaisesRegex(ValueError, "root digest"):
+                render_local_build_receipt(
+                    layout=layout,
+                    expected_root_digest="sha256:" + "f" * 64,
+                    run_id=77,
+                    run_attempt=2,
+                )
+
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+
+            def change_target(statement):
+                statement["predicate"]["buildDefinition"]["externalParameters"][
+                    "request"
+                ]["args"]["target"] = "production"
+
+            source = METADATA_COLLECTOR_SOURCE
+            original = Candidate(
+                role=METADATA_COLLECTOR_ROLE,
+                source_commit=source.commit,
+                source_tree=source.tree,
+                source_archive_sha256=source.archive_sha256,
+                run_id=77,
+                run_attempt=2,
+                root_digest="sha256:" + "a" * 64,
+                amd64_manifest_digest="sha256:" + "b" * 64,
+            )
+            layout, _, _, root = candidate_layout(
+                directory, original, statement_mutation=change_target
+            )
+            with self.assertRaisesRegex(ValueError, "build recipe"):
+                render_local_build_receipt(
+                    layout=layout,
+                    expected_root_digest=root["digest"],
+                    run_id=77,
+                    run_attempt=2,
+                )
+
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+
+            def remove_target(statement):
+                del statement["predicate"]["buildDefinition"]["externalParameters"][
+                    "request"
+                ]["args"]["target"]
+
+            source = METADATA_COLLECTOR_SOURCE
+            original = Candidate(
+                role=METADATA_COLLECTOR_ROLE,
+                source_commit=source.commit,
+                source_tree=source.tree,
+                source_archive_sha256=source.archive_sha256,
+                run_id=77,
+                run_attempt=2,
+                root_digest="sha256:" + "a" * 64,
+                amd64_manifest_digest="sha256:" + "b" * 64,
+            )
+            layout, _, _, root = candidate_layout(
+                directory, original, statement_mutation=remove_target
+            )
+            with self.assertRaisesRegex(ValueError, "recipe is incomplete"):
+                render_local_build_receipt(
+                    layout=layout,
+                    expected_root_digest=root["digest"],
+                    run_id=77,
+                    run_attempt=2,
+                )
 
     def test_inspection_binds_receipt_graph_config_and_scan_projection(self):
         with tempfile.TemporaryDirectory() as name:
@@ -823,11 +982,21 @@ class DeploymentsEvidenceContractIntegrationTests(unittest.TestCase):
 
 class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
     def test_workflow_is_read_only_and_fail_closed(self):
-        workflow = Path(".github/workflows/room-audio-production-evidence.yml").read_text()
-        self.assertIn("role: [meet-agents, meet-backend]", workflow)
+        workflow = Path(
+            ".github/workflows/room-audio-production-evidence.yml"
+        ).read_text()
+        self.assertIn("role: [meet-agents, meet-backend, metadata-collector]", workflow)
         self.assertIn("MEET_STAGING_REGISTRY_READ_PASSWORD", workflow)
         self.assertIn("version: v0.74.0", workflow)
         self.assertIn("--to-oci-layout", workflow)
+        self.assertIn("target: ${{ steps.candidate.outputs.build_target }}", workflow)
+        self.assertEqual(
+            evidence_recipe_for(METADATA_COLLECTOR_ROLE).build_target,
+            "metadata-collector-production",
+        )
+        self.assertIn("render-local-build-receipt", workflow)
+        self.assertIn("rewrite-timestamp=true", workflow)
+        self.assertIn("push: false", workflow)
         self.assertIn("docker logout rg.fr-par.scw.cloud/mastrao-staging", workflow)
         self.assertIn("--trivy-binary", workflow)
         self.assertIn("--ignore-unfixed", workflow)
@@ -852,6 +1021,7 @@ class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
             "kubectl",
             "helm ",
             "skopeo copy",
+            "printenv",
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, lowered)

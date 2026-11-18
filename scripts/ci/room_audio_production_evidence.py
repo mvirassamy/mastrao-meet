@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from scripts.ci.staging_candidate_recipe import TARGETS
+from scripts.ci.staging_candidate_recipe import TARGETS, Recipe
 
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 TRIVY_VERSION = "0.74.0"
@@ -29,6 +29,34 @@ IN_TOTO_MEDIA_TYPE = "application/vnd.in-toto+json"
 IN_TOTO_STATEMENT_TYPE = "https://in-toto.io/Statement/v1"
 SLSA_PROVENANCE_TYPE = "https://slsa.dev/provenance/v1"
 TRIVY_SEVERITIES = {"UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"}
+METADATA_COLLECTOR_ROLE = "metadata-collector"
+
+
+@dataclass(frozen=True)
+class Source:
+    commit: str
+    tree: str
+    archive_sha256: str
+
+
+METADATA_COLLECTOR_SOURCE = Source(
+    commit="9077554dbed793e14d0c334b8217e5cbefff7b8b",
+    tree="8698e10c19064538df2887904d11932807140193",
+    archive_sha256=("bfd0646220cedfff00fce6dcb261eeb651a2ddb4464500afbbc95cfd7f8d26b0"),
+)
+EVIDENCE_RECIPES = {
+    **TARGETS,
+    METADATA_COLLECTOR_ROLE: Recipe(
+        context="src/agents",
+        dockerfile="src/agents/Dockerfile",
+        build_target="metadata-collector-production",
+        repository="rg.fr-par.scw.cloud/mastrao-staging/meet-agents",
+        build_args=(
+            "DOCKER_USER=10001:10001",
+            "SOURCE_DATE_EPOCH=1794617901",
+        ),
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -44,7 +72,7 @@ class Candidate:
 
     @property
     def repository(self) -> str:
-        return TARGETS[self.role].repository
+        return evidence_recipe_for(self.role).repository
 
     @property
     def reference(self) -> str:
@@ -94,6 +122,13 @@ CANDIDATES = {
 }
 
 
+def evidence_recipe_for(role: str) -> Recipe:
+    try:
+        return EVIDENCE_RECIPES[role]
+    except KeyError as error:
+        raise ValueError("unsupported Room Audio evidence role") from error
+
+
 def candidate_for(role: str) -> Candidate:
     try:
         return CANDIDATES[role]
@@ -102,7 +137,9 @@ def candidate_for(role: str) -> Candidate:
 
 
 def expected_receipt(candidate: Candidate) -> dict[str, object]:
-    recipe = TARGETS[candidate.role]
+    if candidate.role == METADATA_COLLECTOR_ROLE:
+        return _expected_local_build_receipt(candidate)
+    recipe = evidence_recipe_for(candidate.role)
     return {
         "deploymentApplied": False,
         "image": {
@@ -141,13 +178,134 @@ def expected_receipt(candidate: Candidate) -> dict[str, object]:
     }
 
 
+def _expected_local_build_receipt(candidate: Candidate) -> dict[str, object]:
+    recipe = evidence_recipe_for(candidate.role)
+    return {
+        "schemaVersion": 1,
+        "kind": "mastrao.meet.production-evidence-build-receipt.v1",
+        "role": candidate.role,
+        "status": "BUILT_NOT_PUBLISHED_NOT_DEPLOYED",
+        "source": {
+            "repository": "mvirassamy/mastrao-meet",
+            "sha": candidate.source_commit,
+            "tree": candidate.source_tree,
+            "archiveSha256": candidate.source_archive_sha256,
+        },
+        "recipe": {
+            "context": recipe.context,
+            "dockerfile": recipe.dockerfile,
+            "buildTarget": recipe.build_target,
+            "buildArgs": list(recipe.build_args),
+            "platform": "linux/amd64",
+        },
+        "image": {
+            "repository": candidate.repository,
+            "rootDigest": candidate.root_digest,
+            "runtimeManifestDigest": candidate.amd64_manifest_digest,
+        },
+        "workflow": {
+            "runId": candidate.run_id,
+            "runAttempt": candidate.run_attempt,
+        },
+        "publicationPerformed": False,
+        "deploymentApplied": False,
+    }
+
+
+def candidate_from_receipt(role: str, receipt_path: Path) -> Candidate:
+    if role != METADATA_COLLECTOR_ROLE:
+        candidate = candidate_for(role)
+        if _read_json(receipt_path) != expected_receipt(candidate):
+            raise ValueError("candidate receipt does not match the closed candidate")
+        return candidate
+
+    receipt = _read_json(receipt_path)
+    if not isinstance(receipt, dict):
+        raise ValueError("local build receipt is malformed")
+    image = receipt.get("image")
+    workflow = receipt.get("workflow")
+    if not isinstance(image, dict) or not isinstance(workflow, dict):
+        raise ValueError("local build receipt is malformed")
+    root_digest = image.get("rootDigest")
+    runtime_digest = image.get("runtimeManifestDigest")
+    run_id = workflow.get("runId")
+    run_attempt = workflow.get("runAttempt")
+    if (
+        not _is_digest(root_digest)
+        or not _is_digest(runtime_digest)
+        or not isinstance(run_id, int)
+        or run_id < 1
+        or not isinstance(run_attempt, int)
+        or run_attempt < 1
+    ):
+        raise ValueError("local build receipt is malformed")
+    candidate = Candidate(
+        role=METADATA_COLLECTOR_ROLE,
+        source_commit=METADATA_COLLECTOR_SOURCE.commit,
+        source_tree=METADATA_COLLECTOR_SOURCE.tree,
+        source_archive_sha256=METADATA_COLLECTOR_SOURCE.archive_sha256,
+        run_id=run_id,
+        run_attempt=run_attempt,
+        root_digest=root_digest,
+        amd64_manifest_digest=runtime_digest,
+    )
+    if receipt != expected_receipt(candidate):
+        raise ValueError("local build receipt does not match the closed build")
+    return candidate
+
+
+def render_local_build_receipt(
+    *,
+    layout: Path,
+    expected_root_digest: str,
+    run_id: int,
+    run_attempt: int,
+) -> dict[str, object]:
+    if not _is_digest(expected_root_digest):
+        raise ValueError("local build root digest is invalid")
+    if run_id < 1 or run_attempt < 1:
+        raise ValueError("local build workflow identity is invalid")
+    index = _read_json(layout / "index.json")
+    roots = _manifest_descriptors(index, "OCI layout index")
+    if len(roots) != 1 or roots[0]["digest"] != expected_root_digest:
+        raise ValueError("OCI layout does not match the local build root digest")
+    root = _read_blob(layout, expected_root_digest, roots[0]["size"])
+    runtime_descriptors = [
+        descriptor
+        for descriptor in _manifest_descriptors(root, "candidate root")
+        if not _is_attestation(descriptor)
+    ]
+    if len(runtime_descriptors) != 1:
+        raise ValueError("local build must contain exactly one runtime manifest")
+    runtime = runtime_descriptors[0]
+    candidate = Candidate(
+        role=METADATA_COLLECTOR_ROLE,
+        source_commit=METADATA_COLLECTOR_SOURCE.commit,
+        source_tree=METADATA_COLLECTOR_SOURCE.tree,
+        source_archive_sha256=METADATA_COLLECTOR_SOURCE.archive_sha256,
+        run_id=run_id,
+        run_attempt=run_attempt,
+        root_digest=expected_root_digest,
+        amd64_manifest_digest=runtime["digest"],
+    )
+    _inspect_graph(candidate, layout)
+    return expected_receipt(candidate)
+
+
 def inspect_candidate(
     *, candidate: Candidate, receipt_path: Path, layout: Path, scan_layout: Path
 ) -> dict[str, object]:
     receipt = _read_json(receipt_path)
     if receipt != expected_receipt(candidate):
         raise ValueError("candidate receipt does not match the closed candidate")
+    graph, runtime = _inspect_graph(candidate, layout)
+    _prepare_scan_layout(layout, scan_layout, runtime)
+    return graph
 
+
+def _inspect_graph(
+    candidate: Candidate, layout: Path
+) -> tuple[dict[str, object], dict[str, object]]:
     root = _read_blob(layout, candidate.root_digest)
     descriptors = _manifest_descriptors(root, "candidate root")
     manifests = []
@@ -188,10 +346,13 @@ def inspect_candidate(
         runtime = (descriptor, config)
 
     if runtime is None or runtime[0]["digest"] != candidate.amd64_manifest_digest:
-        raise ValueError("candidate runtime manifest does not match the closed candidate")
+        raise ValueError(
+            "candidate runtime manifest does not match the closed candidate"
+        )
     platform = runtime[0].get("platform")
     if not isinstance(platform, dict) or (
-        platform.get("os"), platform.get("architecture")
+        platform.get("os"),
+        platform.get("architecture"),
     ) != ("linux", "amd64"):
         raise ValueError("candidate runtime platform is not linux/amd64")
     if len(provenance_records) != 1:
@@ -199,8 +360,7 @@ def inspect_candidate(
             "candidate must have exactly one validated BuildKit provenance statement"
         )
 
-    _prepare_scan_layout(layout, scan_layout, runtime[0])
-    return {
+    graph = {
         "schemaVersion": 1,
         "kind": "mastrao.meet.room-audio-oci-graph.v1",
         "role": candidate.role,
@@ -210,6 +370,7 @@ def inspect_candidate(
         "manifests": manifests,
         "provenance": provenance_records[0],
     }
+    return graph, runtime[0]
 
 
 def render_evidence(
@@ -590,7 +751,7 @@ def _validate_optional_build_parameters(
     if not isinstance(external, dict):
         raise ValueError("BuildKit SLSA provenance structure is invalid")
 
-    recipe = TARGETS[candidate.role]
+    recipe = evidence_recipe_for(candidate.role)
     config_source = external.get("configSource")
     if config_source is not None:
         expected_dockerfile = Path(recipe.dockerfile)
@@ -601,7 +762,8 @@ def _validate_optional_build_parameters(
         ):
             raise ValueError("BuildKit provenance build recipe does not match")
 
-    for arguments in _build_argument_maps(external):
+    argument_maps = _build_argument_maps(external)
+    for arguments in argument_maps:
         _validate_source_commit(arguments, candidate.source_commit)
         if "target" in arguments and arguments["target"] != recipe.build_target:
             raise ValueError("BuildKit provenance build recipe does not match")
@@ -610,6 +772,33 @@ def _validate_optional_build_parameters(
             key = f"build-arg:{name}"
             if key in arguments and arguments[key] != expected_value:
                 raise ValueError("BuildKit provenance build recipe does not match")
+    if candidate.role == METADATA_COLLECTOR_ROLE:
+        _require_metadata_collector_build_parameters(
+            config_source=config_source,
+            argument_maps=argument_maps,
+            recipe=recipe,
+        )
+
+
+def _require_metadata_collector_build_parameters(
+    *,
+    config_source: object,
+    argument_maps: list[dict[str, object]],
+    recipe: Recipe,
+) -> None:
+    if config_source is None or not argument_maps:
+        raise ValueError("metadata collector BuildKit recipe is incomplete")
+    for arguments in argument_maps:
+        if arguments.get("target") != recipe.build_target:
+            continue
+        if all(
+            arguments.get(f"build-arg:{name}") == expected_value
+            for name, expected_value in (
+                build_arg.split("=", 1) for build_arg in recipe.build_args
+            )
+        ):
+            return
+    raise ValueError("metadata collector BuildKit recipe is incomplete")
 
 
 def _build_argument_maps(external: dict[str, object]) -> list[dict[str, object]]:
@@ -723,9 +912,29 @@ def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
-def _select(candidate: Candidate) -> str:
+def _select(role: str) -> str:
+    if role == METADATA_COLLECTOR_ROLE:
+        recipe = evidence_recipe_for(role)
+        return "".join(
+            (
+                "acquisition=local-build\n",
+                f"role={role}\n",
+                f"source_sha={METADATA_COLLECTOR_SOURCE.commit}\n",
+                f"source_tree={METADATA_COLLECTOR_SOURCE.tree}\n",
+                f"source_archive_sha256={METADATA_COLLECTOR_SOURCE.archive_sha256}\n",
+                f"context={recipe.context}\n",
+                f"dockerfile={recipe.dockerfile}\n",
+                f"build_target={recipe.build_target}\n",
+                f"repository={recipe.repository}\n",
+                "build_args<<METADATA_COLLECTOR_BUILD_ARGS\n",
+                *(f"{build_arg}\n" for build_arg in recipe.build_args),
+                "METADATA_COLLECTOR_BUILD_ARGS\n",
+            )
+        )
+    candidate = candidate_for(role)
     return "".join(
         (
+            "acquisition=registry\n",
             f"role={candidate.role}\n",
             f"source_sha={candidate.source_commit}\n",
             f"run_id={candidate.run_id}\n",
@@ -773,8 +982,17 @@ def main() -> None:
     inspect.add_argument("--scan-layout", required=True, type=Path)
     inspect.add_argument("--output", required=True, type=Path)
 
+    local_receipt = subparsers.add_parser("render-local-build-receipt")
+    local_receipt.add_argument("--role", required=True)
+    local_receipt.add_argument("--layout", required=True, type=Path)
+    local_receipt.add_argument("--expected-root-digest", required=True)
+    local_receipt.add_argument("--run-id", required=True, type=int)
+    local_receipt.add_argument("--run-attempt", required=True, type=int)
+    local_receipt.add_argument("--output", required=True, type=Path)
+
     render = subparsers.add_parser("render")
     render.add_argument("--role", required=True)
+    render.add_argument("--receipt", required=True, type=Path)
     render.add_argument("--graph", required=True, type=Path)
     render.add_argument("--trivy-report", required=True, type=Path)
     render.add_argument("--trivy-version", required=True, type=Path)
@@ -785,13 +1003,27 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "select":
-        candidate = candidate_for(args.role)
-        sys.stdout.write(_select(candidate))
+        sys.stdout.write(_select(args.role))
         return
     if args.command == "artifact-id":
         sys.stdout.write(f"{artifact_id_from_listing(args.listing, args.name)}\n")
         return
-    candidate = candidate_for(args.role)
+    if args.command == "render-local-build-receipt":
+        if args.role != METADATA_COLLECTOR_ROLE:
+            raise ValueError(
+                "local build receipt is only supported for metadata-collector"
+            )
+        _write_json(
+            args.output,
+            render_local_build_receipt(
+                layout=args.layout,
+                expected_root_digest=args.expected_root_digest,
+                run_id=args.run_id,
+                run_attempt=args.run_attempt,
+            ),
+        )
+        return
+    candidate = candidate_from_receipt(args.role, args.receipt)
     if args.command == "inspect":
         _write_json(
             args.output,
