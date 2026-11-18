@@ -27,4 +27,8 @@ workflow commit into a local linux/amd64 OCI archive with `push: false`,
 maximum BuildKit provenance, SBOM generation and the same pinned Trivy policy
 as the other Room Audio images. Its receipt records
 `BUILT_NOT_PUBLISHED_NOT_DEPLOYED`; the workflow neither publishes nor deploys
-the image.
+the image. After the archive passes receipt, complete-graph and scan validation,
+the workflow retains those exact OCI bytes for one day with a record binding
+their streaming SHA-256 to the receipt, graph and scan provenance inside one
+flat, size-limited artifact. A future publication remains a separate
+authorization and must use the retained digest-bound bytes without rebuilding.
