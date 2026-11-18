@@ -1,5 +1,8 @@
 # Changelog
 
+- 2026-11-18: Bind Room Audio production scan validity to Trivy's signed
+  database update window instead of an arbitrary database-age limit.
+
 - 2026-11-18: Add a dedicated fail-closed LiveKit and Egress configuration
   renderer plus local production OCI evidence, without publishing or deploying
   the image.

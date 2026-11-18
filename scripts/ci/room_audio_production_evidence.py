@@ -24,7 +24,6 @@ TRIVY_BINARY_DIGEST = (
     "sha256:d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791"
 )
 EVIDENCE_LIFETIME = dt.timedelta(minutes=60)
-DATABASE_LIFETIME = dt.timedelta(minutes=360)
 ATTESTATION_TYPE = "attestation-manifest"
 OCI_MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
 IN_TOTO_MEDIA_TYPE = "application/vnd.in-toto+json"
@@ -41,6 +40,13 @@ class Source:
     commit: str
     tree: str
     archive_sha256: str
+
+
+@dataclass(frozen=True)
+class VulnerabilityDatabaseWindow:
+    updated_at: dt.datetime
+    next_update: dt.datetime
+    downloaded_at: dt.datetime
 
 
 METADATA_COLLECTOR_SOURCE = Source(
@@ -441,11 +447,7 @@ def render_evidence(
     database = version.get("VulnerabilityDB")
     if not isinstance(database, dict):
         raise ValueError("Trivy vulnerability database metadata is missing")
-    database_updated_at = _parse_time(database.get("UpdatedAt"), "database UpdatedAt")
-    if database_updated_at > scanned_at:
-        raise ValueError("Trivy vulnerability database is newer than the scan")
-    if scanned_at - database_updated_at > DATABASE_LIFETIME:
-        raise ValueError("Trivy vulnerability database is stale")
+    database_window = _validate_vulnerability_database_window(database, scanned_at)
 
     metadata = report.get("Metadata")
     if (
@@ -459,7 +461,7 @@ def render_evidence(
 
     evidence_valid_until = min(
         scanned_at + EVIDENCE_LIFETIME,
-        database_updated_at + DATABASE_LIFETIME,
+        database_window.next_update,
     )
     return {
         "schemaVersion": 1,
@@ -486,7 +488,9 @@ def render_evidence(
             "vulnerabilityDatabase": {
                 "source": "aquasecurity/trivy-db",
                 "digest": _sha256(trivy_database_path.read_bytes()),
-                "updatedAt": _format_time(database_updated_at),
+                "updatedAt": _format_time(database_window.updated_at),
+                "nextUpdate": _format_time(database_window.next_update),
+                "downloadedAt": _format_time(database_window.downloaded_at),
             },
             "scannedAt": _format_time(scanned_at),
         },
@@ -509,6 +513,33 @@ def render_evidence(
         "publicationPerformed": False,
         "deploymentApplied": False,
     }
+
+
+def _validate_vulnerability_database_window(
+    database: dict[str, object], scanned_at: dt.datetime
+) -> VulnerabilityDatabaseWindow:
+    updated_at = _parse_time(database.get("UpdatedAt"), "database UpdatedAt")
+    next_update = _parse_time(database.get("NextUpdate"), "database NextUpdate")
+    downloaded_at = _parse_time(database.get("DownloadedAt"), "database DownloadedAt")
+
+    if updated_at > scanned_at:
+        raise ValueError("Trivy vulnerability database is newer than the scan")
+    if updated_at > downloaded_at:
+        raise ValueError(
+            "Trivy vulnerability database was downloaded before its update"
+        )
+    if downloaded_at > scanned_at:
+        raise ValueError("Trivy vulnerability database was downloaded after the scan")
+    if next_update <= updated_at:
+        raise ValueError("Trivy vulnerability database update window is invalid")
+    if scanned_at >= next_update:
+        raise ValueError("Trivy vulnerability database is stale")
+
+    return VulnerabilityDatabaseWindow(
+        updated_at=updated_at,
+        next_update=next_update,
+        downloaded_at=downloaded_at,
+    )
 
 
 def _validate_graph_identity(graph: object, candidate: Candidate) -> None:
