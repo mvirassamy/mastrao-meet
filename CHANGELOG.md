@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-11-18: Retain verified metadata collector and LiveKit renderer OCI
+  archives for one day, bound to their receipt and graph for a later separately
+  authorized digest-only production publication, using an explicit flat
+  artifact layout and bounded streaming archive hashing.
+
 - 2026-11-18: Bind Room Audio production scan validity to Trivy's signed
   database update window instead of an arbitrary database-age limit.
 

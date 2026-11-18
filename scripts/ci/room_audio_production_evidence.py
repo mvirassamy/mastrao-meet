@@ -10,6 +10,8 @@ import json
 import re
 import shutil
 import sys
+import tarfile
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -33,6 +35,15 @@ TRIVY_SEVERITIES = {"UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"}
 METADATA_COLLECTOR_ROLE = "metadata-collector"
 LIVEKIT_RENDER_ROLE = "livekit-render"
 LOCAL_BUILD_ROLES = {METADATA_COLLECTOR_ROLE, LIVEKIT_RENDER_ROLE}
+MAX_RETAINED_OCI_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+FILE_HASH_CHUNK_BYTES = 1024 * 1024
+RETAINED_ARTIFACT_FILES = {
+    "archive": "local-build.tar",
+    "binding": "retained-archive-binding.json",
+    "graph": "oci-graph.json",
+    "receipt": "candidate-receipt.json",
+    "scan": "scan-provenance.json",
+}
 
 
 @dataclass(frozen=True)
@@ -348,6 +359,125 @@ def inspect_candidate(
     graph, runtime = _inspect_graph(candidate, layout)
     _prepare_scan_layout(layout, scan_layout, runtime)
     return graph
+
+
+def render_retained_local_archive_binding(
+    *,
+    role: str,
+    receipt_path: Path,
+    graph_path: Path,
+    scan_provenance_path: Path,
+    archive_path: Path,
+) -> dict[str, object]:
+    if role not in LOCAL_BUILD_ROLES:
+        raise ValueError("role does not support a retained local-build archive")
+    candidate = candidate_from_receipt(role, receipt_path)
+
+    graph = _read_json(graph_path)
+    _validate_graph_identity(graph, candidate)
+
+    archive_digest = _sha256_file(
+        archive_path,
+        maximum_bytes=MAX_RETAINED_OCI_ARCHIVE_BYTES,
+        label="retained local-build archive",
+    )
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            layout = Path(directory) / "layout"
+            layout.mkdir()
+            with tarfile.open(archive_path, mode="r:*") as archive:
+                members = archive.getmembers()
+                if (
+                    sum(member.size for member in members)
+                    > MAX_RETAINED_OCI_ARCHIVE_BYTES
+                ):
+                    raise ValueError(
+                        "retained local-build archive expands beyond its limit"
+                    )
+                archive.extractall(layout, members=members, filter="data")
+            archived_graph, _ = _inspect_graph(candidate, layout)
+    except (OSError, tarfile.TarError) as error:
+        raise ValueError("retained local-build archive is unreadable") from error
+
+    if archived_graph != graph:
+        raise ValueError("retained local-build archive does not match the OCI graph")
+
+    return {
+        "schemaVersion": 1,
+        "kind": "mastrao.meet.retained-local-oci-archive.v1",
+        "role": candidate.role,
+        "status": "VERIFIED_LOCAL_BUILD_ARCHIVE_RETAINED",
+        "rootDigest": candidate.root_digest,
+        "runtimeManifestDigest": candidate.amd64_manifest_digest,
+        "archive": {
+            "file": archive_path.name,
+            "sha256": archive_digest,
+        },
+        "candidateReceipt": {
+            "file": receipt_path.name,
+            "sha256": _sha256(receipt_path.read_bytes()),
+        },
+        "ociGraph": {
+            "file": graph_path.name,
+            "sha256": _sha256(graph_path.read_bytes()),
+        },
+        "scanProvenance": {
+            "file": scan_provenance_path.name,
+            "sha256": _sha256(scan_provenance_path.read_bytes()),
+        },
+        "publicationPerformed": False,
+        "deploymentApplied": False,
+    }
+
+
+def package_retained_local_archive_artifact(
+    *,
+    role: str,
+    receipt_path: Path,
+    graph_path: Path,
+    scan_provenance_path: Path,
+    archive_path: Path,
+    artifact_directory: Path,
+) -> dict[str, object]:
+    if artifact_directory.exists():
+        raise ValueError("retained artifact directory already exists")
+    _require_file_size_within_limit(
+        archive_path,
+        maximum_bytes=MAX_RETAINED_OCI_ARCHIVE_BYTES,
+        label="retained local-build archive",
+    )
+
+    artifact_directory.mkdir()
+    packaged_paths = {
+        "archive": artifact_directory / RETAINED_ARTIFACT_FILES["archive"],
+        "graph": artifact_directory / RETAINED_ARTIFACT_FILES["graph"],
+        "receipt": artifact_directory / RETAINED_ARTIFACT_FILES["receipt"],
+        "scan": artifact_directory / RETAINED_ARTIFACT_FILES["scan"],
+    }
+    source_paths = {
+        "archive": archive_path,
+        "graph": graph_path,
+        "receipt": receipt_path,
+        "scan": scan_provenance_path,
+    }
+    try:
+        for name, source in source_paths.items():
+            shutil.copyfile(source, packaged_paths[name])
+    except OSError as error:
+        raise ValueError("retained artifact input is unreadable") from error
+
+    binding = render_retained_local_archive_binding(
+        role=role,
+        receipt_path=packaged_paths["receipt"],
+        graph_path=packaged_paths["graph"],
+        scan_provenance_path=packaged_paths["scan"],
+        archive_path=packaged_paths["archive"],
+    )
+    _write_json(
+        artifact_directory / RETAINED_ARTIFACT_FILES["binding"],
+        binding,
+    )
+    return binding
 
 
 def _inspect_graph(
@@ -989,6 +1119,32 @@ def _sha256(raw: bytes) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
+def _sha256_file(path: Path, *, maximum_bytes: int, label: str) -> str:
+    digest = hashlib.sha256()
+    total_bytes = 0
+    try:
+        with path.open("rb") as source:
+            while chunk := source.read(FILE_HASH_CHUNK_BYTES):
+                total_bytes += len(chunk)
+                if total_bytes > maximum_bytes:
+                    raise ValueError(f"{label} exceeds its {maximum_bytes}-byte limit")
+                digest.update(chunk)
+    except OSError as error:
+        raise ValueError(f"{label} is unreadable") from error
+    return "sha256:" + digest.hexdigest()
+
+
+def _require_file_size_within_limit(
+    path: Path, *, maximum_bytes: int, label: str
+) -> None:
+    try:
+        size = path.stat().st_size
+    except OSError as error:
+        raise ValueError(f"{label} is unreadable") from error
+    if size > maximum_bytes:
+        raise ValueError(f"{label} exceeds its {maximum_bytes}-byte limit")
+
+
 def _is_digest(value: object) -> bool:
     return isinstance(value, str) and DIGEST.fullmatch(value) is not None
 
@@ -1096,6 +1252,14 @@ def main() -> None:
     render.add_argument("--scanned-at", required=True)
     render.add_argument("--output", required=True, type=Path)
 
+    package_archive = subparsers.add_parser("package-local-archive")
+    package_archive.add_argument("--role", required=True)
+    package_archive.add_argument("--receipt", required=True, type=Path)
+    package_archive.add_argument("--graph", required=True, type=Path)
+    package_archive.add_argument("--scan-provenance", required=True, type=Path)
+    package_archive.add_argument("--archive", required=True, type=Path)
+    package_archive.add_argument("--artifact-directory", required=True, type=Path)
+
     args = parser.parse_args()
     if args.command == "select":
         sys.stdout.write(_select(args.role))
@@ -1118,6 +1282,16 @@ def main() -> None:
                 run_id=args.run_id,
                 run_attempt=args.run_attempt,
             ),
+        )
+        return
+    if args.command == "package-local-archive":
+        package_retained_local_archive_artifact(
+            role=args.role,
+            receipt_path=args.receipt,
+            graph_path=args.graph,
+            scan_provenance_path=args.scan_provenance,
+            archive_path=args.archive,
+            artifact_directory=args.artifact_directory,
         )
         return
     candidate = candidate_from_receipt(args.role, args.receipt)

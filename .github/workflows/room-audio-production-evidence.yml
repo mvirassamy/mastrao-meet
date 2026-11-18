@@ -228,7 +228,21 @@ jobs:
             --scanned-at "$(cat "$RUNNER_TEMP/scanned-at")" \
             --output "$RUNNER_TEMP/scan-provenance.json"
 
-      - name: Upload evidence only
+      - name: Package the verified local-build archive and evidence
+        if: steps.candidate.outputs.acquisition == 'local-build'
+        env:
+          ROLE: ${{ matrix.role }}
+        run: |
+          python -m scripts.ci.room_audio_production_evidence package-local-archive \
+            --role "$ROLE" \
+            --receipt "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json" \
+            --graph "$RUNNER_TEMP/oci-graph.json" \
+            --scan-provenance "$RUNNER_TEMP/scan-provenance.json" \
+            --archive "$RUNNER_TEMP/local-build.tar" \
+            --artifact-directory "$RUNNER_TEMP/retained-local-archive-artifact"
+
+      - name: Upload registry evidence only
+        if: steps.candidate.outputs.acquisition == 'registry'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: room-audio-${{ matrix.role }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -238,3 +252,13 @@ jobs:
             ${{ runner.temp }}/scan-provenance.json
           if-no-files-found: error
           retention-days: 2
+
+      - name: Upload verified local-build evidence and OCI archive
+        if: steps.candidate.outputs.acquisition == 'local-build'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: room-audio-${{ matrix.role }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/retained-local-archive-artifact/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1

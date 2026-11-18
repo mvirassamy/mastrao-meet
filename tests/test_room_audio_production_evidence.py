@@ -1,10 +1,12 @@
 import datetime as dt
 import hashlib
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +19,7 @@ from scripts.ci.room_audio_production_evidence import (
     LIVEKIT_RENDER_ROLE,
     METADATA_COLLECTOR_ROLE,
     METADATA_COLLECTOR_SOURCE,
+    RETAINED_ARTIFACT_FILES,
     Candidate,
     Source,
     artifact_id_from_listing,
@@ -24,8 +27,10 @@ from scripts.ci.room_audio_production_evidence import (
     evidence_recipe_for,
     expected_receipt,
     inspect_candidate,
+    package_retained_local_archive_artifact,
     render_evidence,
     render_local_build_receipt,
+    render_retained_local_archive_binding,
 )
 
 MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
@@ -190,6 +195,12 @@ def candidate_layout(
     root.update({"mediaType": INDEX_TYPE})
     write_json(layout / "index.json", {"schemaVersion": 2, "manifests": [root]})
     return layout, runtime, config, root
+
+
+def write_oci_archive(layout, archive_path):
+    with tarfile.open(archive_path, mode="w") as archive:
+        for path in sorted(layout.rglob("*")):
+            archive.add(path, arcname=path.relative_to(layout), recursive=False)
 
 
 class RoomAudioProductionEvidenceTests(unittest.TestCase):
@@ -503,6 +514,220 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                     expected_root_digest=root["digest"],
                     run_id=77,
                     run_attempt=2,
+                )
+
+    def test_retained_local_artifact_is_flat_and_binding_paths_match(self):
+        fixtures = (
+            self.metadata_fixture,
+            self.renderer_fixture,
+        )
+        for fixture in fixtures:
+            with (
+                self.subTest(fixture=fixture.__name__),
+                tempfile.TemporaryDirectory() as name,
+            ):
+                directory = Path(name)
+                candidate, layout, receipt, _ = fixture(directory)
+                graph_path = directory / "oci-graph.json"
+                write_json(
+                    graph_path,
+                    inspect_candidate(
+                        candidate=candidate,
+                        receipt_path=receipt,
+                        layout=layout,
+                        scan_layout=directory / "scan-layout",
+                    ),
+                )
+                scan_provenance_path = directory / "scan-provenance.json"
+                write_json(scan_provenance_path, {"status": "PASS"})
+                archive_path = directory / "local-build.tar"
+                write_oci_archive(layout, archive_path)
+                artifact_directory = directory / "artifact"
+
+                binding = package_retained_local_archive_artifact(
+                    role=candidate.role,
+                    receipt_path=receipt,
+                    graph_path=graph_path,
+                    scan_provenance_path=scan_provenance_path,
+                    archive_path=archive_path,
+                    artifact_directory=artifact_directory,
+                )
+
+                self.assertEqual(
+                    {path.name for path in artifact_directory.iterdir()},
+                    set(RETAINED_ARTIFACT_FILES.values()),
+                )
+                self.assertEqual(binding["role"], candidate.role)
+                self.assertEqual(binding["rootDigest"], candidate.root_digest)
+                self.assertEqual(
+                    binding,
+                    json.loads(
+                        (
+                            artifact_directory / RETAINED_ARTIFACT_FILES["binding"]
+                        ).read_text()
+                    ),
+                )
+                for binding_key, file_key in (
+                    ("archive", "archive"),
+                    ("candidateReceipt", "receipt"),
+                    ("ociGraph", "graph"),
+                    ("scanProvenance", "scan"),
+                ):
+                    self.assertEqual(
+                        binding[binding_key]["file"],
+                        RETAINED_ARTIFACT_FILES[file_key],
+                    )
+                self.assertEqual(
+                    binding["archive"]["sha256"],
+                    digest(
+                        (
+                            artifact_directory / RETAINED_ARTIFACT_FILES["archive"]
+                        ).read_bytes()
+                    ),
+                )
+                self.assertEqual(
+                    binding["candidateReceipt"]["sha256"],
+                    digest(receipt.read_bytes()),
+                )
+                self.assertEqual(
+                    binding["ociGraph"]["sha256"], digest(graph_path.read_bytes())
+                )
+                self.assertEqual(
+                    binding["scanProvenance"]["sha256"],
+                    digest(scan_provenance_path.read_bytes()),
+                )
+                self.assertFalse(binding["publicationPerformed"])
+                self.assertFalse(binding["deploymentApplied"])
+
+    def test_retained_archive_rejects_a_graph_from_other_oci_bytes(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, _ = self.metadata_fixture(directory)
+            graph_path = directory / "oci-graph.json"
+            graph = inspect_candidate(
+                candidate=candidate,
+                receipt_path=receipt,
+                layout=layout,
+                scan_layout=directory / "scan-layout",
+            )
+            graph["configDigest"] = "sha256:" + "f" * 64
+            write_json(graph_path, graph)
+            scan_provenance_path = directory / "scan-provenance.json"
+            write_json(scan_provenance_path, {"status": "PASS"})
+            archive_path = directory / "local-build.tar"
+            write_oci_archive(layout, archive_path)
+
+            with self.assertRaisesRegex(ValueError, "does not match the OCI graph"):
+                render_retained_local_archive_binding(
+                    role=METADATA_COLLECTOR_ROLE,
+                    receipt_path=receipt,
+                    graph_path=graph_path,
+                    scan_provenance_path=scan_provenance_path,
+                    archive_path=archive_path,
+                )
+
+    def test_retained_archive_rejects_bytes_beyond_the_explicit_limit(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, _ = self.metadata_fixture(directory)
+            graph_path = directory / "oci-graph.json"
+            write_json(
+                graph_path,
+                inspect_candidate(
+                    candidate=candidate,
+                    receipt_path=receipt,
+                    layout=layout,
+                    scan_layout=directory / "scan-layout",
+                ),
+            )
+            scan_provenance_path = directory / "scan-provenance.json"
+            write_json(scan_provenance_path, {"status": "PASS"})
+            archive_path = directory / "local-build.tar"
+            write_oci_archive(layout, archive_path)
+
+            with (
+                mock.patch.object(
+                    evidence_module,
+                    "MAX_RETAINED_OCI_ARCHIVE_BYTES",
+                    archive_path.stat().st_size - 1,
+                ),
+                self.assertRaisesRegex(ValueError, "exceeds its .*byte limit"),
+            ):
+                render_retained_local_archive_binding(
+                    role=METADATA_COLLECTOR_ROLE,
+                    receipt_path=receipt,
+                    graph_path=graph_path,
+                    scan_provenance_path=scan_provenance_path,
+                    archive_path=archive_path,
+                )
+
+    def test_retained_archive_rejects_expansion_beyond_the_explicit_limit(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, _ = self.metadata_fixture(directory)
+            graph_path = directory / "oci-graph.json"
+            write_json(
+                graph_path,
+                inspect_candidate(
+                    candidate=candidate,
+                    receipt_path=receipt,
+                    layout=layout,
+                    scan_layout=directory / "scan-layout",
+                ),
+            )
+            scan_provenance_path = directory / "scan-provenance.json"
+            write_json(scan_provenance_path, {"status": "PASS"})
+            archive_path = directory / "compressed-build.tar.gz"
+            expanded_bytes = b"x" * 4096
+            member = tarfile.TarInfo("large-entry")
+            member.size = len(expanded_bytes)
+            with tarfile.open(archive_path, mode="w:gz") as archive:
+                archive.addfile(member, io.BytesIO(expanded_bytes))
+
+            limit = max(archive_path.stat().st_size, 1024)
+            self.assertLess(limit, len(expanded_bytes))
+            with (
+                mock.patch.object(
+                    evidence_module,
+                    "MAX_RETAINED_OCI_ARCHIVE_BYTES",
+                    limit,
+                ),
+                self.assertRaisesRegex(ValueError, "expands beyond its limit"),
+            ):
+                render_retained_local_archive_binding(
+                    role=METADATA_COLLECTOR_ROLE,
+                    receipt_path=receipt,
+                    graph_path=graph_path,
+                    scan_provenance_path=scan_provenance_path,
+                    archive_path=archive_path,
+                )
+
+    def test_registry_candidate_cannot_be_retained_as_a_local_build(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, _ = self.fixture(directory)
+            graph_path = directory / "oci-graph.json"
+            write_json(
+                graph_path,
+                inspect_candidate(
+                    candidate=candidate,
+                    receipt_path=receipt,
+                    layout=layout,
+                    scan_layout=directory / "scan-layout",
+                ),
+            )
+            scan_provenance_path = directory / "scan-provenance.json"
+            write_json(scan_provenance_path, {"status": "PASS"})
+            archive_path = directory / "local-build.tar"
+            write_oci_archive(layout, archive_path)
+
+            with self.assertRaisesRegex(ValueError, "does not support"):
+                render_retained_local_archive_binding(
+                    role=candidate.role,
+                    receipt_path=receipt,
+                    graph_path=graph_path,
+                    scan_provenance_path=scan_provenance_path,
+                    archive_path=archive_path,
                 )
 
     def test_inspection_binds_receipt_graph_config_and_scan_projection(self):
@@ -1242,15 +1467,48 @@ class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
         self.assertIn("--trivy-binary", workflow)
         self.assertIn("--ignore-unfixed", workflow)
         self.assertIn(evidence_module.TRIVY_BINARY_DIGEST, workflow)
-        self.assertIn("Upload evidence only", workflow)
+        self.assertIn("Package the verified local-build archive and evidence", workflow)
+        self.assertIn("Upload registry evidence only", workflow)
+        self.assertIn("Upload verified local-build evidence and OCI archive", workflow)
+        self.assertIn("package-local-archive", workflow)
+        self.assertIn('--archive "$RUNNER_TEMP/local-build.tar"', workflow)
+        self.assertIn(
+            '--artifact-directory "$RUNNER_TEMP/retained-local-archive-artifact"',
+            workflow,
+        )
+        local_upload = workflow.split(
+            "- name: Upload verified local-build evidence and OCI archive", 1
+        )[1]
+        self.assertIn(
+            "if: steps.candidate.outputs.acquisition == 'local-build'",
+            local_upload,
+        )
+        self.assertIn(
+            "path: ${{ runner.temp }}/retained-local-archive-artifact/",
+            local_upload,
+        )
+        self.assertIn("compression-level: 0", local_upload)
+        self.assertIn("retention-days: 1", local_upload)
         install_position = workflow.index("Install the approved Trivy scanner")
         login_position = workflow.index("Authenticate to the staging registry")
         copy_position = workflow.index("Copy the exact candidate")
         logout_position = workflow.index("Remove registry credentials")
         scan_position = workflow.index("Scan the exact runtime image")
+        render_position = workflow.index(
+            "Render the fail-closed scan and provenance evidence"
+        )
+        bind_position = workflow.index(
+            "Package the verified local-build archive and evidence"
+        )
+        local_upload_position = workflow.index(
+            "Upload verified local-build evidence and OCI archive"
+        )
         self.assertLess(install_position, login_position)
         self.assertLess(copy_position, logout_position)
         self.assertLess(logout_position, scan_position)
+        self.assertLess(scan_position, render_position)
+        self.assertLess(render_position, bind_position)
+        self.assertLess(bind_position, local_upload_position)
         for reference in re.findall(r"uses:\s*(\S+)", workflow):
             with self.subTest(reference=reference):
                 self.assertRegex(reference, r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
