@@ -90,6 +90,22 @@ scope, the independent source-read authorization and the protected production
 destination acceptance remain human-controlled prerequisites outside this
 repository.
 
+## Worker-general production selection
+
+`Prepare worker-general production selection` reuses the immutable
+`meet-backend` candidate produced from source `5ab1ed7e…` by run
+`44315610642`, artifact `14431683909`. It verifies the original candidate
+receipt, copies only `sha256:2840662c…` from the staging registry into a local
+OCI layout with a read-only identity, and renews the same fail-closed OCI and
+Trivy evidence used by Room Audio.
+
+The resulting receipt binds that candidate exclusively to
+`Deployment/worker-general`, container `worker`, in `mastrao-production`, with
+`replicas: 0` and target repository `mastrao-production/meet-backend`. It does
+not bind `meet-api` or `worker-room-audio-processing`. The workflow cannot
+rebuild, publish, deploy, activate, change DNS or receive a production registry
+credential.
+
 ## What the workflow proves
 
 - A credential-free validation job rejects foreign repositories, events other
