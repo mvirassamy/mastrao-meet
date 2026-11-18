@@ -43,6 +43,19 @@ def write_json(path, value):
     path.write_text(json.dumps(value, separators=(",", ":")))
 
 
+def vulnerability_database_metadata(
+    *,
+    updated_at="2026-11-17T18:00:00Z",
+    next_update="2026-11-18T18:00:00Z",
+    downloaded_at="2026-11-17T18:01:00Z",
+):
+    return {
+        "UpdatedAt": updated_at,
+        "NextUpdate": next_update,
+        "DownloadedAt": downloaded_at,
+    }
+
+
 def add_blob(layout, value):
     raw = json.dumps(value, separators=(",", ":")).encode()
     value_digest = digest(raw)
@@ -715,7 +728,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                 version,
                 {
                     "Version": "0.74.0",
-                    "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                    "VulnerabilityDB": vulnerability_database_metadata(),
                 },
             )
             database = directory / "trivy.db"
@@ -748,6 +761,17 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                     "severities": ["HIGH", "CRITICAL"],
                 },
             )
+            self.assertEqual(
+                evidence["scan"]["vulnerabilityDatabase"],
+                {
+                    "source": "aquasecurity/trivy-db",
+                    "digest": digest(b"synthetic trivy database"),
+                    "updatedAt": "2026-11-17T18:00:00Z",
+                    "nextUpdate": "2026-11-18T18:00:00Z",
+                    "downloadedAt": "2026-11-17T18:01:00Z",
+                },
+            )
+            self.assertEqual(evidence["evidenceValidUntil"], "2026-11-17T19:05:00Z")
             self.assertEqual(
                 evidence["provenance"],
                 {
@@ -812,7 +836,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                     },
                     {
                         "Version": "0.74.0",
-                        "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                        "VulnerabilityDB": vulnerability_database_metadata(),
                     },
                     "config digest",
                 ),
@@ -830,7 +854,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                     },
                     {
                         "Version": "0.74.0",
-                        "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                        "VulnerabilityDB": vulnerability_database_metadata(),
                     },
                     "findings",
                 ),
@@ -841,7 +865,11 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                     },
                     {
                         "Version": "0.74.0",
-                        "VulnerabilityDB": {"UpdatedAt": "2026-11-17T11:00:00Z"},
+                        "VulnerabilityDB": vulnerability_database_metadata(
+                            updated_at="2026-11-17T11:00:00Z",
+                            next_update="2026-11-17T18:00:00Z",
+                            downloaded_at="2026-11-17T11:01:00Z",
+                        ),
                     },
                     "stale",
                 ),
@@ -850,6 +878,87 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                 with self.subTest(message=message):
                     write_json(report, scan)
                     write_json(version, scanner)
+                    with self.assertRaisesRegex(ValueError, message):
+                        render_evidence(
+                            candidate=candidate,
+                            graph_path=graph_path,
+                            trivy_report_path=report,
+                            trivy_version_path=version,
+                            trivy_database_path=database,
+                            trivy_binary_path=self.trivy_binary_path(directory),
+                            scanned_at=clock,
+                        )
+
+    def test_renderer_rejects_invalid_vulnerability_database_windows(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, config = self.fixture(directory)
+            graph_path = directory / "graph.json"
+            write_json(
+                graph_path,
+                inspect_candidate(
+                    candidate=candidate,
+                    receipt_path=receipt,
+                    layout=layout,
+                    scan_layout=directory / "scan-layout",
+                ),
+            )
+            report = directory / "report.json"
+            write_json(
+                report,
+                {
+                    "Metadata": {"ImageID": config["digest"]},
+                    "Results": [{"Target": "fixture", "Vulnerabilities": []}],
+                },
+            )
+            database = directory / "trivy.db"
+            database.write_bytes(b"db")
+            version = directory / "version.json"
+            clock = dt.datetime(2026, 11, 17, 18, 5, tzinfo=dt.timezone.utc)
+            cases = (
+                (
+                    {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                    "database NextUpdate",
+                ),
+                (
+                    vulnerability_database_metadata(
+                        updated_at="2026-11-17T18:06:00Z",
+                        downloaded_at="2026-11-17T18:06:00Z",
+                    ),
+                    "newer than the scan",
+                ),
+                (
+                    vulnerability_database_metadata(
+                        updated_at="2026-11-17T18:02:00Z",
+                        downloaded_at="2026-11-17T18:01:00Z",
+                    ),
+                    "downloaded before its update",
+                ),
+                (
+                    vulnerability_database_metadata(
+                        downloaded_at="2026-11-17T18:06:00Z"
+                    ),
+                    "downloaded after the scan",
+                ),
+                (
+                    vulnerability_database_metadata(next_update="2026-11-17T18:00:00Z"),
+                    "update window is invalid",
+                ),
+                (
+                    vulnerability_database_metadata(
+                        updated_at="2026-11-17T17:00:00Z",
+                        next_update="2026-11-17T18:05:00Z",
+                        downloaded_at="2026-11-17T17:01:00Z",
+                    ),
+                    "database is stale",
+                ),
+            )
+            for metadata, message in cases:
+                with self.subTest(message=message):
+                    write_json(
+                        version,
+                        {"Version": "0.74.0", "VulnerabilityDB": metadata},
+                    )
                     with self.assertRaisesRegex(ValueError, message):
                         render_evidence(
                             candidate=candidate,
@@ -880,7 +989,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                 version,
                 {
                     "Version": "0.74.0",
-                    "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                    "VulnerabilityDB": vulnerability_database_metadata(),
                 },
             )
             database = directory / "trivy.db"
@@ -966,7 +1075,7 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                 version,
                 {
                     "Version": "0.74.0",
-                    "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                    "VulnerabilityDB": vulnerability_database_metadata(),
                 },
             )
             database = directory / "trivy.db"
@@ -1052,7 +1161,7 @@ class DeploymentsEvidenceContractIntegrationTests(unittest.TestCase):
                     version_path,
                     {
                         "Version": "0.74.0",
-                        "VulnerabilityDB": {"UpdatedAt": "2026-11-17T18:00:00Z"},
+                        "VulnerabilityDB": vulnerability_database_metadata(),
                     },
                 )
                 database_path = directory / f"{candidate.role}-trivy.db"
