@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-19: Patch the Meet agents runtime from an immutable current Debian
+  snapshot before installing LiveKit dependencies, so inherited base packages
+  cannot retain fixable high or critical vulnerabilities.
+
 - 2026-11-19: Prepare a strictly read-only production evidence workflow for
   the selected Meet frontend and API images, with exact digest readback, fresh
   vulnerability scans and CycloneDX SBOMs. Image signatures remain explicitly

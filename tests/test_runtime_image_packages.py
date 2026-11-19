@@ -70,11 +70,20 @@ class RuntimeImagePackagesTests(unittest.TestCase):
         self.assertEqual(files, ["bin", "calls.jsonl"])
         self.assertEqual(output, "")
 
-    def test_agents_install_from_the_base_image_snapshot_without_global_upgrade(self):
+    def test_agents_upgrade_all_base_packages_from_the_immutable_snapshot(self):
         calls, files, output = execute_package_shell("src/agents/Dockerfile", "base")
         actions = [call[0] for call in calls]
-        self.assertEqual(actions, ["update", "install"])
+        self.assertEqual(actions, ["update", "upgrade", "install"])
+        upgraded_packages = [
+            arg for arg in calls[1] if arg != "upgrade" and not arg.startswith("-")
+        ]
+        self.assertEqual(
+            upgraded_packages,
+            [],
+            "A package filter leaves inherited runtime CVEs unpatched",
+        )
         self.assertIn("--no-install-recommends", calls[1])
+        self.assertIn("--no-install-recommends", calls[2])
         self.assertEqual(files, ["bin", "calls.jsonl"])
         self.assertEqual(output, "")
 
@@ -84,15 +93,17 @@ class RuntimeImagePackagesTests(unittest.TestCase):
 
         self.assertIn("ARG SOURCE_DATE_EPOCH", base)
         self.assertIn(
-            "https://snapshot.debian.org/archive/debian/20260803T000000Z",
+            "https://snapshot.debian.org/archive/debian/20261118T000000Z",
             base,
         )
         self.assertIn(
-            "https://snapshot.debian.org/archive/debian-security/20260803T000000Z",
+            "https://snapshot.debian.org/archive/debian-security/20261118T000000Z",
             base,
         )
         self.assertIn("Check-Valid-Until: no", base)
-        self.assertNotIn("apt-get upgrade", base)
+        self.assertIn("! grep -q 'deb.debian.org'", base)
+        self.assertIn("libglib2.0-0t64", base)
+        self.assertNotIn("libglib2.0-0 ", base)
         for path in (
             "/var/lib/apt/lists",
             "/var/cache/apt",

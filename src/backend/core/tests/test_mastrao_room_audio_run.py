@@ -242,7 +242,8 @@ def test_live_start_refuses_the_superseded_room_mix_contract(authority_key, bind
 
 
 def test_timeout_reconciles_existing_exact_dispatch(authority_key, binding):
-    compact = _signed(authority_key, _effect(binding))
+    effect = _effect(binding)
+    compact = _signed(authority_key, effect)
     unavailable = _livekit_client(error=asyncio.TimeoutError())
 
     with patch(
@@ -261,10 +262,14 @@ def test_timeout_reconciles_existing_exact_dispatch(authority_key, binding):
         agent_name="room-audio-worker",
         metadata=compact,
     )
-    refreshed = _signed(
-        authority_key,
-        _effect(binding, jti="effect_audio_run_fixture_refreshed"),
-    )
+    refreshed_now = int(time.time())
+    refreshed_effect = {
+        **effect,
+        "issued_at": refreshed_now,
+        "expires_at": refreshed_now + 20,
+        "jti": "effect_audio_run_fixture_refreshed",
+    }
+    refreshed = _signed(authority_key, refreshed_effect)
     recovered = _livekit_client(dispatches=[existing])
     with patch(
         "core.mastrao_room_audio_run.utils.create_livekit_client",
