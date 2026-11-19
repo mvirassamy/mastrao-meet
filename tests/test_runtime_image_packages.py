@@ -70,13 +70,38 @@ class RuntimeImagePackagesTests(unittest.TestCase):
         self.assertEqual(files, ["bin", "calls.jsonl"])
         self.assertEqual(output, "")
 
-    def test_agents_refresh_then_upgrade_the_base_before_installing_dependencies(self):
+    def test_agents_install_from_the_base_image_snapshot_without_global_upgrade(self):
         calls, files, output = execute_package_shell("src/agents/Dockerfile", "base")
         actions = [call[0] for call in calls]
-        self.assertEqual(actions, ["update", "upgrade", "install"])
-        self.assertTrue(all(arg.startswith("-") for arg in calls[1][1:]))
+        self.assertEqual(actions, ["update", "install"])
+        self.assertIn("--no-install-recommends", calls[1])
         self.assertEqual(files, ["bin", "calls.jsonl"])
         self.assertEqual(output, "")
+
+    def test_agents_build_removes_timestamped_apt_state(self):
+        dockerfile = Path("src/agents/Dockerfile").read_text()
+        base = dockerfile.split(" AS base\n", 1)[1].split("\nFROM ", 1)[0]
+
+        self.assertIn("ARG SOURCE_DATE_EPOCH", base)
+        self.assertIn(
+            "https://snapshot.debian.org/archive/debian/20260803T000000Z",
+            base,
+        )
+        self.assertIn(
+            "https://snapshot.debian.org/archive/debian-security/20260803T000000Z",
+            base,
+        )
+        self.assertIn("Check-Valid-Until: no", base)
+        self.assertNotIn("apt-get upgrade", base)
+        for path in (
+            "/var/lib/apt/lists",
+            "/var/cache/apt",
+            "/var/log/apt",
+            "/var/cache/ldconfig",
+        ):
+            self.assertIn(path, base)
+        self.assertIn("alternatives.log", base)
+        self.assertIn("dpkg.log", base)
 
 
 if __name__ == "__main__":
