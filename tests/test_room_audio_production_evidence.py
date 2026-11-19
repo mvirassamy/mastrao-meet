@@ -215,6 +215,74 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def test_registry_candidates_select_exact_protected_run(self):
+        shared_source = {
+            "source_commit": "df7ba0fb1bee5483867fa14b5df1723e0946a33f",
+            "source_tree": "42f98f21fab6da69baff8ee481e73fbaae44edbe",
+            "source_archive_sha256": (
+                "73399d0a87356dc29351ad2a9a3cacc5d03b521aa5187bd96eb95dfc7c61d2e7"
+            ),
+            "run_id": 44605214896,
+            "run_attempt": 1,
+        }
+        expected_digests = {
+            "meet-agents": {
+                "root_digest": (
+                    "sha256:8a3363386c502ef189b4429fc2b12e38bc8f48192d29349ccfbaf0edb4e651fe"
+                ),
+                "amd64_manifest_digest": (
+                    "sha256:3bc41ea2657378b181cdecf215f4d507fdfb97aad7ccfa9a07d6f6136dd1051b"
+                ),
+            },
+            "meet-backend": {
+                "root_digest": (
+                    "sha256:0420d2b7d488042f3fa372329dcb96ea6a73d0051d5d20a27d40dcfff778ef8c"
+                ),
+                "amd64_manifest_digest": (
+                    "sha256:e370001a975e7b085867e893a7c783ccbcf13d8084139a7ba2a02d0f3b943e33"
+                ),
+            },
+        }
+
+        for role, digests in expected_digests.items():
+            with self.subTest(role=role):
+                expected_candidate = Candidate(
+                    role=role,
+                    **shared_source,
+                    **digests,
+                )
+                self.assertEqual(CANDIDATES[role], expected_candidate)
+                self.assertEqual(
+                    CANDIDATES[role].artifact_name,
+                    f"meet-{role}-df7ba0fb1bee5483867fa14b5df1723e0946a33f"
+                    "-run-44605214896-attempt-1-candidate-receipt",
+                )
+
+    def test_registry_candidate_rejects_superseded_receipt(self):
+        superseded_candidate = Candidate(
+            role="meet-backend",
+            source_commit="1f19f4c25206f6398164436b601277e3a2fe8f3a",
+            source_tree="5a3d060c82feb3f6c39c0f4557c003af2d44be2a",
+            source_archive_sha256=(
+                "de8f910acb82d434bbf96aa052d03ddba855b05d29501d843f784d72c98a6ac6"
+            ),
+            run_id=43497052567,
+            run_attempt=3,
+            root_digest=(
+                "sha256:8b4bfa35db20817c07ed3eeed23d218f44005d3da0192eac3ae039eb91e91665"
+            ),
+            amd64_manifest_digest=(
+                "sha256:38f2b842f4dec91c8420331ea1898c73df497bfa6a4478be8629037881c0fc39"
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as name:
+            receipt_path = Path(name) / "superseded-receipt.json"
+            write_json(receipt_path, expected_receipt(superseded_candidate))
+
+            with self.assertRaisesRegex(ValueError, "closed candidate"):
+                candidate_from_receipt("meet-backend", receipt_path)
+
     def fixture(self, directory, **layout_options):
         layout, runtime, config, root = candidate_layout(
             directory, self.original, **layout_options

@@ -120,34 +120,34 @@ class Candidate:
 CANDIDATES = {
     "meet-agents": Candidate(
         role="meet-agents",
-        source_commit="9077554dbed793e14d0c334b8217e5cbefff7b8b",
-        source_tree="8698e10c19064538df2887904d11932807140193",
+        source_commit="df7ba0fb1bee5483867fa14b5df1723e0946a33f",
+        source_tree="42f98f21fab6da69baff8ee481e73fbaae44edbe",
         source_archive_sha256=(
-            "bfd0646220cedfff00fce6dcb261eeb651a2ddb4464500afbbc95cfd7f8d26b0"
+            "73399d0a87356dc29351ad2a9a3cacc5d03b521aa5187bd96eb95dfc7c61d2e7"
         ),
-        run_id=43537638339,
+        run_id=44605214896,
         run_attempt=1,
         root_digest=(
-            "sha256:efff5c4a75893dccaae902b1fe6d29ebde487479892bd1ff68ca9c6ad5ad999b"
+            "sha256:8a3363386c502ef189b4429fc2b12e38bc8f48192d29349ccfbaf0edb4e651fe"
         ),
         amd64_manifest_digest=(
-            "sha256:00b91e1e2cb47f111855342a6e7d97bc496d46bfab32fd742eaaee3d50cf0c09"
+            "sha256:3bc41ea2657378b181cdecf215f4d507fdfb97aad7ccfa9a07d6f6136dd1051b"
         ),
     ),
     "meet-backend": Candidate(
         role="meet-backend",
-        source_commit="1f19f4c25206f6398164436b601277e3a2fe8f3a",
-        source_tree="5a3d060c82feb3f6c39c0f4557c003af2d44be2a",
+        source_commit="df7ba0fb1bee5483867fa14b5df1723e0946a33f",
+        source_tree="42f98f21fab6da69baff8ee481e73fbaae44edbe",
         source_archive_sha256=(
-            "de8f910acb82d434bbf96aa052d03ddba855b05d29501d843f784d72c98a6ac6"
+            "73399d0a87356dc29351ad2a9a3cacc5d03b521aa5187bd96eb95dfc7c61d2e7"
         ),
-        run_id=43497052567,
-        run_attempt=3,
+        run_id=44605214896,
+        run_attempt=1,
         root_digest=(
-            "sha256:8b4bfa35db20817c07ed3eeed23d218f44005d3da0192eac3ae039eb91e91665"
+            "sha256:0420d2b7d488042f3fa372329dcb96ea6a73d0051d5d20a27d40dcfff778ef8c"
         ),
         amd64_manifest_digest=(
-            "sha256:38f2b842f4dec91c8420331ea1898c73df497bfa6a4478be8629037881c0fc39"
+            "sha256:e370001a975e7b085867e893a7c783ccbcf13d8084139a7ba2a02d0f3b943e33"
         ),
     ),
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-19: Select the exact protected Room Audio agents and backend
+  candidates from develop run 44605214896 for production evidence, rejecting
+  superseded candidate receipts.
+
 - 2026-11-19: Patch the Meet agents runtime from an immutable current Debian
   snapshot before installing LiveKit dependencies, so inherited base packages
   cannot retain fixable high or critical vulnerabilities.
