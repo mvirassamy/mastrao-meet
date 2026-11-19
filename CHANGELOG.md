@@ -1,5 +1,10 @@
 # Changelog
 
+- 2026-11-19: Prepare a strictly read-only production evidence workflow for
+  the selected Meet frontend and API images, with exact digest readback, fresh
+  vulnerability scans and CycloneDX SBOMs. Image signatures remain explicitly
+  unproven until Meet has an approved signature trust policy.
+
 - 2026-11-18: Bind the selected Meet backend candidate exclusively to the
   zero-replica production worker-general workload with fresh read-only OCI and
   vulnerability evidence, without rebuilding or publishing it.
