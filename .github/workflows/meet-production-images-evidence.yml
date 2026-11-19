@@ -1,0 +1,137 @@
+name: Prepare selected Meet production image evidence
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: meet-production-images-evidence
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-evidence:
+    if: >-
+      github.repository == 'mvirassamy/mastrao-meet' &&
+      github.ref == 'refs/heads/develop' &&
+      github.ref_protected == true
+    runs-on: ubuntu-latest
+    environment: meet-production-evidence
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [meet-frontend, meet-api]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout trusted evidence tooling
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: scripts/ci
+          persist-credentials: false
+
+      - name: Select the closed production image
+        id: selection
+        env:
+          ROLE: ${{ matrix.role }}
+        run: >-
+          python -m scripts.ci.meet_production_images_evidence select
+          --role "$ROLE" >> "$GITHUB_OUTPUT"
+
+      - name: Install the approved read-only tooling
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1
+        with:
+          version: 1.3.0
+
+      - name: Install the approved Trivy scanner
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.74.0
+          cache: false
+
+      - name: Require the dedicated production registry reader
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.MEET_PRODUCTION_REGISTRY_READ_PASSWORD }}
+        run: test -n "$REGISTRY_PASSWORD"
+
+      - name: Authenticate for production readback
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: rg.fr-par.scw.cloud/mastrao-production
+          username: nologin
+          password: ${{ secrets.MEET_PRODUCTION_REGISTRY_READ_PASSWORD }}
+
+      - name: Read back the exact production digest
+        env:
+          REFERENCE: ${{ steps.selection.outputs.reference }}
+          ROLE: ${{ matrix.role }}
+        run: oras cp --to-oci-layout "$REFERENCE" "$RUNNER_TEMP/candidate-layout:$ROLE"
+
+      - name: Remove registry credentials before inspection
+        run: docker logout rg.fr-par.scw.cloud/mastrao-production
+
+      - name: Verify the OCI graph and isolate the runtime image
+        env:
+          ROLE: ${{ matrix.role }}
+        run: |
+          python -m scripts.ci.meet_production_images_evidence inspect \
+            --role "$ROLE" \
+            --layout "$RUNNER_TEMP/candidate-layout" \
+            --scan-layout "$RUNNER_TEMP/runtime-layout" \
+            --output "$RUNNER_TEMP/oci-readback.json"
+
+      - name: Produce a fresh vulnerability scan and SBOM
+        env:
+          EXPECTED_TRIVY_DIGEST: sha256:d89bcc6510a267f11b773398cbf1be5520ce39f9e8b6633178c4487f05b7d791
+          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+        run: |
+          test "$(trivy --version | awk '$1 == "Version:" {print $2; exit}')" = "0.74.0"
+          test "sha256:$(sha256sum "$(command -v trivy)" | awk '{print $1}')" = "$EXPECTED_TRIVY_DIGEST"
+          trivy image \
+            --cache-dir "$TRIVY_CACHE_DIR" \
+            --input "$RUNNER_TEMP/runtime-layout" \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --format json \
+            --output "$RUNNER_TEMP/trivy-report.json" \
+            --exit-code 0
+          trivy image \
+            --cache-dir "$TRIVY_CACHE_DIR" \
+            --input "$RUNNER_TEMP/runtime-layout" \
+            --scanners vuln \
+            --format cyclonedx \
+            --output "$RUNNER_TEMP/sbom.cdx.json" \
+            --exit-code 0
+          trivy --cache-dir "$TRIVY_CACHE_DIR" version --format json \
+            > "$RUNNER_TEMP/trivy-version.json"
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > "$RUNNER_TEMP/scanned-at"
+
+      - name: Render the read-only production evidence
+        env:
+          ROLE: ${{ matrix.role }}
+        run: |
+          python -m scripts.ci.meet_production_images_evidence render \
+            --role "$ROLE" \
+            --graph "$RUNNER_TEMP/oci-readback.json" \
+            --vulnerability-report "$RUNNER_TEMP/trivy-report.json" \
+            --sbom "$RUNNER_TEMP/sbom.cdx.json" \
+            --trivy-version "$RUNNER_TEMP/trivy-version.json" \
+            --scanned-at "$(cat "$RUNNER_TEMP/scanned-at")" \
+            --output "$RUNNER_TEMP/production-evidence.json"
+
+      - name: Upload read-only evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: meet-production-${{ matrix.role }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/oci-readback.json
+            ${{ runner.temp }}/trivy-report.json
+            ${{ runner.temp }}/trivy-version.json
+            ${{ runner.temp }}/sbom.cdx.json
+            ${{ runner.temp }}/production-evidence.json
+          if-no-files-found: error
+          retention-days: 2
