@@ -2,15 +2,17 @@ FROM python:3.14.6-slim@sha256:7bec7ddcddeff7975d6ba9b4be7dd6f6b2f55e7491539145e
 ARG SOURCE_DATE_EPOCH
 
 # Install LiveKit system dependencies from the immutable Debian snapshot used
-# to assemble the pinned base image.
+# to patch the pinned base image.
 RUN sed -i \
-      -e 's|http://deb.debian.org/debian$|https://snapshot.debian.org/archive/debian/20260803T000000Z|' \
-      -e 's|http://deb.debian.org/debian-security$|https://snapshot.debian.org/archive/debian-security/20260803T000000Z|' \
+      -e 's|http://deb.debian.org/debian$|https://snapshot.debian.org/archive/debian/20261118T000000Z|' \
+      -e 's|http://deb.debian.org/debian-security$|https://snapshot.debian.org/archive/debian-security/20261118T000000Z|' \
       /etc/apt/sources.list.d/debian.sources && \
     sed -i '/^Signed-By:/a Check-Valid-Until: no' /etc/apt/sources.list.d/debian.sources && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 \
-    libgobject-2.0-0 \
+    ! grep -q 'deb.debian.org' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends \
+    libglib2.0-0t64 \
     && find /var/lib/apt/lists /var/cache/apt -mindepth 1 -delete \
     && find /var/log/apt -type f -delete \
     && find /var/log -maxdepth 1 -type f \
