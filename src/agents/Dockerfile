@@ -1,10 +1,21 @@
 FROM python:3.14.6-slim@sha256:7bec7ddcddeff7975d6ba9b4be7dd6f6b2f55e7491539145e2978f7f97ce9144 AS base
+ARG SOURCE_DATE_EPOCH
 
-# Patch the pinned base before installing system dependencies for LiveKit.
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+# Install LiveKit system dependencies from the immutable Debian snapshot used
+# to assemble the pinned base image.
+RUN sed -i \
+      -e 's|http://deb.debian.org/debian$|https://snapshot.debian.org/archive/debian/20260803T000000Z|' \
+      -e 's|http://deb.debian.org/debian-security$|https://snapshot.debian.org/archive/debian-security/20260803T000000Z|' \
+      /etc/apt/sources.list.d/debian.sources && \
+    sed -i '/^Signed-By:/a Check-Valid-Until: no' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgobject-2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+    && find /var/lib/apt/lists /var/cache/apt -mindepth 1 -delete \
+    && find /var/log/apt -type f -delete \
+    && find /var/log -maxdepth 1 -type f \
+      \( -name 'alternatives.log' -o -name 'dpkg.log' \) -delete \
+    && find /var/cache/ldconfig -type f -delete
 
 
 # ---- Builder image ----

@@ -2,9 +2,7 @@
 
 # ---- base image to inherit from ----
 FROM python:3.13.5-alpine3.21@sha256:763eee4b5cf4dfcfbf76a5a5f8177317ac531c635b855cdc5a95e17fe1e4a44d AS base
-
-# Upgrade pip to its latest release to speed up dependencies installation
-RUN python -m pip install --upgrade pip
+ARG SOURCE_DATE_EPOCH
 
 # Upgrade system packages to install security updates
 RUN apk update && \
@@ -34,7 +32,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
   uv sync --locked --no-install-project --no-dev
 COPY src/backend /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-  uv sync --locked --no-dev
+  uv sync --locked --no-dev && \
+  find /app/.venv -path '*/site-packages/meet-*.dist-info/uv_cache.json' -delete && \
+  find /app/.venv -path '*/site-packages/meet-*.dist-info/RECORD' \
+    -exec sed -i '\|/uv_cache.json,|d' {} +
 
 # ---- mails ----
 FROM node:22@sha256:8a34c4ab3ea2c5cd194f07e317b2a8f09461d3c8b05c4e34c8ccd56d56024c4d AS mail-builder
@@ -105,6 +106,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Generate compiled translation messages
 RUN DJANGO_CONFIGURATION=Build \
+  PYTHONDONTWRITEBYTECODE=1 \
   python manage.py compilemessages --ignore=".venv/**/*"
 
 # We wrap commands run in this container by the following entrypoint that
