@@ -117,6 +117,20 @@ class Candidate:
         )
 
 
+@dataclass(frozen=True)
+class RetainedArchive:
+    candidate: Candidate
+    archive_sha256: str
+
+    @property
+    def artifact_name(self) -> str:
+        candidate = self.candidate
+        return (
+            f"room-audio-{candidate.role}-{candidate.run_id}"
+            f"-{candidate.run_attempt}"
+        )
+
+
 CANDIDATES = {
     "meet-agents": Candidate(
         role="meet-agents",
@@ -150,6 +164,51 @@ CANDIDATES = {
             "sha256:e370001a975e7b085867e893a7c783ccbcf13d8084139a7ba2a02d0f3b943e33"
         ),
     ),
+    METADATA_COLLECTOR_ROLE: Candidate(
+        role=METADATA_COLLECTOR_ROLE,
+        source_commit=METADATA_COLLECTOR_SOURCE.commit,
+        source_tree=METADATA_COLLECTOR_SOURCE.tree,
+        source_archive_sha256=METADATA_COLLECTOR_SOURCE.archive_sha256,
+        run_id=44638484329,
+        run_attempt=2,
+        root_digest=(
+            "sha256:603d28e66c4b4e2b956a58aaafeee9b4c7f1dc81b81c5d00e2a3372521fe91f9"
+        ),
+        amd64_manifest_digest=(
+            "sha256:e51c9e3ccd91e7c7711b4dfb5707647d0129a32cb3dffeb2a50d667de38360e1"
+        ),
+    ),
+    LIVEKIT_RENDER_ROLE: Candidate(
+        role=LIVEKIT_RENDER_ROLE,
+        source_commit="a8b6974eb6aaa627768f10b94f84a8bd3ced03fc",
+        source_tree="c785b5b45e227259ca80b1eb4d9e0be42ac65c6a",
+        source_archive_sha256=(
+            "aeb789f154809241207a7b024d331902b923f0d6ebe4c428c8518e7e5e99bab2"
+        ),
+        run_id=44638484329,
+        run_attempt=2,
+        root_digest=(
+            "sha256:170838e1345ed82f7fbdb67d68168b0f0731d9bcb297e668cc328aec51f59047"
+        ),
+        amd64_manifest_digest=(
+            "sha256:07cd3582c4051d61f3a992ef744b63fae320cd10cf4538416cfadaf413a03dd5"
+        ),
+    ),
+}
+
+RETAINED_ARCHIVES = {
+    METADATA_COLLECTOR_ROLE: RetainedArchive(
+        candidate=CANDIDATES[METADATA_COLLECTOR_ROLE],
+        archive_sha256=(
+            "sha256:3087d509280cf9472ced7fc7c2481021d8adb4f61ad40edc2862dd2e77881f2d"
+        ),
+    ),
+    LIVEKIT_RENDER_ROLE: RetainedArchive(
+        candidate=CANDIDATES[LIVEKIT_RENDER_ROLE],
+        archive_sha256=(
+            "sha256:bc5cd254f0dd2d010a6091356273b5b085a2fbf4db12c94157c931167fed05e0"
+        ),
+    ),
 }
 
 
@@ -165,6 +224,13 @@ def candidate_for(role: str) -> Candidate:
         return CANDIDATES[role]
     except KeyError as error:
         raise ValueError("unsupported Room Audio candidate role") from error
+
+
+def retained_archive_for(role: str) -> RetainedArchive:
+    try:
+        return RETAINED_ARCHIVES[role]
+    except KeyError as error:
+        raise ValueError("role does not use a retained OCI archive") from error
 
 
 def expected_receipt(candidate: Candidate) -> dict[str, object]:
@@ -478,6 +544,39 @@ def package_retained_local_archive_artifact(
         binding,
     )
     return binding
+
+
+def verify_retained_archive_artifact(*, role: str, artifact_directory: Path) -> None:
+    retained = retained_archive_for(role)
+    expected_names = set(RETAINED_ARTIFACT_FILES.values())
+    try:
+        entries = list(artifact_directory.iterdir())
+    except OSError as error:
+        raise ValueError("retained artifact directory is unreadable") from error
+    if {entry.name for entry in entries} != expected_names or not all(
+        entry.is_file() for entry in entries
+    ):
+        raise ValueError("retained artifact file set does not match")
+
+    paths = {
+        name: artifact_directory / filename
+        for name, filename in RETAINED_ARTIFACT_FILES.items()
+    }
+    candidate = candidate_from_receipt(role, paths["receipt"])
+    if candidate != retained.candidate:
+        raise ValueError("retained artifact candidate does not match the selection")
+
+    binding = render_retained_local_archive_binding(
+        role=role,
+        receipt_path=paths["receipt"],
+        graph_path=paths["graph"],
+        scan_provenance_path=paths["scan"],
+        archive_path=paths["archive"],
+    )
+    if binding != _read_json(paths["binding"]):
+        raise ValueError("retained artifact binding does not match its exact files")
+    if binding["archive"]["sha256"] != retained.archive_sha256:
+        raise ValueError("retained OCI archive digest does not match the selection")
 
 
 def _inspect_graph(
@@ -1156,27 +1255,17 @@ def _write_json(path: Path, value: object) -> None:
 
 def _select(role: str) -> str:
     if role in LOCAL_BUILD_ROLES:
-        recipe = evidence_recipe_for(role)
-        source_lines: tuple[str, ...] = ()
-        if role == METADATA_COLLECTOR_ROLE:
-            source_lines = (
-                f"source_sha={METADATA_COLLECTOR_SOURCE.commit}\n",
-                f"source_tree={METADATA_COLLECTOR_SOURCE.tree}\n",
-                f"source_archive_sha256={METADATA_COLLECTOR_SOURCE.archive_sha256}\n",
-            )
-        delimiter = f"{role.upper().replace('-', '_')}_BUILD_ARGS"
+        retained = retained_archive_for(role)
+        candidate = retained.candidate
         return "".join(
             (
-                "acquisition=local-build\n",
+                "acquisition=retained-archive\n",
                 f"role={role}\n",
-                *source_lines,
-                f"context={recipe.context}\n",
-                f"dockerfile={recipe.dockerfile}\n",
-                f"build_target={recipe.build_target}\n",
-                f"repository={recipe.repository}\n",
-                f"build_args<<{delimiter}\n",
-                *(f"{build_arg}\n" for build_arg in recipe.build_args),
-                f"{delimiter}\n",
+                f"run_id={candidate.run_id}\n",
+                f"run_attempt={candidate.run_attempt}\n",
+                f"root_digest={candidate.root_digest}\n",
+                f"archive_sha256={retained.archive_sha256}\n",
+                f"artifact_name={retained.artifact_name}\n",
             )
         )
     candidate = candidate_for(role)
@@ -1260,6 +1349,10 @@ def main() -> None:
     package_archive.add_argument("--archive", required=True, type=Path)
     package_archive.add_argument("--artifact-directory", required=True, type=Path)
 
+    verify_archive = subparsers.add_parser("verify-retained-archive")
+    verify_archive.add_argument("--role", required=True)
+    verify_archive.add_argument("--artifact-directory", required=True, type=Path)
+
     args = parser.parse_args()
     if args.command == "select":
         sys.stdout.write(_select(args.role))
@@ -1291,6 +1384,12 @@ def main() -> None:
             graph_path=args.graph,
             scan_provenance_path=args.scan_provenance,
             archive_path=args.archive,
+            artifact_directory=args.artifact_directory,
+        )
+        return
+    if args.command == "verify-retained-archive":
+        verify_retained_archive_artifact(
+            role=args.role,
             artifact_directory=args.artifact_directory,
         )
         return

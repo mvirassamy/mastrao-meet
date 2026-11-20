@@ -47,11 +47,11 @@ candidates selected by `PROD-MEET-PROMOTION-002`, plus the dedicated
 two published candidates,
 it downloads the original V1 receipt from the historical Actions run and
 copies the exact `repository@sha256` candidate into a temporary OCI layout.
-For both dedicated targets, it verifies the immutable source tree and archive,
-builds one local linux/amd64 OCI archive with the closed recipe and
-deterministic source timestamp, and records a
-`BUILT_NOT_PUBLISHED_NOT_DEPLOYED` receipt. It does not add either target to
-the staging publication targets.
+For both dedicated targets, it downloads the exact retained OCI archive
+selected from protected run `44638484329` attempt `2`. It verifies the closed
+candidate receipt, complete graph, archive digest and five-file binding before
+extracting or scanning anything. Evidence refreshes therefore rescan immutable
+selected bytes instead of rebuilding a different OCI candidate.
 
 All four paths verify every manifest, config and layer descriptor and scan the
 isolated linux/amd64 runtime with Trivy `0.74.0`. The workflow installs and
@@ -60,16 +60,18 @@ removes the registry credential immediately after the ORAS readback, and
 records the verified binary digest in the evidence. The metadata collector and
 LiveKit renderer jobs never receive or require that registry credential.
 
-The workflow uploads the original or local-build receipt, a complete OCI graph
+The workflow uploads the original or retained-build receipt, a complete OCI graph
 and one `room-audio-scan-provenance-v1` record. For `metadata-collector` and
-`livekit-render`, the same artifact also retains the exact OCI archive produced
-by the verified local build for one day. The workflow packages the archive,
+`livekit-render`, the same artifact also retains the exact selected OCI archive
+for one day. The workflow packages the archive,
 receipt, graph, scan provenance and binding as five explicitly named files at
 the artifact root. A binding record hashes every retained input after re-reading
 the archive and proving that its complete OCI graph is unchanged. The archive
 is hashed as a stream and both its stored and extracted size are limited to
 2 GiB. This gives a later, separately authorized digest-only publisher the
-original bytes without rebuilding them. The evidence workflow still has no
+original bytes without rebuilding them. A new source candidate requires a new
+protected selection; it cannot silently enter through an evidence refresh. The
+evidence workflow still has no
 registry write credential or publication command.
 
 Evidence is emitted only when

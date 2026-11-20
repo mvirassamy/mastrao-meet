@@ -1,5 +1,9 @@
 # Changelog
 
+- 2026-11-20: Select the exact retained metadata collector and LiveKit renderer
+  OCI archives from protected run 44638484329 attempt 2, and refresh evidence
+  by rescanning those immutable bytes instead of rebuilding drifting images.
+
 - 2026-11-19: Select the exact protected Room Audio agents and backend
   candidates from develop run 44605214896 for production evidence, rejecting
   superseded candidate receipts.

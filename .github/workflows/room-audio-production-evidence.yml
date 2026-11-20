@@ -61,78 +61,36 @@ jobs:
           test "$(find "$RUNNER_TEMP/candidate-receipt" -type f | wc -l | tr -d ' ')" = 1
           test -f "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json"
 
-      - name: Checkout the immutable local-build source
-        if: steps.candidate.outputs.acquisition == 'local-build'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          ref: ${{ steps.candidate.outputs.source_sha || github.sha }}
-          path: candidate-source
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify and bind the immutable local-build source
-        id: local-source
-        if: steps.candidate.outputs.acquisition == 'local-build'
-        working-directory: candidate-source
+      - name: Download the exact retained OCI archive
+        if: steps.candidate.outputs.acquisition == 'retained-archive'
         env:
-          EXPECTED_ARCHIVE_SHA256: ${{ steps.candidate.outputs.source_archive_sha256 }}
-          EXPECTED_SHA: ${{ steps.candidate.outputs.source_sha }}
-          EXPECTED_TREE: ${{ steps.candidate.outputs.source_tree }}
+          ARTIFACT_NAME: ${{ steps.candidate.outputs.artifact_name }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.candidate.outputs.run_id }}
         run: |
-          source_sha="$(git rev-parse HEAD)"
-          source_tree="$(git rev-parse 'HEAD^{tree}')"
-          source_archive_sha256="$(git archive --format=tar HEAD | sha256sum | awk '{print $1}')"
-          test "$source_sha" = "$GITHUB_SHA" || test -n "$EXPECTED_SHA"
-          test -z "$EXPECTED_SHA" || test "$source_sha" = "$EXPECTED_SHA"
-          test -z "$EXPECTED_TREE" || test "$source_tree" = "$EXPECTED_TREE"
-          test -z "$EXPECTED_ARCHIVE_SHA256" || test "$source_archive_sha256" = "$EXPECTED_ARCHIVE_SHA256"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
-          printf 'source_tree=%s\n' "$source_tree" >> "$GITHUB_OUTPUT"
-          printf 'source_archive_sha256=%s\n' "$source_archive_sha256" >> "$GITHUB_OUTPUT"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/artifacts.json"
+          artifact_id="$(python -m scripts.ci.room_audio_production_evidence artifact-id \
+            --listing "$RUNNER_TEMP/artifacts.json" \
+            --name "$ARTIFACT_NAME")"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" \
+            > "$RUNNER_TEMP/retained-source.zip"
+          mkdir "$RUNNER_TEMP/retained-source"
+          unzip -q "$RUNNER_TEMP/retained-source.zip" -d "$RUNNER_TEMP/retained-source"
 
-      - name: Set up Docker Buildx for local evidence
-        if: steps.candidate.outputs.acquisition == 'local-build'
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-
-      - name: Build the local evidence image once
-        if: steps.candidate.outputs.acquisition == 'local-build'
-        id: local-build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: candidate-source/${{ steps.candidate.outputs.context }}
-          file: candidate-source/${{ steps.candidate.outputs.dockerfile }}
-          target: ${{ steps.candidate.outputs.build_target }}
-          platforms: linux/amd64
-          build-args: ${{ steps.candidate.outputs.build_args }}
-          push: false
-          outputs: type=oci,dest=${{ runner.temp }}/local-build.tar,rewrite-timestamp=true
-          tags: ${{ steps.candidate.outputs.repository }}:production-evidence-${{ steps.local-source.outputs.source_sha }}
-          provenance: mode=max
-          sbom: true
-
-      - name: Bind the local build and render its receipt
-        if: steps.candidate.outputs.acquisition == 'local-build'
+      - name: Verify and materialize the exact retained OCI archive
+        if: steps.candidate.outputs.acquisition == 'retained-archive'
         env:
-          ROOT_DIGEST: ${{ steps.local-build.outputs.digest }}
           ROLE: ${{ matrix.role }}
-          SOURCE_ARCHIVE_SHA256: ${{ steps.local-source.outputs.source_archive_sha256 }}
-          SOURCE_SHA: ${{ steps.local-source.outputs.source_sha }}
-          SOURCE_TREE: ${{ steps.local-source.outputs.source_tree }}
         run: |
-          [[ "$ROOT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          mkdir "$RUNNER_TEMP/candidate-layout" "$RUNNER_TEMP/candidate-receipt"
-          tar -xf "$RUNNER_TEMP/local-build.tar" -C "$RUNNER_TEMP/candidate-layout"
-          python -m scripts.ci.room_audio_production_evidence render-local-build-receipt \
+          python -m scripts.ci.room_audio_production_evidence verify-retained-archive \
             --role "$ROLE" \
-            --source-sha "$SOURCE_SHA" \
-            --source-tree "$SOURCE_TREE" \
-            --source-archive-sha256 "$SOURCE_ARCHIVE_SHA256" \
-            --layout "$RUNNER_TEMP/candidate-layout" \
-            --expected-root-digest "$ROOT_DIGEST" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --output "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json"
+            --artifact-directory "$RUNNER_TEMP/retained-source"
+          mkdir "$RUNNER_TEMP/candidate-layout" "$RUNNER_TEMP/candidate-receipt"
+          cp "$RUNNER_TEMP/retained-source/candidate-receipt.json" \
+            "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json"
+          tar -xf "$RUNNER_TEMP/retained-source/local-build.tar" \
+            -C "$RUNNER_TEMP/candidate-layout"
 
       - name: Install the approved Trivy scanner
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
@@ -228,8 +186,8 @@ jobs:
             --scanned-at "$(cat "$RUNNER_TEMP/scanned-at")" \
             --output "$RUNNER_TEMP/scan-provenance.json"
 
-      - name: Package the verified local-build archive and evidence
-        if: steps.candidate.outputs.acquisition == 'local-build'
+      - name: Package the rescanned retained archive and evidence
+        if: steps.candidate.outputs.acquisition == 'retained-archive'
         env:
           ROLE: ${{ matrix.role }}
         run: |
@@ -238,7 +196,7 @@ jobs:
             --receipt "$RUNNER_TEMP/candidate-receipt/candidate-receipt.json" \
             --graph "$RUNNER_TEMP/oci-graph.json" \
             --scan-provenance "$RUNNER_TEMP/scan-provenance.json" \
-            --archive "$RUNNER_TEMP/local-build.tar" \
+            --archive "$RUNNER_TEMP/retained-source/local-build.tar" \
             --artifact-directory "$RUNNER_TEMP/retained-local-archive-artifact"
 
       - name: Upload registry evidence only
@@ -253,8 +211,8 @@ jobs:
           if-no-files-found: error
           retention-days: 2
 
-      - name: Upload verified local-build evidence and OCI archive
-        if: steps.candidate.outputs.acquisition == 'local-build'
+      - name: Upload rescanned retained OCI archive and evidence
+        if: steps.candidate.outputs.acquisition == 'retained-archive'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: room-audio-${{ matrix.role }}-${{ github.run_id }}-${{ github.run_attempt }}
