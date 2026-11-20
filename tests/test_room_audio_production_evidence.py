@@ -20,7 +20,9 @@ from scripts.ci.room_audio_production_evidence import (
     METADATA_COLLECTOR_ROLE,
     METADATA_COLLECTOR_SOURCE,
     RETAINED_ARTIFACT_FILES,
+    RETAINED_ARCHIVES,
     Candidate,
+    RetainedArchive,
     Source,
     artifact_id_from_listing,
     candidate_from_receipt,
@@ -31,6 +33,7 @@ from scripts.ci.room_audio_production_evidence import (
     render_evidence,
     render_local_build_receipt,
     render_retained_local_archive_binding,
+    verify_retained_archive_artifact,
 )
 
 MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
@@ -403,10 +406,21 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("acquisition=local-build\n", result.stdout)
-        self.assertIn(f"source_sha={METADATA_COLLECTOR_SOURCE.commit}\n", result.stdout)
-        self.assertIn("build_target=metadata-collector-production\n", result.stdout)
-        self.assertIn("SOURCE_DATE_EPOCH=1794617901\n", result.stdout)
+        self.assertIn("acquisition=retained-archive\n", result.stdout)
+        self.assertIn("run_id=44638484329\n", result.stdout)
+        self.assertIn("run_attempt=2\n", result.stdout)
+        self.assertIn(
+            "root_digest=sha256:603d28e66c4b4e2b956a58aaafeee9b4c7f1dc81b81c5d00e2a3372521fe91f9\n",
+            result.stdout,
+        )
+        self.assertIn(
+            "archive_sha256=sha256:3087d509280cf9472ced7fc7c2481021d8adb4f61ad40edc2862dd2e77881f2d\n",
+            result.stdout,
+        )
+        self.assertIn(
+            "artifact_name=room-audio-metadata-collector-44638484329-2\n",
+            result.stdout,
+        )
         self.assertNotIn("password", result.stdout.lower())
 
     def test_livekit_renderer_selection_uses_the_current_protected_source(self):
@@ -424,13 +438,21 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("acquisition=local-build\n", result.stdout)
-        self.assertIn("build_target=livekit-render-production\n", result.stdout)
+        self.assertIn("acquisition=retained-archive\n", result.stdout)
+        self.assertIn("run_id=44638484329\n", result.stdout)
+        self.assertIn("run_attempt=2\n", result.stdout)
         self.assertIn(
-            "repository=rg.fr-par.scw.cloud/mastrao-production/livekit-render\n",
+            "root_digest=sha256:170838e1345ed82f7fbdb67d68168b0f0731d9bcb297e668cc328aec51f59047\n",
             result.stdout,
         )
-        self.assertNotIn("source_sha=", result.stdout)
+        self.assertIn(
+            "archive_sha256=sha256:bc5cd254f0dd2d010a6091356273b5b085a2fbf4db12c94157c931167fed05e0\n",
+            result.stdout,
+        )
+        self.assertIn(
+            "artifact_name=room-audio-livekit-render-44638484329-2\n",
+            result.stdout,
+        )
         self.assertNotIn("password", result.stdout.lower())
 
     def test_livekit_renderer_receipt_binds_current_source_recipe_and_oci_graph(self):
@@ -666,6 +688,53 @@ class RoomAudioProductionEvidenceTests(unittest.TestCase):
                 )
                 self.assertFalse(binding["publicationPerformed"])
                 self.assertFalse(binding["deploymentApplied"])
+
+    def test_selected_retained_artifact_verifies_exact_candidate_and_archive(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            candidate, layout, receipt, _ = self.metadata_fixture(directory)
+            graph_path = directory / "oci-graph.json"
+            write_json(
+                graph_path,
+                inspect_candidate(
+                    candidate=candidate,
+                    receipt_path=receipt,
+                    layout=layout,
+                    scan_layout=directory / "scan-layout",
+                ),
+            )
+            scan_path = directory / "scan-provenance.json"
+            write_json(scan_path, {"status": "PASS"})
+            archive_path = directory / "local-build.tar"
+            write_oci_archive(layout, archive_path)
+            artifact_directory = directory / "artifact"
+            binding = package_retained_local_archive_artifact(
+                role=METADATA_COLLECTOR_ROLE,
+                receipt_path=receipt,
+                graph_path=graph_path,
+                scan_provenance_path=scan_path,
+                archive_path=archive_path,
+                artifact_directory=artifact_directory,
+            )
+            retained = RetainedArchive(
+                candidate=candidate,
+                archive_sha256=binding["archive"]["sha256"],
+            )
+
+            with mock.patch.dict(
+                RETAINED_ARCHIVES,
+                {METADATA_COLLECTOR_ROLE: retained},
+            ):
+                verify_retained_archive_artifact(
+                    role=METADATA_COLLECTOR_ROLE,
+                    artifact_directory=artifact_directory,
+                )
+                (artifact_directory / "unexpected.txt").write_text("unexpected")
+                with self.assertRaisesRegex(ValueError, "file set"):
+                    verify_retained_archive_artifact(
+                        role=METADATA_COLLECTOR_ROLE,
+                        artifact_directory=artifact_directory,
+                    )
 
     def test_retained_archive_rejects_a_graph_from_other_oci_bytes(self):
         with tempfile.TemporaryDirectory() as name:
@@ -1519,36 +1588,28 @@ class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
         self.assertIn("MEET_STAGING_REGISTRY_READ_PASSWORD", workflow)
         self.assertIn("version: v0.74.0", workflow)
         self.assertIn("--to-oci-layout", workflow)
-        self.assertIn("target: ${{ steps.candidate.outputs.build_target }}", workflow)
-        self.assertEqual(
-            evidence_recipe_for(METADATA_COLLECTOR_ROLE).build_target,
-            "metadata-collector-production",
-        )
-        self.assertEqual(
-            evidence_recipe_for(LIVEKIT_RENDER_ROLE).build_target,
-            "livekit-render-production",
-        )
-        self.assertIn("render-local-build-receipt", workflow)
-        self.assertIn("rewrite-timestamp=true", workflow)
-        self.assertIn("push: false", workflow)
+        self.assertIn("verify-retained-archive", workflow)
+        self.assertNotIn("docker/build-push-action", workflow)
+        self.assertNotIn("render-local-build-receipt", workflow)
+        self.assertNotIn("rewrite-timestamp=true", workflow)
         self.assertIn("docker logout rg.fr-par.scw.cloud/mastrao-staging", workflow)
         self.assertIn("--trivy-binary", workflow)
         self.assertIn("--ignore-unfixed", workflow)
         self.assertIn(evidence_module.TRIVY_BINARY_DIGEST, workflow)
-        self.assertIn("Package the verified local-build archive and evidence", workflow)
+        self.assertIn("Package the rescanned retained archive and evidence", workflow)
         self.assertIn("Upload registry evidence only", workflow)
-        self.assertIn("Upload verified local-build evidence and OCI archive", workflow)
+        self.assertIn("Upload rescanned retained OCI archive and evidence", workflow)
         self.assertIn("package-local-archive", workflow)
-        self.assertIn('--archive "$RUNNER_TEMP/local-build.tar"', workflow)
+        self.assertIn('--archive "$RUNNER_TEMP/retained-source/local-build.tar"', workflow)
         self.assertIn(
             '--artifact-directory "$RUNNER_TEMP/retained-local-archive-artifact"',
             workflow,
         )
         local_upload = workflow.split(
-            "- name: Upload verified local-build evidence and OCI archive", 1
+            "- name: Upload rescanned retained OCI archive and evidence", 1
         )[1]
         self.assertIn(
-            "if: steps.candidate.outputs.acquisition == 'local-build'",
+            "if: steps.candidate.outputs.acquisition == 'retained-archive'",
             local_upload,
         )
         self.assertIn(
@@ -1566,10 +1627,10 @@ class RoomAudioProductionEvidenceWorkflowTests(unittest.TestCase):
             "Render the fail-closed scan and provenance evidence"
         )
         bind_position = workflow.index(
-            "Package the verified local-build archive and evidence"
+            "Package the rescanned retained archive and evidence"
         )
         local_upload_position = workflow.index(
-            "Upload verified local-build evidence and OCI archive"
+            "Upload rescanned retained OCI archive and evidence"
         )
         self.assertLess(install_position, login_position)
         self.assertLess(copy_position, logout_position)
